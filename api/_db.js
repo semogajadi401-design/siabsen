@@ -63,9 +63,11 @@ async function getJamSetting() {
   return result;
 }
 
-// ── TODAY STRING ──────────────────────────────────────────
+// ── TODAY STRING (WIB UTC+7) ──────────────────────────────
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  // Selalu gunakan tanggal WIB, bukan UTC
+  const wib = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+  return wib.toISOString().split('T')[0];
 }
 
 // ── JAM SEKARANG ──────────────────────────────────────────

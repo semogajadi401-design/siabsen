@@ -67,10 +67,32 @@ async function hapus({ id }) {
 }
 
 async function getByScan({ identifier }) {
-  const { data } = await supabase.from('siswa').select('id,nisn,nama,kelas,jenis_kelamin')
-    .or(`id.eq.${identifier},nisn.eq.${identifier}`).eq('status','Aktif').single();
-  if (!data) return { success: false, message: 'Siswa tidak ditemukan' };
-  return { success: true, data: { id: data.id, nisn: data.nisn, nama: data.nama, kelas: data.kelas, jenisKelamin: data.jenis_kelamin } };
+  if (!identifier) return { success: false, message: 'Identifier kosong' };
+  const id = identifier.trim();
+
+  // Coba cari berdasarkan ID siswa dulu
+  const { data: byId } = await supabase
+    .from('siswa')
+    .select('id,nisn,nama,kelas,jenis_kelamin,status')
+    .eq('id', id)
+    .maybeSingle();
+  if (byId) {
+    if (byId.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
+    return { success: true, data: { id: byId.id, nisn: byId.nisn, nama: byId.nama, kelas: byId.kelas, jenisKelamin: byId.jenis_kelamin } };
+  }
+
+  // Kalau tidak ketemu by ID, coba by NISN
+  const { data: byNisn } = await supabase
+    .from('siswa')
+    .select('id,nisn,nama,kelas,jenis_kelamin,status')
+    .eq('nisn', id)
+    .maybeSingle();
+  if (byNisn) {
+    if (byNisn.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
+    return { success: true, data: { id: byNisn.id, nisn: byNisn.nisn, nama: byNisn.nama, kelas: byNisn.kelas, jenisKelamin: byNisn.jenis_kelamin } };
+  }
+
+  return { success: false, message: 'Siswa tidak ditemukan' };
 }
 
 // ── IMPORT SISWA (TAMBAHAN) ───────────────────────────────────────────────────

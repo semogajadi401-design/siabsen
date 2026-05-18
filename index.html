@@ -207,9 +207,13 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
 /* KARTU SISWA */
 .student-card-print{width:386px;height:268px;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%);border-radius:10px;color:#fff;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;flex-shrink:0;box-sizing:border-box;display:flex;flex-direction:column;padding:0}
-.sc-deco1{position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.07);pointer-events:none}
-.sc-deco2{position:absolute;bottom:-50px;left:-20px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none}
-.sc-header{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,0.25);position:relative;z-index:1;flex-shrink:0}
+/* Batik SVG overlay layer */
+.sc-batik{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:1}
+.sc-batik svg{width:100%;height:100%}
+/* Deco circles (kept for depth, now z-index aware) */
+.sc-deco1{position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.06);pointer-events:none;z-index:1}
+.sc-deco2{position:absolute;bottom:-50px;left:-20px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.04);pointer-events:none;z-index:1}
+.sc-header{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,0.25);position:relative;z-index:2;flex-shrink:0}
 .sc-logo{width:38px;height:38px;border-radius:7px;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
 .sc-logo img{width:100%;height:100%;object-fit:contain}
 .sc-logo-icon{font-size:20px;line-height:1}
@@ -217,7 +221,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .sc-school-name{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
 .sc-school-sub{font-size:6pt;color:rgba(255,255,255,0.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .sc-badge{background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.38);border-radius:4px;padding:2px 8px;font-size:6pt;font-weight:700;text-transform:uppercase;white-space:nowrap;flex-shrink:0;color:#fff}
-.sc-body{display:flex;flex:1;position:relative;z-index:1;min-height:0}
+.sc-body{display:flex;flex:1;position:relative;z-index:2;min-height:0}
 .sc-photo-col{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 8px 8px 12px;flex-shrink:0}
 .sc-photo{width:64px;height:80px;border-radius:6px;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.38);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .sc-photo img{width:100%;height:100%;object-fit:cover}
@@ -229,8 +233,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .sc-label{font-size:5.5pt;color:rgba(255,255,255,0.62);text-transform:uppercase;letter-spacing:.3px;line-height:1;display:block}
 .sc-value{font-size:6.8pt;font-weight:600;color:#fff;line-height:1.3}
 .sc-qr-col{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 12px 6px 4px;gap:3px}
-.sc-qr-box{width:80px;height:80px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;overflow:visible;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.sc-qr-box>div,.sc-qr-box canvas,.sc-qr-box img{width:72px!important;height:72px!important;display:block!important;max-width:72px!important;max-height:72px!important}
+.sc-qr-box{width:80px;height:80px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sc-qr-box>div,.sc-qr-box canvas,.sc-qr-box img{width:72px!important;height:72px!important;display:block!important;max-width:none!important;max-height:none!important;flex-shrink:0}
 .sc-qr-label{font-size:5pt;color:rgba(255,255,255,0.65);text-align:center;letter-spacing:.3px;margin-top:2px}
 .sc-qr-id{font-size:5pt;font-family:monospace;color:rgba(255,255,255,0.72);letter-spacing:.5px;text-align:center}
 .kartu-item-wrap{border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface);display:inline-flex;flex-direction:column}
@@ -1168,7 +1172,7 @@ function renderKartuMiniPreview(){
   const s={id:'PREVIEW001',nisn:'0012345678',nama:'Nama Siswa Contoh',kelas:'X-1',jenisKelamin:'Laki-laki',tempatLahir:'Manado',tanggalLahir:'2008-01-15',agama:'Kristen'};
   wrap.style.cssText='transform:scale(0.65);transform-origin:top left;width:594px';
   wrap.innerHTML=`<div class="student-card-print" style="box-shadow:var(--shadow-md)">${buildKartuInnerHTML(s,APP.settings||{})}</div>`;
-  setTimeout(()=>{const qt=wrap.querySelector('.qr-target-PREVIEW001');if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';new QRCode(qt,{text:'PREVIEW',width:72,height:72,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.L});}},150);
+  setTimeout(()=>{const qt=wrap.querySelector('.qr-target-PREVIEW001');if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';requestAnimationFrame(()=>{new QRCode(qt,{text:'PREVIEW',width:72,height:72,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.L});});}},400);
 }
 
 // ── REKAP ─────────────────────────────────────────────────────────
@@ -1216,10 +1220,17 @@ async function loadKartuSiswa(){
       wrap.appendChild(footer); container.appendChild(wrap);
       setTimeout(()=>{
         const qt=document.querySelector('.qr-target-'+s.id);
-        if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';const qrText=s.id+'|'+(s.nisn||'');new QRCode(qt,{text:qrText,width:72,height:72,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});}
+        if(qt&&typeof QRCode!=='undefined'){
+          qt.innerHTML='';
+          const qrText=s.id+'|'+(s.nisn||'');
+          // requestAnimationFrame ensures layout is complete before QR renders
+          requestAnimationFrame(()=>{
+            new QRCode(qt,{text:qrText,width:72,height:72,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
+          });
+        }
         const dlBtn=document.getElementById('dlbtn_'+s.id);
         if(dlBtn) dlBtn.addEventListener('click',()=>downloadKartu(s,cardDiv));
-      },200);
+      },400);
     });
   }catch(e){container.innerHTML=`<p style="color:var(--danger)">Gagal: ${e.message}</p>`;}
 }
@@ -1235,7 +1246,44 @@ function buildKartuInnerHTML(s,settings){
   if(s.tanggalLahir){try{tglLahir=new Date(s.tanggalLahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});}catch(e){tglLahir=s.tanggalLahir;}}
   const subParts=[npsn?'NPSN: '+npsn:'',schoolAddr].filter(Boolean);
   const logoHTML=logoUrl?`<div class="sc-logo"><img src="${logoUrl}" alt="logo"></div>`:`<div class="sc-logo"><span class="sc-logo-icon">🏫</span></div>`;
-  return `<div class="sc-deco1"></div><div class="sc-deco2"></div>
+  // Batik parang-kawung SVG pattern (traditional Javanese motif, semi-transparent)
+  const batikSVG=`<div class="sc-batik"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs>
+    <pattern id="kawung-${s.id}" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+      <!-- Kawung (four-petal flower) motif -->
+      <ellipse cx="16" cy="8" rx="5" ry="7" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
+      <ellipse cx="16" cy="24" rx="5" ry="7" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
+      <ellipse cx="8" cy="16" rx="7" ry="5" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
+      <ellipse cx="24" cy="16" rx="7" ry="5" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
+      <circle cx="16" cy="16" r="2.5" fill="rgba(255,255,255,0.09)"/>
+      <circle cx="0" cy="0" r="2.5" fill="rgba(255,255,255,0.09)"/>
+      <circle cx="32" cy="0" r="2.5" fill="rgba(255,255,255,0.09)"/>
+      <circle cx="0" cy="32" r="2.5" fill="rgba(255,255,255,0.09)"/>
+      <circle cx="32" cy="32" r="2.5" fill="rgba(255,255,255,0.09)"/>
+    </pattern>
+    <pattern id="parang-${s.id}" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <!-- Parang diagonal lines -->
+      <line x1="0" y1="4" x2="24" y2="4" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+      <line x1="0" y1="12" x2="24" y2="12" stroke="rgba(255,255,255,0.05)" stroke-width="0.8"/>
+      <line x1="0" y1="20" x2="24" y2="20" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+    </pattern>
+    <!-- Truntum dot accent layer -->
+    <pattern id="truntum-${s.id}" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="10" r="1" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="0" cy="0" r="1" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="20" cy="0" r="1" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="0" cy="20" r="1" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.08)"/>
+    </pattern>
+  </defs>
+  <!-- Stack three batik layers for depth -->
+  <rect width="100%" height="100%" fill="url(#parang-${s.id})"/>
+  <rect width="100%" height="100%" fill="url(#kawung-${s.id})"/>
+  <rect width="100%" height="100%" fill="url(#truntum-${s.id})"/>
+  <!-- Soft golden shimmer diagonal accent -->
+  <rect x="0" y="0" width="100%" height="100%" fill="url(#shimmer-${s.id})"/>
+  <defs><linearGradient id="shimmer-${s.id}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="rgba(255,220,100,0.04)"/><stop offset="50%" stop-color="rgba(255,255,255,0.0)"/><stop offset="100%" stop-color="rgba(255,220,100,0.05)"/></linearGradient></defs>
+  </svg></div>`;
+  return `${batikSVG}<div class="sc-deco1"></div><div class="sc-deco2"></div>
     <div class="sc-header">${logoHTML}<div class="sc-school-wrap"><div class="sc-school-name">${schoolName}</div>${subParts.length?`<div class="sc-school-sub">${subParts.join(' • ')}</div>`:''}</div><div class="sc-badge">Kartu Pelajar</div></div>
     <div class="sc-body">
       <div class="sc-photo-col"><div class="sc-photo"><span class="sc-avatar">${avatar}</span></div><div class="sc-kelas">${s.kelas||'-'}</div></div>

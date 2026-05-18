@@ -31,18 +31,30 @@ async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
     return { success: false, message: `${siswa.nama} sudah absen datang hari ini pukul ${existing.jam_datang}` };
   }
 
-  // Tentukan status
+  // Ambil jam setting
   const jamSetting = await getJamSetting();
-  const batas = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
-  const statusDatang = jam > batas ? 'Terlambat' : 'Hadir';
+  const jamMulai  = jamSetting['JAM_DATANG_MULAI']   || '06:30';
+  const jamSelesai = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
+
+  // Validasi rentang jam absensi datang
+  if (jam < jamMulai) {
+    return { success: false, message: `Absensi datang belum dibuka. Mulai pukul ${jamMulai} WIB` };
+  }
+  if (jam > jamSelesai) {
+    // Tetap izinkan tapi tandai Terlambat (tidak blokir)
+  }
+
+  const statusDatang = jam > jamSelesai ? 'Terlambat' : 'Hadir';
 
   const id = generateID('AB');
-  await supabase.from('absensi').insert({
+  const { error } = await supabase.from('absensi').insert({
     id, id_siswa: idSiswa, nisn: siswa.nisn, nama_siswa: siswa.nama,
     kelas: siswa.kelas, tanggal: today, hari, jam_datang: jam,
     status_datang: statusDatang, id_guru_piket: idGuru||'',
     nama_guru_piket: namaGuru||'', metode: metode||'Manual'
   });
+
+  if (error) return { success: false, message: 'Gagal menyimpan absensi: ' + error.message };
 
   return {
     success: true,
@@ -60,14 +72,23 @@ async function absensiPulang({ idSiswa, idGuru, namaGuru, metode }) {
 
   const { data: absen } = await supabase.from('absensi')
     .select('*').eq('id_siswa', idSiswa).eq('tanggal', today).single();
-  if (!absen) return { success: false, message: 'Belum absen datang hari ini' };
-  if (absen.jam_pulang) return { success: false, message: `${absen.nama_siswa} sudah absen pulang hari ini` };
+  if (!absen) return { success: false, message: 'Siswa belum absen datang hari ini' };
+  if (absen.jam_pulang) return { success: false, message: `${absen.nama_siswa} sudah absen pulang hari ini pukul ${absen.jam_pulang}` };
   if (!absen.jam_datang) return { success: false, message: `${absen.nama_siswa} belum absen datang hari ini` };
 
-  await supabase.from('absensi').update({
+  // Validasi jam pulang
+  const jamSetting = await getJamSetting();
+  const jamMulaiPulang = jamSetting['JAM_PULANG_MULAI'] || '14:00';
+  if (jam < jamMulaiPulang) {
+    return { success: false, message: `Absensi pulang belum dibuka. Mulai pukul ${jamMulaiPulang} WIB` };
+  }
+
+  const { error } = await supabase.from('absensi').update({
     jam_pulang: jam, status_pulang: 'Pulang',
     id_guru_piket: idGuru||'', nama_guru_piket: namaGuru||'', metode: metode||'Manual'
   }).eq('id', absen.id);
+
+  if (error) return { success: false, message: 'Gagal menyimpan absensi pulang: ' + error.message };
 
   return {
     success: true,

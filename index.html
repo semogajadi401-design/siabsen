@@ -1388,6 +1388,7 @@ function scanQRLoop(){
 // Scan dari file/foto
 async function scanFromFile(event){
   const file=event.target.files[0]; if(!file)return;
+  toast('🔍 Membaca QR code...','info',2000);
   try{
     const img=await createImageBitmap(file);
     const canvas=document.createElement('canvas');
@@ -1395,33 +1396,49 @@ async function scanFromFile(event){
     canvas.getContext('2d').drawImage(img,0,0);
     const imageData=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);
     const code=jsQR(imageData.data,imageData.width,imageData.height);
-    if(code){await processQRResult(code.data);}
-    else{toast('QR tidak terbaca. Coba foto lebih dekat dan jelas.','warning');}
-  }catch(e){toast('Gagal baca foto: '+e.message,'error');}
+    if(code){
+      toast('✅ QR terbaca: '+code.data.substring(0,20)+'...','info',2000);
+      await processQRResult(code.data);
+    }else{
+      toast('❌ QR tidak terbaca. Coba foto lebih dekat dan terang.','warning',4000);
+    }
+  }catch(e){
+    toast('❌ Gagal baca foto: '+e.message,'error',4000);
+    console.error('scanFromFile error:',e);
+  }
   event.target.value='';
 }
 
 let scanCooldown=false;
 async function processQRResult(data){
-  if(scanCooldown)return;
+  if(scanCooldown){toast('⏳ Harap tunggu 3 detik antar scan','warning',2000);return;}
   scanCooldown=true;
   setTimeout(()=>{scanCooldown=false;if(APP.scanActive)APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);},3000);
   try{
     // Format QR: "id|nisn" — ambil bagian pertama (ID siswa)
     const parts=data.split('|');
     const identifier=parts[0].trim();
-    if(!identifier){showScanFlash('error','❌ QR Tidak Valid');return;}
+    if(!identifier){toast('❌ Format QR tidak valid','error');showScanFlash('error','❌ QR Tidak Valid');return;}
+
+    toast('🔍 Mencari siswa...','info',2000);
     const siswa=await api('siswa','getByScan',{identifier});
+    console.log('getByScan result:',siswa);
+
     if(!siswa.success){
+      toast('❌ '+siswa.message,'error',4000);
       showScanFlash('error','❌ '+siswa.message);
       showAbsenResult({success:false,message:siswa.message},{});
       APP.scanFailCount++;
       return;
     }
+
+    toast('👤 Siswa ditemukan: '+siswa.data.nama,'info',2000);
     await doAbsensi(siswa.data);
   }catch(e){
-    showScanFlash('error','❌ Koneksi Gagal');
-    showAbsenResult({success:false,message:'Koneksi gagal: '+e.message},{});
+    toast('❌ Error: '+e.message,'error',5000);
+    showScanFlash('error','❌ Error');
+    showAbsenResult({success:false,message:'Error: '+e.message},{});
+    console.error('processQRResult error:',e);
   }
 }
 
@@ -1445,13 +1462,28 @@ async function doManualAbsen(){
 async function doAbsensi(siswa){
   const guru=APP.user;
   try{
+    toast('⏳ Menyimpan absensi '+siswa.nama+'...','info',3000);
     let result;
-    if(absenMode==='datang'){result=await api('absensi','datang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});}
-    else{result=await api('absensi','pulang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});}
+    if(absenMode==='datang'){
+      result=await api('absensi','datang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});
+    }else{
+      result=await api('absensi','pulang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});
+    }
+    console.log('doAbsensi result:',result);
     showAbsenResult(result,siswa);
-    if(result.success){showScanFlash('success',result.status==='Terlambat'?'⚠️ TERLAMBAT':'✅ BERHASIL');loadLogAbsensi();}
-    else{showScanFlash('error','❌ '+result.message);}
-  }catch(e){showAbsenResult({success:false,message:'Koneksi gagal'},siswa);}
+    if(result.success){
+      toast(result.message,'success',5000);
+      showScanFlash('success',result.status==='Terlambat'?'⚠️ TERLAMBAT':'✅ BERHASIL');
+      loadLogAbsensi();
+    }else{
+      toast('❌ '+result.message,'error',5000);
+      showScanFlash('error','❌ Gagal');
+    }
+  }catch(e){
+    toast('❌ Koneksi gagal: '+e.message,'error',5000);
+    showAbsenResult({success:false,message:'Koneksi gagal: '+e.message},siswa);
+    console.error('doAbsensi error:',e);
+  }
 }
 
 function showAbsenResult(result,siswa){

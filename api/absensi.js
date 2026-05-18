@@ -11,6 +11,8 @@ module.exports = async (req, res) => {
     if (action === 'rekapHarian')   return res.json(await rekapHarian(params));
     if (action === 'rekapBulanan')  return res.json(await rekapBulanan(params));
     if (action === 'dashboard')     return res.json(await dashboard());
+    if (action === 'resetAbsensi')  return res.json(await resetAbsensi(params));
+    // ↑ TAMBAHAN: reset absensi per kelas atau semua
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
@@ -26,11 +28,10 @@ async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
   // Cek sudah absen belum
   const { data: existing } = await supabase.from('absensi')
     .select('id,jam_datang').eq('id_siswa', idSiswa).eq('tanggal', today).single();
-  if (existing?.jam_datang) {
+  if (existing?.jam_datang)
     return { success: false, message: `${siswa.nama} sudah absen datang hari ini pukul ${existing.jam_datang}` };
-  }
 
-  // Tentukan status berdasarkan batas jam datang (tanpa blokir jam)
+  // Tentukan status (tanpa blokir jam)
   const jamSetting = await getJamSetting();
   const jamSelesai = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
   const statusDatang = jam > jamSelesai ? 'Terlambat' : 'Hadir';
@@ -39,8 +40,8 @@ async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
   const { error } = await supabase.from('absensi').insert({
     id, id_siswa: idSiswa, nisn: siswa.nisn, nama_siswa: siswa.nama,
     kelas: siswa.kelas, tanggal: today, hari, jam_datang: jam,
-    status_datang: statusDatang, id_guru_piket: idGuru||'',
-    nama_guru_piket: namaGuru||'', metode: metode||'Manual'
+    status_datang: statusDatang, id_guru_piket: idGuru || '',
+    nama_guru_piket: namaGuru || '', metode: metode || 'Manual'
   });
 
   if (error) return { success: false, message: 'Gagal menyimpan absensi: ' + error.message };
@@ -63,11 +64,10 @@ async function absensiPulang({ idSiswa, idGuru, namaGuru, metode }) {
     .select('*').eq('id_siswa', idSiswa).eq('tanggal', today).single();
   if (!absen) return { success: false, message: 'Siswa belum absen datang hari ini' };
   if (absen.jam_pulang) return { success: false, message: `${absen.nama_siswa} sudah absen pulang hari ini pukul ${absen.jam_pulang}` };
-  if (!absen.jam_datang) return { success: false, message: `${absen.nama_siswa} belum absen datang hari ini` };
 
   const { error } = await supabase.from('absensi').update({
     jam_pulang: jam, status_pulang: 'Pulang',
-    id_guru_piket: idGuru||'', nama_guru_piket: namaGuru||'', metode: metode||'Manual'
+    id_guru_piket: idGuru || '', nama_guru_piket: namaGuru || '', metode: metode || 'Manual'
   }).eq('id', absen.id);
 
   if (error) return { success: false, message: 'Gagal menyimpan absensi pulang: ' + error.message };
@@ -85,7 +85,7 @@ async function rekapHarian({ tanggal }) {
   if (error) return { success: false, message: error.message };
   return {
     success: true,
-    data: (data||[]).map(d => ({
+    data: (data || []).map(d => ({
       id: d.id, idSiswa: d.id_siswa, nisn: d.nisn, nama: d.nama_siswa,
       kelas: d.kelas, tanggal: d.tanggal, hari: d.hari,
       jamDatang: d.jam_datang, statusDatang: d.status_datang,
@@ -96,17 +96,20 @@ async function rekapHarian({ tanggal }) {
 }
 
 async function rekapBulanan({ bulan, tahun, kelas }) {
-  const start = `${tahun}-${String(bulan).padStart(2,'0')}-01`;
-  const end = `${tahun}-${String(bulan).padStart(2,'0')}-31`;
+  const start = `${tahun}-${String(bulan).padStart(2, '0')}-01`;
+  const end = `${tahun}-${String(bulan).padStart(2, '0')}-31`;
   let q = supabase.from('absensi').select('*').gte('tanggal', start).lte('tanggal', end);
   if (kelas) q = q.eq('kelas', kelas);
   const { data, error } = await q;
   if (error) return { success: false, message: error.message };
 
   const grouped = {};
-  (data||[]).forEach(r => {
+  (data || []).forEach(r => {
     if (!grouped[r.id_siswa]) {
-      grouped[r.id_siswa] = { idSiswa: r.id_siswa, nisn: r.nisn, nama: r.nama_siswa, kelas: r.kelas, hadir: 0, terlambat: 0, pulang: 0 };
+      grouped[r.id_siswa] = {
+        idSiswa: r.id_siswa, nisn: r.nisn, nama: r.nama_siswa,
+        kelas: r.kelas, hadir: 0, terlambat: 0, pulang: 0
+      };
     }
     if (r.status_datang === 'Hadir') grouped[r.id_siswa].hadir++;
     if (r.status_datang === 'Terlambat') grouped[r.id_siswa].terlambat++;
@@ -118,25 +121,47 @@ async function rekapBulanan({ bulan, tahun, kelas }) {
 async function dashboard() {
   const today = todayStr();
   const [{ count: totalSiswa }, { count: totalGuru }, { data: absenHariIni }, jamSetting, piket] = await Promise.all([
-    supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status','Aktif'),
-    supabase.from('guru').select('*', { count: 'exact', head: true }).eq('status','Aktif'),
+    supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
+    supabase.from('guru').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
     supabase.from('absensi').select('status_datang,status_pulang').eq('tanggal', today),
     getJamSetting(),
     supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hariIni())
   ]);
 
-  const hadirHariIni = (absenHariIni||[]).filter(a => a.status_datang === 'Hadir').length;
-  const terlambatHariIni = (absenHariIni||[]).filter(a => a.status_datang === 'Terlambat').length;
+  const hadirHariIni = (absenHariIni || []).filter(a => a.status_datang === 'Hadir').length;
+  const terlambatHariIni = (absenHariIni || []).filter(a => a.status_datang === 'Terlambat').length;
 
   return {
     success: true,
     data: {
-      totalSiswa: totalSiswa||0, totalGuru: totalGuru||0,
+      totalSiswa: totalSiswa || 0, totalGuru: totalGuru || 0,
       hadirHariIni, terlambatHariIni,
-      alphaHariIni: Math.max(0, (totalSiswa||0) - hadirHariIni - terlambatHariIni),
+      alphaHariIni: Math.max(0, (totalSiswa || 0) - hadirHariIni - terlambatHariIni),
       jamSetting,
-      piketHariIni: (piket.data||[]).map(p => ({ idGuru: p.id_guru, namaGuru: p.nama_guru, jabatan: p.jabatan })),
+      piketHariIni: (piket.data || []).map(p => ({ idGuru: p.id_guru, namaGuru: p.nama_guru, jabatan: p.jabatan })),
       hariIni: hariIni()
     }
+  };
+}
+
+// ── RESET ABSENSI PER KELAS ATAU SEMUA ───────────────────────────
+async function resetAbsensi({ kelas, semua }) {
+  // kelas = array nama kelas, semua = boolean
+  if (semua) {
+    const { error } = await supabase.from('absensi').delete().neq('id', 'x');
+    if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
+    return { success: true, message: 'Seluruh riwayat absensi berhasil dihapus' };
+  }
+
+  if (!kelas || !kelas.length)
+    return { success: false, message: 'Pilih minimal satu kelas' };
+
+  // Hapus per kelas (loop karena Supabase .in() support array)
+  const { error } = await supabase.from('absensi').delete().in('kelas', kelas);
+  if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
+
+  return {
+    success: true,
+    message: `Riwayat absensi kelas ${kelas.join(', ')} berhasil dihapus`
   };
 }

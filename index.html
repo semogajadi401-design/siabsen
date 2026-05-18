@@ -1447,6 +1447,194 @@ async function submitGantiPass(){
   if(r.success)closeModal('modalGantiPass');
 }
 
+
+
+// ── IMPORT SISWA ──────────────────────────────────────────────────
+let importData = [];
+
+function openModalImport() {
+  importData = [];
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('btnDoImport').style.display = 'none';
+  const fi = document.getElementById('importFile');
+  if (fi) fi.value = '';
+  const dz = document.getElementById('dropZone');
+  if (dz) {
+    dz.style.borderColor = 'var(--border)';
+    const d = dz.querySelector('div');
+    if (d) d.textContent = 'Klik atau drag file di sini';
+  }
+  openModal('modalImport');
+}
+
+function downloadTemplateExcel() {
+  var bom = '\uFEFF';
+  var header = 'NISN,Nama Lengkap,Jenis Kelamin,Agama,Tempat Lahir,Tanggal Lahir,Kelas,Tahun Masuk,Nama Orang Tua,No HP Orang Tua,Alamat\n';
+  var contoh = [
+    '0012345678,Ahmad Fauzi,Laki-laki,Islam,Makassar,2008-05-15,X-1,2024,Bapak Fauzi,081234567890,Jl. Pendidikan No.1',
+    '0012345679,Siti Rahmah,Perempuan,Islam,Gowa,2008-07-20,X-1,2024,Ibu Rahmah,081234567891,Jl. Mawar No.5',
+    '0012345680,Budi Santoso,Laki-laki,Kristen,Manado,2008-03-10,X-2,2024,Bapak Santoso,081234567892,Jl. Anggrek No.3'
+  ].join('\n');
+  var csv = bom + header + contoh;
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'Template_Import_Siswa.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Template berhasil didownload!', 'success');
+}
+
+function handleImportFile(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var dz = document.getElementById('dropZone');
+  if (dz) dz.style.borderColor = 'var(--primary)';
+
+  if (file.name.toLowerCase().endsWith('.csv')) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      parseCSV(e.target.result);
+      if (dz) { var d = dz.querySelector('div'); if (d) d.textContent = '\u2705 ' + file.name; }
+    };
+    reader.readAsText(file, 'UTF-8');
+  } else if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+    if (typeof XLSX !== 'undefined') {
+      var reader2 = new FileReader();
+      reader2.onload = function(e) {
+        var wb = XLSX.read(e.target.result, { type: 'array' });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        parseExcelRows(rows);
+        if (dz) { var d = dz.querySelector('div'); if (d) d.textContent = '\u2705 ' + file.name; }
+      };
+      reader2.readAsArrayBuffer(file);
+    } else {
+      toast('XLSX belum siap, coba upload ulang dalam 2 detik', 'warning');
+    }
+  }
+}
+
+var COL_MAP = {
+  nisn: ['nisn'],
+  nama: ['nama', 'namalengkap', 'nama_lengkap', 'namasiswa', 'namalengkap'],
+  jenisKelamin: ['jeniskelamin', 'jenis_kelamin', 'jk', 'gender'],
+  agama: ['agama'],
+  tempatLahir: ['tempatlahir', 'tempat_lahir', 'tempat'],
+  tanggalLahir: ['tanggallahir', 'tanggal_lahir', 'tgl_lahir', 'tanggal'],
+  kelas: ['kelas', 'class'],
+  tahunMasuk: ['tahunmasuk', 'tahun_masuk', 'tahun'],
+  namaOrtu: ['namaortu', 'nama_ortu', 'ortu', 'namaorangtua'],
+  noHpOrtu: ['nohportu', 'no_hp_ortu', 'hportu', 'nohp'],
+  alamat: ['alamat', 'address']
+};
+
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  var lines = text.split('\n').filter(function(l) { return l.trim(); });
+  if (lines.length < 2) { toast('File kosong atau format salah', 'error'); return; }
+  var headers = lines[0].split(',').map(function(h) { return h.trim().toLowerCase().replace(/\s/g, ''); });
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var vals = lines[i].split(',').map(function(v) { return v.trim().replace(/^"|"$/g, ''); });
+    if (vals.length < 2 || !vals[0]) continue;
+    var row = {};
+    headers.forEach(function(h, idx) { row[h] = vals[idx] || ''; });
+    rows.push(row);
+  }
+  parseExcelRows(rows);
+}
+
+function parseExcelRows(rows) {
+  if (!rows.length) { toast('Data kosong', 'error'); return; }
+  var firstRow = rows[0];
+  var origKeys = Object.keys(firstRow);
+  var firstKeys = origKeys.map(function(k) { return k.toLowerCase().replace(/\s/g, ''); });
+  var keyMap = {};
+  Object.keys(COL_MAP).forEach(function(field) {
+    var candidates = COL_MAP[field];
+    for (var ci = 0; ci < candidates.length; ci++) {
+      var idx = firstKeys.indexOf(candidates[ci]);
+      if (idx >= 0) { keyMap[field] = origKeys[idx]; break; }
+    }
+  });
+
+  importData = rows.map(function(row) {
+    return {
+      nisn: ((row[keyMap.nisn] || '') + '').trim(),
+      nama: ((row[keyMap.nama] || '') + '').trim(),
+      jenisKelamin: row[keyMap.jenisKelamin] || 'Laki-laki',
+      agama: row[keyMap.agama] || 'Islam',
+      tempatLahir: row[keyMap.tempatLahir] || '',
+      tanggalLahir: row[keyMap.tanggalLahir] || null,
+      kelas: ((row[keyMap.kelas] || '') + '').trim(),
+      tahunMasuk: row[keyMap.tahunMasuk] || new Date().getFullYear(),
+      namaOrtu: row[keyMap.namaOrtu] || '',
+      noHpOrtu: row[keyMap.noHpOrtu] || '',
+      alamat: row[keyMap.alamat] || ''
+    };
+  }).filter(function(r) { return r.nisn && r.nama; });
+
+  var preview = document.getElementById('importPreview');
+  if (!preview) return;
+  preview.style.display = 'block';
+  var head = document.getElementById('importPreviewHead');
+  var body = document.getElementById('importPreviewBody');
+  head.innerHTML = '<th>NISN</th><th>Nama</th><th>Kelas</th><th>JK</th><th>Agama</th>';
+  body.innerHTML = importData.slice(0, 5).map(function(r) {
+    return '<tr><td><code>' + r.nisn + '</code></td><td>' + r.nama + '</td><td><span class="badge badge-primary">' + (r.kelas||'-') + '</span></td><td>' + r.jenisKelamin + '</td><td>' + r.agama + '</td></tr>';
+  }).join('');
+  var sum = document.getElementById('importSummary');
+  if (sum) sum.textContent = '\u2705 ' + importData.length + ' data siap diimport' + (importData.length > 5 ? ' (menampilkan 5 dari ' + importData.length + ')' : '');
+  var btn = document.getElementById('btnDoImport');
+  if (btn) btn.style.display = 'inline-flex';
+  var res = document.getElementById('importResult');
+  if (res) res.style.display = 'none';
+}
+
+async function doImport() {
+  if (!importData.length) { toast('Tidak ada data untuk diimport', 'warning'); return; }
+  var btn = document.getElementById('btnDoImport');
+  if (btn) { btn.disabled = true; btn.textContent = '\u23f3 Mengimport...'; }
+  try {
+    var result = await api('siswa', 'importSiswa', { dataList: importData });
+    var resEl = document.getElementById('importResult');
+    if (resEl) {
+      resEl.style.display = 'block';
+      if (result.success) {
+        var errHtml = '';
+        if (result.errors && result.errors.length) {
+          errHtml = '<details style="margin-top:8px"><summary style="font-size:.82rem;cursor:pointer;color:var(--warning)">\u26a0\ufe0f ' + result.gagal + ' data gagal (lihat detail)</summary><ul style="margin-top:6px;font-size:.8rem;color:var(--text-muted)">' + result.errors.map(function(e) { return '<li>' + e + '</li>'; }).join('') + '</ul></details>';
+        }
+        resEl.innerHTML = '<div style="padding:14px;background:var(--success-light);border-radius:10px;border-left:4px solid var(--success)"><p style="font-weight:700;color:var(--success);margin-bottom:6px">\u2705 ' + result.message + '</p>' + errHtml + '</div>';
+        toast(result.message, 'success', 5000);
+        importData = [];
+        if (btn) btn.style.display = 'none';
+        loadSiswa();
+      } else {
+        resEl.innerHTML = '<div style="padding:14px;background:var(--danger-light);border-radius:10px"><p style="color:var(--danger);font-weight:700">\u274c ' + result.message + '</p></div>';
+        toast(result.message, 'error');
+      }
+    }
+  } catch(e) {
+    toast('Terjadi kesalahan: ' + e.message, 'error');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udce5 Import Sekarang'; }
+}
+
+// Load SheetJS untuk baca file Excel
+(function() {
+  if (typeof XLSX === 'undefined') {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    document.head.appendChild(s);
+  }
+})();
+
 // ── EVENTS ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-backdrop').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open');}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));});
@@ -1496,181 +1684,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelect
     </div>
   </div>
 </div>
-
-<script>
-// ── IMPORT SISWA ──────────────────────────────────────────
-let importData = [];
-
-function openModalImport() {
-  importData = [];
-  document.getElementById('importPreview').style.display = 'none';
-  document.getElementById('importResult').style.display = 'none';
-  document.getElementById('btnDoImport').style.display = 'none';
-  document.getElementById('importFile').value = '';
-  openModal('modalImport');
-}
-
-function downloadTemplateExcel() {
-  // Generate CSV template dengan BOM untuk Excel
-  const bom = '﻿';
-  const header = 'NISN,Nama Lengkap,Jenis Kelamin,Agama,Tempat Lahir,Tanggal Lahir,Kelas,Tahun Masuk,Nama Orang Tua,No HP Orang Tua,Alamat
-';
-  const contoh = [
-    '0012345678,Ahmad Fauzi,Laki-laki,Islam,Makassar,2008-05-15,X-1,2024,Bapak Fauzi,081234567890,Jl. Pendidikan No.1',
-    '0012345679,Siti Rahmah,Perempuan,Islam,Gowa,2008-07-20,X-1,2024,Ibu Rahmah,081234567891,Jl. Mawar No.5',
-    '0012345680,Budi Santoso,Laki-laki,Kristen,Manado,2008-03-10,X-2,2024,Bapak Santoso,081234567892,Jl. Anggrek No.3'
-  ].join('
-');
-  const csv = bom + header + contoh;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'Template_Import_Siswa.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  toast('Template berhasil didownload!', 'success');
-}
-
-function handleImportFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const label = document.getElementById('dropZone');
-  label.style.borderColor = 'var(--primary)';
-  label.querySelector('div').textContent = '⏳ Memproses...';
-
-  if (file.name.endsWith('.csv')) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      parseCSV(e.target.result);
-      label.querySelector('div').textContent = '✅ ' + file.name;
-    };
-    reader.readAsText(file, 'UTF-8');
-  } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-    // Pakai SheetJS jika tersedia, otherwise instruksikan simpan sebagai CSV
-    if (typeof XLSX !== 'undefined') {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const wb = XLSX.read(e.target.result, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        parseExcelRows(rows);
-        label.querySelector('div').textContent = '✅ ' + file.name;
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      toast('Untuk file Excel, simpan dulu sebagai CSV (.csv) lalu upload', 'warning', 5000);
-      label.style.borderColor = 'var(--border)';
-      label.querySelector('div').textContent = 'Klik atau drag file di sini';
-    }
-  }
-}
-
-function parseCSV(text) {
-  // Remove BOM
-  text = text.replace(/^﻿/, '');
-  const lines = text.split(/
-?
-/).filter(l => l.trim());
-  if (lines.length < 2) { toast('File kosong atau format salah', 'error'); return; }
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g,''));
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    if (vals.length < 2 || !vals[0]) continue;
-    const row = {};
-    headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
-    rows.push(row);
-  }
-  parseExcelRows(rows);
-}
-
-const COL_MAP = {
-  nisn: ['nisn'],
-  nama: ['nama', 'namalengkap', 'nama_lengkap', 'namasiswa'],
-  jenisKelamin: ['jeniskelamin', 'jenis_kelamin', 'jk', 'gender'],
-  agama: ['agama'],
-  tempatLahir: ['tempatlahir', 'tempat_lahir', 'tempat'],
-  tanggalLahir: ['tanggallahir', 'tanggal_lahir', 'tgl_lahir', 'tanggal'],
-  kelas: ['kelas', 'class'],
-  tahunMasuk: ['tahunmasuk', 'tahun_masuk', 'tahun'],
-  namaOrtu: ['namaortu', 'nama_ortu', 'ortu', 'namaorangtua'],
-  noHpOrtu: ['nohportu', 'no_hp_ortu', 'hportu', 'nohp'],
-  alamat: ['alamat', 'address']
-};
-
-function parseExcelRows(rows) {
-  if (!rows.length) { toast('Data kosong', 'error'); return; }
-  const firstRow = rows[0];
-  const keyMap = {};
-  const firstKeys = Object.keys(firstRow).map(k => k.toLowerCase().replace(/\s+/g,''));
-  Object.entries(COL_MAP).forEach(([field, candidates]) => {
-    const origKeys = Object.keys(firstRow);
-    for (const cand of candidates) {
-      const idx = firstKeys.indexOf(cand);
-      if (idx >= 0) { keyMap[field] = origKeys[idx]; break; }
-    }
-  });
-
-  importData = rows.map(row => ({
-    nisn: (row[keyMap.nisn] || '').toString().trim(),
-    nama: (row[keyMap.nama] || '').toString().trim(),
-    jenisKelamin: row[keyMap.jenisKelamin] || 'Laki-laki',
-    agama: row[keyMap.agama] || 'Islam',
-    tempatLahir: row[keyMap.tempatLahir] || '',
-    tanggalLahir: row[keyMap.tanggalLahir] || null,
-    kelas: (row[keyMap.kelas] || '').toString().trim(),
-    tahunMasuk: row[keyMap.tahunMasuk] || new Date().getFullYear(),
-    namaOrtu: row[keyMap.namaOrtu] || '',
-    noHpOrtu: row[keyMap.noHpOrtu] || '',
-    alamat: row[keyMap.alamat] || ''
-  })).filter(r => r.nisn && r.nama);
-
-  // Preview
-  const preview = document.getElementById('importPreview');
-  preview.style.display = 'block';
-  const head = document.getElementById('importPreviewHead');
-  const body = document.getElementById('importPreviewBody');
-  head.innerHTML = '<th>NISN</th><th>Nama</th><th>Kelas</th><th>JK</th><th>Agama</th>';
-  body.innerHTML = importData.slice(0, 5).map(r =>
-    `<tr><td><code>${r.nisn}</code></td><td>${r.nama}</td><td><span class="badge badge-primary">${r.kelas||'-'}</span></td><td>${r.jenisKelamin}</td><td>${r.agama}</td></tr>`
-  ).join('');
-  document.getElementById('importSummary').textContent = `✅ ${importData.length} data siap diimport${importData.length > 5 ? ` (menampilkan 5 dari ${importData.length})` : ''}`;
-  document.getElementById('btnDoImport').style.display = 'inline-flex';
-  document.getElementById('importResult').style.display = 'none';
-}
-
-async function doImport() {
-  if (!importData.length) { toast('Tidak ada data untuk diimport', 'warning'); return; }
-  const btn = document.getElementById('btnDoImport');
-  btn.disabled = true; btn.textContent = '⏳ Mengimport...';
-  try {
-    const result = await api('siswa', 'importSiswa', { dataList: importData });
-    const resEl = document.getElementById('importResult');
-    resEl.style.display = 'block';
-    if (result.success) {
-      resEl.innerHTML = `<div style="padding:14px;background:var(--success-light);border-radius:10px;border-left:4px solid var(--success)">
-        <p style="font-weight:700;color:var(--success);margin-bottom:6px">✅ ${result.message}</p>
-        ${result.errors.length ? `<details style="margin-top:8px"><summary style="font-size:.82rem;cursor:pointer;color:var(--warning)">⚠️ ${result.gagal} data gagal (lihat detail)</summary><ul style="margin-top:6px;font-size:.8rem;color:var(--text-muted)">${result.errors.map(e=>`<li>${e}</li>`).join('')}</ul></details>` : ''}
-      </div>`;
-      toast(result.message, 'success', 5000);
-      importData = [];
-      document.getElementById('btnDoImport').style.display = 'none';
-      loadSiswa();
-    } else {
-      resEl.innerHTML = `<div style="padding:14px;background:var(--danger-light);border-radius:10px"><p style="color:var(--danger);font-weight:700">❌ ${result.message}</p></div>`;
-      toast(result.message, 'error');
-    }
-  } catch(e) { toast('Terjadi kesalahan: ' + e.message, 'error'); }
-  btn.disabled = false; btn.textContent = '📥 Import Sekarang';
-}
-
-// Load SheetJS untuk baca Excel
-(function() {
-  const s = document.createElement('script');
-  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-  document.head.appendChild(s);
-})();
-</script>
 
 </body>
 </html>

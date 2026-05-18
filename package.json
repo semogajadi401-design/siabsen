@@ -1,0 +1,8 @@
+{
+  "name": "siabsen",
+  "version": "1.0.0",
+  "description": "Sistem Informasi Absensi Sekolah",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}

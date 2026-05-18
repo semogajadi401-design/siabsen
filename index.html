@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SIABSEN - Sistem Informasi Absensi Sekolah</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+:root {
+  --primary:#1565C0;--primary-dark:#0D47A1;--primary-light:#1976D2;--primary-pale:#E3F2FD;
+  --accent:#00BCD4;--accent-dark:#0097A7;--success:#2E7D32;--success-light:#E8F5E9;
+  --warning:#F57F17;--warning-light:#FFF8E1;--danger:#C62828;--danger-light:#FFEBEE;
+  --text:#0D1B2A;--text-muted:#546E7A;--border:#CFD8DC;--bg:#F0F4F8;--surface:#FFFFFF;
+  --surface2:#F5F7FA;--shadow:0 2px 12px rgba(21,101,192,0.08);
+  --shadow-md:0 4px 24px rgba(21,101,192,0.13);--shadow-lg:0 8px 40px rgba(21,101,192,0.18);
+  --radius:14px;--radius-sm:8px;--font:'Segoe UI','Noto Sans',system-ui,sans-serif;
+  --transition:all 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:hidden}
+button{cursor:pointer;border:none;outline:none;font-family:inherit}
+input,select,textarea{font-family:inherit;outline:none}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;background:var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.5s}
+#splash .logo-ring{width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:pulse 1.6s ease-in-out infinite}
+#splash .logo-ring svg{width:48px;height:48px;fill:#fff}
+#splash h1{color:#fff;font-size:1.7rem;font-weight:700;letter-spacing:1px}
+#splash p{color:rgba(255,255,255,0.7);font-size:.9rem;margin-top:6px}
+#splash .loader-bar{width:180px;height:3px;background:rgba(255,255,255,0.2);border-radius:2px;margin-top:28px;overflow:hidden}
+#splash .loader-fill{height:100%;background:#fff;border-radius:2px;animation:loadbar 1.8s ease forwards}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@keyframes loadbar{from{width:0}to{width:100%}}
+
+/* APP */
+#app{display:none;min-height:100vh}
+
+/* LOGIN */
+#loginPage{min-height:100vh;background:linear-gradient(135deg,var(--primary-dark) 0%,var(--primary) 50%,var(--accent) 100%);display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{background:var(--surface);border-radius:24px;box-shadow:var(--shadow-lg);padding:48px 40px;width:100%;max-width:420px;animation:slideUp .5s cubic-bezier(0.4,0,0.2,1)}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .icon-wrap{width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,var(--primary),var(--accent));display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px}
+.login-logo svg{width:36px;height:36px;fill:#fff}
+.login-logo h1{font-size:1.6rem;font-weight:800;color:var(--primary)}
+.login-logo p{font-size:.85rem;color:var(--text-muted);margin-top:4px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:.5px}
+.form-control{width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:.95rem;color:var(--text);background:var(--surface);transition:var(--transition)}
+.form-control:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 4px rgba(21,101,192,0.1)}
+.input-group{position:relative}
+.input-group .form-control{padding-left:44px}
+.input-group .input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);width:18px;height:18px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;border-radius:var(--radius-sm);font-size:.9rem;font-weight:600;transition:var(--transition);white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-light));color:#fff;box-shadow:0 4px 14px rgba(21,101,192,0.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(21,101,192,0.4)}
+.btn-full{width:100%}
+.btn-sm{padding:8px 16px;font-size:.82rem}
+.btn-outline{background:transparent;border:2px solid var(--primary);color:var(--primary)}
+.btn-outline:hover{background:var(--primary-pale)}
+.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#B71C1C}
+.btn-success{background:var(--success);color:#fff}.btn-success:hover{background:#1B5E20}
+.btn-warning{background:var(--warning);color:#fff}
+.btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{background:var(--accent-dark)}
+.btn-gray{background:var(--border);color:var(--text)}.btn-gray:hover{background:#B0BEC5}
+#loginError{color:var(--danger);font-size:.85rem;text-align:center;margin-top:10px;display:none;padding:10px;background:var(--danger-light);border-radius:var(--radius-sm)}
+
+/* LAYOUT */
+#mainApp{display:flex;min-height:100vh}
+.sidebar{width:260px;flex-shrink:0;background:linear-gradient(180deg,var(--primary-dark) 0%,var(--primary) 100%);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .3s cubic-bezier(0.4,0,0.2,1);box-shadow:4px 0 20px rgba(13,71,161,0.3)}
+.sidebar-header{padding:24px 20px 20px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.sidebar-brand{display:flex;align-items:center;gap:12px}
+.sidebar-brand .brand-icon{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sidebar-brand svg{width:22px;height:22px;fill:#fff}
+.sidebar-brand h2{color:#fff;font-size:1.1rem;font-weight:800;letter-spacing:.5px}
+.sidebar-brand small{color:rgba(255,255,255,0.6);font-size:.72rem;display:block;margin-top:1px}
+.sidebar-nav{flex:1;overflow-y:auto;padding:12px 0}
+.nav-section-label{padding:8px 20px 4px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,0.4)}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;color:rgba(255,255,255,0.75);transition:var(--transition);margin:1px 8px;border-radius:10px;position:relative}
+.nav-item:hover{background:rgba(255,255,255,0.1);color:#fff}
+.nav-item.active{background:rgba(255,255,255,0.18);color:#fff;font-weight:600}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:60%;background:#fff;border-radius:0 2px 2px 0}
+.nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.8}
+.nav-item.active svg{opacity:1}
+.nav-item span{font-size:.88rem}
+.sidebar-footer{padding:16px;border-top:1px solid rgba(255,255,255,0.1)}
+.user-badge{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.08)}
+.user-avatar{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.95rem}
+.user-info small{color:rgba(255,255,255,0.5);font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;display:block}
+.user-info strong{color:#fff;font-size:.83rem}
+.btn-logout{display:flex;align-items:center;gap:6px;margin-top:8px;width:100%;padding:8px;background:rgba(198,40,40,0.2);color:#EF9A9A;border-radius:8px;font-size:.8rem;font-weight:600;transition:var(--transition)}
+.btn-logout:hover{background:rgba(198,40,40,0.35);color:#fff}
+.btn-logout svg{width:15px;height:15px}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99}
+@media(max-width:768px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.sidebar-overlay.show{display:block}.content-area{margin-left:0!important}}
+
+/* CONTENT */
+.content-area{margin-left:260px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--surface);padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
+.topbar-left{display:flex;align-items:center;gap:16px}
+.btn-menu{display:none;background:transparent;padding:8px;border-radius:8px;color:var(--text);transition:var(--transition)}
+.btn-menu svg{width:22px;height:22px}
+@media(max-width:768px){.btn-menu{display:flex}}
+.page-title{font-size:1.1rem;font-weight:700;color:var(--text)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.date-badge{background:var(--primary-pale);color:var(--primary);padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:600}
+.page-content{flex:1;padding:24px;overflow-y:auto}
+.page{display:none}
+.page.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* CARDS */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-header h3{font-size:1rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.card-header h3 svg{width:18px;height:18px;color:var(--primary)}
+.card-body{padding:22px}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;border-left:4px solid var(--primary);transition:var(--transition)}
+.stat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.stat-card.green{border-left-color:var(--success)}.stat-card.orange{border-left-color:var(--warning)}
+.stat-card.red{border-left-color:var(--danger)}.stat-card.cyan{border-left-color:var(--accent)}
+.stat-icon{width:48px;height:48px;border-radius:12px;background:var(--primary-pale);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-card.green .stat-icon{background:var(--success-light)}.stat-card.orange .stat-icon{background:var(--warning-light)}
+.stat-card.red .stat-icon{background:var(--danger-light)}.stat-card.cyan .stat-icon{background:#E0F7FA}
+.stat-icon svg{width:24px;height:24px;color:var(--primary)}
+.stat-card.green .stat-icon svg{color:var(--success)}.stat-card.orange .stat-icon svg{color:var(--warning)}
+.stat-card.red .stat-icon svg{color:var(--danger)}.stat-card.cyan .stat-icon svg{color:var(--accent)}
+.stat-info small{font-size:.75rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.stat-info strong{display:block;font-size:1.8rem;font-weight:800;color:var(--text);line-height:1.1}
+
+/* TABLE */
+.table-responsive{overflow-x:auto;border-radius:var(--radius-sm)}
+table{width:100%;border-collapse:collapse;font-size:.87rem}
+thead th{background:var(--primary);color:#fff;padding:12px 14px;font-weight:600;text-align:left;white-space:nowrap}
+thead th:first-child{border-radius:var(--radius-sm) 0 0 0}thead th:last-child{border-radius:0 var(--radius-sm) 0 0}
+tbody tr{border-bottom:1px solid var(--border);transition:var(--transition)}
+tbody tr:hover{background:var(--primary-pale)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:11px 14px;color:var(--text)}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+.badge-success{background:var(--success-light);color:var(--success)}
+.badge-warning{background:var(--warning-light);color:var(--warning)}
+.badge-danger{background:var(--danger-light);color:var(--danger)}
+.badge-primary{background:var(--primary-pale);color:var(--primary)}
+.badge-gray{background:var(--border);color:var(--text-muted)}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23546E7A'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:40px}
+
+/* MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--surface);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(0.4,0,0.2,1)}
+.modal-lg{max-width:780px}
+@keyframes modalIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1}
+.modal-header h3{font-size:1.05rem;font-weight:700;color:var(--text)}
+.modal-close{width:32px;height:32px;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:var(--transition)}
+.modal-close:hover{background:var(--danger-light);color:var(--danger)}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+
+/* TOAST */
+#toastContainer{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+.toast{background:var(--surface);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:12px;min-width:280px;max-width:380px;animation:toastIn .3s ease;border-left:4px solid var(--primary)}
+.toast.success{border-left-color:var(--success)}.toast.error{border-left-color:var(--danger)}.toast.warning{border-left-color:var(--warning)}
+.toast-icon{width:20px;height:20px;flex-shrink:0}
+.toast.success .toast-icon{color:var(--success)}.toast.error .toast-icon{color:var(--danger)}.toast.warning .toast-icon{color:var(--warning)}
+.toast-msg{font-size:.88rem;font-weight:500;color:var(--text);flex:1}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(30px)}}
+
+/* SCANNER */
+.scanner-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:340px;margin:0 auto}
+#scanVideo{width:100%;height:100%;object-fit:cover}
+.scan-overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.scan-frame{width:65%;aspect-ratio:1/1;border:3px solid var(--accent);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,0.45);position:relative}
+.scan-line{position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanAnim 2s linear infinite}
+@keyframes scanAnim{0%{top:0}100%{top:calc(100% - 3px)}}
+.scan-corner{position:absolute;width:22px;height:22px;border-color:var(--accent);border-style:solid}
+.scan-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+.scan-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+.scan-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+.scan-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+.scan-result-flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;border-radius:16px;opacity:0;transition:opacity .3s}
+.scan-result-flash.show{opacity:1}
+.scan-result-flash.success{background:rgba(46,125,50,0.9);color:#fff}
+.scan-result-flash.error{background:rgba(198,40,40,0.9);color:#fff}
+
+/* ABSEN */
+.absen-mode-toggle{display:flex;background:var(--bg);border-radius:12px;padding:4px;gap:4px;margin-bottom:20px}
+.mode-btn{flex:1;padding:10px;border-radius:8px;font-size:.88rem;font-weight:600;color:var(--text-muted);background:transparent;transition:var(--transition)}
+.mode-btn.active{background:var(--surface);color:var(--primary);box-shadow:var(--shadow)}
+.absen-result{border-radius:14px;padding:18px 20px;margin-top:16px;display:none;transition:all .3s ease}
+.absen-result.show{display:block;animation:fadeIn .3s ease}
+.absen-result.success{background:var(--success-light);border:2px solid rgba(46,125,50,0.35)}
+.absen-result.error{background:var(--danger-light);border:2px solid rgba(198,40,40,0.35)}
+.absen-result.warning{background:var(--warning-light);border:2px solid rgba(245,127,23,0.35)}
+
+/* KARTU SISWA */
+.student-card-print{width:386px;height:246px;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%);border-radius:10px;color:#fff;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;flex-shrink:0;box-sizing:border-box;display:flex;flex-direction:column;padding:0}
+.sc-deco1{position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.07);pointer-events:none}
+.sc-deco2{position:absolute;bottom:-50px;left:-20px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none}
+.sc-header{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,0.25);position:relative;z-index:1;flex-shrink:0}
+.sc-logo{width:38px;height:38px;border-radius:7px;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.sc-logo img{width:100%;height:100%;object-fit:contain}
+.sc-logo-icon{font-size:20px;line-height:1}
+.sc-school-wrap{flex:1;min-width:0}
+.sc-school-name{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+.sc-school-sub{font-size:6pt;color:rgba(255,255,255,0.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.sc-badge{background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.38);border-radius:4px;padding:2px 8px;font-size:6pt;font-weight:700;text-transform:uppercase;white-space:nowrap;flex-shrink:0;color:#fff}
+.sc-body{display:flex;flex:1;position:relative;z-index:1;min-height:0}
+.sc-photo-col{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 8px 8px 12px;flex-shrink:0}
+.sc-photo{width:64px;height:80px;border-radius:6px;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.38);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.sc-photo img{width:100%;height:100%;object-fit:cover}
+.sc-avatar{font-size:28pt;line-height:1}
+.sc-kelas{margin-top:5px;background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.35);border-radius:4px;text-align:center;padding:2px 6px;font-size:7.5pt;font-weight:700;color:#fff;width:64px;box-sizing:border-box}
+.sc-data-col{flex:1;min-width:0;padding:8px 6px 8px 8px;display:flex;flex-direction:column;justify-content:center}
+.sc-name{font-size:10pt;font-weight:700;line-height:1.25;margin-bottom:7px;word-break:break-word;color:#fff}
+.sc-field{margin-bottom:3.5px}
+.sc-label{font-size:5.5pt;color:rgba(255,255,255,0.62);text-transform:uppercase;letter-spacing:.3px;line-height:1;display:block}
+.sc-value{font-size:6.8pt;font-weight:600;color:#fff;line-height:1.3}
+.sc-qr-col{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px 8px 4px;gap:4px}
+.sc-qr-box{width:80px;height:80px;background:#fff;border-radius:8px;padding:5px;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sc-qr-box>div,.sc-qr-box canvas,.sc-qr-box img{width:70px!important;height:70px!important;display:block!important;max-width:70px!important;max-height:70px!important}
+.sc-qr-label{font-size:5pt;color:rgba(255,255,255,0.65);text-align:center;letter-spacing:.3px;margin-top:2px}
+.sc-qr-id{font-size:5pt;font-family:monospace;color:rgba(255,255,255,0.72);letter-spacing:.5px;text-align:center}
+.kartu-item-wrap{border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface);display:inline-flex;flex-direction:column}
+.kartu-item-footer{padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border)}
+
+/* CALENDAR */
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-header{text-align:center;font-size:.72rem;font-weight:700;color:var(--text-muted);padding:6px;text-transform:uppercase}
+.cal-day{aspect-ratio:1/1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.82rem;cursor:pointer;transition:var(--transition);border:1.5px solid transparent}
+.cal-day:hover{background:var(--primary-pale);border-color:var(--primary)}
+.cal-day.today{background:var(--primary);color:#fff;font-weight:700}
+.cal-day.libur{background:var(--danger-light);color:var(--danger);border-color:rgba(198,40,40,0.2)}
+.cal-day.weekend{color:var(--danger)}
+.cal-day.empty{cursor:default}.cal-day.empty:hover{background:transparent;border-color:transparent}
+
+/* PIKET */
+.piket-day{background:var(--surface);border-radius:var(--radius-sm);border:1.5px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;transition:var(--transition)}
+.piket-day:hover{border-color:var(--primary);box-shadow:var(--shadow)}
+.piket-day-name{font-weight:700;color:var(--primary);min-width:80px}
+
+/* SEARCH */
+.search-box{position:relative}
+.search-box input{padding-left:40px;border-radius:20px;background:var(--bg);border-color:transparent}
+.search-box input:focus{background:#fff;border-color:var(--primary)}
+.search-box svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-muted)}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 20px;font-size:.88rem;font-weight:600;color:var(--text-muted);background:transparent;border-bottom:2px solid transparent;margin-bottom:-2px;transition:var(--transition)}
+.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab-btn:hover{color:var(--primary)}
+
+@media(max-width:600px){.page-content{padding:14px}.stats-grid{grid-template-columns:1fr 1fr}.stat-card{padding:14px}.stat-info strong{font-size:1.4rem}.card-body{padding:14px}}
+@media print{body>*:not(#printArea){display:none!important}#printArea{display:block!important}}
+#printArea{display:none}
+</style>
+</head>
+<body>
+<div id="toastContainer"></div>
+<div id="printArea"></div>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="logo-ring"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></div>
+  <h1>SIABSEN</h1>
+  <p>Sistem Informasi Absensi Sekolah</p>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<div id="app">
+<!-- LOGIN -->
+<div id="loginPage">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon-wrap"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+      <h1>SIABSEN</h1><p>Sistem Informasi Absensi Sekolah</p>
+    </div>
+    <div class="form-group"><label>Username</label>
+      <div class="input-group">
+        <svg class="input-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        <input type="text" id="loginUsername" class="form-control" placeholder="Masukkan username" autocomplete="username">
+      </div>
+    </div>
+    <div class="form-group"><label>Password</label>
+      <div class="input-group">
+        <svg class="input-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.8-2.2-5-5-5S7 3.2 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm-3-9V6c0-1.7 1.3-3 3-3s3 1.3 3 3v2H9z"/></svg>
+        <input type="password" id="loginPassword" class="form-control" placeholder="Masukkan password" autocomplete="current-password">
+      </div>
+    </div>
+    <div id="loginError"></div>
+    <button class="btn btn-primary btn-full" style="margin-top:20px" onclick="doLogin()">
+      <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+      Masuk
+    </button>
+    <p style="text-align:center;margin-top:20px;font-size:.78rem;color:var(--text-muted)">Default: admin / admin123</p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" style="display:none">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <div class="brand-icon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+        <div><h2>SIABSEN</h2><small id="schoolNameSidebar">Sistem Absensi</small></div>
+      </div>
+    </div>
+    <!-- ADMIN NAV -->
+    <div id="adminNav" class="sidebar-nav" style="display:none">
+      <div class="nav-section-label">Utama</div>
+      <div class="nav-item active" onclick="showPage('dashboard')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg><span>Dashboard</span></div>
+      <div class="nav-section-label">Data Master</div>
+      <div class="nav-item" onclick="showPage('guru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Data Guru</span></div>
+      <div class="nav-item" onclick="showPage('siswa')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg><span>Data Siswa</span></div>
+      <div class="nav-section-label">Pengaturan</div>
+      <div class="nav-item" onclick="showPage('piket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><span>Jadwal Piket</span></div>
+      <div class="nav-item" onclick="showPage('harikerja')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Hari Kerja</span></div>
+      <div class="nav-item" onclick="showPage('sekolah')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18V17h2v-4.82L9 13.4V17c0 1.1 1.34 2 3 2s3-.9 3-2v-3.6l4-2.18V11h2L12 3z"/></svg><span>Profil Sekolah</span></div>
+      <div class="nav-item" onclick="showPage('pengaturan')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg><span>Pengaturan Jam</span></div>
+      <div class="nav-section-label">Laporan</div>
+      <div class="nav-item" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
+      <div class="nav-item" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Siswa</span></div>
+    </div>
+    <!-- GURU NAV -->
+    <div id="guruNav" class="sidebar-nav" style="display:none">
+      <div class="nav-section-label">Menu Guru</div>
+      <div class="nav-item active" onclick="showPage('absensi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Absensi Siswa</span></div>
+      <div class="nav-item" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div class="user-info"><small id="userRole">Administrator</small><strong id="userName">Admin</strong></div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        Keluar
+      </button>
+    </div>
+  </nav>
+
+  <div class="content-area">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="btn-menu" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+        <div class="page-title" id="pageTitle">Dashboard</div>
+      </div>
+      <div class="topbar-right"><div class="date-badge" id="dateBadge"></div></div>
+    </div>
+
+    <div class="page-content">
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg></div><div class="stat-info"><small>Total Siswa</small><strong id="statSiswa">—</strong></div></div>
+          <div class="stat-card green"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div><div class="stat-info"><small>Hadir Hari Ini</small><strong id="statHadir">—</strong></div></div>
+          <div class="stat-card orange"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg></div><div class="stat-info"><small>Terlambat</small><strong id="statTerlambat">—</strong></div></div>
+          <div class="stat-card red"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg></div><div class="stat-info"><small>Tidak Hadir</small><strong id="statAlpha">—</strong></div></div>
+          <div class="stat-card cyan"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></div><div class="stat-info"><small>Total Guru</small><strong id="statGuru">—</strong></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="card"><div class="card-header"><h3>Piket Hari Ini</h3></div><div class="card-body" id="dashPiketToday"><p style="color:var(--text-muted)">Memuat...</p></div></div>
+          <div class="card"><div class="card-header"><h3>Jam Sekarang</h3></div>
+            <div class="card-body"><div style="text-align:center;padding:10px 0">
+              <div id="liveClock" style="font-size:2.5rem;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums">00:00:00</div>
+              <div id="dashJamSetting" style="margin-top:12px;font-size:.83rem;color:var(--text-muted)">Memuat pengaturan...</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA GURU -->
+      <div class="page" id="page-guru">
+        <div class="card">
+          <div class="card-header"><h3>Data Guru</h3><button class="btn btn-primary btn-sm" onclick="openModalGuru()">+ Tambah Guru</button></div>
+          <div class="card-body">
+            <div class="search-box" style="margin-bottom:16px;max-width:300px">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <input type="text" placeholder="Cari guru..." oninput="filterTable('guruTable',this.value)" class="form-control">
+            </div>
+            <div class="table-responsive"><table id="guruTable">
+              <thead><tr><th>No</th><th>Nama</th><th>JK</th><th>Jabatan</th><th>Username</th><th>Status</th><th>Aksi</th></tr></thead>
+              <tbody id="guruTableBody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA SISWA -->
+      <div class="page" id="page-siswa">
+        <div class="card">
+          <div class="card-header"><h3>Data Siswa</h3>
+            <div style="display:flex;gap:8px">
+              <select class="form-control" style="width:120px;padding:8px 12px;font-size:.82rem" id="filterKelas" onchange="loadSiswa()"><option value="">Semua Kelas</option></select>
+              <button class="btn btn-primary btn-sm" onclick="openModalSiswa()">+ Tambah Siswa</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="search-box" style="margin-bottom:16px;max-width:300px">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <input type="text" placeholder="Cari siswa..." oninput="filterTable('siswaTable',this.value)" class="form-control">
+            </div>
+            <div class="table-responsive"><table id="siswaTable">
+              <thead><tr><th>No</th><th>NISN</th><th>Nama</th><th>Kelas</th><th>JK</th><th>Agama</th><th>Status</th><th>Aksi</th></tr></thead>
+              <tbody id="siswaTableBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JADWAL PIKET -->
+      <div class="page" id="page-piket">
+        <div class="card">
+          <div class="card-header"><h3>Jadwal Piket Guru</h3><button class="btn btn-primary btn-sm" onclick="saveJadwalPiket()">💾 Simpan</button></div>
+          <div class="card-body" id="piketBody"><p style="color:var(--text-muted)">Memuat...</p></div>
+        </div>
+      </div>
+
+      <!-- HARI KERJA -->
+      <div class="page" id="page-harikerja">
+        <div class="card">
+          <div class="card-header"><h3>Kalender Hari Kerja</h3>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select class="form-control" style="padding:8px 12px;font-size:.82rem" id="calMonth" onchange="renderCalendar()"></select>
+              <select class="form-control" style="padding:8px 12px;font-size:.82rem" id="calYear" onchange="renderCalendar()"></select>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="calendarWrap"></div>
+            <div style="margin-top:16px;display:flex;gap:16px;flex-wrap:wrap;font-size:.8rem">
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:16px;border-radius:4px;background:var(--primary);display:inline-block"></span>Hari Ini</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:16px;border-radius:4px;background:var(--danger-light);border:1px solid var(--danger);display:inline-block"></span>Hari Libur</span>
+            </div>
+            <div id="liburList" style="margin-top:20px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFIL SEKOLAH -->
+      <div class="page" id="page-sekolah">
+        <div class="card">
+          <div class="card-header"><h3>Profil & Identitas Sekolah</h3></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+              <div>
+                <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">🏫 Identitas Sekolah</h4>
+                <div class="form-group" style="margin-bottom:14px"><label>Nama Sekolah</label><input type="text" id="set_NAMA_SEKOLAH" class="form-control" placeholder="SMA NEGERI 1 ..."></div>
+                <div class="form-group" style="margin-bottom:14px"><label>NPSN</label><input type="text" id="set_NPSN" class="form-control"></div>
+                <div class="form-group" style="margin-bottom:14px"><label>Alamat</label><textarea id="set_ALAMAT_SEKOLAH" class="form-control" rows="2" style="resize:vertical"></textarea></div>
+                <div class="form-group" style="margin-bottom:14px"><label>Tahun Ajaran</label><input type="text" id="set_TAHUN_AJARAN" class="form-control" placeholder="2024/2025"></div>
+                <div class="form-group" style="margin-bottom:14px"><label>Telepon</label><input type="text" id="set_TELP_SEKOLAH" class="form-control"></div>
+                <div class="form-group" style="margin-bottom:20px"><label>Email</label><input type="email" id="set_EMAIL_SEKOLAH" class="form-control"></div>
+                <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="saveProfilSekolah()">💾 Simpan</button><button class="btn btn-outline" onclick="loadProfilSekolah()">↺ Reset</button></div>
+              </div>
+              <div>
+                <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">🖼️ Logo Sekolah</h4>
+                <div id="logoPreviewWrap" style="width:140px;height:140px;border-radius:16px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:16px;overflow:hidden;background:var(--bg);cursor:pointer" onclick="document.getElementById('logoFileInput').click()">
+                  <div id="logoPreviewInner" style="text-align:center;color:var(--text-muted)"><div style="font-size:2.5rem">🏫</div><div style="font-size:.75rem;margin-top:6px">Klik untuk upload</div></div>
+                </div>
+                <input type="file" id="logoFileInput" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+                <div style="margin-bottom:12px">
+                  <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:7px">Atau masukkan URL logo</label>
+                  <input type="url" id="set_LOGO_URL" class="form-control" placeholder="https://..." oninput="previewLogoFromURL(this.value)">
+                </div>
+                <div style="margin-top:20px"><p style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">Preview kartu:</p><div id="kartuMiniPreview"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PENGATURAN JAM -->
+      <div class="page" id="page-pengaturan">
+        <div class="card">
+          <div class="card-header"><h3>Pengaturan Jam Absensi</h3></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px">
+              <div>
+                <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">⏰ Jam Absensi Datang</h4>
+                <div class="form-grid" style="grid-template-columns:1fr 1fr">
+                  <div class="form-group"><label>Jam Mulai</label><input type="time" id="set_JAM_DATANG_MULAI" class="form-control"></div>
+                  <div class="form-group"><label>Batas Datang</label><input type="time" id="set_JAM_DATANG_SELESAI" class="form-control"></div>
+                </div>
+                <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin:20px 0 16px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">⏰ Jam Absensi Pulang</h4>
+                <div class="form-grid" style="grid-template-columns:1fr 1fr">
+                  <div class="form-group"><label>Jam Mulai</label><input type="time" id="set_JAM_PULANG_MULAI" class="form-control"></div>
+                  <div class="form-group"><label>Batas Pulang</label><input type="time" id="set_JAM_PULANG_SELESAI" class="form-control"></div>
+                </div>
+                <div class="form-group" style="margin-top:16px"><label>Toleransi Keterlambatan (menit)</label><input type="number" id="set_TOLERANSI_MENIT" class="form-control" min="0" max="60"></div>
+              </div>
+            </div>
+            <div style="margin-top:24px;display:flex;gap:10px">
+              <button class="btn btn-primary" onclick="savePengaturan()">💾 Simpan</button>
+              <button class="btn btn-outline" onclick="loadPengaturan()">↺ Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REKAP ADMIN -->
+      <div class="page" id="page-rekap">
+        <div class="card">
+          <div class="card-header"><h3>Rekap Kehadiran</h3></div>
+          <div class="card-body">
+            <div class="tabs">
+              <button class="tab-btn active" onclick="switchRekapTab('harian',this)">Harian</button>
+              <button class="tab-btn" onclick="switchRekapTab('bulanan',this)">Bulanan</button>
+            </div>
+            <div id="rekapHarianPanel">
+              <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+                <div class="form-group" style="margin:0"><label>Tanggal</label><input type="date" id="rekapTanggal" class="form-control" style="min-width:180px"></div>
+                <button class="btn btn-primary btn-sm" onclick="loadRekapHarian()">🔍 Tampilkan</button>
+                <button class="btn btn-success btn-sm" onclick="exportExcel()">📊 Excel</button>
+              </div>
+              <div class="table-responsive"><table>
+                <thead><tr><th>No</th><th>NISN</th><th>Nama</th><th>Kelas</th><th>Jam Datang</th><th>Status</th><th>Jam Pulang</th><th>Guru Piket</th></tr></thead>
+                <tbody id="rekapHarianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih tanggal dan klik Tampilkan</td></tr></tbody>
+              </table></div>
+            </div>
+            <div id="rekapBulananPanel" style="display:none">
+              <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+                <div class="form-group" style="margin:0"><label>Bulan</label>
+                  <select id="rekapBulan" class="form-control"><option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option><option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option><option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option></select>
+                </div>
+                <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" id="rekapTahun" class="form-control" style="width:100px"></div>
+                <div class="form-group" style="margin:0"><label>Kelas</label><select id="rekapKelasFilter" class="form-control"><option value="">Semua Kelas</option></select></div>
+                <button class="btn btn-primary btn-sm" onclick="loadRekapBulanan()">🔍 Tampilkan</button>
+              </div>
+              <div class="table-responsive"><table>
+                <thead><tr><th>No</th><th>NISN</th><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Pulang</th></tr></thead>
+                <tbody id="rekapBulananBody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih periode</td></tr></tbody>
+              </table></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KARTU SISWA -->
+      <div class="page" id="page-kartu">
+        <div class="card">
+          <div class="card-header"><h3>Cetak Kartu Siswa</h3></div>
+          <div class="card-body">
+            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="margin:0"><label>Filter Kelas</label><select id="kartuKelas" class="form-control" onchange="loadKartuSiswa()"><option value="">Semua Kelas</option></select></div>
+              <button class="btn btn-primary" onclick="printAllKartu()">🖨️ Cetak Semua</button>
+              <button class="btn btn-success" onclick="downloadAllKartuPDF()">📄 Download PDF</button>
+            </div>
+            <div id="kartuGrid" style="display:flex;flex-wrap:wrap;gap:20px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABSENSI GURU -->
+      <div class="page" id="page-absensi">
+        <div class="card">
+          <div class="card-header"><h3>Absensi Siswa</h3><div class="date-badge" id="absenTanggal"></div></div>
+          <div class="card-body">
+            <div class="absen-mode-toggle">
+              <button class="mode-btn active" id="btnModeDatang" onclick="setAbsenMode('datang')">☀️ Absen Datang</button>
+              <button class="mode-btn" id="btnModePulang" onclick="setAbsenMode('pulang')">🌙 Absen Pulang</button>
+            </div>
+
+            <!-- SCAN QR via file (bisa langsung buka kamera HP) -->
+            <div id="scanSection" style="margin-bottom:16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <p style="font-size:.85rem;color:var(--text-muted);margin:0">📷 Scan QR Code kartu siswa</p>
+                <button id="btnToggleKamera" class="btn btn-outline btn-sm" onclick="toggleKamera()">📷 Aktifkan Kamera</button>
+              </div>
+
+              <!-- Live Camera Scanner -->
+              <div class="scanner-wrap" id="scannerWrap" style="display:none">
+                <video id="scanVideo" autoplay playsinline muted></video>
+                <div class="scan-overlay"><div class="scan-frame">
+                  <div class="scan-line"></div>
+                  <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
+                  <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+                </div></div>
+                <div class="scan-result-flash" id="scanFlash"></div>
+                <canvas id="scanCanvas" style="display:none"></canvas>
+              </div>
+
+              <!-- Placeholder + file scan -->
+              <div id="noKameraMsg" style="text-align:center;padding:24px;background:var(--bg);border-radius:14px;border:2px dashed var(--border)">
+                <div style="font-size:2.5rem;margin-bottom:8px">📷</div>
+                <p style="font-weight:700;color:var(--text);margin-bottom:6px">Scan QR Kartu Siswa</p>
+                <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:14px">Aktifkan kamera untuk scan real-time, atau foto QR dari kamera HP</p>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                  <button class="btn btn-primary btn-sm" onclick="startScanner()">📷 Aktifkan Kamera</button>
+                  <label class="btn btn-outline btn-sm" style="cursor:pointer">
+                    📁 Upload Foto QR
+                    <input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanFromFile(event)">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- MANUAL INPUT -->
+            <div style="margin-top:16px">
+              <div style="display:flex;gap:10px;align-items:flex-end">
+                <div class="form-group" style="flex:1;margin:0">
+                  <label>ID Siswa / NISN</label>
+                  <input type="text" id="manualId" class="form-control" placeholder="Masukkan ID atau NISN siswa" onkeyup="if(event.key==='Enter')doManualAbsen()">
+                </div>
+                <button class="btn btn-primary" onclick="doManualAbsen()">✓ Absen</button>
+              </div>
+            </div>
+
+            <div class="absen-result" id="absenResult"></div>
+
+            <!-- LOG -->
+            <div style="margin-top:24px">
+              <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">📋 Log Absensi Hari Ini</h4>
+              <div class="table-responsive"><table>
+                <thead><tr><th>Nama</th><th>Kelas</th><th>Jam</th><th>Status</th></tr></thead>
+                <tbody id="logAbsensiBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data</td></tr></tbody>
+              </table></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REKAP GURU -->
+      <div class="page" id="page-rekapGuru">
+        <div class="card">
+          <div class="card-header"><h3>Rekap Harian</h3></div>
+          <div class="card-body">
+            <div style="display:flex;gap:12px;margin-bottom:16px">
+              <div class="form-group" style="margin:0"><label>Tanggal</label><input type="date" id="rekapTanggalGuru" class="form-control"></div>
+              <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="loadRekapHarianGuru()">Tampilkan</button>
+            </div>
+            <div class="table-responsive"><table>
+              <thead><tr><th>No</th><th>Nama</th><th>Kelas</th><th>Datang</th><th>Status</th><th>Pulang</th></tr></thead>
+              <tbody id="rekapGuruBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih tanggal</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end page-content -->
+  </div><!-- end content-area -->
+</div><!-- end mainApp -->
+</div><!-- end app -->
+
+<!-- MODALS -->
+<!-- Modal Guru -->
+<div class="modal-backdrop" id="modalGuru">
+  <div class="modal">
+    <div class="modal-header"><h3 id="modalGuruTitle">Tambah Guru</h3><button class="modal-close" onclick="closeModal('modalGuru')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="guruId">
+      <div class="form-grid">
+        <div class="form-group"><label>Nama Lengkap *</label><input type="text" id="guruNama" class="form-control"></div>
+        <div class="form-group"><label>Jenis Kelamin *</label><select id="guruJK" class="form-control"><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
+        <div class="form-group"><label>Jabatan *</label><select id="guruJabatan" class="form-control"></select></div>
+        <div class="form-group"><label>NIP</label><input type="text" id="guruNIP" class="form-control"></div>
+        <div class="form-group"><label>No. HP</label><input type="text" id="guruHP" class="form-control"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="guruEmail" class="form-control"></div>
+      </div>
+      <div class="form-group" style="margin-top:14px"><label>Alamat</label><textarea id="guruAlamat" class="form-control" rows="2" style="resize:vertical"></textarea></div>
+      <div style="margin-top:16px;padding:14px;background:var(--surface2);border-radius:10px;border:1.5px solid var(--border)">
+        <p style="font-weight:700;color:var(--text);margin-bottom:10px;font-size:.88rem">🔑 Password Login</p>
+        <div style="position:relative">
+          <input type="text" id="guruPassword" class="form-control" placeholder="Min. 6 karakter, atau kosongkan untuk otomatis">
+          <button type="button" onclick="generatePasswordField()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--primary-pale);border:none;border-radius:6px;padding:4px 10px;font-size:.75rem;color:var(--primary);cursor:pointer;font-weight:600">🎲 Acak</button>
+        </div>
+        <p id="guruPasswordHint" style="font-size:.75rem;color:var(--text-muted);margin-top:6px">Kosongkan untuk generate otomatis.</p>
+      </div>
+      <div id="guruCredInfo" style="display:none;margin-top:16px;padding:14px;background:var(--primary-pale);border-radius:10px">
+        <p style="font-weight:700;color:var(--primary);margin-bottom:8px">✅ Akun Login Guru:</p>
+        <p style="font-size:.88rem">Username: <strong id="credUsername"></strong></p>
+        <p style="font-size:.88rem">Password: <strong id="credPassword" style="color:var(--primary);font-size:1rem"></strong></p>
+        <p style="font-size:.78rem;color:var(--text-muted);margin-top:6px">⚠️ Catat password ini!</p>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-gray" onclick="closeModal('modalGuru')">Batal</button><button class="btn btn-primary" onclick="submitGuru()">💾 Simpan</button></div>
+  </div>
+</div>
+
+<!-- Modal Siswa -->
+<div class="modal-backdrop" id="modalSiswa">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="modalSiswaTitle">Tambah Siswa</h3><button class="modal-close" onclick="closeModal('modalSiswa')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="siswaId">
+      <div class="form-grid">
+        <div class="form-group"><label>Nama Lengkap *</label><input type="text" id="siswaNama" class="form-control"></div>
+        <div class="form-group"><label>NISN *</label><input type="text" id="siswaNISN" class="form-control"></div>
+        <div class="form-group"><label>Jenis Kelamin *</label><select id="siswaJK" class="form-control"><option>Laki-laki</option><option>Perempuan</option></select></div>
+        <div class="form-group"><label>Agama *</label><select id="siswaAgama" class="form-control"></select></div>
+        <div class="form-group"><label>Tempat Lahir</label><input type="text" id="siswaTempatLahir" class="form-control"></div>
+        <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="siswaTanggalLahir" class="form-control"></div>
+        <div class="form-group"><label>Kelas *</label><select id="siswaKelas" class="form-control"></select></div>
+        <div class="form-group"><label>Tahun Masuk</label><input type="number" id="siswaTahunMasuk" class="form-control"></div>
+        <div class="form-group"><label>Nama Orang Tua</label><input type="text" id="siswaOrtu" class="form-control"></div>
+        <div class="form-group"><label>No HP Orang Tua</label><input type="text" id="siswaHPOrtu" class="form-control"></div>
+      </div>
+      <div class="form-group" style="margin-top:14px"><label>Alamat</label><textarea id="siswaAlamat" class="form-control" rows="2" style="resize:vertical"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-gray" onclick="closeModal('modalSiswa')">Batal</button><button class="btn btn-primary" onclick="submitSiswa()">💾 Simpan</button></div>
+  </div>
+</div>
+
+<!-- Modal Reset Password -->
+<div class="modal-backdrop" id="modalResetPass">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h3>Reset Password Guru</h3><button class="modal-close" onclick="closeModal('modalResetPass')">✕</button></div>
+    <div class="modal-body">
+      <div style="padding:14px;background:var(--primary-pale);border-radius:10px">
+        <p style="font-weight:700;color:var(--primary);margin-bottom:8px">🔑 Password Baru:</p>
+        <p>Username: <strong id="resetUsername"></strong></p>
+        <p style="margin-top:6px">Password: <strong id="resetPassword" style="font-size:1.1rem;color:var(--primary)"></strong></p>
+        <p style="font-size:.78rem;color:var(--text-muted);margin-top:8px">⚠️ Catat password ini!</p>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('modalResetPass')">OK</button></div>
+  </div>
+</div>
+
+<!-- Modal Ganti Password -->
+<div class="modal-backdrop" id="modalGantiPass">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><h3>Ganti Password</h3><button class="modal-close" onclick="closeModal('modalGantiPass')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Password Lama</label><input type="password" id="oldPass" class="form-control"></div>
+      <div class="form-group" style="margin-top:12px"><label>Password Baru</label><input type="password" id="newPass" class="form-control"></div>
+      <div class="form-group" style="margin-top:12px"><label>Konfirmasi Password Baru</label><input type="password" id="confPass" class="form-control"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-gray" onclick="closeModal('modalGantiPass')">Batal</button><button class="btn btn-primary" onclick="submitGantiPass()">Simpan</button></div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG API ────────────────────────────────────────────────────
+// GANTI dengan URL Vercel kamu setelah deploy
+const API_BASE = window.location.origin;
+
+async function api(endpoint, action, params = {}) {
+  const res = await fetch(`${API_BASE}/api/${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...params })
+  });
+  return res.json();
+}
+
+// ── STATE ─────────────────────────────────────────────────────────
+const APP = {
+  user: null, settings: null, constants: null,
+  scanActive: false, scanStream: null, scanAnimFrame: null,
+  scanMode: 'datang', scanFailCount: 0, absenResultTimer: null
+};
+
+// ── SESSION ───────────────────────────────────────────────────────
+const SESSION_KEY = 'siabsen_session';
+const SESSION_DURATION = 2 * 60 * 60 * 1000;
+function saveSession(u) { localStorage.setItem(SESSION_KEY, JSON.stringify({ user: u, loginTime: Date.now() })); }
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (Date.now() - s.loginTime > SESSION_DURATION) { localStorage.removeItem(SESSION_KEY); return null; }
+    return s.user;
+  } catch(e) { return null; }
+}
+function clearSession() { localStorage.removeItem(SESSION_KEY); }
+
+// ── TOAST ─────────────────────────────────────────────────────────
+function toast(msg, type = 'info', duration = 3500) {
+  const icons = {
+    success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+    error: '<svg class="toast-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+    warning: '<svg class="toast-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+    info: '<svg class="toast-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>'
+  };
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `${icons[type]||icons.info}<span class="toast-msg">${msg}</span>`;
+  document.getElementById('toastContainer').appendChild(t);
+  setTimeout(() => { t.style.animation = 'toastOut .3s ease forwards'; setTimeout(() => t.remove(), 300); }, duration);
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const t = [now.getHours(),now.getMinutes(),now.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+  const el = document.getElementById('liveClock'); if(el) el.textContent = t;
+  const db = document.getElementById('dateBadge');
+  if(db){ const days=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'],months=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+    db.textContent=`${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`; }
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── INIT ──────────────────────────────────────────────────────────
+window.onload = async function() {
+  setTimeout(() => {
+    document.getElementById('splash').style.opacity = '0';
+    setTimeout(() => {
+      document.getElementById('splash').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      const saved = loadSession();
+      if (saved) {
+        APP.user = saved;
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'flex';
+        setupUserUI(saved);
+        setTimeout(() => initFirstPage(saved.role), 100);
+        toast(`Selamat datang kembali, ${saved.nama}!`, 'success');
+      }
+    }, 500);
+  }, 2000);
+
+  // Load constants
+  try {
+    const r = await api('settings', 'getConstants');
+    if (r.jabatanList) {
+      APP.constants = r;
+      const jabSel = document.getElementById('guruJabatan');
+      r.jabatanList.forEach(j => jabSel.innerHTML += `<option value="${j}">${j}</option>`);
+      const agSel = document.getElementById('siswaAgama');
+      r.agamaList.forEach(a => agSel.innerHTML += `<option value="${a}">${a}</option>`);
+      r.kelasList.forEach(k => {
+        ['siswaKelas','filterKelas','kartuKelas','rekapKelasFilter'].forEach(id => {
+          const el = document.getElementById(id); if(el) el.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+      });
+    }
+  } catch(e) { console.warn('constants error', e); }
+
+  // Default dates
+  const today = new Date().toISOString().split('T')[0];
+  ['rekapTanggal','rekapTanggalGuru'].forEach(id => { const el=document.getElementById(id); if(el) el.value=today; });
+  const now = new Date();
+  const rb = document.getElementById('rekapBulan'); if(rb) rb.value = now.getMonth()+1;
+  const ry = document.getElementById('rekapTahun'); if(ry) ry.value = now.getFullYear();
+
+  // Absen tanggal badge
+  const ab = document.getElementById('absenTanggal');
+  if(ab){ const days=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'],months=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+    ab.textContent=`${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`; }
+
+  // Calendar months
+  const months=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const cm = document.getElementById('calMonth');
+  months.forEach((m,i) => cm.innerHTML += `<option value="${i+1}">${m}</option>`);
+  cm.value = now.getMonth()+1;
+  const cy = document.getElementById('calYear');
+  for(let y=now.getFullYear()-1;y<=now.getFullYear()+1;y++) cy.innerHTML += `<option value="${y}">${y}</option>`;
+  cy.value = now.getFullYear();
+};
+
+// ── LOGIN ─────────────────────────────────────────────────────────
+async function doLogin() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if(!username||!password){ showLoginError('Username dan password wajib diisi'); return; }
+  const btn = event.target; btn.disabled=true; btn.textContent='⏳ Memverifikasi...';
+  try {
+    const result = await api('auth','login',{username,password});
+    if(result.success){
+      APP.user = result; saveSession(result);
+      document.getElementById('loginPage').style.display='none';
+      document.getElementById('mainApp').style.display='flex';
+      setupUserUI(result); initFirstPage(result.role);
+    } else { showLoginError(result.message); }
+  } catch(e){ showLoginError('Koneksi gagal. Coba lagi.'); }
+  btn.disabled=false; btn.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg> Masuk';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const lp = document.getElementById('loginPassword');
+  if(lp) lp.addEventListener('keyup', e => { if(e.key==='Enter') doLogin(); });
+});
+function showLoginError(msg){ const el=document.getElementById('loginError'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none',4000); }
+
+function setupUserUI(user) {
+  document.getElementById('userName').textContent = user.nama;
+  document.getElementById('userRole').textContent = user.role==='admin'?'Administrator':user.jabatan||'Guru';
+  document.getElementById('userAvatar').textContent = user.nama.charAt(0).toUpperCase();
+  document.getElementById('adminNav').style.display = user.role==='admin'?'block':'none';
+  document.getElementById('guruNav').style.display = user.role==='guru'?'block':'none';
+}
+
+function doLogout() {
+  APP.user=null; clearSession(); stopScanner();
+  document.getElementById('mainApp').style.display='none';
+  document.getElementById('loginPage').style.display='flex';
+  document.getElementById('loginUsername').value='';
+  document.getElementById('loginPassword').value='';
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const el = document.getElementById('page-'+page); if(el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
+  });
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',piket:'Jadwal Piket',harikerja:'Hari Kerja',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Siswa',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian'};
+  document.getElementById('pageTitle').textContent = titles[page]||page;
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadKartuSiswa,absensi:()=>{loadLogAbsensi();}};
+  if(loaders[page]) loaders[page]();
+  if(window.innerWidth<=768) toggleSidebar(false);
+}
+
+function initFirstPage(role) {
+  if(role==='admin'){ showPage('dashboard'); }
+  else { showPage('absensi'); loadLogAbsensi(); }
+}
+
+function toggleSidebar(force) {
+  const s=document.getElementById('sidebar'),o=document.getElementById('sidebarOverlay');
+  const open = force!==undefined?force:!s.classList.contains('open');
+  s.classList.toggle('open',open); o.classList.toggle('show',open);
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function filterTable(tableId, query) {
+  const q=query.toLowerCase();
+  document.getElementById(tableId).querySelectorAll('tbody tr').forEach(r=>{ r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const result = await api('absensi','dashboard');
+    if(result.success){
+      const d=result.data;
+      document.getElementById('statSiswa').textContent=d.totalSiswa;
+      document.getElementById('statHadir').textContent=d.hadirHariIni;
+      document.getElementById('statTerlambat').textContent=d.terlambatHariIni;
+      document.getElementById('statAlpha').textContent=d.alphaHariIni;
+      document.getElementById('statGuru').textContent=d.totalGuru;
+      APP.settings=d.jamSetting;
+      const sn=d.jamSetting['NAMA_SEKOLAH'];
+      if(sn) document.getElementById('schoolNameSidebar').textContent=sn;
+      const ji=document.getElementById('dashJamSetting');
+      if(ji) ji.innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>☀️ Datang: <b>${d.jamSetting['JAM_DATANG_MULAI']} - ${d.jamSetting['JAM_DATANG_SELESAI']}</b></span><span>🌙 Pulang: <b>${d.jamSetting['JAM_PULANG_MULAI']} - ${d.jamSetting['JAM_PULANG_SELESAI']}</b></span><span>⏱ Toleransi: <b>${d.jamSetting['TOLERANSI_MENIT']} menit</b></span></div>`;
+      const pc=document.getElementById('dashPiketToday');
+      if(d.piketHariIni&&d.piketHariIni.length>0){
+        pc.innerHTML=d.piketHariIni.map(g=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:36px;height:36px;border-radius:10px;background:var(--primary-pale);display:flex;align-items:center;justify-content:center;color:var(--primary);font-weight:700">${g.namaGuru.charAt(0)}</div><div><div style="font-weight:600;font-size:.88rem">${g.namaGuru}</div><div style="font-size:.76rem;color:var(--text-muted)">${g.jabatan}</div></div></div>`).join('');
+      } else { pc.innerHTML=`<p style="color:var(--text-muted);font-size:.88rem">Tidak ada jadwal piket hari ${d.hariIni}</p>`; }
+    }
+  } catch(e){ console.error('dashboard error',e); }
+}
+
+// ── GURU ──────────────────────────────────────────────────────────
+async function loadGuru() {
+  try {
+    const result = await api('guru','getAll',{activeOnly:false});
+    const tbody=document.getElementById('guruTableBody');
+    if(!result.success||result.data.length===0){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">${result.success?'Belum ada data guru':result.message}</td></tr>`; return; }
+    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${g.nama}</div><div style="font-size:.76rem;color:var(--text-muted)">${g.nip||'-'}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'} ${g.jenisKelamin}</td><td>${g.jabatan}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${g.username}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick='editGuru(${JSON.stringify(g)})'>✏️</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button><button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}','${g.nama}')">🗑</button></div></td></tr>`).join('');
+  } catch(e){ toast('Gagal memuat data guru','error'); }
+}
+
+function openModalGuru(){
+  ['guruId','guruNama','guruNIP','guruHP','guruEmail','guruAlamat','guruPassword'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('guruJK').value='Laki-laki';
+  document.getElementById('guruJabatan').selectedIndex=0;
+  document.getElementById('guruCredInfo').style.display='none';
+  document.getElementById('modalGuruTitle').textContent='Tambah Guru';
+  openModal('modalGuru');
+}
+function editGuru(guru){
+  document.getElementById('guruId').value=guru.id;
+  document.getElementById('guruNama').value=guru.nama;
+  document.getElementById('guruJK').value=guru.jenisKelamin;
+  document.getElementById('guruJabatan').value=guru.jabatan;
+  document.getElementById('guruNIP').value=guru.nip||'';
+  document.getElementById('guruHP').value=guru.noHp||'';
+  document.getElementById('guruEmail').value=guru.email||'';
+  document.getElementById('guruAlamat').value=guru.alamat||'';
+  document.getElementById('guruPassword').value='';
+  document.getElementById('guruCredInfo').style.display='none';
+  document.getElementById('modalGuruTitle').textContent='Edit Guru';
+  openModal('modalGuru');
+}
+async function submitGuru(){
+  const id=document.getElementById('guruId').value;
+  const pw=document.getElementById('guruPassword').value.trim();
+  if(pw&&pw.length<6){toast('Password minimal 6 karakter','error');return;}
+  const data={nama:document.getElementById('guruNama').value.trim(),jenisKelamin:document.getElementById('guruJK').value,jabatan:document.getElementById('guruJabatan').value,nip:document.getElementById('guruNIP').value,noHp:document.getElementById('guruHP').value,email:document.getElementById('guruEmail').value,alamat:document.getElementById('guruAlamat').value,password:pw};
+  if(!data.nama){toast('Nama wajib diisi','error');return;}
+  try{
+    let result;
+    if(id){ result=await api('guru','edit',{id,data}); }
+    else { result=await api('guru','tambah',{data}); }
+    toast(result.message,result.success?'success':'error');
+    if(result.success){
+      if(!id&&result.username){ document.getElementById('credUsername').textContent=result.username; document.getElementById('credPassword').textContent=result.password; document.getElementById('guruCredInfo').style.display='block'; }
+      else { closeModal('modalGuru'); }
+      loadGuru();
+    }
+  }catch(e){toast('Terjadi kesalahan','error');}
+}
+function generatePasswordField(){ const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let p=''; for(let i=0;i<8;i++) p+=chars.charAt(Math.floor(Math.random()*chars.length)); document.getElementById('guruPassword').value=p; }
+async function resetPasswordGuru(id){ if(!confirm('Reset password guru ini?'))return; const r=await api('guru','resetPassword',{id}); if(r.success){document.getElementById('resetUsername').textContent=r.username;document.getElementById('resetPassword').textContent=r.password;openModal('modalResetPass');}else toast(r.message,'error'); }
+async function hapusGuru(id,nama){ if(!confirm(`Nonaktifkan guru "${nama}"?`))return; const r=await api('guru','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadGuru(); }
+
+// ── SISWA ─────────────────────────────────────────────────────────
+async function loadSiswa(){
+  const kelas=document.getElementById('filterKelas')?.value||'';
+  try{
+    const result=await api('siswa','getAll',{activeOnly:false,kelas});
+    const tbody=document.getElementById('siswaTableBody');
+    if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data siswa</td></tr>';return;}
+    tbody.innerHTML=result.data.map((s,i)=>`<tr><td>${i+1}</td><td><code style="font-size:.8rem">${s.nisn}</code></td><td><div style="font-weight:600">${s.nama}</div></td><td><span class="badge badge-primary">${s.kelas}</span></td><td>${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${s.agama}</td><td><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick='editSiswa(${JSON.stringify(s)})'>✏️</button><button class="btn btn-danger btn-sm" onclick="hapusSiswa('${s.id}','${s.nama}')">🗑</button></div></td></tr>`).join('');
+  }catch(e){toast('Gagal memuat data siswa','error');}
+}
+function openModalSiswa(){ ['siswaId','siswaNama','siswaNISN','siswaTempatLahir','siswaTanggalLahir','siswaTahunMasuk','siswaOrtu','siswaHPOrtu','siswaAlamat'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('siswaJK').value='Laki-laki'; document.getElementById('siswaAgama').selectedIndex=0; document.getElementById('siswaKelas').selectedIndex=0; document.getElementById('siswaTahunMasuk').value=new Date().getFullYear(); document.getElementById('modalSiswaTitle').textContent='Tambah Siswa'; openModal('modalSiswa'); }
+function editSiswa(s){ document.getElementById('siswaId').value=s.id; document.getElementById('siswaNama').value=s.nama; document.getElementById('siswaNISN').value=s.nisn; document.getElementById('siswaJK').value=s.jenisKelamin; document.getElementById('siswaAgama').value=s.agama; document.getElementById('siswaTempatLahir').value=s.tempatLahir||''; document.getElementById('siswaTanggalLahir').value=s.tanggalLahir||''; document.getElementById('siswaKelas').value=s.kelas; document.getElementById('siswaTahunMasuk').value=s.tahunMasuk||''; document.getElementById('siswaOrtu').value=s.namaOrtu||''; document.getElementById('siswaHPOrtu').value=s.noHpOrtu||''; document.getElementById('siswaAlamat').value=s.alamat||''; document.getElementById('modalSiswaTitle').textContent='Edit Siswa'; openModal('modalSiswa'); }
+async function submitSiswa(){ const id=document.getElementById('siswaId').value; const data={nisn:document.getElementById('siswaNISN').value.trim(),nama:document.getElementById('siswaNama').value.trim(),jenisKelamin:document.getElementById('siswaJK').value,agama:document.getElementById('siswaAgama').value,tempatLahir:document.getElementById('siswaTempatLahir').value,tanggalLahir:document.getElementById('siswaTanggalLahir').value,kelas:document.getElementById('siswaKelas').value,tahunMasuk:document.getElementById('siswaTahunMasuk').value,namaOrtu:document.getElementById('siswaOrtu').value,noHpOrtu:document.getElementById('siswaHPOrtu').value,alamat:document.getElementById('siswaAlamat').value}; if(!data.nama||!data.nisn){toast('Nama dan NISN wajib diisi','error');return;} try{const r=id?await api('siswa','edit',{id,data}):await api('siswa','tambah',{data}); toast(r.message,r.success?'success':'error'); if(r.success){closeModal('modalSiswa');loadSiswa();}}catch(e){toast('Terjadi kesalahan','error');} }
+async function hapusSiswa(id,nama){ if(!confirm(`Nonaktifkan siswa "${nama}"?`))return; const r=await api('siswa','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
+
+// ── PIKET ─────────────────────────────────────────────────────────
+async function loadPiket(){
+  try{
+    const [jadwal,guru]=await Promise.all([api('settings','getJadwalPiket'),api('guru','getAll',{activeOnly:true})]);
+    const hariList=APP.constants?.hariList||['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const jadwalMap={};
+    if(jadwal.success) jadwal.data.forEach(j=>{jadwalMap[j.hari]=j.idGuru;});
+    const guruOpts=guru.success?guru.data.map(g=>`<option value="${g.id}">${g.nama} (${g.jabatan})</option>`).join(''):'';
+    document.getElementById('piketBody').innerHTML=hariList.map(hari=>`<div class="piket-day"><div class="piket-day-name">${hari}</div><select class="form-control" id="piket_${hari}" style="max-width:280px"><option value="">— Pilih Guru —</option>${guruOpts}</select></div>`).join('');
+    hariList.forEach(hari=>{const sel=document.getElementById('piket_'+hari);if(sel&&jadwalMap[hari])sel.value=jadwalMap[hari];});
+  }catch(e){toast('Gagal memuat jadwal piket','error');}
+}
+async function saveJadwalPiket(){
+  const hariList=APP.constants?.hariList||['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const jadwalList=[];
+  hariList.forEach(hari=>{const sel=document.getElementById('piket_'+hari);if(sel&&sel.value)jadwalList.push({hari,idGuru:sel.value});});
+  const r=await api('settings','setJadwalPiket',{jadwalList});
+  toast(r.message,r.success?'success':'error');
+}
+
+// ── HARI KERJA ────────────────────────────────────────────────────
+let hariLiburData=[];
+async function renderCalendar(){
+  const bulan=parseInt(document.getElementById('calMonth').value);
+  const tahun=parseInt(document.getElementById('calYear').value);
+  const result=await api('settings','getHariKerja',{bulan,tahun});
+  hariLiburData=result.success?result.data:[];
+  const liburDates=hariLiburData.map(h=>({date:new Date(h.tanggal).getUTCDate(),ket:h.keterangan,tgl:h.tanggal}));
+  const now=new Date();
+  const firstDay=new Date(tahun,bulan-1,1).getDay();
+  const daysInMonth=new Date(tahun,bulan,0).getDate();
+  let html='<div class="calendar-grid">';
+  ['Min','Sen','Sel','Rab','Kam','Jum','Sab'].forEach(d=>html+=`<div class="cal-header">${d}</div>`);
+  for(let i=0;i<firstDay;i++) html+='<div class="cal-day empty"></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const dow=(firstDay+d-1)%7;
+    const isToday=d===now.getDate()&&bulan===now.getMonth()+1&&tahun===now.getFullYear();
+    const liburItem=liburDates.find(l=>l.date===d);
+    const isWeekend=dow===0||dow===6;
+    let cls='cal-day';
+    if(isToday)cls+=' today'; else if(liburItem)cls+=' libur'; else if(isWeekend)cls+=' weekend';
+    const dateStr=`${tahun}-${String(bulan).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    html+=`<div class="${cls}" onclick="toggleLibur('${dateStr}',${d})" title="${liburItem?liburItem.ket:''}">${d}</div>`;
+  }
+  html+='</div>';
+  document.getElementById('calendarWrap').innerHTML=html;
+  if(hariLiburData.length>0){
+    document.getElementById('liburList').innerHTML=`<h4 style="font-size:.88rem;font-weight:700;margin-bottom:10px">📌 Hari Libur Bulan Ini:</h4>${hariLiburData.map(h=>{const d=new Date(h.tanggal);return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.88rem">${d.getUTCDate()} — ${h.keterangan}</span><button class="btn btn-danger btn-sm" onclick="hapusLibur('${h.tanggal}')">Hapus</button></div>`;}).join('')}`;
+  } else { document.getElementById('liburList').innerHTML=''; }
+}
+async function toggleLibur(dateStr,day){
+  const existing=hariLiburData.find(h=>new Date(h.tanggal).getUTCDate()===day);
+  if(existing){await hapusLibur(dateStr);return;}
+  const ket=prompt('Nama hari libur:','Hari Libur Nasional');
+  if(!ket)return;
+  const r=await api('settings','setHariLibur',{tanggal:dateStr,keterangan:ket});
+  toast(r.message,r.success?'success':'error'); if(r.success)renderCalendar();
+}
+async function hapusLibur(dateStr){ if(!confirm('Hapus hari libur ini?'))return; const r=await api('settings','hapusHariLibur',{tanggal:dateStr}); toast(r.message,r.success?'success':'error'); if(r.success)renderCalendar(); }
+
+// ── PENGATURAN ────────────────────────────────────────────────────
+async function loadPengaturan(){
+  const r=await api('settings','getJamSetting');
+  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
+}
+async function savePengaturan(){
+  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT'];
+  const settings={};
+  keys.forEach(k=>{const el=document.getElementById('set_'+k);if(el)settings[k]=el.value;});
+  const r=await api('settings','updateJamSetting',{settings});
+  toast(r.message,r.success?'success':'error');
+}
+
+// ── PROFIL SEKOLAH ────────────────────────────────────────────────
+async function loadProfilSekolah(){
+  const r=await api('settings','getJamSetting');
+  if(r.success){ APP.settings=r.data; ['NAMA_SEKOLAH','NPSN','ALAMAT_SEKOLAH','TAHUN_AJARAN','TELP_SEKOLAH','EMAIL_SEKOLAH','LOGO_URL'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); if(r.data['LOGO_URL'])previewLogoFromURL(r.data['LOGO_URL']); renderKartuMiniPreview(); }
+}
+async function saveProfilSekolah(){
+  const keys=['NAMA_SEKOLAH','NPSN','ALAMAT_SEKOLAH','TAHUN_AJARAN','TELP_SEKOLAH','EMAIL_SEKOLAH','LOGO_URL'];
+  const settings={};
+  keys.forEach(k=>{const el=document.getElementById('set_'+k);if(el)settings[k]=el.value.trim();});
+  const r=await api('settings','updateJamSetting',{settings});
+  if(r.success){APP.settings={...APP.settings,...settings};toast('Profil sekolah berhasil disimpan','success');const sn=settings['NAMA_SEKOLAH'];if(sn)document.getElementById('schoolNameSidebar').textContent=sn;renderKartuMiniPreview();}else toast(r.message,'error');
+}
+function handleLogoUpload(event){
+  const file=event.target.files[0]; if(!file)return;
+  if(file.size>800*1024){toast('File terlalu besar. Maks 800KB.','warning');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{const url=e.target.result;document.getElementById('set_LOGO_URL').value=url;if(!APP.settings)APP.settings={};APP.settings['LOGO_URL']=url;previewLogoFromURL(url);renderKartuMiniPreview();toast('Logo diupload! Klik Simpan.','success');};
+  reader.readAsDataURL(file);
+}
+function previewLogoFromURL(url){
+  const inner=document.getElementById('logoPreviewInner'); if(!inner)return;
+  if(!url){inner.innerHTML='<div style="font-size:2.5rem">🏫</div><div style="font-size:.75rem;margin-top:6px">Klik untuk upload</div>';return;}
+  inner.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:contain" onerror="this.parentElement.innerHTML='<div style=\\'font-size:.75rem;color:var(--danger)\\'>URL tidak valid</div>'">`;
+  renderKartuMiniPreview();
+}
+function renderKartuMiniPreview(){
+  const wrap=document.getElementById('kartuMiniPreview'); if(!wrap)return;
+  const s={id:'PREVIEW001',nisn:'0012345678',nama:'Nama Siswa Contoh',kelas:'X-1',jenisKelamin:'Laki-laki',tempatLahir:'Manado',tanggalLahir:'2008-01-15',agama:'Kristen'};
+  wrap.style.cssText='transform:scale(0.65);transform-origin:top left;width:594px';
+  wrap.innerHTML=`<div class="student-card-print" style="box-shadow:var(--shadow-md)">${buildKartuInnerHTML(s,APP.settings||{})}</div>`;
+  setTimeout(()=>{const qt=wrap.querySelector('.qr-target-PREVIEW001');if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';new QRCode(qt,{text:'PREVIEW',width:68,height:68,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.L});}},150);
+}
+
+// ── REKAP ─────────────────────────────────────────────────────────
+function switchRekapTab(tab,btn){ document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.getElementById('rekapHarianPanel').style.display=tab==='harian'?'block':'none'; document.getElementById('rekapBulananPanel').style.display=tab==='bulanan'?'block':'none'; }
+async function loadRekapHarian(){
+  const tanggal=document.getElementById('rekapTanggal').value; if(!tanggal){toast('Pilih tanggal','warning');return;}
+  const result=await api('absensi','rekapHarian',{tanggal});
+  const tbody=document.getElementById('rekapHarianBody');
+  if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data</td></tr>';return;}
+  tbody.innerHTML=result.data.map((d,i)=>`<tr><td>${i+1}</td><td><code>${d.nisn}</code></td><td>${d.nama}</td><td><span class="badge badge-primary">${d.kelas}</span></td><td>${d.jamDatang||'-'}</td><td><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td><td>${d.jamPulang||'-'}</td><td>${d.namaGuruPiket||'-'}</td></tr>`).join('');
+}
+async function loadRekapBulanan(){
+  const bulan=document.getElementById('rekapBulan').value,tahun=document.getElementById('rekapTahun').value,kelas=document.getElementById('rekapKelasFilter').value;
+  const result=await api('absensi','rekapBulanan',{bulan,tahun,kelas});
+  const tbody=document.getElementById('rekapBulananBody');
+  if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data</td></tr>';return;}
+  tbody.innerHTML=result.data.map((d,i)=>`<tr><td>${i+1}</td><td><code>${d.nisn}</code></td><td>${d.nama}</td><td><span class="badge badge-primary">${d.kelas}</span></td><td><span class="badge badge-success">${d.hadir}</span></td><td><span class="badge badge-warning">${d.terlambat}</span></td><td><span class="badge badge-primary">${d.pulang}</span></td></tr>`).join('');
+}
+async function loadRekapHarianGuru(){
+  const tanggal=document.getElementById('rekapTanggalGuru').value; if(!tanggal){toast('Pilih tanggal','warning');return;}
+  const result=await api('absensi','rekapHarian',{tanggal});
+  const tbody=document.getElementById('rekapGuruBody');
+  if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data</td></tr>';return;}
+  tbody.innerHTML=result.data.map((d,i)=>`<tr><td>${i+1}</td><td>${d.nama}</td><td><span class="badge badge-primary">${d.kelas}</span></td><td>${d.jamDatang||'-'}</td><td><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td><td>${d.jamPulang||'-'}</td></tr>`).join('');
+}
+function exportExcel(){ toast('Fitur export Excel: print halaman atau screenshot tabel','info',5000); }
+
+// ── KARTU SISWA ───────────────────────────────────────────────────
+async function loadKartuSiswa(){
+  const kelas=document.getElementById('kartuKelas')?.value||'';
+  const container=document.getElementById('kartuGrid');
+  container.innerHTML='<p style="color:var(--text-muted)">Memuat kartu...</p>';
+  try{
+    const [result,settingsRes]=await Promise.all([api('siswa','getAll',{activeOnly:true,kelas}),api('settings','getJamSetting')]);
+    if(!result.success||!result.data.length){container.innerHTML='<p style="color:var(--text-muted)">Tidak ada siswa aktif.</p>';return;}
+    if(settingsRes.success) APP.settings=settingsRes.data;
+    container.innerHTML='';
+    result.data.forEach(s=>{
+      const wrap=document.createElement('div'); wrap.className='kartu-item-wrap';
+      const cardDiv=document.createElement('div'); cardDiv.id='print_'+s.id; cardDiv.className='student-card-print';
+      cardDiv.innerHTML=buildKartuInnerHTML(s,APP.settings||{});
+      wrap.appendChild(cardDiv);
+      const footer=document.createElement('div'); footer.className='kartu-item-footer';
+      footer.innerHTML=`<span style="font-size:.8rem;font-weight:600;color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nama}</span><button class="btn btn-primary btn-sm" id="dlbtn_${s.id}">📥 Download</button>`;
+      wrap.appendChild(footer); container.appendChild(wrap);
+      setTimeout(()=>{
+        const qt=document.querySelector('.qr-target-'+s.id);
+        if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';new QRCode(qt,{text:(s.id+'|'+(s.nisn||'')+'|'+(s.nama||'')).substring(0,80),width:70,height:70,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.L});}
+        const dlBtn=document.getElementById('dlbtn_'+s.id);
+        if(dlBtn) dlBtn.addEventListener('click',()=>downloadKartu(s,cardDiv));
+      },200);
+    });
+  }catch(e){container.innerHTML=`<p style="color:var(--danger)">Gagal: ${e.message}</p>`;}
+}
+
+function buildKartuInnerHTML(s,settings){
+  const schoolName=(settings?.['NAMA_SEKOLAH']||'NAMA SEKOLAH').toUpperCase();
+  const npsn=settings?.['NPSN']||'';
+  const schoolAddr=settings?.['ALAMAT_SEKOLAH']||'';
+  const tahunAjaran=settings?.['TAHUN_AJARAN']||'2024/2025';
+  const logoUrl=settings?.['LOGO_URL']||'';
+  const avatar=s.jenisKelamin==='Perempuan'?'👩‍🎓':'👨‍🎓';
+  let tglLahir='-';
+  if(s.tanggalLahir){try{tglLahir=new Date(s.tanggalLahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});}catch(e){tglLahir=s.tanggalLahir;}}
+  const subParts=[npsn?'NPSN: '+npsn:'',schoolAddr].filter(Boolean);
+  const logoHTML=logoUrl?`<div class="sc-logo"><img src="${logoUrl}" alt="logo"></div>`:`<div class="sc-logo"><span class="sc-logo-icon">🏫</span></div>`;
+  return `<div class="sc-deco1"></div><div class="sc-deco2"></div>
+    <div class="sc-header">${logoHTML}<div class="sc-school-wrap"><div class="sc-school-name">${schoolName}</div>${subParts.length?`<div class="sc-school-sub">${subParts.join(' • ')}</div>`:''}</div><div class="sc-badge">Kartu Pelajar</div></div>
+    <div class="sc-body">
+      <div class="sc-photo-col"><div class="sc-photo"><span class="sc-avatar">${avatar}</span></div><div class="sc-kelas">${s.kelas||'-'}</div></div>
+      <div class="sc-data-col"><div class="sc-name">${s.nama||'-'}</div>
+        <div class="sc-field"><span class="sc-label">NISN</span><span class="sc-value">${s.nisn||'-'}</span></div>
+        <div class="sc-field"><span class="sc-label">Tempat, Tanggal Lahir</span><span class="sc-value">${s.tempatLahir||'-'}, ${tglLahir}</span></div>
+        <div class="sc-field"><span class="sc-label">Agama</span><span class="sc-value">${s.agama||'-'}</span></div>
+        <div class="sc-field"><span class="sc-label">Jenis Kelamin</span><span class="sc-value">${s.jenisKelamin||'-'}</span></div>
+        <div class="sc-field" style="margin-top:3px"><span class="sc-label">Tahun Ajaran</span><span class="sc-value">${tahunAjaran}</span></div>
+      </div>
+      <div class="sc-qr-col"><div class="sc-qr-box"><div class="qr-target-${s.id}"></div></div><div class="sc-qr-label">Scan untuk absensi</div><div class="sc-qr-id">${(s.id||'').slice(-10).toUpperCase()}</div></div>
+    </div>`;
+}
+
+async function downloadKartu(s,cardEl){
+  const btn=document.getElementById('dlbtn_'+s.id);
+  if(btn){btn.disabled=true;btn.textContent='⏳...';}
+  try{
+    await new Promise(r=>setTimeout(r,400));
+    const canvas=await html2canvas(cardEl,{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false,width:386,height:246});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,6.5]});
+    pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,6.5);
+    pdf.save(`Kartu_${s.nama.replace(/\s+/g,'_')}_${s.nisn||s.id}.pdf`);
+    toast('✅ Kartu berhasil didownload!','success');
+  }catch(e){toast('❌ Gagal download: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='📥 Download';}}
+}
+async function downloadAllKartuPDF(){
+  const cards=document.querySelectorAll('.student-card-print');
+  if(!cards.length){toast('Tidak ada kartu','warning');return;}
+  toast(`Menyiapkan PDF ${cards.length} kartu...`,'info',8000);
+  try{
+    await new Promise(r=>setTimeout(r,400));
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,6.5]});
+    for(let i=0;i<cards.length;i++){
+      const canvas=await html2canvas(cards[i],{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false});
+      if(i>0)pdf.addPage([10.2,6.5],'landscape');
+      pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,6.5);
+    }
+    pdf.save('Kartu_Siswa_Semua.pdf');
+    toast(`✅ PDF ${cards.length} kartu berhasil!`,'success',5000);
+  }catch(e){toast('❌ Gagal: '+e.message,'error');}
+}
+function printAllKartu(){ window.print(); }
+
+// ── ABSENSI ───────────────────────────────────────────────────────
+let absenMode='datang';
+function setAbsenMode(mode){ absenMode=mode; document.getElementById('btnModeDatang').classList.toggle('active',mode==='datang'); document.getElementById('btnModePulang').classList.toggle('active',mode==='pulang'); document.getElementById('absenResult').className='absen-result'; APP.scanFailCount=0; }
+
+// Kamera live
+async function startScanner(){
+  if(APP.scanActive)return;
+  const btn=document.getElementById('btnToggleKamera');
+  if(btn){btn.textContent='⏳ Membuka...';btn.disabled=true;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    APP.scanStream=stream; APP.scanActive=true;
+    const video=document.getElementById('scanVideo');
+    video.srcObject=stream;
+    await video.play();
+    document.getElementById('scannerWrap').style.display='block';
+    document.getElementById('noKameraMsg').style.display='none';
+    if(btn){btn.textContent='🔴 Matikan Kamera';btn.style.cssText='background:var(--success);color:#fff;border-color:var(--success)';btn.disabled=false;}
+    scanQRLoop();
+    toast('✅ Kamera aktif!','success',2000);
+  }catch(e){
+    if(btn){btn.textContent='📷 Aktifkan Kamera';btn.disabled=false;btn.style.cssText='';}
+    toast('Kamera tidak bisa diakses: '+e.message,'warning');
+  }
+}
+
+function stopScanner(){
+  APP.scanActive=false;
+  if(APP.scanStream){APP.scanStream.getTracks().forEach(t=>t.stop());APP.scanStream=null;}
+  if(APP.scanAnimFrame){cancelAnimationFrame(APP.scanAnimFrame);APP.scanAnimFrame=null;}
+  const btn=document.getElementById('btnToggleKamera');
+  if(btn){btn.textContent='📷 Aktifkan Kamera';btn.style.cssText='';btn.disabled=false;}
+  const sw=document.getElementById('scannerWrap'); if(sw)sw.style.display='none';
+  const nm=document.getElementById('noKameraMsg'); if(nm)nm.style.display='block';
+}
+
+function toggleKamera(){ if(APP.scanActive)stopScanner(); else startScanner(); }
+
+function scanQRLoop(){
+  if(!APP.scanActive)return;
+  const video=document.getElementById('scanVideo');
+  const canvas=document.getElementById('scanCanvas');
+  if(!video||!video.readyState||video.readyState<2){APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);return;}
+  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+  const ctx=canvas.getContext('2d'); ctx.drawImage(video,0,0);
+  const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const code=jsQR(imageData.data,imageData.width,imageData.height);
+  if(code){processQRResult(code.data);}
+  else{APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);}
+}
+
+// Scan dari file/foto
+async function scanFromFile(event){
+  const file=event.target.files[0]; if(!file)return;
+  try{
+    const img=await createImageBitmap(file);
+    const canvas=document.createElement('canvas');
+    canvas.width=img.width; canvas.height=img.height;
+    canvas.getContext('2d').drawImage(img,0,0);
+    const imageData=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);
+    const code=jsQR(imageData.data,imageData.width,imageData.height);
+    if(code){await processQRResult(code.data);}
+    else{toast('QR tidak terbaca. Coba foto lebih dekat dan jelas.','warning');}
+  }catch(e){toast('Gagal baca foto: '+e.message,'error');}
+  event.target.value='';
+}
+
+let scanCooldown=false;
+async function processQRResult(data){
+  if(scanCooldown)return;
+  scanCooldown=true;
+  setTimeout(()=>{scanCooldown=false;if(APP.scanActive)APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);},3000);
+  try{
+    const parts=data.split('|');
+    const identifier=parts[0];
+    const siswa=await api('siswa','getByScan',{identifier});
+    if(!siswa.success){showScanFlash('error','❌ QR Tidak Dikenal');APP.scanFailCount++;return;}
+    await doAbsensi(siswa.data);
+  }catch(e){showScanFlash('error','❌ Scan Gagal');}
+}
+
+function showScanFlash(type,msg){
+  const flash=document.getElementById('scanFlash'); if(!flash)return;
+  flash.className='scan-result-flash show '+type; flash.textContent=msg;
+  setTimeout(()=>{flash.className='scan-result-flash';},1500);
+}
+
+async function doManualAbsen(){
+  const id=document.getElementById('manualId').value.trim();
+  if(!id){toast('Masukkan ID atau NISN siswa','warning');return;}
+  try{
+    const siswa=await api('siswa','getByScan',{identifier:id});
+    if(!siswa.success){toast('Siswa tidak ditemukan: '+id,'error');return;}
+    await doAbsensi(siswa.data);
+    document.getElementById('manualId').value='';
+  }catch(e){toast('Terjadi kesalahan','error');}
+}
+
+async function doAbsensi(siswa){
+  const guru=APP.user;
+  try{
+    let result;
+    if(absenMode==='datang'){result=await api('absensi','datang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});}
+    else{result=await api('absensi','pulang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});}
+    showAbsenResult(result,siswa);
+    if(result.success){showScanFlash('success',result.status==='Terlambat'?'⚠️ TERLAMBAT':'✅ BERHASIL');loadLogAbsensi();}
+    else{showScanFlash('error','❌ '+result.message);}
+  }catch(e){showAbsenResult({success:false,message:'Koneksi gagal'},siswa);}
+}
+
+function showAbsenResult(result,siswa){
+  const el=document.getElementById('absenResult');
+  if(result.success){
+    const isLate=result.status==='Terlambat';
+    const isPulang=result.status==='Pulang';
+    const icon=isPulang?'🌙':isLate?'⚠️':'✅';
+    const statusText=isPulang?'ABSEN PULANG':isLate?'TERLAMBAT':'ABSEN DATANG';
+    const colorClass=isPulang?'success':isLate?'warning':'success';
+    const now=new Date(); const jam=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    el.className=`absen-result show ${colorClass}`;
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:16px"><div style="font-size:3rem;flex-shrink:0">${icon}</div><div style="flex:1"><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75;margin-bottom:2px">${statusText} BERHASIL</div><div style="font-size:1.3rem;font-weight:800;color:var(--text)">${siswa?.nama||''}</div><div style="font-size:.85rem;color:var(--text-muted);margin-top:3px">Kelas <strong>${siswa?.kelas||''}</strong> &nbsp;•&nbsp; NISN: ${siswa?.nisn||''}</div><div style="margin-top:8px;display:flex;gap:8px"><span style="background:rgba(0,0,0,0.08);padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">🕐 ${jam}</span></div></div></div>`;
+    playBeep(isLate?'warning':'success');
+  }else{
+    el.className='absen-result show error';
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:16px"><div style="font-size:3rem">❌</div><div><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75">GAGAL</div><div style="font-size:1rem;font-weight:700;color:var(--text)">${result.message}</div></div></div>`;
+    playBeep('error');
+  }
+  clearTimeout(APP.absenResultTimer);
+  APP.absenResultTimer=setTimeout(()=>{el.className='absen-result';el.innerHTML='';},6000);
+}
+
+function playBeep(type){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    if(type==='success'){osc.frequency.setValueAtTime(880,ctx.currentTime);osc.frequency.setValueAtTime(1100,ctx.currentTime+0.1);gain.gain.setValueAtTime(0.3,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.3);}
+    else if(type==='warning'){osc.frequency.setValueAtTime(660,ctx.currentTime);osc.frequency.setValueAtTime(440,ctx.currentTime+0.15);gain.gain.setValueAtTime(0.3,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.4);}
+    else{osc.frequency.setValueAtTime(220,ctx.currentTime);gain.gain.setValueAtTime(0.2,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.3);}
+  }catch(e){}
+}
+
+async function loadLogAbsensi(){
+  const today=new Date().toISOString().split('T')[0];
+  try{
+    const result=await api('absensi','rekapHarian',{tanggal:today});
+    const tbody=document.getElementById('logAbsensiBody');
+    if(!result.success||!result.data.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada absensi hari ini</td></tr>';return;}
+    const sorted=result.data.sort((a,b)=>(b.jamDatang||'').localeCompare(a.jamDatang||''));
+    tbody.innerHTML=sorted.map(d=>`<tr><td><div style="font-weight:600">${d.nama}</div></td><td><span class="badge badge-primary">${d.kelas}</span></td><td>${d.jamDatang||'-'}</td><td><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td></tr>`).join('');
+  }catch(e){}
+}
+
+// ── GANTI PASSWORD ────────────────────────────────────────────────
+async function submitGantiPass(){
+  const oldPass=document.getElementById('oldPass').value;
+  const newPass=document.getElementById('newPass').value;
+  const confPass=document.getElementById('confPass').value;
+  if(newPass!==confPass){toast('Konfirmasi password tidak cocok','error');return;}
+  if(newPass.length<6){toast('Password minimal 6 karakter','warning');return;}
+  const r=await api('auth','changePassword',{username:APP.user.username,oldPassword:oldPass,newPassword:newPass});
+  toast(r.message,r.success?'success':'error');
+  if(r.success)closeModal('modalGantiPass');
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────
+document.querySelectorAll('.modal-backdrop').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));});
+</script>
+</body>
+</html>

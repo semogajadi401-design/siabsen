@@ -6,12 +6,12 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   const { action, ...params } = req.body || {};
   try {
-    if (action === 'getAll')      return res.json(await getAll(params));
-    if (action === 'tambah')      return res.json(await tambah(params));
-    if (action === 'edit')        return res.json(await edit(params));
-    if (action === 'hapus')       return res.json(await hapus(params));
-    if (action === 'getByScan')   return res.json(await getByScan(params));
-    if (action === 'importSiswa') return res.json(await importSiswa(params));
+    if (action === 'getAll')     return res.json(await getAll(params));
+    if (action === 'tambah')     return res.json(await tambah(params));
+    if (action === 'edit')       return res.json(await edit(params));
+    if (action === 'hapus')      return res.json(await hapus(params));
+    if (action === 'getByScan')  return res.json(await getByScan(params));
+    if (action === 'importSiswa')return res.json(await importSiswa(params)); // ← TAMBAHAN FIX
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
@@ -66,88 +66,70 @@ async function hapus({ id }) {
   return { success: true, message: 'Siswa berhasil dinonaktifkan' };
 }
 
-// ── FIX: getByScan mendukung format QR "id|nisn|nama" dan pencarian fleksibel ──
 async function getByScan({ identifier }) {
-  if (!identifier) return { success: false, message: 'Identifier kosong' };
-
-  // QR code format: "SW...|nisn|nama" — ambil bagian pertama
-  const cleanId = identifier.split('|')[0].trim();
-
-  // Coba cari berdasarkan id (exact) ATAU nisn (exact)
-  const { data, error } = await supabase
-    .from('siswa')
-    .select('id,nisn,nama,kelas,jenis_kelamin')
-    .or(`id.eq.${cleanId},nisn.eq.${cleanId}`)
-    .eq('status', 'Aktif')
-    .limit(1);
-
-  if (error) return { success: false, message: error.message };
-  if (!data || data.length === 0) {
-    return { success: false, message: `Siswa tidak ditemukan (ID: ${cleanId})` };
-  }
-
-  const s = data[0];
-  return {
-    success: true,
-    data: { id: s.id, nisn: s.nisn, nama: s.nama, kelas: s.kelas, jenisKelamin: s.jenis_kelamin }
-  };
+  const { data } = await supabase.from('siswa').select('id,nisn,nama,kelas,jenis_kelamin')
+    .or(`id.eq.${identifier},nisn.eq.${identifier}`).eq('status','Aktif').single();
+  if (!data) return { success: false, message: 'Siswa tidak ditemukan' };
+  return { success: true, data: { id: data.id, nisn: data.nisn, nama: data.nama, kelas: data.kelas, jenisKelamin: data.jenis_kelamin } };
 }
 
-// ── IMPORT SISWA MASSAL dari array data CSV/Excel ──
+// ── IMPORT SISWA (TAMBAHAN) ───────────────────────────────────────────────────
 async function importSiswa({ dataList }) {
-  if (!dataList || !Array.isArray(dataList) || dataList.length === 0) {
-    return { success: false, message: 'Data kosong' };
+  if (!dataList || !dataList.length) {
+    return { success: false, message: 'Tidak ada data untuk diimport' };
   }
 
-  const results = { berhasil: 0, gagal: 0, errors: [] };
+  let berhasil = 0;
+  let gagal = 0;
+  const errors = [];
 
-  for (const row of dataList) {
-    if (!row.nisn || !row.nama || !row.kelas) {
-      results.gagal++;
-      results.errors.push(`Baris dilewati: NISN/Nama/Kelas wajib (${row.nama || 'tanpa nama'})`);
+  for (const data of dataList) {
+    // Validasi field wajib
+    if (!data.nisn || !data.nama) {
+      gagal++;
+      errors.push(`Baris dilewati: NISN atau Nama kosong (${data.nisn || '-'})`);
       continue;
     }
 
-    // Cek apakah NISN sudah ada
+    // Cek NISN sudah ada
     const { data: existing } = await supabase
-      .from('siswa').select('id').eq('nisn', row.nisn.toString().trim()).single();
-
+      .from('siswa').select('id').eq('nisn', data.nisn.trim()).single();
     if (existing) {
-      results.gagal++;
-      results.errors.push(`NISN ${row.nisn} sudah terdaftar (${row.nama})`);
+      gagal++;
+      errors.push(`NISN ${data.nisn} (${data.nama}) sudah terdaftar, dilewati`);
       continue;
     }
 
     const id = generateID('SW');
     const { error } = await supabase.from('siswa').insert({
       id,
-      nisn: row.nisn.toString().trim(),
-      nama: row.nama.toString().trim(),
-      jenis_kelamin: row.jenisKelamin || row.jenis_kelamin || 'Laki-laki',
-      tempat_lahir: row.tempatLahir || row.tempat_lahir || '',
-      tanggal_lahir: row.tanggalLahir || row.tanggal_lahir || null,
-      agama: row.agama || 'Islam',
-      kelas: row.kelas.toString().trim(),
-      tahun_masuk: parseInt(row.tahunMasuk || row.tahun_masuk) || new Date().getFullYear(),
-      nama_ortu: row.namaOrtu || row.nama_ortu || '',
-      no_hp_ortu: row.noHpOrtu || row.no_hp_ortu || '',
-      alamat: row.alamat || '',
+      nisn: data.nisn.trim(),
+      nama: data.nama.trim(),
+      jenis_kelamin: data.jenisKelamin || 'Laki-laki',
+      tempat_lahir: data.tempatLahir || '',
+      tanggal_lahir: data.tanggalLahir || null,
+      agama: data.agama || 'Islam',
+      kelas: data.kelas || '',
+      tahun_masuk: parseInt(data.tahunMasuk) || new Date().getFullYear(),
+      nama_ortu: data.namaOrtu || '',
+      no_hp_ortu: data.noHpOrtu || '',
+      alamat: data.alamat || '',
       status: 'Aktif'
     });
 
     if (error) {
-      results.gagal++;
-      results.errors.push(`${row.nama}: ${error.message}`);
+      gagal++;
+      errors.push(`Gagal import ${data.nama} (${data.nisn}): ${error.message}`);
     } else {
-      results.berhasil++;
+      berhasil++;
     }
   }
 
   return {
     success: true,
-    message: `Import selesai: ${results.berhasil} berhasil, ${results.gagal} gagal`,
-    berhasil: results.berhasil,
-    gagal: results.gagal,
-    errors: results.errors
+    message: `Import selesai: ${berhasil} berhasil, ${gagal} gagal`,
+    berhasil,
+    gagal,
+    errors
   };
 }

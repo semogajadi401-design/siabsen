@@ -1407,13 +1407,22 @@ async function processQRResult(data){
   scanCooldown=true;
   setTimeout(()=>{scanCooldown=false;if(APP.scanActive)APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);},3000);
   try{
-    // Format QR: "id|nisn" atau hanya "nisn"
+    // Format QR: "id|nisn" — ambil bagian pertama (ID siswa)
     const parts=data.split('|');
     const identifier=parts[0].trim();
+    if(!identifier){showScanFlash('error','❌ QR Tidak Valid');return;}
     const siswa=await api('siswa','getByScan',{identifier});
-    if(!siswa.success){showScanFlash('error','❌ QR Tidak Dikenal');APP.scanFailCount++;return;}
+    if(!siswa.success){
+      showScanFlash('error','❌ '+siswa.message);
+      showAbsenResult({success:false,message:siswa.message},{});
+      APP.scanFailCount++;
+      return;
+    }
     await doAbsensi(siswa.data);
-  }catch(e){showScanFlash('error','❌ Scan Gagal');}
+  }catch(e){
+    showScanFlash('error','❌ Koneksi Gagal');
+    showAbsenResult({success:false,message:'Koneksi gagal: '+e.message},{});
+  }
 }
 
 function showScanFlash(type,msg){

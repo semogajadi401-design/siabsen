@@ -16,7 +16,6 @@ module.exports = async (req, res) => {
 };
 
 async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
-  // Ambil data siswa
   const { data: siswa } = await supabase.from('siswa').select('*').eq('id', idSiswa).single();
   if (!siswa) return { success: false, message: 'Data siswa tidak ditemukan' };
 
@@ -31,19 +30,9 @@ async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
     return { success: false, message: `${siswa.nama} sudah absen datang hari ini pukul ${existing.jam_datang}` };
   }
 
-  // Ambil jam setting
+  // Tentukan status berdasarkan batas jam datang (tanpa blokir jam)
   const jamSetting = await getJamSetting();
-  const jamMulai  = jamSetting['JAM_DATANG_MULAI']   || '06:30';
   const jamSelesai = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
-
-  // Validasi rentang jam absensi datang
-  if (jam < jamMulai) {
-    return { success: false, message: `Absensi datang belum dibuka. Mulai pukul ${jamMulai} WIB` };
-  }
-  if (jam > jamSelesai) {
-    // Tetap izinkan tapi tandai Terlambat (tidak blokir)
-  }
-
   const statusDatang = jam > jamSelesai ? 'Terlambat' : 'Hadir';
 
   const id = generateID('AB');
@@ -75,13 +64,6 @@ async function absensiPulang({ idSiswa, idGuru, namaGuru, metode }) {
   if (!absen) return { success: false, message: 'Siswa belum absen datang hari ini' };
   if (absen.jam_pulang) return { success: false, message: `${absen.nama_siswa} sudah absen pulang hari ini pukul ${absen.jam_pulang}` };
   if (!absen.jam_datang) return { success: false, message: `${absen.nama_siswa} belum absen datang hari ini` };
-
-  // Validasi jam pulang
-  const jamSetting = await getJamSetting();
-  const jamMulaiPulang = jamSetting['JAM_PULANG_MULAI'] || '14:00';
-  if (jam < jamMulaiPulang) {
-    return { success: false, message: `Absensi pulang belum dibuka. Mulai pukul ${jamMulaiPulang} WIB` };
-  }
 
   const { error } = await supabase.from('absensi').update({
     jam_pulang: jam, status_pulang: 'Pulang',

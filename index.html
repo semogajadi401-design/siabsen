@@ -206,7 +206,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .absen-result.warning{background:var(--warning-light);border:2px solid rgba(245,127,23,0.35)}
 
 /* KARTU SISWA */
-.student-card-print{width:386px;height:246px;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%);border-radius:10px;color:#fff;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;flex-shrink:0;box-sizing:border-box;display:flex;flex-direction:column;padding:0}
+.student-card-print{width:386px;height:268px;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%);border-radius:10px;color:#fff;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;flex-shrink:0;box-sizing:border-box;display:flex;flex-direction:column;padding:0}
 .sc-deco1{position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.07);pointer-events:none}
 .sc-deco2{position:absolute;bottom:-50px;left:-20px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none}
 .sc-header{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,0.25);position:relative;z-index:1;flex-shrink:0}
@@ -228,9 +228,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .sc-field{margin-bottom:3.5px}
 .sc-label{font-size:5.5pt;color:rgba(255,255,255,0.62);text-transform:uppercase;letter-spacing:.3px;line-height:1;display:block}
 .sc-value{font-size:6.8pt;font-weight:600;color:#fff;line-height:1.3}
-.sc-qr-col{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px 8px 4px;gap:4px}
-.sc-qr-box{width:80px;height:80px;background:#fff;border-radius:8px;padding:5px;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.sc-qr-box>div,.sc-qr-box canvas,.sc-qr-box img{width:70px!important;height:70px!important;display:block!important;max-width:70px!important;max-height:70px!important}
+.sc-qr-col{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 12px 6px 4px;gap:3px}
+.sc-qr-box{width:80px;height:80px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;overflow:visible;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sc-qr-box>div,.sc-qr-box canvas,.sc-qr-box img{width:72px!important;height:72px!important;display:block!important;max-width:72px!important;max-height:72px!important}
 .sc-qr-label{font-size:5pt;color:rgba(255,255,255,0.65);text-align:center;letter-spacing:.3px;margin-top:2px}
 .sc-qr-id{font-size:5pt;font-family:monospace;color:rgba(255,255,255,0.72);letter-spacing:.5px;text-align:center}
 .kartu-item-wrap{border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface);display:inline-flex;flex-direction:column}
@@ -1168,7 +1168,7 @@ function renderKartuMiniPreview(){
   const s={id:'PREVIEW001',nisn:'0012345678',nama:'Nama Siswa Contoh',kelas:'X-1',jenisKelamin:'Laki-laki',tempatLahir:'Manado',tanggalLahir:'2008-01-15',agama:'Kristen'};
   wrap.style.cssText='transform:scale(0.65);transform-origin:top left;width:594px';
   wrap.innerHTML=`<div class="student-card-print" style="box-shadow:var(--shadow-md)">${buildKartuInnerHTML(s,APP.settings||{})}</div>`;
-  setTimeout(()=>{const qt=wrap.querySelector('.qr-target-PREVIEW001');if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';new QRCode(qt,{text:'PREVIEW',width:68,height:68,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.L});}},150);
+  setTimeout(()=>{const qt=wrap.querySelector('.qr-target-PREVIEW001');if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';new QRCode(qt,{text:'PREVIEW',width:72,height:72,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.L});}},150);
 }
 
 // ── REKAP ─────────────────────────────────────────────────────────
@@ -1216,7 +1216,7 @@ async function loadKartuSiswa(){
       wrap.appendChild(footer); container.appendChild(wrap);
       setTimeout(()=>{
         const qt=document.querySelector('.qr-target-'+s.id);
-        if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';const qrText=s.id+'|'+(s.nisn||'');new QRCode(qt,{text:qrText,width:70,height:70,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});}
+        if(qt&&typeof QRCode!=='undefined'){qt.innerHTML='';const qrText=s.id+'|'+(s.nisn||'');new QRCode(qt,{text:qrText,width:72,height:72,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});}
         const dlBtn=document.getElementById('dlbtn_'+s.id);
         if(dlBtn) dlBtn.addEventListener('click',()=>downloadKartu(s,cardDiv));
       },200);
@@ -1255,10 +1255,10 @@ async function downloadKartu(s,cardEl){
   if(btn){btn.disabled=true;btn.textContent='⏳...';}
   try{
     await new Promise(r=>setTimeout(r,400));
-    const canvas=await html2canvas(cardEl,{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false,width:386,height:246});
+    const canvas=await html2canvas(cardEl,{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false,width:386,height:268});
     const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,6.5]});
-    pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,6.5);
+    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,7.08]});
+    pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,7.08);
     pdf.save(`Kartu_${s.nama.replace(/\s+/g,'_')}_${s.nisn||s.id}.pdf`);
     toast('✅ Kartu berhasil didownload!','success');
   }catch(e){toast('❌ Gagal download: '+e.message,'error');}
@@ -1271,11 +1271,11 @@ async function downloadAllKartuPDF(){
   try{
     await new Promise(r=>setTimeout(r,400));
     const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,6.5]});
+    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,7.08]});
     for(let i=0;i<cards.length;i++){
       const canvas=await html2canvas(cards[i],{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false});
       if(i>0)pdf.addPage([10.2,6.5],'landscape');
-      pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,6.5);
+      pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,7.08);
     }
     pdf.save('Kartu_Siswa_Semua.pdf');
     toast(`✅ PDF ${cards.length} kartu berhasil!`,'success',5000);

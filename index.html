@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script> <script> if(typeof jsQR === 'undefined'){ var s = document.createElement('script'); s.src = 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'; document.head.appendChild(s); } </script>
 <style>
 :root {
   --primary:#1565C0;--primary-dark:#0D47A1;--primary-light:#1976D2;--primary-pale:#E3F2FD;
@@ -1340,7 +1340,7 @@ function setAbsenMode(mode){ absenMode=mode; document.getElementById('btnModeDat
 
 // Kamera live
 async function startScanner(){
-  if(APP.scanActive)return;
+  if(APP.scanActive)return; if(typeof jsQR === 'undefined'){ toast('Library jsQR belum siap, tunggu 2 detik lalu coba lagi','warning',4000); return; }
   const btn=document.getElementById('btnToggleKamera');
   if(btn){btn.textContent='⏳ Membuka...';btn.disabled=true;}
   try{
@@ -1378,7 +1378,7 @@ function scanQRLoop(){
   const canvas=document.getElementById('scanCanvas');
   if(!video||!video.readyState||video.readyState<2){APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);return;}
   canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-  const ctx=canvas.getContext('2d'); ctx.drawImage(video,0,0);
+  const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(video,0,0);
   const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
   const code=jsQR(imageData.data,imageData.width,imageData.height);
   if(code){processQRResult(code.data);}
@@ -1387,8 +1387,7 @@ function scanQRLoop(){
 
 // Scan dari file/foto
 async function scanFromFile(event){
-  const file=event.target.files[0]; if(!file)return;
-  toast('🔍 Membaca QR code...','info',2000);
+  const file=event.target.files[0]; if(!file)return; if(typeof jsQR === 'undefined'){ toast('Library jsQR belum siap, coba lagi dalam 2 detik','warning',4000); event.target.value=''; return; } toast('🔍 Membaca QR code...','info',2000);
   try{
     const img=await createImageBitmap(file);
     const canvas=document.createElement('canvas');

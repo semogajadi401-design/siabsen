@@ -14,6 +14,7 @@ module.exports = async (req, res) => {
     if (action === 'inputKeterangan')     return res.json(await inputKeterangan(params));
     if (action === 'hapusKeterangan')     return res.json(await hapusKeterangan(params));
     if (action === 'getHariKerja')        return res.json(await getHariKerja());
+    if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
     if (action === 'updateHariKerja')     return res.json(await updateHariKerja(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
@@ -59,6 +60,16 @@ async function getStatusHariIni() {
     tanggal: today,
     hari
   };
+}
+
+async function rekapKeteranganRange({ tanggalMulai, tanggalSelesai, kelas }) {
+  let q = supabase.from('keterangan_absensi').select('*')
+    .gte('tanggal', tanggalMulai)
+    .lte('tanggal', tanggalSelesai);
+  if (kelas) q = q.eq('kelas', kelas);
+  const { data, error } = await q;
+  if (error) return { success: false, message: error.message };
+  return { success: true, data: data || [] };
 }
 
 // ── GET DATA KEHADIRAN SISWA HARI INI ────────────────────

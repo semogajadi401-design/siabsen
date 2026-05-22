@@ -12,6 +12,7 @@ module.exports = async (req, res) => {
     if (action === 'rekapBulanan')  return res.json(await rekapBulanan(params));
     if (action === 'dashboard')     return res.json(await dashboard());
     if (action === 'resetAbsensi')  return res.json(await resetAbsensi(params));
+    if (action === 'scanAbsen')     return res.json(await scanAbsen(params));
     // ↑ TAMBAHAN: reset absensi per kelas atau semua
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }

@@ -1380,25 +1380,60 @@ async function submitSiswa(){ const id=document.getElementById('siswaId').value;
 async function hapusSiswa(id,nama){ if(!confirm(`Nonaktifkan siswa "${nama}"?`))return; const r=await api('siswa','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
 
 // ── PIKET ────────────────────────────────────────────────────────
-async function loadPiket(){
-  try{
-    const [jadwal,guru]=await Promise.all([api('settings','getJadwalPiket'),api('guru','getAll',{activeOnly:true})]);
-    const hariList=APP.constants?.hariList||['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-    const jadwalMap={};
-    if(jadwal.success) jadwal.data.forEach(j=>{jadwalMap[j.hari]=j.idGuru;});
-    const guruOpts=guru.success?guru.data.map(g=>`<option value="${g.id}">${g.nama} (${g.jabatan})</option>`).join(''):'';
-    document.getElementById('piketBody').innerHTML=hariList.map(hari=>`<div class="piket-day"><div class="piket-day-name">${hari}</div><select class="form-control" id="piket_${hari}" style="max-width:280px"><option value="">— Pilih Guru —</option>${guruOpts}</select></div>`).join('');
-    hariList.forEach(hari=>{const sel=document.getElementById('piket_'+hari);if(sel&&jadwalMap[hari])sel.value=jadwalMap[hari];});
-  }catch(e){toast('Gagal memuat jadwal piket','error');}
-}
-async function saveJadwalPiket(){
-  const hariList=APP.constants?.hariList||['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-  const jadwalList=[];
-  hariList.forEach(hari=>{const sel=document.getElementById('piket_'+hari);if(sel&&sel.value)jadwalList.push({hari,idGuru:sel.value});});
-  const r=await api('settings','setJadwalPiket',{jadwalList});
-  toast(r.message,r.success?'success':'error');
+async function loadPiket() {
+  try {
+    const [jadwal, guru] = await Promise.all([
+      api('settings', 'getJadwalPiket'),
+      api('guru', 'getAll', { activeOnly: true })
+    ]);
+    const hariList = APP.constants?.hariList || ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    
+    // Buat map: hari → [idGuru, ...]
+    const jadwalMap = {};
+    if (jadwal.success) {
+      jadwal.data.forEach(j => {
+        if (!jadwalMap[j.hari]) jadwalMap[j.hari] = [];
+        jadwalMap[j.hari].push(j.idGuru);
+      });
+    }
+    
+    const guruOpts = guru.success ? guru.data.map(g =>
+      `<option value="${g.id}">${g.nama} (${g.jabatan})</option>`
+    ).join('') : '';
+
+    document.getElementById('piketBody').innerHTML = hariList.map(hari => {
+      const selected = jadwalMap[hari] || [];
+      return `<div class="piket-day">
+        <div class="piket-day-name">${hari}</div>
+        <select multiple class="form-control" id="piket_${hari}" 
+          style="max-width:320px;min-height:80px" 
+          title="Tahan Ctrl/Cmd untuk pilih lebih dari 1 guru">
+          ${guru.success ? guru.data.map(g =>
+            `<option value="${g.id}" ${selected.includes(g.id) ? 'selected' : ''}>
+              ${g.nama} (${g.jabatan})
+            </option>`
+          ).join('') : ''}
+        </select>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">
+          Tahan Ctrl untuk pilih lebih dari 1
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { toast('Gagal memuat jadwal piket', 'error'); }
 }
 
+async function saveJadwalPiket() {
+  const hariList = APP.constants?.hariList || ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const jadwalList = [];
+  hariList.forEach(hari => {
+    const sel = document.getElementById('piket_' + hari);
+    if (!sel) return;
+    const idGuruList = Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean);
+    if (idGuruList.length) jadwalList.push({ hari, idGuruList });
+  });
+  const r = await api('settings', 'setJadwalPiket', { jadwalList });
+  toast(r.message, r.success ? 'success' : 'error');
+}
 // ── HARI KERJA ───────────────────────────────────────────────────
 let hariLiburData=[];
 async function renderCalendar(){

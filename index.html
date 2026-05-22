@@ -2053,70 +2053,96 @@ async function scanFromFile(event){
 
 // ── SCAN COOLDOWN — cegah double scan ───────────────────────────
 // Cooldown 5 detik setelah berhasil scan, 2 detik setelah gagal
-let scanCooldown=false;
-let lastScannedData='';
-let lastScannedTime=0;
+let scanCooldown = false;
+let lastScannedData = '';
+let lastScannedTime = 0;
+const scannedHistory = {}; // kunci per-siswa selama 30 detik
+const PER_SISWA_COOLDOWN = 30000; // 30 detik per siswa
 
 function startCooldownBar(ms) {
-  const bar=document.getElementById('scanCooldownBar');
-  const fill=document.getElementById('scanCooldownFill');
-  if(!bar||!fill)return;
+  const bar  = document.getElementById('scanCooldownBar');
+  const fill = document.getElementById('scanCooldownFill');
+  if (!bar || !fill) return;
+  if (ms <= 0) { bar.classList.remove('active'); return; }
   bar.classList.add('active');
-  fill.style.transition='none';
-  fill.style.width='100%';
-  // Paksa reflow
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
   fill.getBoundingClientRect();
-  fill.style.transition=`width ${ms}ms linear`;
-  fill.style.width='0%';
-  setTimeout(()=>{ bar.classList.remove('active'); fill.style.width='100%'; fill.style.transition='none'; }, ms);
+  fill.style.transition = `width ${ms}ms linear`;
+  fill.style.width = '0%';
+  setTimeout(() => {
+    bar.classList.remove('active');
+    fill.style.width = '100%';
+    fill.style.transition = 'none';
+  }, ms);
 }
 
 async function processQRResult(data) {
   const now = Date.now();
-  if (data === lastScannedData && now - lastScannedTime < 5000) {
+
+  // 1. Cegah scan siswa yang SAMA dalam 30 detik (diam-diam diabaikan)
+  if (scannedHistory[data] && now - scannedHistory[data] < PER_SISWA_COOLDOWN) {
     APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
     return;
   }
-  if (scanCooldown) return;
 
+  // 2. Cegah scan saat cooldown global aktif
+  if (scanCooldown) return;
   scanCooldown = true;
-  lastScannedData = data;
-  lastScannedTime = now;
-  startCooldownBar(4000);
-  setTimeout(() => {
-    scanCooldown = false;
-    lastScannedData = '';
-    if (APP.scanActive) APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
-  }, 4000);
 
   try {
-    const parts = data.split('|');
+    const parts      = data.split('|');
     const identifier = parts[0].trim();
-    if (!identifier) { showScanFlash('error', '❌ QR Tidak Valid'); return; }
 
-    // 1 API call saja — lebih cepat
+    // QR tidak valid
+    if (!identifier) {
+      showScanFlash('error', '❌ QR Tidak Valid');
+      scanCooldown = false;
+      APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
+      return;
+    }
+
     const result = await api('absensi', 'scanAbsen', {
       identifier,
-      idGuru: APP.user?.id || '',
+      idGuru:   APP.user?.id   || '',
       namaGuru: APP.user?.nama || '',
-      mode: absenMode
+      mode:     absenMode
     });
 
     showAbsenResult(result, result.siswa || {});
+
     if (result.success) {
+      // BERHASIL → cooldown 5 detik, kunci siswa ini 30 detik
+      scannedHistory[data] = now;
+      lastScannedData = data;
+      lastScannedTime = now;
       showScanFlash('success', result.status === 'Terlambat' ? '⚠️ TERLAMBAT' : '✅ BERHASIL');
       toast(result.message, 'success', 4000);
       loadLogAbsensi();
+      startCooldownBar(3000);
+      setTimeout(() => {
+        scanCooldown = false;
+        lastScannedData = '';
+        if (APP.scanActive) APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
+      }, 3000);
+
     } else {
+      // GAGAL → tidak ada cooldown, langsung bisa scan lagi
       showScanFlash('error', '❌ ' + result.message);
       toast('❌ ' + result.message, 'error', 4000);
+      scanCooldown = false;
+      APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
     }
+
   } catch(e) {
-    showScanFlash('error', '❌ Error');
+    // Error koneksi → reset agar bisa coba lagi
+    showScanFlash('error', '❌ Koneksi gagal');
     toast('❌ Koneksi gagal', 'error', 4000);
+    scanCooldown = false;
+    APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
   }
 }
-
+  
 function showScanFlash(type,msg){
   const flash=document.getElementById('scanFlash'); if(!flash)return;
   flash.className='scan-result-flash show '+type; flash.textContent=msg;

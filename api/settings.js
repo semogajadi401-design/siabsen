@@ -15,6 +15,8 @@ module.exports = async (req, res) => {
     if (action === 'hapusHariLibur')    return res.json(await hapusHariLibur(params));
     if (action === 'getConstants')      return res.json(getConstants());
     if (action === 'getGuruPiket')      return res.json(await getGuruPiket());
+    if (action === 'getHariKerja')    return res.json(await getHariKerja());
+    if (action === 'updateHariKerja') return res.json(await updateHariKerja(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };

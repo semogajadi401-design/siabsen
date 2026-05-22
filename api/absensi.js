@@ -22,7 +22,17 @@ module.exports = async (req, res) => {
 };
 
 async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
-  // mode = 'datang' atau 'pulang'
+  // ── CEK HARI LIBUR ──────────────────────────────────────
+  const today = todayStr();
+  const hari = hariIni();
+  const cekLibur = await isHariLibur(today);
+  if (cekLibur.libur)
+    return { success: false, message: `Hari ini libur: ${cekLibur.keterangan}` };
+  const hariAktif = await isHariKerja(hari);
+  if (!hariAktif)
+    return { success: false, message: `${hari} bukan hari sekolah` };
+
+  // ── CARI SISWA ──────────────────────────────────────────
   if (!identifier) return { success: false, message: 'Identifier kosong' };
   const id = identifier.trim();
 

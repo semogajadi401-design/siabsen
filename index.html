@@ -1818,51 +1818,49 @@ function startCooldownBar(ms) {
   setTimeout(()=>{ bar.classList.remove('active'); fill.style.width='100%'; fill.style.transition='none'; }, ms);
 }
 
-async function processQRResult(data){
-  // Cegah scan data yang sama dalam 5 detik
-  const now=Date.now();
-  if(data===lastScannedData&&now-lastScannedTime<5000){
-    // Diam saja, tidak tampilkan error — kartu masih diarahkan ke kamera
-    APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);
+async function processQRResult(data) {
+  const now = Date.now();
+  if (data === lastScannedData && now - lastScannedTime < 5000) {
+    APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
     return;
   }
+  if (scanCooldown) return;
 
-  if(scanCooldown){
-    // Juga diam, cooldown masih berjalan
-    return;
-  }
-
-  scanCooldown=true;
-  lastScannedData=data;
-  lastScannedTime=now;
+  scanCooldown = true;
+  lastScannedData = data;
+  lastScannedTime = now;
   startCooldownBar(4000);
+  setTimeout(() => {
+    scanCooldown = false;
+    lastScannedData = '';
+    if (APP.scanActive) APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
+  }, 4000);
 
-  setTimeout(()=>{
-    scanCooldown=false;
-    lastScannedData=''; // reset setelah cooldown agar bisa scan ulang siswa sama bila perlu
-    if(APP.scanActive)APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);
-  },4000);
+  try {
+    const parts = data.split('|');
+    const identifier = parts[0].trim();
+    if (!identifier) { showScanFlash('error', '❌ QR Tidak Valid'); return; }
 
-  try{
-    const parts=data.split('|');
-    const identifier=parts[0].trim();
-    if(!identifier){toast('❌ Format QR tidak valid','error');showScanFlash('error','❌ QR Tidak Valid');return;}
+    // 1 API call saja — lebih cepat
+    const result = await api('absensi', 'scanAbsen', {
+      identifier,
+      idGuru: APP.user?.id || '',
+      namaGuru: APP.user?.nama || '',
+      mode: absenMode
+    });
 
-    toast('🔍 Mencari siswa...','info',2000);
-    const siswa=await api('siswa','getByScan',{identifier});
-
-    if(!siswa.success){
-      toast('❌ '+siswa.message,'error',4000);
-      showScanFlash('error','❌ '+siswa.message);
-      showAbsenResult({success:false,message:siswa.message},{});
-      return;
+    showAbsenResult(result, result.siswa || {});
+    if (result.success) {
+      showScanFlash('success', result.status === 'Terlambat' ? '⚠️ TERLAMBAT' : '✅ BERHASIL');
+      toast(result.message, 'success', 4000);
+      loadLogAbsensi();
+    } else {
+      showScanFlash('error', '❌ ' + result.message);
+      toast('❌ ' + result.message, 'error', 4000);
     }
-
-    await doAbsensi(siswa.data);
-  }catch(e){
-    toast('❌ Error: '+e.message,'error',5000);
-    showScanFlash('error','❌ Error');
-    showAbsenResult({success:false,message:'Error: '+e.message},{});
+  } catch(e) {
+    showScanFlash('error', '❌ Error');
+    toast('❌ Koneksi gagal', 'error', 4000);
   }
 }
 
@@ -1872,15 +1870,25 @@ function showScanFlash(type,msg){
   setTimeout(()=>{flash.className='scan-result-flash';},1500);
 }
 
-async function doManualAbsen(){
-  const id=document.getElementById('manualId').value.trim();
-  if(!id){toast('Masukkan ID atau NISN siswa','warning');return;}
-  try{
-    const siswa=await api('siswa','getByScan',{identifier:id});
-    if(!siswa.success){toast('Siswa tidak ditemukan: '+id,'error');return;}
-    await doAbsensi(siswa.data);
-    document.getElementById('manualId').value='';
-  }catch(e){toast('Terjadi kesalahan','error');}
+async function doManualAbsen() {
+  const id = document.getElementById('manualId').value.trim();
+  if (!id) { toast('Masukkan ID atau NISN siswa', 'warning'); return; }
+  try {
+    const result = await api('absensi', 'scanAbsen', {
+      identifier: id,
+      idGuru: APP.user?.id || '',
+      namaGuru: APP.user?.nama || '',
+      mode: absenMode
+    });
+    showAbsenResult(result, result.siswa || {});
+    if (result.success) {
+      toast(result.message, 'success', 4000);
+      loadLogAbsensi();
+    } else {
+      toast('❌ ' + result.message, 'error', 4000);
+    }
+    document.getElementById('manualId').value = '';
+  } catch(e) { toast('Terjadi kesalahan', 'error'); }
 }
 
 async function doAbsensi(siswa){

@@ -1,6 +1,23 @@
 // api/settings.js — Jam setting, jadwal piket, hari kerja
 const { supabase, generateID, setCors, getJamSetting } = require('./_db');
+async function getHariKerja() {
+  const urutan = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+  const { data, error } = await supabase
+    .from('pengaturan_hari_kerja').select('*');
+  if (error) return { success: false, message: error.message };
+  const sorted = (data || []).sort((a,b) =>
+    urutan.indexOf(a.hari) - urutan.indexOf(b.hari)
+  );
+  return { success: true, data: sorted };
+}
 
+async function updateHariKerja({ hariList }) {
+  for (const item of hariList) {
+    await supabase.from('pengaturan_hari_kerja')
+      .update({ aktif: item.aktif }).eq('hari', item.hari);
+  }
+  return { success: true, message: 'Pengaturan hari kerja disimpan' };
+}
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();

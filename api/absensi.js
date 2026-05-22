@@ -239,7 +239,15 @@ async function dashboard() {
       alphaHariIni: Math.max(0, (totalSiswa || 0) - hadirHariIni - terlambatHariIni),
       jamSetting,
       piketHariIni: (piket.data || []).map(p => ({ idGuru: p.id_guru, namaGuru: p.nama_guru, jabatan: p.jabatan })),
-      hariIni: hariIni()
+      hariIni: hariIni(),
+      absenTerkini: (absenHariIni || [])
+        .filter(a => a.jam_datang)
+        .sort((a,b) => (b.jam_datang||'').localeCompare(a.jam_datang||''))
+        .slice(0,5)
+        .map(a => ({
+          nama: a.nama_siswa, kelas: a.kelas,
+          jamDatang: a.jam_datang, status: a.status_datang
+        }))
     }
   };
 }

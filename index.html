@@ -1639,7 +1639,49 @@ async function downloadAllKartuPDF(){
     toast(`✅ PDF ${cards.length} kartu berhasil!`,'success',5000);
   }catch(e){toast('❌ Gagal: '+e.message,'error');}
 }
-function printAllKartu(){ window.print(); }
+function printAllKartu() {
+  const cards = document.querySelectorAll('.student-card-print');
+  if (!cards.length) { toast('Tidak ada kartu untuk dicetak', 'warning'); return; }
+
+  const printArea = document.getElementById('printArea');
+
+  printArea.innerHTML = '';
+  cards.forEach(card => {
+    const clone = card.cloneNode(true);
+    clone.style.cssText = 'display:inline-block;margin:5mm;page-break-inside:avoid;';
+    printArea.appendChild(clone);
+  });
+
+  const style = document.createElement('style');
+  style.id = 'printStyleTemp';
+  style.textContent = `
+    @media print {
+      #printArea {
+        display:flex!important;
+        flex-wrap:wrap;
+        justify-content:center;
+        padding:5mm;
+        gap:5mm;
+      }
+      #printArea .student-card-print {
+        width:386px!important;
+        height:268px!important;
+        flex-shrink:0;
+        page-break-inside:avoid;
+        box-shadow:none!important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+
+  window.print();
+
+  setTimeout(() => {
+    printArea.innerHTML = '';
+    const tempStyle = document.getElementById('printStyleTemp');
+    if (tempStyle) tempStyle.remove();
+  }, 1000);
+}
 
 // ── ABSENSI ──────────────────────────────────────────────────────
 let absenMode='datang';

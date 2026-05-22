@@ -1647,6 +1647,14 @@ function printAllKartu() {
   printArea.innerHTML = '';
 
   cards.forEach(card => {
+    // Konversi semua canvas QR → img sebelum clone
+    card.querySelectorAll('canvas').forEach(canvas => {
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/png');
+      img.style.cssText = `width:${canvas.width}px;height:${canvas.height}px;display:block;`;
+      canvas.parentNode.replaceChild(img, canvas);
+    });
+
     const clone = card.cloneNode(true);
     clone.style.cssText = `
       display:inline-block;
@@ -1659,7 +1667,6 @@ function printAllKartu() {
       print-color-adjust:exact !important;
       color-adjust:exact !important;
     `;
-    // Paksa semua child element ikut print warnanya
     clone.querySelectorAll('*').forEach(el => {
       el.style.webkitPrintColorAdjust = 'exact';
       el.style.printColorAdjust = 'exact';
@@ -1692,14 +1699,6 @@ function printAllKartu() {
         page-break-inside: avoid;
         box-shadow: none !important;
         background: linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%) !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      #printArea .sc-header,
-      #printArea .sc-body,
-      #printArea .sc-data-col,
-      #printArea .sc-photo-col,
-      #printArea .sc-qr-col {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }

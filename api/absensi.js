@@ -1,5 +1,8 @@
-// api/absensi.js — Absensi datang, pulang, rekap
-const { supabase, generateID, setCors, getJamSetting, todayStr, jamSekarang, hariIni } = require('./_db');
+const {
+  supabase, generateID, setCors, getJamSetting,
+  todayStr, jamSekarang, hariIni,
+  isHariLibur, isHariKerja  // ← tambahkan ini
+} = require('./_db');
 
 module.exports = async (req, res) => {
   setCors(res);

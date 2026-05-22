@@ -17,6 +17,69 @@ module.exports = async (req, res) => {
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
 
+async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
+  // mode = 'datang' atau 'pulang'
+  if (!identifier) return { success: false, message: 'Identifier kosong' };
+  const id = identifier.trim();
+
+  // Cari siswa by ID atau NISN sekaligus
+  const { data: siswaById } = await supabase
+    .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
+    .eq('id', id).maybeSingle();
+  const { data: siswaByNisn } = siswaById ? { data: null } : await supabase
+    .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
+    .eq('nisn', id).maybeSingle();
+  
+  const siswa = siswaById || siswaByNisn;
+  if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
+  if (siswa.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
+
+  const today = todayStr();
+  const jam = jamSekarang();
+  const hari = hariIni();
+
+  if (mode === 'pulang') {
+    const { data: absen } = await supabase.from('absensi')
+      .select('*').eq('id_siswa', siswa.id).eq('tanggal', today).single();
+    if (!absen) return { success: false, message: 'Belum absen datang hari ini' };
+    if (absen.jam_pulang) return { success: false, message: `${siswa.nama} sudah absen pulang pukul ${absen.jam_pulang}` };
+
+    await supabase.from('absensi').update({
+      jam_pulang: jam, status_pulang: 'Pulang',
+      id_guru_piket: idGuru || '', nama_guru_piket: namaGuru || ''
+    }).eq('id', absen.id);
+
+    return { success: true, status: 'Pulang', message: `✅ ${siswa.nama} absen pulang - ${jam}`,
+      siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn } };
+  }
+
+  // Mode datang
+  const { data: existing } = await supabase.from('absensi')
+    .select('id,jam_datang').eq('id_siswa', siswa.id).eq('tanggal', today).single();
+  if (existing?.jam_datang)
+    return { success: false, message: `${siswa.nama} sudah absen datang pukul ${existing.jam_datang}` };
+
+  const jamSetting = await getJamSetting();
+  const statusDatang = jam > (jamSetting['JAM_DATANG_SELESAI'] || '08:00') ? 'Terlambat' : 'Hadir';
+
+  const absenId = generateID('AB');
+  await supabase.from('absensi').insert({
+    id: absenId, id_siswa: siswa.id, nisn: siswa.nisn,
+    nama_siswa: siswa.nama, kelas: siswa.kelas,
+    tanggal: today, hari, jam_datang: jam,
+    status_datang: statusDatang,
+    id_guru_piket: idGuru || '', nama_guru_piket: namaGuru || '', metode: 'QR'
+  });
+
+  return {
+    success: true, status: statusDatang,
+    message: statusDatang === 'Terlambat'
+      ? `⚠️ ${siswa.nama} TERLAMBAT - ${jam}`
+      : `✅ ${siswa.nama} absen datang - ${jam}`,
+    siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
+  };
+}
+
 async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
   const { data: siswa } = await supabase.from('siswa').select('*').eq('id', idSiswa).single();
   if (!siswa) return { success: false, message: 'Data siswa tidak ditemukan' };

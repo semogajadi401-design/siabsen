@@ -1647,31 +1647,18 @@ function printAllKartu() {
   printArea.innerHTML = '';
 
   cards.forEach(card => {
-    // Konversi semua canvas QR → img sebelum clone
+    // Konversi canvas QR → img agar ikut ter-clone
     card.querySelectorAll('canvas').forEach(canvas => {
       const img = document.createElement('img');
       img.src = canvas.toDataURL('image/png');
-      img.style.cssText = `width:${canvas.width}px;height:${canvas.height}px;display:block;`;
+      img.style.cssText = `width:70px;height:70px;display:block;`;
       canvas.parentNode.replaceChild(img, canvas);
     });
 
     const clone = card.cloneNode(true);
-    clone.style.cssText = `
-      display:inline-block;
-      margin:4mm;
-      page-break-inside:avoid;
-      width:386px;
-      height:268px;
-      background:linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%) !important;
-      -webkit-print-color-adjust:exact !important;
-      print-color-adjust:exact !important;
-      color-adjust:exact !important;
-    `;
-    clone.querySelectorAll('*').forEach(el => {
-      el.style.webkitPrintColorAdjust = 'exact';
-      el.style.printColorAdjust = 'exact';
-      el.style.colorAdjust = 'exact';
-    });
+    // Hapus inline style bawaan, biarkan @media print yang mengatur ukuran
+    clone.removeAttribute('style');
+    clone.className = 'student-card-print kartu-cetak';
     printArea.appendChild(clone);
   });
 
@@ -1684,26 +1671,40 @@ function printAllKartu() {
         print-color-adjust: exact !important;
         color-adjust: exact !important;
       }
+      @page {
+        size: A4 portrait;
+        margin: 8mm;
+      }
       #printArea {
         display: flex !important;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: flex-start;
-        padding: 5mm;
-        gap: 4mm;
-        background: #fff !important;
-        width: 100% !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        align-items: flex-start !important;
+        gap: 4mm !important;
+        width: 194mm !important;
         box-sizing: border-box !important;
+        background: #fff !important;
       }
-      #printArea .student-card-print {
-        width: 128mm !important;
-        height: 90mm !important;
-        flex-shrink: 0;
-        page-break-inside: avoid;
+      #printArea .kartu-cetak {
+        width: 95mm !important;
+        height: 66mm !important;
+        flex-shrink: 0 !important;
+        flex-grow: 0 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
         box-shadow: none !important;
+        border-radius: 6px !important;
         background: linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%) !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        overflow: hidden !important;
+        position: relative !important;
+        display: flex !important;
+        flex-direction: column !important;
+        color: #fff !important;
+        font-family: 'Segoe UI', Arial, sans-serif !important;
+        box-sizing: border-box !important;
       }
     }
   `;
@@ -1715,9 +1716,9 @@ function printAllKartu() {
     printArea.innerHTML = '';
     const tempStyle = document.getElementById('printStyleTemp');
     if (tempStyle) tempStyle.remove();
-  }, 1500);
+  }, 2000);
 }
-
+  
 // ── ABSENSI ──────────────────────────────────────────────────────
 let absenMode='datang';
 function setAbsenMode(mode){ absenMode=mode; document.getElementById('btnModeDatang').classList.toggle('active',mode==='datang'); document.getElementById('btnModePulang').classList.toggle('active',mode==='pulang'); document.getElementById('absenResult').className='absen-result'; APP.scanFailCount=0; }

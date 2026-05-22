@@ -251,40 +251,229 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .absen-result.error{background:var(--danger-light);border:2px solid rgba(198,40,40,0.35)}
 .absen-result.warning{background:var(--warning-light);border:2px solid rgba(245,127,23,0.35)}
 
-/* KARTU SISWA */
-.student-card-print{width:386px;height:268px;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%);border-radius:10px;color:#fff;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;flex-shrink:0;box-sizing:border-box;display:flex;flex-direction:column;padding:0}
-.sc-batik{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:1}
-.sc-batik svg{width:100%;height:100%}
-.sc-deco1{position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.06);pointer-events:none;z-index:1}
-.sc-deco2{position:absolute;bottom:-50px;left:-20px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.04);pointer-events:none;z-index:1}
-.sc-header{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,0.25);position:relative;z-index:2;flex-shrink:0}
-.sc-logo{width:38px;height:38px;border-radius:7px;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
-.sc-logo img{width:100%;height:100%;object-fit:contain}
-.sc-logo-icon{font-size:20px;line-height:1}
-.sc-school-wrap{flex:1;min-width:0}
-.sc-school-name{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
-.sc-school-sub{font-size:6pt;color:rgba(255,255,255,0.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.sc-badge{background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.38);border-radius:4px;padding:2px 8px;font-size:6pt;font-weight:700;text-transform:uppercase;white-space:nowrap;flex-shrink:0;color:#fff}
-.sc-body{display:flex;flex:1;position:relative;z-index:2;min-height:0}
-.sc-photo-col{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 8px 8px 12px;flex-shrink:0}
-.sc-photo{width:64px;height:80px;border-radius:6px;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.38);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.sc-photo img{width:100%;height:100%;object-fit:cover}
-.sc-avatar{font-size:28pt;line-height:1}
-.sc-kelas{margin-top:5px;background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.35);border-radius:4px;text-align:center;padding:2px 6px;font-size:7.5pt;font-weight:700;color:#fff;width:64px;box-sizing:border-box}
-.sc-data-col{flex:1;min-width:0;padding:8px 6px 8px 8px;display:flex;flex-direction:column;justify-content:center}
-.sc-name{font-size:10pt;font-weight:700;line-height:1.25;margin-bottom:7px;word-break:break-word;color:#fff}
-.sc-field{margin-bottom:3.5px}
-.sc-label{font-size:5.5pt;color:rgba(255,255,255,0.62);text-transform:uppercase;letter-spacing:.3px;line-height:1;display:block}
-.sc-value{font-size:6.8pt;font-weight:600;color:#fff;line-height:1.3}
-.sc-qr-col{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 10px 6px 4px;gap:4px}
-.sc-qr-box{width:76px;height:76px;background:#fff;border-radius:7px;padding:3px;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:0}
-.sc-qr-box>div{width:70px!important;height:70px!important;overflow:hidden!important;flex-shrink:0!important;line-height:0!important}
-.sc-qr-box canvas,.sc-qr-box img{width:70px!important;height:70px!important;display:block!important;max-width:70px!important;max-height:70px!important;flex-shrink:0!important}
-.sc-qr-label{font-size:5pt;color:rgba(255,255,255,0.65);text-align:center;letter-spacing:.3px}
-.sc-qr-id{font-size:5pt;font-family:monospace;color:rgba(255,255,255,0.72);letter-spacing:.5px;text-align:center}
-.kartu-item-wrap{border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface);display:inline-flex;flex-direction:column}
-.kartu-item-footer{padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border)}
+/* KARTU SISWA — PORTRAIT BOLAK BALIK */
+.student-card-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0;
+  width: 270px;
+  flex-shrink: 0;
+}
+.student-card-print {
+  width: 270px;
+  background: #1a6b3a;
+  border-radius: 14px;
+  color: #fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-height: 430px;
+}
+.student-card-back {
+  width: 270px;
+  background: linear-gradient(160deg, #1a6b3a 0%, #0f4424 100%);
+  border-radius: 14px;
+  color: #fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 430px;
+  margin-top: 8px;
+}
+.sc-batik { position:absolute;inset:0;pointer-events:none;z-index:0;opacity:1 }
+.sc-batik svg { width:100%;height:100% }
+.sc-deco1 { position:absolute;top:-30px;right:-30px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06);pointer-events:none;z-index:1 }
+.sc-deco2 { position:absolute;bottom:-40px;left:-15px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.04);pointer-events:none;z-index:1 }
 
+/* HEADER */
+.sc-header {
+  display:flex;align-items:center;gap:7px;
+  padding:10px 12px 9px;
+  border-bottom:1px solid rgba(255,215,0,0.35);
+  position:relative;z-index:2;flex-shrink:0;
+  background: linear-gradient(90deg, rgba(0,0,0,0.15) 0%, transparent 100%);
+}
+.sc-logo {
+  width:40px;height:40px;border-radius:8px;
+  background:rgba(255,255,255,0.18);
+  border:1.5px solid rgba(255,215,0,0.5);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;overflow:hidden;
+}
+.sc-logo img { width:100%;height:100%;object-fit:contain }
+.sc-logo-icon { font-size:20px;line-height:1 }
+.sc-school-wrap { flex:1;min-width:0 }
+.sc-school-name {
+  font-size:7pt;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;
+}
+.sc-school-sub {
+  font-size:5.5pt;color:rgba(255,255,255,0.72);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;
+}
+.sc-badge {
+  background:rgba(255,215,0,0.25);
+  border:1px solid rgba(255,215,0,0.6);
+  border-radius:4px;padding:2px 7px;
+  font-size:5.5pt;font-weight:700;text-transform:uppercase;
+  white-space:nowrap;flex-shrink:0;color:#FFD700;
+}
+
+/* FOTO TENGAH */
+.sc-photo-center {
+  display:flex;flex-direction:column;align-items:center;
+  padding:14px 12px 8px;position:relative;z-index:2;flex-shrink:0;
+}
+.sc-photo-frame {
+  width:80px;height:98px;border-radius:8px;
+  background:rgba(255,255,255,0.18);
+  border:2px solid rgba(255,215,0,0.6);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;position:relative;
+  box-shadow:0 4px 16px rgba(0,0,0,0.3);
+}
+.sc-photo-frame img { width:100%;height:100%;object-fit:cover }
+.sc-avatar-big { font-size:40pt;line-height:1 }
+
+.sc-name-big {
+  margin-top:10px;
+  font-size:13pt;font-weight:800;
+  text-align:center;color:#fff;
+  line-height:1.2;letter-spacing:.3px;
+  text-shadow:0 1px 4px rgba(0,0,0,0.3);
+  word-break:break-word;
+  padding:0 8px;
+}
+.sc-kelas-badge {
+  margin-top:5px;
+  background:rgba(255,215,0,0.25);
+  border:1px solid rgba(255,215,0,0.55);
+  border-radius:20px;
+  padding:3px 14px;
+  font-size:8pt;font-weight:700;color:#FFD700;
+  letter-spacing:.5px;
+}
+
+/* DATA BAWAH */
+.sc-data-section {
+  flex:1;padding:10px 14px 10px;
+  position:relative;z-index:2;
+  border-top:1px solid rgba(255,215,0,0.2);
+}
+.sc-field-row {
+  display:flex;align-items:baseline;gap:6px;
+  margin-bottom:4px;
+  padding-bottom:4px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.sc-field-row:last-child { border-bottom:none;margin-bottom:0;padding-bottom:0 }
+.sc-label-sm {
+  font-size:5.5pt;color:rgba(255,215,0,0.8);
+  text-transform:uppercase;letter-spacing:.4px;
+  flex-shrink:0;min-width:60px;
+}
+.sc-value-sm {
+  font-size:7pt;font-weight:600;color:#fff;
+  line-height:1.25;flex:1;
+}
+
+/* QR BAWAH */
+.sc-qr-bottom {
+  display:flex;flex-direction:column;align-items:center;
+  padding:8px 12px 10px;
+  position:relative;z-index:2;
+  border-top:1px solid rgba(255,215,0,0.25);
+}
+.sc-qr-box {
+  width:72px;height:72px;background:#fff;border-radius:7px;
+  padding:3px;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid rgba(255,215,0,0.5);
+  line-height:0;
+}
+.sc-qr-box>div { width:66px!important;height:66px!important;overflow:hidden!important;line-height:0!important }
+.sc-qr-box canvas,.sc-qr-box img { width:66px!important;height:66px!important;display:block!important }
+.sc-qr-label {
+  font-size:5pt;color:rgba(255,215,0,0.8);
+  text-align:center;letter-spacing:.3px;margin-top:4px;
+}
+
+/* GARIS EMAS */
+.sc-gold-stripe {
+  height:5px;
+  background:linear-gradient(90deg, #b8860b, #FFD700, #f5c518, #b8860b);
+  flex-shrink:0;
+}
+.sc-gold-stripe-sm {
+  height:3px;
+  background:linear-gradient(90deg, #b8860b, #FFD700, #b8860b);
+  flex-shrink:0;
+}
+
+/* SISI BELAKANG */
+.sc-back-header {
+  padding:12px;text-align:center;
+  border-bottom:1px solid rgba(255,215,0,0.3);
+  position:relative;z-index:2;flex-shrink:0;
+}
+.sc-back-title {
+  font-size:8pt;font-weight:700;color:#FFD700;
+  letter-spacing:.5px;text-transform:uppercase;
+}
+.sc-back-sub { font-size:6pt;color:rgba(255,255,255,0.65);margin-top:2px }
+.sc-back-body {
+  flex:1;padding:12px 14px;
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;gap:10px;
+}
+.sc-back-info-box {
+  background:rgba(0,0,0,0.2);border:1px solid rgba(255,215,0,0.25);
+  border-radius:8px;padding:10px 12px;
+}
+.sc-back-info-title {
+  font-size:6.5pt;font-weight:700;color:#FFD700;
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;
+}
+.sc-back-info-text {
+  font-size:6.5pt;color:rgba(255,255,255,0.85);line-height:1.5;
+}
+.sc-back-footer {
+  padding:8px 12px 12px;text-align:center;
+  position:relative;z-index:2;flex-shrink:0;
+}
+.sc-back-ttd-label {
+  font-size:6pt;color:rgba(255,255,255,0.55);margin-bottom:22px;
+}
+.sc-back-ttd-name {
+  font-size:7pt;font-weight:700;color:#FFD700;
+  border-top:1px solid rgba(255,215,0,0.5);
+  padding-top:4px;display:inline-block;
+}
+.sc-fold-indicator {
+  display:flex;align-items:center;gap:6px;
+  margin:4px 0;padding:0 8px;
+}
+.sc-fold-line {
+  flex:1;border-top:1.5px dashed rgba(255,215,0,0.4);
+}
+.sc-fold-text {
+  font-size:5.5pt;color:rgba(255,215,0,0.6);
+  white-space:nowrap;letter-spacing:.4px;
+}
+.sc-hole {
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,215,0,0.5);
+  background:rgba(0,0,0,0.3);
+  margin:4px auto;position:relative;z-index:2;
+}
 /* CALENDAR */
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal-header{text-align:center;font-size:.72rem;font-weight:700;color:var(--text-muted);padding:6px;text-transform:uppercase}
@@ -1854,118 +2043,242 @@ async function loadKartuSiswa(){
     if(!result.success||!result.data.length){container.innerHTML='<p style="color:var(--text-muted)">Tidak ada siswa aktif.</p>';return;}
     if(settingsRes.success) APP.settings=settingsRes.data;
     container.innerHTML='';
-    result.data.forEach(s=>{
-      const wrap=document.createElement('div'); wrap.className='kartu-item-wrap';
-      const cardDiv=document.createElement('div'); cardDiv.id='print_'+s.id; cardDiv.className='student-card-print';
-      cardDiv.innerHTML=buildKartuInnerHTML(s,APP.settings||{});
-      wrap.appendChild(cardDiv);
-      const footer=document.createElement('div'); footer.className='kartu-item-footer';
-      footer.innerHTML=`<span style="font-size:.8rem;font-weight:600;color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nama}</span><button class="btn btn-primary btn-sm" id="dlbtn_${s.id}">📥 Download</button>`;
-      wrap.appendChild(footer); container.appendChild(wrap);
-      setTimeout(()=>{
-        const qt=document.querySelector('.qr-target-'+s.id);
-        if(qt&&typeof QRCode!=='undefined'){
-          qt.innerHTML='';
-          const qrText=s.id+'|'+(s.nisn||'');
-          requestAnimationFrame(()=>{
-            new QRCode(qt,{text:qrText,width:70,height:70,colorDark:'#0D47A1',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
+    result.data.forEach(s => {
+      const wrap = document.createElement('div');
+      wrap.className = 'kartu-item-wrap';
+      wrap.style.cssText = 'display:inline-flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface)';
+
+      // Sisi DEPAN
+      const cardFront = document.createElement('div');
+      cardFront.id = 'print_' + s.id;
+      cardFront.className = 'student-card-print';
+      cardFront.innerHTML = buildKartuInnerHTML(s, APP.settings || {});
+
+      // Sisi BELAKANG
+      const cardBack = document.createElement('div');
+      cardBack.id = 'printback_' + s.id;
+      cardBack.className = 'student-card-back';
+      cardBack.innerHTML = buildKartuBackHTML(s, APP.settings || {});
+
+      const footer = document.createElement('div');
+      footer.className = 'kartu-item-footer';
+      footer.innerHTML = `<span style="font-size:.8rem;font-weight:600;color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nama}</span>
+        <button class="btn btn-primary btn-sm" id="dlbtn_${s.id}">📥 Download</button>`;
+
+      wrap.appendChild(cardFront);
+      wrap.appendChild(cardBack);
+      wrap.appendChild(footer);
+      container.appendChild(wrap);
+
+      setTimeout(() => {
+        const qt = document.querySelector('.qr-target-' + s.id);
+        if (qt && typeof QRCode !== 'undefined') {
+          qt.innerHTML = '';
+          const qrText = s.id + '|' + (s.nisn || '');
+          requestAnimationFrame(() => {
+            new QRCode(qt, { text: qrText, width: 66, height: 66, colorDark: '#0f4424', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.M });
           });
         }
-        const dlBtn=document.getElementById('dlbtn_'+s.id);
-        if(dlBtn) dlBtn.addEventListener('click',()=>downloadKartu(s,cardDiv));
-      },400);
+        const dlBtn = document.getElementById('dlbtn_' + s.id);
+        if (dlBtn) dlBtn.addEventListener('click', () => downloadKartu(s, cardFront, cardBack));
+      }, 400);
     });
   }catch(e){container.innerHTML=`<p style="color:var(--danger)">Gagal: ${e.message}</p>`;}
 }
 
-function buildKartuInnerHTML(s,settings){
-  const schoolName=(settings?.['NAMA_SEKOLAH']||'NAMA SEKOLAH').toUpperCase();
-  const npsn=settings?.['NPSN']||'';
-  const schoolAddr=settings?.['ALAMAT_SEKOLAH']||'';
-  const tahunAjaran=settings?.['TAHUN_AJARAN']||'2024/2025';
-  const logoUrl=settings?.['LOGO_URL']||'';
-  const avatar=s.jenisKelamin==='Perempuan'?'👩‍🎓':'👨‍🎓';
-  let tglLahir='-';
-  if(s.tanggalLahir){try{tglLahir=new Date(s.tanggalLahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});}catch(e){tglLahir=s.tanggalLahir;}}
-  const subParts=[npsn?'NPSN: '+npsn:'',schoolAddr].filter(Boolean);
-  const logoHTML=logoUrl?`<div class="sc-logo"><img src="${logoUrl}" alt="logo"></div>`:`<div class="sc-logo"><span class="sc-logo-icon">🏫</span></div>`;
-  const batikSVG=`<div class="sc-batik"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs>
+function buildKartuInnerHTML(s, settings) {
+  const schoolName = (settings?.['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const npsn = settings?.['NPSN'] || '';
+  const schoolAddr = settings?.['ALAMAT_SEKOLAH'] || '';
+  const tahunAjaran = settings?.['TAHUN_AJARAN'] || '2024/2025';
+  const logoUrl = settings?.['LOGO_URL'] || '';
+  const avatar = s.jenisKelamin === 'Perempuan' ? '👩‍🎓' : '👨‍🎓';
+  let tglLahir = '-';
+  if (s.tanggalLahir) {
+    try { tglLahir = new Date(s.tanggalLahir).toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'}); } catch(e) { tglLahir = s.tanggalLahir; }
+  }
+  const subParts = [npsn ? 'NPSN: ' + npsn : '', schoolAddr].filter(Boolean);
+  const logoHTML = logoUrl
+    ? `<div class="sc-logo"><img src="${logoUrl}" alt="logo"></div>`
+    : `<div class="sc-logo"><span class="sc-logo-icon">🏫</span></div>`;
+
+  const batikSVG = `<div class="sc-batik"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs>
     <pattern id="kawung-${s.id}" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
-      <ellipse cx="16" cy="8" rx="5" ry="7" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
-      <ellipse cx="16" cy="24" rx="5" ry="7" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
-      <ellipse cx="8" cy="16" rx="7" ry="5" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
-      <ellipse cx="24" cy="16" rx="7" ry="5" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>
-      <circle cx="16" cy="16" r="2.5" fill="rgba(255,255,255,0.09)"/>
-      <circle cx="0" cy="0" r="2.5" fill="rgba(255,255,255,0.09)"/>
-      <circle cx="32" cy="0" r="2.5" fill="rgba(255,255,255,0.09)"/>
-      <circle cx="0" cy="32" r="2.5" fill="rgba(255,255,255,0.09)"/>
-      <circle cx="32" cy="32" r="2.5" fill="rgba(255,255,255,0.09)"/>
-    </pattern>
-    <pattern id="parang-${s.id}" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1="0" y1="4" x2="24" y2="4" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
-      <line x1="0" y1="12" x2="24" y2="12" stroke="rgba(255,255,255,0.05)" stroke-width="0.8"/>
-      <line x1="0" y1="20" x2="24" y2="20" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
-    </pattern>
-    <pattern id="truntum-${s.id}" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-      <circle cx="10" cy="10" r="1" fill="rgba(255,255,255,0.08)"/>
-      <circle cx="0" cy="0" r="1" fill="rgba(255,255,255,0.08)"/>
-      <circle cx="20" cy="0" r="1" fill="rgba(255,255,255,0.08)"/>
-      <circle cx="0" cy="20" r="1" fill="rgba(255,255,255,0.08)"/>
-      <circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.08)"/>
+      <ellipse cx="16" cy="8" rx="5" ry="7" fill="none" stroke="rgba(255,215,0,0.1)" stroke-width="1"/>
+      <ellipse cx="16" cy="24" rx="5" ry="7" fill="none" stroke="rgba(255,215,0,0.1)" stroke-width="1"/>
+      <ellipse cx="8" cy="16" rx="7" ry="5" fill="none" stroke="rgba(255,215,0,0.1)" stroke-width="1"/>
+      <ellipse cx="24" cy="16" rx="7" ry="5" fill="none" stroke="rgba(255,215,0,0.1)" stroke-width="1"/>
+      <circle cx="16" cy="16" r="2.5" fill="rgba(255,215,0,0.07)"/>
+      <circle cx="0" cy="0" r="2.5" fill="rgba(255,215,0,0.07)"/>
+      <circle cx="32" cy="0" r="2.5" fill="rgba(255,215,0,0.07)"/>
+      <circle cx="0" cy="32" r="2.5" fill="rgba(255,215,0,0.07)"/>
+      <circle cx="32" cy="32" r="2.5" fill="rgba(255,215,0,0.07)"/>
     </pattern>
   </defs>
-  <rect width="100%" height="100%" fill="url(#parang-${s.id})"/>
   <rect width="100%" height="100%" fill="url(#kawung-${s.id})"/>
-  <rect width="100%" height="100%" fill="url(#truntum-${s.id})"/>
-  <rect x="0" y="0" width="100%" height="100%" fill="url(#shimmer-${s.id})"/>
-  <defs><linearGradient id="shimmer-${s.id}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="rgba(255,220,100,0.04)"/><stop offset="50%" stop-color="rgba(255,255,255,0.0)"/><stop offset="100%" stop-color="rgba(255,220,100,0.05)"/></linearGradient></defs>
   </svg></div>`;
+
   return `${batikSVG}<div class="sc-deco1"></div><div class="sc-deco2"></div>
-    <div class="sc-header">${logoHTML}<div class="sc-school-wrap"><div class="sc-school-name">${schoolName}</div>${subParts.length?`<div class="sc-school-sub">${subParts.join(' • ')}</div>`:''}</div><div class="sc-badge">Kartu Pelajar</div></div>
-    <div class="sc-body">
-      <div class="sc-photo-col"><div class="sc-photo"><span class="sc-avatar">${avatar}</span></div><div class="sc-kelas">${s.kelas||'-'}</div></div>
-      <div class="sc-data-col"><div class="sc-name">${s.nama||'-'}</div>
-        <div class="sc-field"><span class="sc-label">NISN</span><span class="sc-value">${s.nisn||'-'}</span></div>
-        <div class="sc-field"><span class="sc-label">Tempat, Tanggal Lahir</span><span class="sc-value">${s.tempatLahir||'-'}, ${tglLahir}</span></div>
-        <div class="sc-field"><span class="sc-label">Agama</span><span class="sc-value">${s.agama||'-'}</span></div>
-        <div class="sc-field"><span class="sc-label">Jenis Kelamin</span><span class="sc-value">${s.jenisKelamin||'-'}</span></div>
-        <div class="sc-field" style="margin-top:3px"><span class="sc-label">Tahun Ajaran</span><span class="sc-value">${tahunAjaran}</span></div>
+    <div class="sc-gold-stripe"></div>
+    <div class="sc-header">
+      ${logoHTML}
+      <div class="sc-school-wrap">
+        <div class="sc-school-name">${schoolName}</div>
+        ${subParts.length ? `<div class="sc-school-sub">${subParts.join(' • ')}</div>` : ''}
       </div>
-      <div class="sc-qr-col"><div class="sc-qr-box"><div class="qr-target-${s.id}" style="width:70px;height:70px;overflow:hidden;line-height:0;flex-shrink:0"></div></div><div class="sc-qr-label">Scan untuk absensi</div><div class="sc-qr-id">${s.nisn||s.id}</div></div>
-    </div>`;
+      <div class="sc-badge">Kartu Pelajar</div>
+    </div>
+    <div class="sc-hole"></div>
+    <div class="sc-fold-indicator">
+      <div class="sc-fold-line"></div>
+      <div class="sc-fold-text">✂ LIPAT DI SINI</div>
+      <div class="sc-fold-line"></div>
+    </div>
+    <div class="sc-photo-center">
+      <div class="sc-photo-frame"><span class="sc-avatar-big">${avatar}</span></div>
+      <div class="sc-name-big">${s.nama || '-'}</div>
+      <div class="sc-kelas-badge">Kelas ${s.kelas || '-'}</div>
+    </div>
+    <div class="sc-data-section">
+      <div class="sc-field-row">
+        <span class="sc-label-sm">NISN</span>
+        <span class="sc-value-sm">${s.nisn || '-'}</span>
+      </div>
+      <div class="sc-field-row">
+        <span class="sc-label-sm">Tempat Lahir</span>
+        <span class="sc-value-sm">${s.tempatLahir || '-'}, ${tglLahir}</span>
+      </div>
+      <div class="sc-field-row">
+        <span class="sc-label-sm">Agama</span>
+        <span class="sc-value-sm">${s.agama || '-'}</span>
+      </div>
+      <div class="sc-field-row">
+        <span class="sc-label-sm">Jenis Kelamin</span>
+        <span class="sc-value-sm">${s.jenisKelamin || '-'}</span>
+      </div>
+      <div class="sc-field-row">
+        <span class="sc-label-sm">Tahun Ajaran</span>
+        <span class="sc-value-sm">${tahunAjaran}</span>
+      </div>
+    </div>
+    <div class="sc-qr-bottom">
+      <div class="sc-qr-box"><div class="qr-target-${s.id}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div></div>
+      <div class="sc-qr-label">Scan QR untuk absensi &nbsp;•&nbsp; ${s.nisn || s.id}</div>
+    </div>
+    <div class="sc-gold-stripe"></div>`;
 }
 
-async function downloadKartu(s,cardEl){
-  const btn=document.getElementById('dlbtn_'+s.id);
-  if(btn){btn.disabled=true;btn.textContent='⏳...';}
-  try{
-    await new Promise(r=>setTimeout(r,400));
-    const canvas=await html2canvas(cardEl,{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false,width:386,height:268});
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,7.08]});
-    pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,7.08);
-    pdf.save(`Kartu_${s.nama.replace(/\s+/g,'_')}_${s.nisn||s.id}.pdf`);
-    toast('✅ Kartu berhasil didownload!','success');
-  }catch(e){toast('❌ Gagal download: '+e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='📥 Download';}}
+function buildKartuBackHTML(s, settings) {
+  const schoolName = (settings?.['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const schoolAddr = settings?.['ALAMAT_SEKOLAH'] || '-';
+  const telp = settings?.['TELP_SEKOLAH'] || '-';
+  const email = settings?.['EMAIL_SEKOLAH'] || '-';
+
+  const batikSVG = `<div class="sc-batik"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs>
+    <pattern id="back-kawung-${s.id}" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+      <ellipse cx="14" cy="7" rx="4" ry="6" fill="none" stroke="rgba(255,215,0,0.08)" stroke-width="1"/>
+      <ellipse cx="14" cy="21" rx="4" ry="6" fill="none" stroke="rgba(255,215,0,0.08)" stroke-width="1"/>
+      <ellipse cx="7" cy="14" rx="6" ry="4" fill="none" stroke="rgba(255,215,0,0.08)" stroke-width="1"/>
+      <ellipse cx="21" cy="14" rx="6" ry="4" fill="none" stroke="rgba(255,215,0,0.08)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#back-kawung-${s.id})"/>
+  </svg></div>`;
+
+  return `${batikSVG}<div class="sc-deco1"></div><div class="sc-deco2"></div>
+    <div class="sc-gold-stripe"></div>
+    <div class="sc-back-header">
+      <div class="sc-back-title">Informasi Kartu Pelajar</div>
+      <div class="sc-back-sub">${schoolName}</div>
+    </div>
+    <div class="sc-hole"></div>
+    <div class="sc-fold-indicator">
+      <div class="sc-fold-line"></div>
+      <div class="sc-fold-text">✂ LIPAT DI SINI</div>
+      <div class="sc-fold-line"></div>
+    </div>
+    <div class="sc-back-body">
+      <div class="sc-back-info-box">
+        <div class="sc-back-info-title">⚠️ Kartu Ini Milik</div>
+        <div class="sc-back-info-text">
+          <strong style="color:#FFD700;font-size:8pt">${s.nama || '-'}</strong><br>
+          NISN: ${s.nisn || '-'} &nbsp;|&nbsp; Kelas: ${s.kelas || '-'}
+        </div>
+      </div>
+      <div class="sc-back-info-box">
+        <div class="sc-back-info-title">🚫 Jangan Hilangkan Kartu Ini!</div>
+        <div class="sc-back-info-text">
+          Kartu ini adalah identitas resmi pelajar dan digunakan untuk absensi. 
+          Apabila kartu ini hilang, segera laporkan kepada pihak madrasah untuk 
+          pembuatan kartu pengganti.
+        </div>
+      </div>
+      <div class="sc-back-info-box">
+        <div class="sc-back-info-title">📢 Kepada Penemu Kartu Ini</div>
+        <div class="sc-back-info-text">
+          Jika Anda menemukan kartu ini, mohon kembalikan kepada pemiliknya 
+          atau serahkan kepada pihak madrasah. Terima kasih atas kebaikan Anda.<br><br>
+          <strong style="color:#FFD700">📍 ${schoolAddr}</strong><br>
+          <span>📞 ${telp}</span><br>
+          <span>✉️ ${email}</span>
+        </div>
+      </div>
+    </div>
+    <div class="sc-back-footer">
+      <div class="sc-back-ttd-label">Kepala Madrasah / Sekolah</div>
+      <div class="sc-back-ttd-name">${schoolName}</div>
+    </div>
+    <div class="sc-gold-stripe"></div>`;
 }
-async function downloadAllKartuPDF(){
-  const cards=document.querySelectorAll('.student-card-print');
-  if(!cards.length){toast('Tidak ada kartu','warning');return;}
-  toast(`Menyiapkan PDF ${cards.length} kartu...`,'info',8000);
-  try{
-    await new Promise(r=>setTimeout(r,400));
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'landscape',unit:'cm',format:[10.2,7.08]});
-    for(let i=0;i<cards.length;i++){
-      const canvas=await html2canvas(cards[i],{scale:4,useCORS:true,allowTaint:true,backgroundColor:null,logging:false});
-      if(i>0)pdf.addPage([10.2,6.5],'landscape');
-      pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,10.2,7.08);
+async function downloadKartu(s, cardFront, cardBack) {
+  const btn = document.getElementById('dlbtn_' + s.id);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+  try {
+    await new Promise(r => setTimeout(r, 400));
+    const { jsPDF } = window.jspdf;
+    // Ukuran portrait: 7cm x 11cm
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [7, 11] });
+
+    // Halaman 1: Depan
+    const canvasFront = await html2canvas(cardFront, { scale: 4, useCORS: true, allowTaint: true, backgroundColor: null, logging: false });
+    pdf.addImage(canvasFront.toDataURL('image/png', 1.0), 'PNG', 0, 0, 7, 11);
+
+    // Halaman 2: Belakang
+    pdf.addPage([7, 11], 'portrait');
+    const canvasBack = await html2canvas(cardBack, { scale: 4, useCORS: true, allowTaint: true, backgroundColor: null, logging: false });
+    pdf.addImage(canvasBack.toDataURL('image/png', 1.0), 'PNG', 0, 0, 7, 11);
+
+    pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
+    toast('✅ Kartu (depan+belakang) berhasil didownload!', 'success');
+  } catch(e) { toast('❌ Gagal download: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '📥 Download'; } }
+}
+async function downloadAllKartuPDF() {
+  const fronts = document.querySelectorAll('.student-card-print');
+  const backs = document.querySelectorAll('.student-card-back');
+  if (!fronts.length) { toast('Tidak ada kartu', 'warning'); return; }
+  toast(`Menyiapkan PDF ${fronts.length} kartu (depan+belakang)...`, 'info', 8000);
+  try {
+    await new Promise(r => setTimeout(r, 400));
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [7, 11] });
+    for (let i = 0; i < fronts.length; i++) {
+      if (i > 0) pdf.addPage([7, 11], 'portrait');
+      // Depan
+      const cf = await html2canvas(fronts[i], { scale: 4, useCORS: true, allowTaint: true, backgroundColor: null, logging: false });
+      pdf.addImage(cf.toDataURL('image/png', 1.0), 'PNG', 0, 0, 7, 11);
+      // Belakang
+      if (backs[i]) {
+        pdf.addPage([7, 11], 'portrait');
+        const cb = await html2canvas(backs[i], { scale: 4, useCORS: true, allowTaint: true, backgroundColor: null, logging: false });
+        pdf.addImage(cb.toDataURL('image/png', 1.0), 'PNG', 0, 0, 7, 11);
+      }
     }
     pdf.save('Kartu_Siswa_Semua.pdf');
-    toast(`✅ PDF ${cards.length} kartu berhasil!`,'success',5000);
-  }catch(e){toast('❌ Gagal: '+e.message,'error');}
+    toast(`✅ PDF ${fronts.length} kartu (depan+belakang) berhasil!`, 'success', 5000);
+  } catch(e) { toast('❌ Gagal: ' + e.message, 'error'); }
 }
+
 function printAllKartu() {
   const cards = document.querySelectorAll('.student-card-print');
   if (!cards.length) { toast('Tidak ada kartu untuk dicetak', 'warning'); return; }

@@ -13,6 +13,7 @@ module.exports = async (req, res) => {
     if (action === 'pulang')        return res.json(await absensiPulang(params));
     if (action === 'rekapHarian')   return res.json(await rekapHarian(params));
     if (action === 'rekapBulanan')  return res.json(await rekapBulanan(params));
+    if (action === 'rekapBulananRange') return res.json(await rekapBulananRange(params));
     if (action === 'dashboard')     return res.json(await dashboard());
     if (action === 'resetAbsensi')  return res.json(await resetAbsensi(params));
     if (action === 'scanAbsen')     return res.json(await scanAbsen(params));
@@ -194,7 +195,29 @@ async function rekapBulanan({ bulan, tahun, kelas }) {
   });
   return { success: true, data: Object.values(grouped) };
 }
+async function rekapBulananRange({ tanggalMulai, tanggalSelesai, kelas }) {
+  let q = supabase.from('absensi').select('*')
+    .gte('tanggal', tanggalMulai)
+    .lte('tanggal', tanggalSelesai);
+  if (kelas) q = q.eq('kelas', kelas);
+  const { data, error } = await q;
+  if (error) return { success: false, message: error.message };
 
+  const grouped = {};
+  (data || []).forEach(r => {
+    if (!grouped[r.id_siswa]) {
+      grouped[r.id_siswa] = {
+        idSiswa: r.id_siswa, nisn: r.nisn,
+        nama: r.nama_siswa, kelas: r.kelas,
+        hadir: 0, terlambat: 0, pulang: 0
+      };
+    }
+    if (r.status_datang === 'Hadir') grouped[r.id_siswa].hadir++;
+    if (r.status_datang === 'Terlambat') grouped[r.id_siswa].terlambat++;
+    if (r.status_pulang === 'Pulang') grouped[r.id_siswa].pulang++;
+  });
+  return { success: true, data: Object.values(grouped) };
+}
 async function dashboard() {
   const today = todayStr();
   const [{ count: totalSiswa }, { count: totalGuru }, { data: absenHariIni }, jamSetting, piket] = await Promise.all([

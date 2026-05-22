@@ -1688,13 +1688,16 @@ function printAllKartu() {
         display: flex !important;
         flex-wrap: wrap;
         justify-content: center;
+        align-items: flex-start;
         padding: 5mm;
         gap: 4mm;
         background: #fff !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
       }
       #printArea .student-card-print {
-        width: 386px !important;
-        height: 268px !important;
+        width: 128mm !important;
+        height: 90mm !important;
         flex-shrink: 0;
         page-break-inside: avoid;
         box-shadow: none !important;

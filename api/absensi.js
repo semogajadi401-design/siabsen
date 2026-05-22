@@ -226,7 +226,9 @@ async function dashboard() {
     supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hariIni())
   ]);
 
-  const hadirHariIni = (absenHariIni || []).filter(a => a.status_datang === 'Hadir').length;
+  const hadirHariIni = (absenHariIni || []).filter(a => 
+    a.status_datang === 'Hadir' || a.status_datang === 'Terlambat'
+  ).length;
   const terlambatHariIni = (absenHariIni || []).filter(a => a.status_datang === 'Terlambat').length;
 
   return {

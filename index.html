@@ -446,6 +446,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-item active" onclick="showPage('absensi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Absensi Siswa</span></div>
       <div class="nav-item" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
     </div>
+    <div class="nav-item" onclick="showPage('kehadiran')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+      <span>Kehadiran Hari Ini</span>
+    </div>
     <div class="sidebar-footer">
       <div class="user-badge">
         <div class="user-avatar" id="userAvatar">A</div>
@@ -675,7 +679,18 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           </div>
         </div>
       </div>
-
+      <div class="nav-item" onclick="showPage('kehadiran')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+        <span>Kehadiran Hari Ini</span>
+      </div>
+      <div class="nav-item" onclick="showPage('evaluasi')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+        <span>Evaluasi Kehadiran</span>
+      </div>
+      <div class="nav-item" onclick="showPage('semester')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
+        <span>Pengaturan Semester</span>
+      </div>
       <!-- KARTU SISWA -->
       <div class="page" id="page-kartu">
         <div class="card">
@@ -808,12 +823,180 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           </div>
         </div>
       </div>
-
-    </div><!-- end page-content -->
-  </div><!-- end content-area -->
-</div><!-- end mainApp -->
-</div><!-- end app -->
-
+      <!-- KEHADIRAN HARI INI -->
+      <div class="page" id="page-kehadiran">
+        <div id="liburBanner" style="display:none;padding:16px 20px;background:var(--warning-light);border-radius:var(--radius);border-left:4px solid var(--warning);margin-bottom:20px">
+          <div style="font-size:1.5rem;margin-bottom:6px">🏖️</div>
+          <div style="font-weight:700;color:var(--warning);font-size:1rem" id="liburBannerText">Hari Libur</div>
+          <div style="font-size:.85rem;color:var(--text-muted);margin-top:4px">Absensi tidak dapat dilakukan hari ini</div>
+        </div>
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:16px">
+          <div class="stat-card"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div><div class="stat-info"><small>Hadir</small><strong id="khStatHadir">0</strong></div></div>
+          <div class="stat-card orange"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg></div><div class="stat-info"><small>Terlambat</small><strong id="khStatTerlambat">0</strong></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#1565C0"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg></div><div class="stat-info"><small>Sakit</small><strong id="khStatSakit">0</strong></div></div>
+          <div class="stat-card cyan"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg></div><div class="stat-info"><small>Izin</small><strong id="khStatIzin">0</strong></div></div>
+          <div class="stat-card red"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg></div><div class="stat-info"><small>Alpha</small><strong id="khStatAlpha">0</strong></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>📋 Kehadiran Hari Ini</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <select id="khFilterKelas" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="loadKehadiran()">
+                <option value="">Semua Kelas</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="loadKehadiran()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- BELUM HADIR -->
+            <div style="margin-bottom:24px">
+              <h4 style="font-size:.9rem;font-weight:700;color:var(--danger);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                ❌ Belum Hadir <span id="khBelumCount" class="badge badge-danger">0</span>
+              </h4>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>No</th><th>Nama</th><th>Kelas</th>
+                      <th>Status</th><th>Keterangan</th><th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="khBelumBody">
+                    <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- SUDAH HADIR -->
+            <div>
+              <h4 style="font-size:.9rem;font-weight:700;color:var(--success);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                ✅ Sudah Hadir <span id="khHadirCount" class="badge badge-success">0</span>
+              </h4>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>No</th><th>Nama</th><th>Kelas</th>
+                      <th>Jam Datang</th><th>Status</th><th>Jam Pulang</th>
+                    </tr>
+                  </thead>
+                  <tbody id="khHadirBody">
+                    <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- EVALUASI KEHADIRAN -->
+      <div class="page" id="page-evaluasi">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header"><h3>📊 Evaluasi Kehadiran</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select id="evalSemester" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="loadEvaluasi()">
+                <option value="">Pilih Semester</option>
+              </select>
+              <select id="evalKelas" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="loadEvaluasi()">
+                <option value="">Semua Kelas</option>
+              </select>
+              <button class="btn btn-success btn-sm" onclick="exportEvaluasiExcel()">📊 Excel</button>
+              <button class="btn btn-primary btn-sm" onclick="exportEvaluasiPDF()">📄 PDF</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Kartu Ringkasan -->
+            <div class="stats-grid" style="margin-bottom:24px">
+              <div class="stat-card green"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div><div class="stat-info"><small>Total Hadir</small><strong id="evalTotalHadir">—</strong></div></div>
+              <div class="stat-card orange"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2z"/></svg></div><div class="stat-info"><small>Terlambat</small><strong id="evalTotalTerlambat">—</strong></div></div>
+              <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#1565C0"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg></div><div class="stat-info"><small>Sakit</small><strong id="evalTotalSakit">—</strong></div></div>
+              <div class="stat-card cyan"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2z"/></svg></div><div class="stat-info"><small>Izin</small><strong id="evalTotalIzin">—</strong></div></div>
+              <div class="stat-card red"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg></div><div class="stat-info"><small>Alpha</small><strong id="evalTotalAlpha">—</strong></div></div>
+              <div class="stat-card"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></div><div class="stat-info"><small>% Kehadiran</small><strong id="evalPersen">—</strong></div></div>
+            </div>
+            <!-- Grafik -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px" id="evalGrafikWrap">
+              <div class="card" style="padding:16px">
+                <h4 style="font-size:.88rem;font-weight:700;margin-bottom:12px">Perbandingan Kehadiran per Kelas</h4>
+                <canvas id="grafikBar" height="200"></canvas>
+              </div>
+              <div class="card" style="padding:16px">
+                <h4 style="font-size:.88rem;font-weight:700;margin-bottom:12px">Proporsi Status Kehadiran</h4>
+                <canvas id="grafikPie" height="200"></canvas>
+              </div>
+            </div>
+            <!-- Tabel Ranking -->
+            <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🏆 Ranking Kehadiran Siswa</h4>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr><th>Rank</th><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Sakit</th><th>Izin</th><th>Alpha</th><th>% Hadir</th></tr>
+                </thead>
+                <tbody id="evalRankingBody">
+                  <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih semester terlebih dahulu</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- PENGATURAN SEMESTER -->
+      <div class="page" id="page-semester">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <!-- Form Tambah/Edit -->
+          <div class="card">
+            <div class="card-header"><h3 id="semesterFormTitle">➕ Tambah Semester</h3></div>
+            <div class="card-body">
+              <input type="hidden" id="semesterId">
+              <div class="form-group"><label>Nama Semester *</label>
+                <input type="text" id="semesterNama" class="form-control" placeholder="Semester 1 2025/2026">
+              </div>
+              <div class="form-group"><label>Tahun Ajaran</label>
+                <input type="text" id="semesterTA" class="form-control" placeholder="2025/2026">
+              </div>
+              <div class="form-group"><label>Tanggal Mulai *</label>
+                <input type="date" id="semesterMulai" class="form-control">
+              </div>
+              <div class="form-group"><label>Tanggal Selesai *</label>
+                <input type="date" id="semesterSelesai" class="form-control">
+              </div>
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button class="btn btn-primary" onclick="submitSemester()">💾 Simpan</button>
+                <button class="btn btn-gray" onclick="resetFormSemester()">✕ Batal</button>
+              </div>
+            </div>
+          </div>
+          <!-- Pengaturan Hari Kerja -->
+          <div class="card">
+            <div class="card-header"><h3>📅 Hari Sekolah Aktif</h3></div>
+            <div class="card-body">
+              <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px">Centang hari yang merupakan hari sekolah aktif. Hari yang tidak dicentang dianggap libur.</p>
+              <div id="hariKerjaList" style="display:flex;flex-direction:column;gap:10px"></div>
+              <button class="btn btn-primary" style="margin-top:20px" onclick="saveHariKerja()">💾 Simpan Pengaturan</button>
+            </div>
+          </div>
+        </div>
+        <!-- Daftar Semester -->
+        <div class="card" style="margin-top:20px">
+          <div class="card-header"><h3>📋 Daftar Semester</h3></div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr><th>Nama</th><th>Tahun Ajaran</th><th>Mulai</th><th>Selesai</th><th>Status</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="semesterListBody">
+                  <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+     </div>
+ </div>
 <!-- ══ MODALS ══════════════════════════════════════════════════ -->
 
 <!-- Modal Guru -->
@@ -1260,9 +1443,9 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Siswa',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Siswa',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadKartuSiswa,absensi:()=>{loadLogAbsensi();}};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadKartuSiswa,absensi:()=>{loadLogAbsensi();}};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
@@ -2247,11 +2430,525 @@ async function doImport() {
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
     document.head.appendChild(s);
   }
+<!-- Modal Input Keterangan Sakit/Izin -->
+<div class="modal-backdrop" id="modalKeterangan">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>📝 Input Keterangan</h3>
+      <button class="modal-close" onclick="closeModal('modalKeterangan')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:10px;background:var(--primary-pale);border-radius:8px;margin-bottom:16px">
+        <div style="font-weight:700" id="ketNamaSiswa">—</div>
+        <div style="font-size:.82rem;color:var(--text-muted)" id="ketKelasSiswa">—</div>
+      </div>
+      <input type="hidden" id="ketIdSiswa">
+      <div class="form-group">
+        <label>Status Ketidakhadiran *</label>
+        <select id="ketStatus" class="form-control">
+          <option value="Sakit">Sakit</option>
+          <option value="Izin">Izin</option>
+          <option value="Urusan Keluarga">Urusan Keluarga</option>
+          <option value="Izin Lainnya">Izin Lainnya</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Keterangan Tambahan</label>
+        <textarea id="ketKeterangan" class="form-control" rows="3"
+          placeholder="Contoh: demam tinggi, ada keperluan keluarga, dll"
+          style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalKeterangan')">Batal</button>
+      <button class="btn btn-primary" onclick="submitKeterangan()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
 })();
-
 // ── EVENTS ───────────────────────────────────────────────────────
 document.querySelectorAll('.modal-backdrop').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open');}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));});
+// ══════════════════════════════════════════════════════════
+// KEHADIRAN HARI INI
+// ══════════════════════════════════════════════════════════
+let khAutoRefresh = null;
+
+async function loadKehadiran() {
+  // Cek status hari ini dulu
+  const status = await api('kehadiran', 'getStatusHariIni');
+  const banner = document.getElementById('liburBanner');
+  const bannerText = document.getElementById('liburBannerText');
+
+  if (status.success && !status.bisaAbsen) {
+    banner.style.display = 'block';
+    bannerText.textContent = `🏖️ ${status.keterangan}`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  // Load data kehadiran
+  const kelas = document.getElementById('khFilterKelas')?.value || '';
+  const result = await api('kehadiran', 'getSiswaKehadiran', { kelas });
+  if (!result.success) { toast('Gagal memuat data kehadiran', 'error'); return; }
+
+  const { statistik, hadir, belumHadir } = result;
+
+  // Update statistik
+  document.getElementById('khStatHadir').textContent = statistik.totalHadir;
+  document.getElementById('khStatTerlambat').textContent = statistik.totalTerlambat;
+  document.getElementById('khStatSakit').textContent = statistik.totalSakit;
+  document.getElementById('khStatIzin').textContent = statistik.totalIzin;
+  document.getElementById('khStatAlpha').textContent = statistik.totalAlpha;
+  document.getElementById('khBelumCount').textContent = belumHadir.length;
+  document.getElementById('khHadirCount').textContent = hadir.length;
+
+  // Tabel belum hadir
+  const belumBody = document.getElementById('khBelumBody');
+  if (!belumHadir.length) {
+    belumBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--success)">🎉 Semua siswa sudah hadir!</td></tr>';
+  } else {
+    belumBody.innerHTML = belumHadir.map((s, i) => {
+      const statusBadge = s.status === 'Alpha'
+        ? `<span class="badge badge-danger">Alpha</span>`
+        : s.status === 'Sakit'
+        ? `<span class="badge badge-warning">Sakit</span>`
+        : `<span class="badge badge-primary">${s.status}</span>`;
+      const ketText = s.keterangan
+        ? `<span style="font-size:.8rem;color:var(--text-muted)">${s.keterangan}</span>`
+        : `<span style="font-size:.8rem;color:var(--text-muted)">—</span>`;
+      const aksiBtn = s.sudahAdaKeterangan
+        ? `<div style="display:flex;gap:4px">
+            <button class="btn btn-outline btn-xs" onclick="openModalKeterangan('${s.id}','${s.nama}','${s.kelas}','${s.status}','${s.keterangan||''}')">✏️ Edit</button>
+            <button class="btn btn-danger btn-xs" onclick="hapusKeterangan('${s.idKeterangan}')">🗑</button>
+           </div>`
+        : `<button class="btn btn-warning btn-xs" onclick="openModalKeterangan('${s.id}','${s.nama}','${s.kelas}','','')">📝 Input</button>`;
+      return `<tr>
+        <td>${i + 1}</td>
+        <td><div style="font-weight:600">${s.nama}</div></td>
+        <td><span class="badge badge-primary">${s.kelas}</span></td>
+        <td>${statusBadge}</td>
+        <td>${ketText}</td>
+        <td>${aksiBtn}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Tabel sudah hadir
+  const hadirBody = document.getElementById('khHadirBody');
+  if (!hadir.length) {
+    hadirBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada siswa yang hadir</td></tr>';
+  } else {
+    hadirBody.innerHTML = hadir.map((s, i) => `<tr>
+      <td>${i + 1}</td>
+      <td><div style="font-weight:600">${s.nama}</div></td>
+      <td><span class="badge badge-primary">${s.kelas}</span></td>
+      <td>${s.jamDatang || '-'}</td>
+      <td><span class="badge ${s.statusDatang === 'Hadir' ? 'badge-success' : 'badge-warning'}">${s.statusDatang}</span></td>
+      <td>${s.jamPulang || '-'}</td>
+    </tr>`).join('');
+  }
+}
+
+function openModalKeterangan(idSiswa, nama, kelas, status, keterangan) {
+  document.getElementById('ketIdSiswa').value = idSiswa;
+  document.getElementById('ketNamaSiswa').textContent = nama;
+  document.getElementById('ketKelasSiswa').textContent = 'Kelas ' + kelas;
+  document.getElementById('ketStatus').value = status || 'Sakit';
+  document.getElementById('ketKeterangan').value = keterangan || '';
+  openModal('modalKeterangan');
+}
+
+async function submitKeterangan() {
+  const idSiswa = document.getElementById('ketIdSiswa').value;
+  const status = document.getElementById('ketStatus').value;
+  const keterangan = document.getElementById('ketKeterangan').value;
+  const diinputOleh = APP.user?.nama || '';
+
+  const result = await api('kehadiran', 'inputKeterangan', {
+    idSiswa, status, keterangan, diinputOleh
+  });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) {
+    closeModal('modalKeterangan');
+    loadKehadiran();
+  }
+}
+
+async function hapusKeterangan(idKeterangan) {
+  if (!confirm('Hapus keterangan ini?')) return;
+  const result = await api('kehadiran', 'hapusKeterangan', { idKeterangan });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) loadKehadiran();
+}
+
+// ══════════════════════════════════════════════════════════
+// SEMESTER
+// ══════════════════════════════════════════════════════════
+async function loadSemester() {
+  await Promise.all([loadSemesterList(), loadHariKerjaSettings()]);
+}
+
+async function loadSemesterList() {
+  const result = await api('semester', 'getAll');
+  const tbody = document.getElementById('semesterListBody');
+  if (!result.success || !result.data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada semester</td></tr>';
+    return;
+  }
+  tbody.innerHTML = result.data.map(s => `<tr>
+    <td><div style="font-weight:600">${s.nama}</div></td>
+    <td>${s.tahun_ajaran || '-'}</td>
+    <td>${formatTanggal(s.tanggal_mulai)}</td>
+    <td>${formatTanggal(s.tanggal_selesai)}</td>
+    <td><span class="badge ${s.aktif ? 'badge-success' : 'badge-gray'}">${s.aktif ? '✓ Aktif' : 'Nonaktif'}</span></td>
+    <td>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${!s.aktif ? `<button class="btn btn-success btn-xs" onclick="setAktifSemester('${s.id}')">✓ Aktifkan</button>` : ''}
+        <button class="btn btn-outline btn-xs" onclick="editSemester(${JSON.stringify(s).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-danger btn-xs" onclick="hapusSemester('${s.id}')">🗑</button>
+      </div>
+    </td>
+  </tr>`).join('');
+
+  // Populate dropdown evaluasi
+  const evalSel = document.getElementById('evalSemester');
+  if (evalSel) {
+    const cur = evalSel.value;
+    evalSel.innerHTML = '<option value="">Pilih Semester</option>';
+    result.data.forEach(s => {
+      evalSel.innerHTML += `<option value="${s.id}" data-mulai="${s.tanggal_mulai}" data-selesai="${s.tanggal_selesai}">${s.nama}</option>`;
+    });
+    if (cur) evalSel.value = cur;
+  }
+}
+
+async function loadHariKerjaSettings() {
+  const result = await api('kehadiran', 'getHariKerja');
+  const container = document.getElementById('hariKerjaList');
+  if (!result.success || !container) return;
+  container.innerHTML = result.data.map(h => `
+    <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:var(--transition)" 
+      onmouseover="this.style.borderColor='var(--primary)'" 
+      onmouseout="this.style.borderColor='var(--border)'">
+      <input type="checkbox" id="hk_${h.hari}" value="${h.hari}" ${h.aktif ? 'checked' : ''}
+        style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+      <span style="font-weight:600;font-size:.9rem">${h.hari}</span>
+      ${h.aktif ? '<span class="badge badge-success" style="margin-left:auto">Aktif</span>' : '<span class="badge badge-gray" style="margin-left:auto">Libur</span>'}
+    </label>
+  `).join('');
+}
+
+async function saveHariKerja() {
+  const hariList = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'].map(h => ({
+    hari: h,
+    aktif: document.getElementById('hk_' + h)?.checked || false
+  }));
+  const result = await api('kehadiran', 'updateHariKerja', { hariList });
+  toast(result.message, result.success ? 'success' : 'error');
+}
+
+function resetFormSemester() {
+  document.getElementById('semesterId').value = '';
+  document.getElementById('semesterNama').value = '';
+  document.getElementById('semesterTA').value = '';
+  document.getElementById('semesterMulai').value = '';
+  document.getElementById('semesterSelesai').value = '';
+  document.getElementById('semesterFormTitle').textContent = '➕ Tambah Semester';
+}
+
+function editSemester(s) {
+  document.getElementById('semesterId').value = s.id;
+  document.getElementById('semesterNama').value = s.nama;
+  document.getElementById('semesterTA').value = s.tahun_ajaran || '';
+  document.getElementById('semesterMulai').value = s.tanggal_mulai;
+  document.getElementById('semesterSelesai').value = s.tanggal_selesai;
+  document.getElementById('semesterFormTitle').textContent = '✏️ Edit Semester';
+}
+
+async function submitSemester() {
+  const id = document.getElementById('semesterId').value;
+  const data = {
+    nama: document.getElementById('semesterNama').value.trim(),
+    tahunAjaran: document.getElementById('semesterTA').value.trim(),
+    tanggalMulai: document.getElementById('semesterMulai').value,
+    tanggalSelesai: document.getElementById('semesterSelesai').value
+  };
+  if (!data.nama || !data.tanggalMulai || !data.tanggalSelesai) {
+    toast('Nama, tanggal mulai, dan tanggal selesai wajib diisi', 'warning'); return;
+  }
+  const result = id
+    ? await api('semester', 'edit', { id, data })
+    : await api('semester', 'tambah', { data });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) { resetFormSemester(); loadSemesterList(); }
+}
+
+async function setAktifSemester(id) {
+  const result = await api('semester', 'setAktif', { id });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) loadSemesterList();
+}
+
+async function hapusSemester(id) {
+  if (!confirm('Hapus semester ini?')) return;
+  const result = await api('semester', 'hapus', { id });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) loadSemesterList();
+}
+
+function formatTanggal(tgl) {
+  if (!tgl) return '-';
+  try {
+    return new Date(tgl).toLocaleDateString('id-ID', {
+      day: '2-digit', month: 'long', year: 'numeric'
+    });
+  } catch(e) { return tgl; }
+}
+
+// ══════════════════════════════════════════════════════════
+// EVALUASI KEHADIRAN
+// ══════════════════════════════════════════════════════════
+let grafikBar = null;
+let grafikPie = null;
+
+async function loadEvaluasi() {
+  const semesterEl = document.getElementById('evalSemester');
+  const kelasEl = document.getElementById('evalKelas');
+  const semesterId = semesterEl?.value || '';
+  const kelas = kelasEl?.value || '';
+
+  if (!semesterId) {
+    toast('Pilih semester terlebih dahulu', 'warning'); return;
+  }
+
+  // Ambil tanggal semester
+  const opt = semesterEl.querySelector(`option[value="${semesterId}"]`);
+  const tanggalMulai = opt?.dataset?.mulai || '';
+  const tanggalSelesai = opt?.dataset?.selesai || '';
+
+  // Ambil data absensi periode semester
+  const [absenResult, ketResult, siswaResult] = await Promise.all([
+    api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai, kelas }),
+    api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai, kelas }),
+    api('siswa', 'getAll', { activeOnly: true, kelas })
+  ]);
+
+  if (!siswaResult.success) return;
+
+  // Hitung per siswa
+  const siswaMap = {};
+  siswaResult.data.forEach(s => {
+    siswaMap[s.id] = {
+      id: s.id, nisn: s.nisn, nama: s.nama, kelas: s.kelas,
+      hadir: 0, terlambat: 0, sakit: 0, izin: 0, alpha: 0
+    };
+  });
+
+  // Dari absensi
+  if (absenResult.success) {
+    absenResult.data.forEach(d => {
+      if (siswaMap[d.idSiswa]) {
+        siswaMap[d.idSiswa].hadir += d.hadir || 0;
+        siswaMap[d.idSiswa].terlambat += d.terlambat || 0;
+      }
+    });
+  }
+
+  // Dari keterangan
+  if (ketResult.success) {
+    ketResult.data.forEach(d => {
+      if (siswaMap[d.idSiswa]) {
+        if (d.status === 'Sakit') siswaMap[d.idSiswa].sakit++;
+        else siswaMap[d.idSiswa].izin++;
+      }
+    });
+  }
+
+  const allSiswa = Object.values(siswaMap);
+
+  // Hitung total hari sekolah dalam periode
+  // (estimasi dari data yang ada)
+  allSiswa.forEach(s => {
+    const totalTercatat = s.hadir + s.terlambat + s.sakit + s.izin;
+    // Alpha = tidak ada record sama sekali (tidak bisa dihitung tanpa total hari)
+    // Ditampilkan sebagai info saja
+  });
+
+  // Total keseluruhan
+  const totHadir = allSiswa.reduce((a,b) => a + b.hadir, 0);
+  const totTerlambat = allSiswa.reduce((a,b) => a + b.terlambat, 0);
+  const totSakit = allSiswa.reduce((a,b) => a + b.sakit, 0);
+  const totIzin = allSiswa.reduce((a,b) => a + b.izin, 0);
+  const totAll = totHadir + totTerlambat + totSakit + totIzin;
+  const persen = totAll > 0 ? Math.round((totHadir + totTerlambat) / totAll * 100) : 0;
+
+  document.getElementById('evalTotalHadir').textContent = totHadir;
+  document.getElementById('evalTotalTerlambat').textContent = totTerlambat;
+  document.getElementById('evalTotalSakit').textContent = totSakit;
+  document.getElementById('evalTotalIzin').textContent = totIzin;
+  document.getElementById('evalTotalAlpha').textContent = '—';
+  document.getElementById('evalPersen').textContent = persen + '%';
+
+  // Ranking
+  const sorted = allSiswa.sort((a,b) => {
+    const pA = (a.hadir + a.terlambat);
+    const pB = (b.hadir + b.terlambat);
+    return pB - pA;
+  });
+
+  const tbody = document.getElementById('evalRankingBody');
+  tbody.innerHTML = sorted.map((s, i) => {
+    const total = s.hadir + s.terlambat + s.sakit + s.izin;
+    const pct = total > 0 ? Math.round((s.hadir + s.terlambat) / total * 100) : 0;
+    const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
+    return `<tr>
+      <td><strong>${i+1}</strong></td>
+      <td>${s.nama}</td>
+      <td><span class="badge badge-primary">${s.kelas}</span></td>
+      <td><span class="badge badge-success">${s.hadir}</span></td>
+      <td><span class="badge badge-warning">${s.terlambat}</span></td>
+      <td><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
+      <td><span class="badge badge-primary">${s.izin}</span></td>
+      <td><span class="badge badge-danger">${s.alpha}</span></td>
+      <td><strong style="color:${pctColor}">${pct}%</strong></td>
+    </tr>`;
+  }).join('');
+
+  // Grafik per kelas
+  renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin);
+}
+
+function renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin) {
+  // Kelompokkan per kelas
+  const kelasMap = {};
+  allSiswa.forEach(s => {
+    if (!kelasMap[s.kelas]) kelasMap[s.kelas] = { hadir: 0, terlambat: 0, sakit: 0, izin: 0 };
+    kelasMap[s.kelas].hadir += s.hadir;
+    kelasMap[s.kelas].terlambat += s.terlambat;
+    kelasMap[s.kelas].sakit += s.sakit;
+    kelasMap[s.kelas].izin += s.izin;
+  });
+
+  const kelasList = Object.keys(kelasMap).sort();
+
+  // Grafik Bar
+  if (grafikBar) grafikBar.destroy();
+  const ctxBar = document.getElementById('grafikBar');
+  if (ctxBar && typeof Chart !== 'undefined') {
+    grafikBar = new Chart(ctxBar, {
+      type: 'bar',
+      data: {
+        labels: kelasList,
+        datasets: [
+          { label: 'Hadir', data: kelasList.map(k => kelasMap[k].hadir), backgroundColor: '#2E7D32' },
+          { label: 'Terlambat', data: kelasList.map(k => kelasMap[k].terlambat), backgroundColor: '#F57F17' },
+          { label: 'Sakit', data: kelasList.map(k => kelasMap[k].sakit), backgroundColor: '#1565C0' },
+          { label: 'Izin', data: kelasList.map(k => kelasMap[k].izin), backgroundColor: '#00BCD4' }
+        ]
+      },
+      options: {
+        responsive: true, interaction: { mode: 'index' },
+        plugins: { legend: { position: 'bottom' } },
+        scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+      }
+    });
+  }
+
+  // Grafik Pie
+  if (grafikPie) grafikPie.destroy();
+  const ctxPie = document.getElementById('grafikPie');
+  if (ctxPie && typeof Chart !== 'undefined') {
+    grafikPie = new Chart(ctxPie, {
+      type: 'doughnut',
+      data: {
+        labels: ['Hadir', 'Terlambat', 'Sakit', 'Izin'],
+        datasets: [{
+          data: [totHadir, totTerlambat, totSakit, totIzin],
+          backgroundColor: ['#2E7D32', '#F57F17', '#1565C0', '#00BCD4'],
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                const pct = total > 0 ? Math.round(ctx.parsed / total * 100) : 0;
+                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
+async function exportEvaluasiExcel() {
+  if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
+  const rows = [['Rank','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','Alpha','% Kehadiran']];
+  document.querySelectorAll('#evalRankingBody tr').forEach((tr, i) => {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length >= 9) {
+      rows.push([
+        tds[0].textContent, tds[1].textContent, tds[2].textContent,
+        tds[3].textContent, tds[4].textContent, tds[5].textContent,
+        tds[6].textContent, tds[7].textContent, tds[8].textContent
+      ]);
+    }
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Evaluasi Kehadiran');
+  XLSX.writeFile(wb, `Evaluasi_Kehadiran.xlsx`);
+  toast('Excel berhasil didownload', 'success');
+}
+
+async function exportEvaluasiPDF() {
+  toast('Menyiapkan PDF...', 'info', 3000);
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    pdf.setFontSize(14);
+    pdf.text('Evaluasi Kehadiran Siswa', 14, 16);
+    pdf.setFontSize(9);
+    let y = 26;
+    const headers = ['No','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','% Hadir'];
+    const colW = [10, 55, 20, 18, 22, 15, 15, 20];
+    // Header
+    headers.forEach((h, i) => {
+      const x = colW.slice(0,i).reduce((a,b)=>a+b, 14);
+      pdf.setFillColor(21,101,192);
+      pdf.setTextColor(255,255,255);
+      pdf.rect(x, y-4, colW[i], 7, 'F');
+      pdf.text(h, x+1, y);
+    });
+    y += 7;
+    pdf.setTextColor(0,0,0);
+    document.querySelectorAll('#evalRankingBody tr').forEach((tr, idx) => {
+      const tds = tr.querySelectorAll('td');
+      if (tds.length < 9) return;
+      const vals = [
+        String(idx+1), tds[1].textContent.trim(), tds[2].textContent.trim(),
+        tds[3].textContent.trim(), tds[4].textContent.trim(),
+        tds[5].textContent.trim(), tds[6].textContent.trim(), tds[8].textContent.trim()
+      ];
+      if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(14, y-4, 263, 7, 'F'); }
+      vals.forEach((v, i) => {
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, 14);
+        pdf.text(v.substring(0,30), x+1, y);
+      });
+      y += 7;
+      if (y > 190) { pdf.addPage(); y = 20; }
+    });
+    pdf.save('Evaluasi_Kehadiran.pdf');
+    toast('PDF berhasil didownload', 'success');
+  } catch(e) { toast('Gagal: ' + e.message, 'error'); }
+}
 </script>
 </body>
 </html>

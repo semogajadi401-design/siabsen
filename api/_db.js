@@ -65,22 +65,20 @@ async function getJamSetting() {
 
 // ── TODAY STRING (WIB UTC+7) ──────────────────────────────
 function todayStr() {
-  // Selalu gunakan tanggal WIB, bukan UTC
-  const wib = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+  const wib = new Date(new Date().getTime() + 8 * 60 * 60 * 1000);
   return wib.toISOString().split('T')[0];
 }
 
 // ── JAM SEKARANG ──────────────────────────────────────────
 function jamSekarang() {
   const now = new Date();
-  // Konversi ke WIB (UTC+7)
-  const wib = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const wib = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   return wib.toISOString().split('T')[1].substring(0, 5);
 }
 
 function hariIni() {
   const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-  const wib = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+  const wib = new Date(new Date().getTime() + 8 * 60 * 60 * 1000);
   return days[wib.getDay()];
 }
 

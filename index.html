@@ -2053,11 +2053,12 @@ async function scanFromFile(event){
 
 // ── SCAN COOLDOWN — cegah double scan ───────────────────────────
 // Cooldown 5 detik setelah berhasil scan, 2 detik setelah gagal
+// ── SCAN COOLDOWN — cegah double scan ───────────────────────────
 let scanCooldown = false;
 let lastScannedData = '';
 let lastScannedTime = 0;
-const scannedHistory = {}; // kunci per-siswa selama 30 detik
-const PER_SISWA_COOLDOWN = 30000; // 30 detik per siswa
+const scannedHistory = {};       // kunci per-siswa 30 detik
+const PER_SISWA_COOLDOWN = 30000;
 
 function startCooldownBar(ms) {
   const bar  = document.getElementById('scanCooldownBar');
@@ -2080,13 +2081,13 @@ function startCooldownBar(ms) {
 async function processQRResult(data) {
   const now = Date.now();
 
-  // 1. Cegah scan siswa yang SAMA dalam 30 detik (diam-diam diabaikan)
+  // 1. Siswa yang SAMA → dikunci diam-diam 30 detik
   if (scannedHistory[data] && now - scannedHistory[data] < PER_SISWA_COOLDOWN) {
     APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
     return;
   }
 
-  // 2. Cegah scan saat cooldown global aktif
+  // 2. Cooldown global aktif → tunggu dulu
   if (scanCooldown) return;
   scanCooldown = true;
 
@@ -2112,7 +2113,7 @@ async function processQRResult(data) {
     showAbsenResult(result, result.siswa || {});
 
     if (result.success) {
-      // BERHASIL → cooldown 5 detik, kunci siswa ini 30 detik
+      // BERHASIL → simpan ke history, cooldown 3 detik
       scannedHistory[data] = now;
       lastScannedData = data;
       lastScannedTime = now;

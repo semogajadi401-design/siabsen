@@ -81,9 +81,49 @@ function hariIni() {
   const wib = new Date(new Date().getTime() + 8 * 60 * 60 * 1000);
   return days[wib.getDay()];
 }
+// ── CEK HARI LIBUR ────────────────────────────────────────
+async function isHariLibur(tanggal) {
+  const { data } = await supabase
+    .from('hari_kerja')
+    .select('keterangan')
+    .eq('tanggal', tanggal)
+    .maybeSingle();
+  return data ? { libur: true, keterangan: data.keterangan } : { libur: false };
+}
 
+// ── CEK HARI KERJA (Senin-Sabtu sesuai pengaturan) ───────
+async function isHariKerja(namaHari) {
+  const { data } = await supabase
+    .from('pengaturan_hari_kerja')
+    .select('aktif')
+    .eq('hari', namaHari)
+    .maybeSingle();
+  return data ? data.aktif : true;
+}
+
+// ── GET SEMUA PENGATURAN HARI KERJA ──────────────────────
+async function getHariKerjaSettings() {
+  const { data } = await supabase
+    .from('pengaturan_hari_kerja')
+    .select('*')
+    .order('hari');
+  const urutan = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+  return (data || []).sort((a,b) => urutan.indexOf(a.hari) - urutan.indexOf(b.hari));
+}
+
+// ── GET SEMESTER AKTIF ────────────────────────────────────
+async function getSemesterAktif() {
+  const { data } = await supabase
+    .from('semester')
+    .select('*')
+    .eq('aktif', true)
+    .maybeSingle();
+  return data || null;
+}
 module.exports = {
   supabase, hashPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
-  jamSekarang, hariIni
+  jamSekarang, hariIni,
+  // ── TAMBAHAN BARU ──
+  isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif
 };

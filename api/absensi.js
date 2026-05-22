@@ -49,9 +49,7 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
   if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
   if (siswa.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
 
-  const today = todayStr();
   const jam = jamSekarang();
-  const hari = hariIni();
 
   if (mode === 'pulang') {
     const { data: absen } = await supabase.from('absensi')

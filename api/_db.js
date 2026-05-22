@@ -65,7 +65,7 @@ async function getJamSetting() {
 
 // ── TODAY STRING (WIB UTC+7) ──────────────────────────────
 function todayStr() {
-  const wib = new Date(new Date().getTime() + 8 * 60 * 60 * 1000);
+  const wib = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
   return wib.toISOString().split('T')[0];
 }
 

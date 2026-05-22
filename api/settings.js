@@ -41,28 +41,34 @@ async function getJadwalPiket() {
 }
 
 async function setJadwalPiket({ jadwalList }) {
-  // Hapus semua, insert baru
+  // Hapus semua jadwal lama
   await supabase.from('jadwal_piket').delete().neq('id', 'x');
-  if (!jadwalList || jadwalList.length === 0) return { success: true, message: 'Jadwal piket disimpan' };
+  if (!jadwalList || !jadwalList.length)
+    return { success: true, message: 'Jadwal piket dikosongkan' };
 
-  // Ambil data guru untuk nama & jabatan
-  const guruIds = jadwalList.map(j => j.idGuru);
-  const { data: guruData } = await supabase.from('guru').select('id,nama,jabatan').in('id', guruIds);
-  const guruMap = {};
-  (guruData||[]).forEach(g => { guruMap[g.id] = g; });
-
-  const rows = jadwalList.filter(j => guruMap[j.idGuru]).map(j => ({
-    id: generateID('JP'), hari: j.hari, id_guru: j.idGuru,
-    nama_guru: guruMap[j.idGuru].nama, jabatan: guruMap[j.idGuru].jabatan
-  }));
-
-  if (rows.length > 0) {
-    const { error } = await supabase.from('jadwal_piket').insert(rows);
+  // jadwalList sekarang: [{ hari, idGuruList: ['id1','id2'] }]
+  const inserts = [];
+  for (const j of jadwalList) {
+    const guruIds = Array.isArray(j.idGuruList) ? j.idGuruList : [j.idGuru].filter(Boolean);
+    for (const idGuru of guruIds) {
+      const { data: guru } = await supabase.from('guru')
+        .select('nama,jabatan').eq('id', idGuru).single();
+      if (!guru) continue;
+      inserts.push({
+        id: generateID('PK'),
+        hari: j.hari,
+        id_guru: idGuru,
+        nama_guru: guru.nama,
+        jabatan: guru.jabatan
+      });
+    }
+  }
+  if (inserts.length) {
+    const { error } = await supabase.from('jadwal_piket').insert(inserts);
     if (error) return { success: false, message: error.message };
   }
   return { success: true, message: 'Jadwal piket berhasil disimpan' };
 }
-
 async function getHariKerja({ bulan, tahun }) {
   const start = `${tahun}-${String(bulan).padStart(2,'0')}-01`;
   const end = `${tahun}-${String(bulan).padStart(2,'0')}-31`;

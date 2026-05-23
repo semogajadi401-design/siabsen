@@ -2270,249 +2270,229 @@ function buildKartuBackHTML(s, settings) {
     </div>
     <div class="sc-gold-stripe"></div>`;
 }
+// ── HELPER: capture satu kartu ke canvas dengan ukuran fix ──────
+async function captureKartu(element, wPx, hPx) {
+  // Paksa semua background color & gradient jadi inline style
+  // agar html2canvas bisa membacanya
+  const clone = element.cloneNode(true);
+  clone.style.cssText = `
+    width:${wPx}px !important;
+    min-height:${hPx}px !important;
+    max-height:${hPx}px !important;
+    position:fixed !important;
+    left:-9999px !important;
+    top:0 !important;
+    overflow:hidden !important;
+    flex-shrink:0 !important;
+    box-sizing:border-box !important;
+  `;
+
+  // Salin QR canvas secara manual (cloneNode tidak menyalin pixel canvas)
+  const origCanvases  = element.querySelectorAll('canvas');
+  const cloneCanvases = clone.querySelectorAll('canvas');
+  origCanvases.forEach((oc, idx) => {
+    if (!cloneCanvases[idx]) return;
+    cloneCanvases[idx].width  = oc.width;
+    cloneCanvases[idx].height = oc.height;
+    cloneCanvases[idx].getContext('2d').drawImage(oc, 0, 0);
+    cloneCanvases[idx].style.width  = `${oc.width}px`;
+    cloneCanvases[idx].style.height = `${oc.height}px`;
+    // Hapus overflow:hidden pada parent .sc-qr-box agar tidak terpotong
+    const box = cloneCanvases[idx].closest('.sc-qr-box');
+    if (box) {
+      box.style.overflow = 'visible';
+      box.style.width    = `${oc.width + 6}px`;
+      box.style.height   = `${oc.height + 6}px`;
+    }
+    const qrWrap = cloneCanvases[idx].parentElement;
+    if (qrWrap) {
+      qrWrap.style.width  = `${oc.width}px`;
+      qrWrap.style.height = `${oc.height}px`;
+      qrWrap.style.overflow = 'visible';
+    }
+  });
+
+  document.body.appendChild(clone);
+  await new Promise(r => setTimeout(r, 150));
+
+  const captured = await html2canvas(clone, {
+    scale:           4,
+    useCORS:         true,
+    allowTaint:      true,
+    backgroundColor: null,
+    logging:         false,
+    width:           wPx,
+    height:          hPx,
+    windowWidth:     wPx,
+    windowHeight:    hPx,
+    onclone: (doc) => {
+      // Paksa html2canvas membaca computed style background
+      const cards = doc.querySelectorAll(
+        '.student-card-print, .student-card-back'
+      );
+      cards.forEach(card => {
+        const computed = window.getComputedStyle(
+          element.classList.contains('student-card-print') ? element
+          : element
+        );
+        // Terapkan background langsung
+        card.style.background = card.classList.contains('student-card-back')
+          ? 'linear-gradient(160deg, #1a6b3a 0%, #0f4424 100%)'
+          : '#1a6b3a';
+      });
+    }
+  });
+
+  document.body.removeChild(clone);
+  return captured;
+}
+
 async function downloadKartu(s, cardFront, cardBack) {
   const btn = document.getElementById('dlbtn_' + s.id);
   if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+
+  const CARD_W = 270;
+  const CARD_H = 430;
+  const PDF_W  = 6.3;
+  const PDF_H  = 10;
+
   try {
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 200));
     const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PDF_W, PDF_H] });
 
-    // Ukuran kartu dalam px pada scale 4 → 270px * 4 = 1080px lebar
-    // Tinggi menyesuaikan aspect ratio kartu (270 x 430 portrait)
-    const CARD_W_PX = 270;
-    const CARD_H_PX = 430;
-    // Ukuran PDF dalam cm (proporsional 270:430 = 6.3:10)
-    const PDF_W_CM  = 6.3;
-    const PDF_H_CM  = 10;
+    const cfCanvas = await captureKartu(cardFront, CARD_W, CARD_H);
+    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
 
-    // Buat container tersembunyi dengan ukuran fixed agar html2canvas tidak dipengaruhi layout
-    const ghost = document.createElement('div');
-    ghost.style.cssText = `
-      position:fixed;left:-9999px;top:0;
-      width:${CARD_W_PX}px;
-      display:flex;flex-direction:column;
-      z-index:-1;pointer-events:none;
-    `;
-    document.body.appendChild(ghost);
+    pdf.addPage([PDF_W, PDF_H], 'portrait');
+    const cbCanvas = await captureKartu(cardBack, CARD_W, CARD_H);
+    pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
 
-    // Clone kartu depan ke ghost container
-    const cloneFront = cardFront.cloneNode(true);
-    cloneFront.style.cssText = `width:${CARD_W_PX}px;min-height:${CARD_H_PX}px;flex-shrink:0;`;
-    ghost.appendChild(cloneFront);
-
-    // Salin QR yang sudah ter-render ke clone
-    const origQR  = cardFront.querySelector('.qr-target-' + s.id);
-    const cloneQR = cloneFront.querySelector('.qr-target-' + s.id);
-    if (origQR && cloneQR) {
-      cloneQR.innerHTML = origQR.innerHTML;
-      const cloneCanvas = cloneQR.querySelector('canvas');
-      if (cloneCanvas) {
-        cloneCanvas.style.width  = '70px';
-        cloneCanvas.style.height = '70px';
-      }
-    }
-
-    await new Promise(r => setTimeout(r, 100));
-
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PDF_W_CM, PDF_H_CM] });
-
-    // Capture depan
-    const canvasFront = await html2canvas(cloneFront, {
-      scale: 4,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: null,
-      logging: false,
-      width:  CARD_W_PX,
-      height: CARD_H_PX
-    });
-    pdf.addImage(canvasFront.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W_CM, PDF_H_CM);
-
-    // Clone kartu belakang ke ghost container
-    const cloneBack = cardBack.cloneNode(true);
-    cloneBack.style.cssText = `width:${CARD_W_PX}px;min-height:${CARD_H_PX}px;flex-shrink:0;`;
-    ghost.innerHTML = '';
-    ghost.appendChild(cloneBack);
-
-    await new Promise(r => setTimeout(r, 100));
-
-    pdf.addPage([PDF_W_CM, PDF_H_CM], 'portrait');
-    const canvasBack = await html2canvas(cloneBack, {
-      scale: 4,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: null,
-      logging: false,
-      width:  CARD_W_PX,
-      height: CARD_H_PX
-    });
-    pdf.addImage(canvasBack.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W_CM, PDF_H_CM);
-
-    document.body.removeChild(ghost);
-    pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
+    pdf.save(`Kartu_${s.nama.replace(/\s+/g,'_')}_${s.nisn||s.id}.pdf`);
     toast('✅ Kartu berhasil didownload!', 'success');
   } catch(e) {
-    toast('❌ Gagal download: ' + e.message, 'error');
-    document.querySelectorAll('div[style*="-9999px"]').forEach(el => el.remove());
+    toast('❌ Gagal: ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📥 Download'; }
+    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el=>el.remove());
   }
 }
+
 async function downloadAllKartuPDF() {
-  const fronts = document.querySelectorAll('.student-card-print');
-  const backs  = document.querySelectorAll('.student-card-back');
-  if (!fronts.length) { toast('Tidak ada kartu', 'warning'); return; }
-  toast(`Menyiapkan PDF ${fronts.length} kartu...`, 'info', 10000);
+  const wraps = document.querySelectorAll('.kartu-item-wrap');
+  if (!wraps.length) { toast('Tidak ada kartu', 'warning'); return; }
 
-  const CARD_W_PX = 270;
-  const CARD_H_PX = 430;
-  const PDF_W_CM  = 6.3;
-  const PDF_H_CM  = 10;
+  toast(`Menyiapkan ${wraps.length} kartu...`, 'info', 15000);
 
-  const ghost = document.createElement('div');
-  ghost.style.cssText = `position:fixed;left:-9999px;top:0;width:${CARD_W_PX}px;z-index:-1;pointer-events:none;`;
-  document.body.appendChild(ghost);
+  const CARD_W = 270;
+  const CARD_H = 430;
+  const PDF_W  = 6.3;
+  const PDF_H  = 10;
 
   try {
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 200));
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PDF_W_CM, PDF_H_CM] });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PDF_W, PDF_H] });
+    let first = true;
 
-    for (let i = 0; i < fronts.length; i++) {
-      if (i > 0) pdf.addPage([PDF_W_CM, PDF_H_CM], 'portrait');
+    for (const wrap of wraps) {
+      const front = wrap.querySelector('.student-card-print');
+      const back  = wrap.querySelector('.student-card-back');
+      if (!front) continue;
 
-      // Depan
-      const cloneFront = fronts[i].cloneNode(true);
-      cloneFront.style.cssText = `width:${CARD_W_PX}px;min-height:${CARD_H_PX}px;`;
-      // Salin QR canvas
-      const origCanvases = fronts[i].querySelectorAll('canvas');
-      const cloneCanvases = cloneFront.querySelectorAll('canvas');
-      origCanvases.forEach((oc, idx) => {
-        if (cloneCanvases[idx]) {
-          const ctx = cloneCanvases[idx].getContext('2d');
-          cloneCanvases[idx].width  = oc.width;
-          cloneCanvases[idx].height = oc.height;
-          ctx.drawImage(oc, 0, 0);
-          cloneCanvases[idx].style.width  = '70px';
-          cloneCanvases[idx].style.height = '70px';
-        }
-      });
-      ghost.innerHTML = '';
-      ghost.appendChild(cloneFront);
-      await new Promise(r => setTimeout(r, 80));
+      if (!first) pdf.addPage([PDF_W, PDF_H], 'portrait');
+      first = false;
 
-      const cf = await html2canvas(cloneFront, {
-        scale: 4, useCORS: true, allowTaint: true,
-        backgroundColor: null, logging: false,
-        width: CARD_W_PX, height: CARD_H_PX
-      });
-      pdf.addImage(cf.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W_CM, PDF_H_CM);
+      const cfCanvas = await captureKartu(front, CARD_W, CARD_H);
+      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
 
-      // Belakang
-      if (backs[i]) {
-        pdf.addPage([PDF_W_CM, PDF_H_CM], 'portrait');
-        const cloneBack = backs[i].cloneNode(true);
-        cloneBack.style.cssText = `width:${CARD_W_PX}px;min-height:${CARD_H_PX}px;`;
-        ghost.innerHTML = '';
-        ghost.appendChild(cloneBack);
-        await new Promise(r => setTimeout(r, 80));
-
-        const cb = await html2canvas(cloneBack, {
-          scale: 4, useCORS: true, allowTaint: true,
-          backgroundColor: null, logging: false,
-          width: CARD_W_PX, height: CARD_H_PX
-        });
-        pdf.addImage(cb.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W_CM, PDF_H_CM);
+      if (back) {
+        pdf.addPage([PDF_W, PDF_H], 'portrait');
+        const cbCanvas = await captureKartu(back, CARD_W, CARD_H);
+        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
       }
     }
 
-    document.body.removeChild(ghost);
     pdf.save('Kartu_Siswa_Semua.pdf');
-    toast(`✅ PDF ${fronts.length} kartu berhasil!`, 'success', 5000);
+    toast(`✅ PDF ${wraps.length} kartu berhasil!`, 'success', 5000);
   } catch(e) {
     toast('❌ Gagal: ' + e.message, 'error');
-    document.querySelectorAll('div[style*="-9999px"]').forEach(el => el.remove());
+  } finally {
+    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el=>el.remove());
   }
 }
+async function printAllKartu() {
+  const wraps = document.querySelectorAll('.kartu-item-wrap');
+  if (!wraps.length) { toast('Tidak ada kartu untuk dicetak', 'warning'); return; }
 
-function printAllKartu() {
-  const cards = document.querySelectorAll('.student-card-print');
-  if (!cards.length) { toast('Tidak ada kartu untuk dicetak', 'warning'); return; }
+  toast('Menyiapkan gambar kartu untuk cetak...', 'info', 8000);
 
-  const printArea = document.getElementById('printArea');
-  printArea.innerHTML = '';
+  const CARD_W = 270;
+  const CARD_H = 430;
 
-  cards.forEach(card => {
-    // Konversi canvas QR → img agar ikut ter-clone
-    card.querySelectorAll('canvas').forEach(canvas => {
-      const img = document.createElement('img');
-      img.src = canvas.toDataURL('image/png');
-      img.style.cssText = `width:70px;height:70px;display:block;`;
-      canvas.parentNode.replaceChild(img, canvas);
-    });
+  try {
+    const printArea = document.getElementById('printArea');
+    printArea.innerHTML = '';
 
-    const clone = card.cloneNode(true);
-    // Hapus inline style bawaan, biarkan @media print yang mengatur ukuran
-    clone.removeAttribute('style');
-    clone.className = 'student-card-print kartu-cetak';
-    printArea.appendChild(clone);
-  });
+    for (const wrap of wraps) {
+      const front = wrap.querySelector('.student-card-print');
+      const back  = wrap.querySelector('.student-card-back');
+      if (!front) continue;
 
-  const style = document.createElement('style');
-  style.id = 'printStyleTemp';
-  style.textContent = `
-    @media print {
-      * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
-      }
-      @page {
-        size: A4 portrait;
-        margin: 8mm;
-      }
-      #printArea {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: wrap !important;
-        justify-content: flex-start !important;
-        align-items: flex-start !important;
-        gap: 4mm !important;
-        width: 194mm !important;
-        box-sizing: border-box !important;
-        background: #fff !important;
-      }
-      #printArea .kartu-cetak {
-        width: 95mm !important;
-        height: 66mm !important;
-        flex-shrink: 0 !important;
-        flex-grow: 0 !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-        box-shadow: none !important;
-        border-radius: 6px !important;
-        background: linear-gradient(135deg,#0D47A1 0%,#1565C0 60%,#1976D2 100%) !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        overflow: hidden !important;
-        position: relative !important;
-        display: flex !important;
-        flex-direction: column !important;
-        color: #fff !important;
-        font-family: 'Segoe UI', Arial, sans-serif !important;
-        box-sizing: border-box !important;
+      // Capture depan jadi image
+      const cfCanvas = await captureKartu(front, CARD_W, CARD_H);
+      const imgFront = document.createElement('img');
+      imgFront.src = cfCanvas.toDataURL('image/png', 1.0);
+      imgFront.className = 'kartu-cetak';
+      printArea.appendChild(imgFront);
+
+      // Capture belakang jadi image
+      if (back) {
+        const cbCanvas = await captureKartu(back, CARD_W, CARD_H);
+        const imgBack = document.createElement('img');
+        imgBack.src = cbCanvas.toDataURL('image/png', 1.0);
+        imgBack.className = 'kartu-cetak';
+        printArea.appendChild(imgBack);
       }
     }
-  `;
-  document.head.appendChild(style);
 
-  window.print();
+    const style = document.createElement('style');
+    style.id = 'printStyleTemp';
+    style.textContent = `
+      @media print {
+        * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+        @page { size: A4 portrait; margin: 8mm; }
+        #printArea {
+          display:flex !important;
+          flex-wrap:wrap !important;
+          gap:4mm !important;
+          width:194mm !important;
+        }
+        #printArea img.kartu-cetak {
+          width:94mm !important;
+          height:149mm !important;
+          object-fit:contain !important;
+          page-break-inside:avoid !important;
+          break-inside:avoid !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
 
-  setTimeout(() => {
-    printArea.innerHTML = '';
-    const tempStyle = document.getElementById('printStyleTemp');
-    if (tempStyle) tempStyle.remove();
-  }, 2000);
+    await new Promise(r => setTimeout(r, 300));
+    window.print();
+
+    setTimeout(() => {
+      printArea.innerHTML = '';
+      const s = document.getElementById('printStyleTemp');
+      if (s) s.remove();
+    }, 3000);
+
+  } catch(e) {
+    toast('❌ Gagal cetak: ' + e.message, 'error');
+  } finally {
+    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el=>el.remove());
+  }
 }
   
 // ── ABSENSI ──────────────────────────────────────────────────────

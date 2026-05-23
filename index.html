@@ -2348,9 +2348,11 @@ async function downloadKartu(s, cardFront, cardBack) {
       flipped.width  = cbCanvas.width;
       flipped.height = cbCanvas.height;
       const ctx = flipped.getContext('2d');
-      ctx.translate(flipped.width, flipped.height);
+      ctx.save();
+      ctx.translate(flipped.width / 2, flipped.height / 2);
       ctx.rotate(Math.PI);
-      ctx.drawImage(cbCanvas, 0, 0);
+      ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
+      ctx.restore();
 
       pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
         0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
@@ -2439,9 +2441,11 @@ async function downloadAllKartuPDF() {
         flipped.width  = cbCanvas.width;
         flipped.height = cbCanvas.height;
         const ctx = flipped.getContext('2d');
-        ctx.translate(flipped.width, flipped.height);
+        ctx.save();
+        ctx.translate(flipped.width / 2, flipped.height / 2);
         ctx.rotate(Math.PI);
-        ctx.drawImage(cbCanvas, 0, 0);
+        ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
+        ctx.restore();
         pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
           x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);
       }

@@ -13,6 +13,7 @@ module.exports = async (req, res) => {
     if (action === 'getByScan')   return res.json(await getByScan(params));
     if (action === 'importSiswa') return res.json(await importSiswa(params));
     if (action === 'resetSemua')  return res.json(await resetSemua());
+    if (action === 'naikkanKelas') return res.json(await naikkanKelas(params));
     // ↑ TAMBAHAN: action resetSemua yang dipanggil dari halaman Reset Data
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }

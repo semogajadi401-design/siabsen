@@ -58,14 +58,10 @@ async function getJadwalPiket() {
 }
 
 async function setJadwalPiket({ jadwalList }) {
-  // Hapus semua jadwal lama
-  await supabase.from('jadwal_piket').delete().neq('id', 'x');
-
-  if (!jadwalList || !jadwalList.length)
-    return { success: true, message: 'Jadwal piket dikosongkan' };
-
+  // Siapkan data dulu sebelum hapus apapun
   const inserts = [];
-  for (const j of jadwalList) {
+
+  for (const j of jadwalList || []) {
     const guruIds = Array.isArray(j.idGuruList)
       ? j.idGuruList
       : [j.idGuru].filter(Boolean);
@@ -75,19 +71,25 @@ async function setJadwalPiket({ jadwalList }) {
         .from('guru').select('nama,jabatan').eq('id', idGuru).single();
       if (!guru) continue;
       inserts.push({
-        id: generateID('PK'),
-        hari: j.hari,
-        id_guru: idGuru,
+        id:        generateID('PK'),
+        hari:      j.hari,
+        id_guru:   idGuru,
         nama_guru: guru.nama,
-        jabatan: guru.jabatan
+        jabatan:   guru.jabatan
       });
     }
   }
 
-  if (inserts.length) {
-    const { error } = await supabase.from('jadwal_piket').insert(inserts);
-    if (error) return { success: false, message: error.message };
-  }
+  // Baru hapus setelah data siap
+  const { error: errDel } = await supabase.from('jadwal_piket').delete().neq('id', 'x');
+  if (errDel) return { success: false, message: 'Gagal hapus jadwal lama: ' + errDel.message };
+
+  if (!inserts.length)
+    return { success: true, message: 'Jadwal piket dikosongkan' };
+
+  const { error: errIns } = await supabase.from('jadwal_piket').insert(inserts);
+  if (errIns) return { success: false, message: 'Gagal simpan jadwal baru: ' + errIns.message };
+
   return { success: true, message: 'Jadwal piket berhasil disimpan' };
 }
 

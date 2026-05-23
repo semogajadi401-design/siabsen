@@ -152,7 +152,9 @@ async function importSiswa({ dataList }) {
 
 // ── RESET SEMUA SISWA (hapus permanen + absensinya) ──────────────
 async function resetSemua() {
-  // Hapus absensi dulu (foreign key ke siswa)
+  const { error: e0 } = await supabase.from('keterangan_absensi').delete().neq('id', 'x');
+  if (e0) return { success: false, message: 'Gagal hapus keterangan: ' + e0.message };
+
   const { error: e1 } = await supabase.from('absensi').delete().neq('id', 'x');
   if (e1) return { success: false, message: 'Gagal hapus absensi: ' + e1.message };
 

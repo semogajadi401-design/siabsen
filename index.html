@@ -78,38 +78,68 @@ input,select,textarea{font-family:inherit;outline:none}
 /* ── LAYOUT ── */
 #mainApp{display:flex;min-height:100vh}
 
-/* SIDEBAR */
 .sidebar{
   width:var(--sidebar-w);flex-shrink:0;
-  background:linear-gradient(180deg,var(--primary-dark) 0%,var(--primary) 100%);
+  background:linear-gradient(180deg,#0a1628 0%,#0d1f3c 100%);
   display:flex;flex-direction:column;
   position:fixed;top:0;left:0;height:100vh;
   z-index:100;
   transition:transform .3s cubic-bezier(0.4,0,0.2,1);
-  box-shadow:4px 0 20px rgba(13,71,161,0.3);
-  /* penting: overflow scroll untuk hp */
-  overflow-y:auto;
-  overflow-x:hidden;
+  box-shadow:4px 0 24px rgba(0,0,0,0.4);
+  overflow-y:auto;overflow-x:hidden;
 }
-/* custom scrollbar sidebar */
 .sidebar::-webkit-scrollbar{width:3px}
-.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:2px}
-
-.sidebar-header{padding:24px 20px 20px;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+.sidebar-header{padding:22px 18px 18px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
 .sidebar-brand{display:flex;align-items:center;gap:12px}
-.sidebar-brand .brand-icon{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.sidebar-brand svg{width:22px;height:22px;fill:#fff}
-.sidebar-brand h2{color:#fff;font-size:1.1rem;font-weight:800;letter-spacing:.5px}
-.sidebar-brand small{color:rgba(255,255,255,0.6);font-size:.72rem;display:block;margin-top:1px}
-.sidebar-nav{flex:1;padding:12px 0;min-height:0;overflow-y:auto}
-.nav-section-label{padding:8px 20px 4px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,0.4)}
-.nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;color:rgba(255,255,255,0.75);transition:var(--transition);margin:1px 8px;border-radius:10px;position:relative}
-.nav-item:hover{background:rgba(255,255,255,0.1);color:#fff}
-.nav-item.active{background:rgba(255,255,255,0.18);color:#fff;font-weight:600}
-.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:60%;background:#fff;border-radius:0 2px 2px 0}
-.nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.8}
-.nav-item.active svg{opacity:1}
-.nav-item span{font-size:.88rem}
+.sidebar-brand .brand-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#06b6d4);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sidebar-brand svg{width:20px;height:20px;fill:#fff}
+.sidebar-brand h2{color:#fff;font-size:1.05rem;font-weight:800;letter-spacing:.5px}
+.sidebar-brand small{color:rgba(255,255,255,0.45);font-size:.68rem;display:block;margin-top:1px}
+.sidebar-nav{flex:1;padding:10px 0;min-height:0;overflow-y:auto}
+.nav-section-label{padding:14px 18px 5px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;color:rgba(255,255,255,0.3)}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 14px;cursor:pointer;color:rgba(255,255,255,0.6);margin:2px 10px;border-radius:10px;position:relative;transition:background 0.25s ease,color 0.25s ease,transform 0.2s ease;border-left:3px solid transparent}
+.nav-item:hover{color:#fff;transform:translateX(3px)}
+.nav-item svg{width:17px;height:17px;flex-shrink:0;transition:transform 0.2s ease}
+.nav-item:hover svg{transform:scale(1.15)}
+.nav-item span{font-size:.85rem;font-weight:500}
+.nav-item.active span{font-weight:700}
+.nav-item.color-blue:hover{background:rgba(59,130,246,0.18)}
+.nav-item.color-blue.active{background:rgba(59,130,246,0.22);color:#93c5fd;border-left-color:#3b82f6}
+.nav-item.color-purple:hover{background:rgba(139,92,246,0.18)}
+.nav-item.color-purple.active{background:rgba(139,92,246,0.22);color:#c4b5fd;border-left-color:#8b5cf6}
+.nav-item.color-cyan:hover{background:rgba(6,182,212,0.18)}
+.nav-item.color-cyan.active{background:rgba(6,182,212,0.22);color:#67e8f9;border-left-color:#06b6d4}
+.nav-item.color-green:hover{background:rgba(34,197,94,0.18)}
+.nav-item.color-green.active{background:rgba(34,197,94,0.22);color:#86efac;border-left-color:#22c55e}
+.nav-item.color-amber:hover{background:rgba(245,158,11,0.18)}
+.nav-item.color-amber.active{background:rgba(245,158,11,0.22);color:#fcd34d;border-left-color:#f59e0b}
+.nav-item.color-red:hover{background:rgba(239,68,68,0.18)}
+.nav-item.color-red.active{background:rgba(239,68,68,0.22);color:#fca5a5;border-left-color:#ef4444}
+.nav-item.color-teal:hover{background:rgba(20,184,166,0.18)}
+.nav-item.color-teal.active{background:rgba(20,184,166,0.22);color:#5eead4;border-left-color:#14b8a6}
+.nav-section-label.lbl-blue{color:rgba(147,197,253,0.5)}
+.nav-section-label.lbl-purple{color:rgba(196,181,253,0.5)}
+.nav-section-label.lbl-cyan{color:rgba(103,232,249,0.5)}
+.nav-section-label.lbl-green{color:rgba(134,239,172,0.5)}
+.nav-section-label.lbl-amber{color:rgba(252,211,77,0.5)}
+.nav-section-label.lbl-red{color:rgba(252,165,165,0.5)}
+.nav-section-label.lbl-teal{color:rgba(94,234,212,0.5)}
+.sidebar-footer{flex-shrink:0;padding:14px;border-top:1px solid rgba(255,255,255,0.07);background:#0a1628;position:sticky;bottom:0}
+.user-badge{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.06)}
+.user-avatar{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#3b82f6,#06b6d4);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.9rem;flex-shrink:0}
+.user-info small{color:rgba(255,255,255,0.4);font-size:.67rem;text-transform:uppercase;letter-spacing:.5px;display:block}
+.user-info strong{color:#fff;font-size:.82rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-logout{display:flex;align-items:center;gap:6px;margin-top:8px;width:100%;padding:8px;background:rgba(239,68,68,0.12);color:rgba(252,165,165,0.8);border-radius:8px;font-size:.78rem;font-weight:600;transition:all 0.25s ease;border:1px solid rgba(239,68,68,0.15)}
+.btn-logout:hover{background:rgba(239,68,68,0.25);color:#fca5a5}
+.btn-logout svg{width:14px;height:14px}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay.show{display:block}
+  .content-area{margin-left:0!important}
+}
 
 /* sidebar footer — sticky di bawah, tidak hilang */
 .sidebar-footer{
@@ -589,41 +619,37 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
     <!-- ADMIN NAV -->
     <div id="adminNav" class="sidebar-nav" style="display:none">
-      <div class="nav-section-label">Utama</div>
-      <div class="nav-item active" onclick="showPage('dashboard')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg><span>Dashboard</span></div>
-      <div class="nav-section-label">Data Master</div>
-      <div class="nav-item" onclick="showPage('guru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Data Guru</span></div>
-      <div class="nav-item" onclick="showPage('siswa')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg><span>Data Siswa</span></div>
-      <div class="nav-section-label">Pengaturan</div>
-      <div class="nav-item" onclick="showPage('kelas')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h18v2H4zm0 5h18v2H4zm0 5h18v2H4z"/></svg><span>Manajemen Kelas</span></div>
-      <div class="nav-item" onclick="showPage('piket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><span>Jadwal Piket</span></div>
-      <div class="nav-item" onclick="showPage('harikerja')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Hari Kerja</span></div>
-      <div class="nav-item" onclick="showPage('sekolah')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18V17h2v-4.82L9 13.4V17c0 1.1 1.34 2 3 2s3-.9 3-2v-3.6l4-2.18V11h2L12 3z"/></svg><span>Profil Sekolah</span></div>
-      <div class="nav-item" onclick="showPage('pengaturan')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg><span>Pengaturan Jam</span></div>
-      <div class="nav-section-label">Laporan</div>
-      <div class="nav-item" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
-      <div class="nav-item" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Siswa</span></div>
-      <div class="nav-section-label">Sistem</div>
-      <div class="nav-item" onclick="showPage('reset')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg><span>Reset Data</span></div>
-      <div class="nav-section-label">Kehadiran & Laporan</div>
-      <div class="nav-item" onclick="showPage('kehadiran')">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
-        <span>Kehadiran Hari Ini</span>
-      </div>
-      <div class="nav-item" onclick="showPage('evaluasi')">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-        <span>Evaluasi Kehadiran</span>
-      </div>
-      <div class="nav-item" onclick="showPage('semester')">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
-        <span>Pengaturan Semester</span>
-      </div>
+      <div class="nav-section-label lbl-blue">Utama</div>
+      <div class="nav-item color-blue active" onclick="showPage('dashboard')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg><span>Dashboard</span></div>
+    
+      <div class="nav-section-label lbl-purple">Pengaturan</div>
+      <div class="nav-item color-purple" onclick="showPage('sekolah')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18V17h2v-4.82L9 13.4V17c0 1.1 1.34 2 3 2s3-.9 3-2v-3.6l4-2.18V11h2L12 3z"/></svg><span>Profil Sekolah</span></div>
+      <div class="nav-item color-purple" onclick="showPage('pengaturan')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg><span>Pengaturan Jam</span></div>
+      <div class="nav-item color-purple" onclick="showPage('semester')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Pengaturan Semester</span></div>
+      <div class="nav-item color-purple" onclick="showPage('harikerja')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><span>Hari Kerja</span></div>
+      <div class="nav-item color-purple" onclick="showPage('piket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Jadwal Piket</span></div>
+    
+      <div class="nav-section-label lbl-cyan">Data Master</div>
+      <div class="nav-item color-cyan" onclick="showPage('kelas')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h18v2H4zm0 5h18v2H4zm0 5h18v2H4z"/></svg><span>Manajemen Kelas</span></div>
+      <div class="nav-item color-cyan" onclick="showPage('guru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Data Guru</span></div>
+      <div class="nav-item color-cyan" onclick="showPage('siswa')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg><span>Data Siswa</span></div>
+    
+      <div class="nav-section-label lbl-green">Kehadiran</div>
+      <div class="nav-item color-green" onclick="showPage('kehadiran')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><span>Kehadiran Hari Ini</span></div>
+    
+      <div class="nav-section-label lbl-amber">Laporan</div>
+      <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
+      <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
+      <div class="nav-item color-amber" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Siswa</span></div>
+    
+      <div class="nav-section-label lbl-red">Sistem</div>
+      <div class="nav-item color-red" onclick="showPage('reset')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg><span>Reset Data</span></div>
     </div>
     <!-- GURU NAV -->
     <div id="guruNav" class="sidebar-nav" style="display:none">
-      <div class="nav-section-label">Menu Guru</div>
-      <div class="nav-item active" onclick="showPage('absensi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Absensi Siswa</span></div>
-      <div class="nav-item" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
+      <div class="nav-section-label lbl-teal">Menu Guru</div>
+      <div class="nav-item color-teal active" onclick="showPage('absensi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Absensi Siswa</span></div>
+      <div class="nav-item color-teal" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
     </div>
     <div class="sidebar-footer">
       <div class="user-badge">

@@ -3128,9 +3128,15 @@ let grafikPie = null;
 
 async function loadEvaluasi() {
   const semesterEl = document.getElementById('evalSemester');
-  const kelasEl = document.getElementById('evalKelas');
+  const kelasEl    = document.getElementById('evalKelas');
+
+  // Auto-pilih option pertama jika belum ada pilihan
+  if (!semesterEl.value && semesterEl.options.length > 1) {
+    semesterEl.value = semesterEl.options[1].value;
+  }
+
   const semesterId = semesterEl?.value || '';
-  const kelas = kelasEl?.value || '';
+  const kelas      = kelasEl?.value   || '';
 
   if (!semesterId) {
     toast('Pilih semester terlebih dahulu', 'warning'); return;

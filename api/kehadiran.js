@@ -205,7 +205,18 @@ async function rekapKeteranganRange({ tanggalMulai, tanggalSelesai, kelas }) {
   if (kelas) q = q.eq('kelas', kelas);
   const { data, error } = await q;
   if (error) return { success: false, message: error.message };
-  return { success: true, data: data || [] };
+  return {
+    success: true,
+    data: (data || []).map(d => ({
+      idSiswa:    d.id_siswa,
+      nisn:       d.nisn,
+      nama:       d.nama_siswa,
+      kelas:      d.kelas,
+      tanggal:    d.tanggal,
+      status:     d.status,
+      keterangan: d.keterangan
+    }))
+  };
 }
 
 // ── GET PENGATURAN HARI KERJA (Senin-Sabtu) ──────────────────────

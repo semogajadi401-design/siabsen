@@ -164,3 +164,30 @@ async function resetSemua() {
 
   return { success: true, message: 'Semua data siswa dan absensi berhasil dihapus' };
 }
+async function naikkanKelas({ dari, ke, luluskan }) {
+  if (!dari) return { success: false, message: 'Kelas asal wajib dipilih' };
+
+  if (luluskan) {
+    const { data, error } = await supabase
+      .from('siswa')
+      .update({ status: 'Lulus' })
+      .eq('kelas', dari)
+      .eq('status', 'Aktif')
+      .select('id');
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: `${data.length} siswa kelas ${dari} berhasil diluluskan`, jumlah: data.length };
+  }
+
+  if (!ke) return { success: false, message: 'Kelas tujuan wajib dipilih' };
+  if (dari === ke) return { success: false, message: 'Kelas asal dan tujuan tidak boleh sama' };
+
+  const { data, error } = await supabase
+    .from('siswa')
+    .update({ kelas: ke })
+    .eq('kelas', dari)
+    .eq('status', 'Aktif')
+    .select('id');
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: `${data.length} siswa berhasil dinaikkan dari ${dari} ke ${ke}`, jumlah: data.length };
+}
+

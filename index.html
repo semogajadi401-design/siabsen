@@ -2149,7 +2149,7 @@ function buildKartuInnerHTML(s, settings) {
   <div style="width:260px;min-height:400px;border-radius:16px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER HIJAU -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:12px 14px 40px;flex-shrink:0">
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:10px 12px 32px;flex-shrink:0">
       <div style="display:flex;align-items:center;gap:8px">
         ${logoHTML}
         <div style="flex:1;min-width:0">
@@ -2226,7 +2226,7 @@ function buildKartuBackHTML(s, settings) {
   <div style="width:260px;min-height:400px;border-radius:16px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;margin-top:10px">
 
     <!-- HEADER -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:12px 14px 40px;flex-shrink:0;text-align:center">
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:10px 12px 32px;flex-shrink:0;text-align:center">
       <div style="font-size:8.5pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.6px">Informasi Kartu Pelajar</div>
       <div style="font-size:5.5pt;color:rgba(255,255,255,0.75);margin-top:3px">${schoolName}</div>
     </div>
@@ -2317,24 +2317,27 @@ async function downloadKartu(s, cardFront, cardBack) {
   try {
     const { jsPDF } = window.jspdf;
 
-    // Capture langsung dari elemen asli yang sudah ada di DOM
     const cfCanvas = await captureKartu(cardFront);
-    const cfW = cfCanvas.width / 3;   // scale=3, kembalikan ke px asli
-    const cfH = cfCanvas.height / 3;
+    const cbCanvas = cardBack ? await captureKartu(cardBack) : null;
 
-    // Konversi px ke cm (1px = 0.0264583 cm, tapi kita pakai unit px langsung di jsPDF)
+    // Ukuran kartu: lebar 8.5cm, tinggi proporsional
+    const CARD_W_CM = 8.5;
+    const ratio = cfCanvas.height / cfCanvas.width;
+    const CARD_H_CM = CARD_W_CM * ratio;
+    const CARD_H_CM_BACK = cbCanvas ? CARD_W_CM * (cbCanvas.height / cbCanvas.width) : CARD_H_CM;
+    const GAP_CM = 0.2; // jarak antar kartu (depan-belakang)
+
+    const pageH = CARD_H_CM + GAP_CM + CARD_H_CM_BACK + 1;
+
     const pdf = new jsPDF({
       orientation: 'portrait',
-      unit: 'px',
-      format: [cfW, cfH * 2 + 10]
+      unit: 'cm',
+      format: [CARD_W_CM, pageH]
     });
 
-    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, cfW, cfH);
-
-    if (cardBack) {
-      const cbCanvas = await captureKartu(cardBack);
-      const cbH = cbCanvas.height / 3;
-      pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, cfH + 10, cfW, cbH);
+    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, CARD_W_CM, CARD_H_CM);
+    if (cbCanvas) {
+      pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, CARD_H_CM + GAP_CM, CARD_W_CM, CARD_H_CM_BACK);
     }
 
     pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
@@ -2353,50 +2356,68 @@ async function downloadAllKartuPDF() {
 
   const btnAll = document.querySelector('button[onclick="downloadAllKartuPDF()"]');
   if (btnAll) { btnAll.disabled = true; btnAll.textContent = '⏳ Memproses...'; }
-  toast(`Menyiapkan ${wraps.length} kartu, harap tunggu...`, 'info', 30000);
+  toast(`Menyiapkan ${wraps.length} kartu, harap tunggu...`, 'info', 60000);
 
   try {
     const { jsPDF } = window.jspdf;
 
-    // Ambil ukuran dari kartu pertama
-    const firstFront = wraps[0].querySelector('.student-card-print');
-    if (!firstFront) throw new Error('Kartu tidak ditemukan');
+    // Layout A4 portrait: 21cm × 29.7cm
+    // Margin 0.8cm tiap sisi → area pakai = 19.4cm × 28.1cm
+    const PAGE_W = 21, PAGE_H = 29.7;
+    const MARGIN = 0.8;
+    const GAP_COL = 0.4;   // jarak antar kolom (depan vs belakang)
+    const GAP_ROW = 0.5;   // jarak antar baris kartu
 
-    const testCanvas = await captureKartu(firstFront);
-    const cardW = testCanvas.width / 3;
-    const cardH = testCanvas.height / 3;
+    // Tiap pasang kartu (depan+belakang) ditaruh berdampingan dalam 1 baris
+    // Lebar tiap kartu = (area_pakai - gap_kolom) / 2
+    const CARD_W = (PAGE_W - MARGIN * 2 - GAP_COL) / 2;
 
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'px',
-      format: [cardW, cardH]
-    });
-
-    let isFirst = true;
-
+    // Capture semua kartu dulu
+    toast('Mengambil gambar kartu...', 'info', 60000);
+    const cards = [];
     for (const wrap of wraps) {
       const front = wrap.querySelector('.student-card-print');
       const back  = wrap.querySelector('.student-card-back');
       if (!front) continue;
-
-      // Halaman depan
-      if (!isFirst) pdf.addPage([cardW, cardH], 'portrait');
-      isFirst = false;
       const cfCanvas = await captureKartu(front);
-      const cfH = cfCanvas.height / 3;
-      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, cardW, cfH);
+      const cbCanvas = back ? await captureKartu(back) : null;
+      const ratio = cfCanvas.height / cfCanvas.width;
+      const CARD_H = CARD_W * ratio;
+      cards.push({ cfCanvas, cbCanvas, CARD_H });
+    }
 
-      // Halaman belakang
-      if (back) {
-        pdf.addPage([cardW, cardH], 'portrait');
-        const cbCanvas = await captureKartu(back);
-        const cbH = cbCanvas.height / 3;
-        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, cardW, cbH);
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
+    let y = MARGIN;
+    let pageNum = 1;
+
+    for (let i = 0; i < cards.length; i++) {
+      const { cfCanvas, cbCanvas, CARD_H } = cards[i];
+
+      // Cek apakah baris ini muat di halaman
+      if (y + CARD_H > PAGE_H - MARGIN) {
+        pdf.addPage();
+        y = MARGIN;
+        pageNum++;
       }
+
+      const xFront = MARGIN;
+      const xBack  = MARGIN + CARD_W + GAP_COL;
+
+      // Kartu depan (kolom kiri)
+      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', xFront, y, CARD_W, CARD_H);
+
+      // Kartu belakang (kolom kanan, berdampingan)
+      if (cbCanvas) {
+        const ratioBack = cbCanvas.height / cbCanvas.width;
+        const CARD_H_BACK = CARD_W * ratioBack;
+        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', xBack, y, CARD_W, CARD_H_BACK);
+      }
+
+      y += CARD_H + GAP_ROW;
     }
 
     pdf.save('Kartu_Siswa_Semua.pdf');
-    toast(`✅ PDF ${wraps.length} kartu berhasil!`, 'success', 5000);
+    toast(`✅ PDF ${cards.length} kartu (${pageNum} halaman) berhasil!`, 'success', 5000);
   } catch(e) {
     toast('❌ Gagal: ' + e.message, 'error');
     console.error(e);

@@ -2072,27 +2072,18 @@ async function loadKartuSiswa(){
         if (qt && typeof QRCode !== 'undefined') {
           qt.innerHTML = '';
           const qrText = s.id + '|' + (s.nisn || '');
-          requestAnimationFrame(() => {
-            // Render QR besar (200px) agar tajam saat di-scale down
-            new QRCode(qt, {
-              text: qrText,
-              width: 200,
-              height: 200,
-              colorDark: '#0f4424',
-              colorLight: '#FFFFFF',
-              correctLevel: QRCode.CorrectLevel.M
-            });
-            // Scale down via CSS agar tetap tajam
-            const canvas = qt.querySelector('canvas');
-            if (canvas) {
-              canvas.style.width  = '70px';
-              canvas.style.height = '70px';
-            }
+          new QRCode(qt, {
+            text: qrText,
+            width: 66,
+            height: 66,
+            colorDark: '#1a6b3a',
+            colorLight: '#FFFFFF',
+            correctLevel: QRCode.CorrectLevel.M
           });
         }
         const dlBtn = document.getElementById('dlbtn_' + s.id);
         if (dlBtn) dlBtn.addEventListener('click', () => downloadKartu(s, cardFront, cardBack));
-      }, 400);
+      }, 600);
     });
   }catch(e){container.innerHTML=`<p style="color:var(--danger)">Gagal: ${e.message}</p>`;}
 }
@@ -2127,84 +2118,102 @@ function _waveBackBottom() {
 }
 
 function buildKartuInnerHTML(s, settings) {
-  const schoolName = (settings?.['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
-  const npsn       = settings?.['NPSN'] || '';
-  const schoolAddr = settings?.['ALAMAT_SEKOLAH'] || '';
+  const schoolName  = (settings?.['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const npsn        = settings?.['NPSN'] || '';
+  const schoolAddr  = settings?.['ALAMAT_SEKOLAH'] || '';
   const tahunAjaran = settings?.['TAHUN_AJARAN'] || '2024/2025';
-  const logoUrl    = settings?.['LOGO_URL'] || '';
-  const email      = settings?.['EMAIL_SEKOLAH'] || '';
-  const avatar     = s.jenisKelamin === 'Perempuan' ? '👩‍🎓' : '👨‍🎓';
+  const logoUrl     = settings?.['LOGO_URL'] || '';
+  const email       = settings?.['EMAIL_SEKOLAH'] || '';
+  const avatar      = s.jenisKelamin === 'Perempuan' ? '👩‍🎓' : '👨‍🎓';
+  const subParts    = [npsn ? 'NPSN: '+npsn : '', schoolAddr].filter(Boolean);
 
   let tglLahir = '-';
   if (s.tanggalLahir) {
-    try { tglLahir = new Date(s.tanggalLahir).toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'}); }
+    try { tglLahir = new Date(s.tanggalLahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}); }
     catch(e) { tglLahir = s.tanggalLahir; }
   }
 
-  const subParts = [npsn ? 'NPSN: '+npsn : '', schoolAddr].filter(Boolean);
   const logoHTML = logoUrl
-    ? `<div class="sc-logo-circle"><img src="${logoUrl}" alt="logo"></div>`
-    : `<div class="sc-logo-circle"><span class="sc-logo-emoji">🏫</span></div>`;
+    ? `<div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0"><img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain"></div>`
+    : `<div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;line-height:1">🏫</div>`;
+
+  const dataRows = [
+    { label:'ID No',        val: s.nisn || '-' },
+    { label:'Tempat Lahir', val: s.tempatLahir || '-' },
+    { label:'DOB',          val: tglLahir },
+    { label:'Agama',        val: s.agama || '-' },
+    { label:'Jenis Kelamin',val: s.jenisKelamin || '-' },
+  ];
 
   return `
-    <div class="sc-top-band">
-      <div class="sc-top-row">
+  <div style="width:260px;min-height:400px;border-radius:16px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+
+    <!-- HEADER HIJAU -->
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:12px 14px 40px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:8px">
         ${logoHTML}
-        <div class="sc-header-text">
-          <div class="sc-header-school">${schoolName}</div>
-          ${subParts.length ? `<div class="sc-header-sub">${subParts.join(' • ')}</div>` : ''}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:7pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.4px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+          ${subParts.length ? `<div style="font-size:5.5pt;color:rgba(255,255,255,0.75);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subParts.join(' • ')}</div>` : ''}
         </div>
-        <div class="sc-header-badge">Kartu Pelajar</div>
+        <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 6px;font-size:5pt;font-weight:700;color:#FFD700;white-space:nowrap;align-self:flex-start;flex-shrink:0">Kartu Pelajar</div>
       </div>
     </div>
-    ${_waveTop()}
-    <div class="sc-photo-area">
-      <div class="sc-photo-ring">
-        <span class="sc-avatar-emoji">${avatar}</span>
+
+    <!-- WAVE ATAS -->
+    <div style="position:relative;z-index:2;margin-top:-2px;flex-shrink:0;line-height:0">
+      <svg viewBox="0 0 260 48" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,0 L260,0 L260,20 Q200,52 130,36 Q60,20 0,48 Z" fill="#fff"/>
+      </svg>
+    </div>
+
+    <!-- FOTO -->
+    <div style="position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-top:-46px;flex-shrink:0">
+      <div style="width:76px;height:76px;border-radius:50%;border:4px solid #fff;box-shadow:0 4px 18px rgba(0,0,0,0.18);background:linear-gradient(135deg,#e8f5e9,#fff8dc);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+        <span style="font-size:36pt;line-height:1;margin-top:4px">${avatar}</span>
       </div>
     </div>
-    <div class="sc-name-area">
-      <div class="sc-name-main">${s.nama || '-'}</div>
-      <div class="sc-position-label">Kelas ${s.kelas || '-'} &nbsp;•&nbsp; ${tahunAjaran}</div>
+
+    <!-- NAMA -->
+    <div style="position:relative;z-index:2;text-align:center;padding:8px 14px 2px;flex-shrink:0">
+      <div style="font-size:12.5pt;font-weight:800;color:#1a3a26;line-height:1.2;letter-spacing:.2px">${s.nama || '-'}</div>
+      <div style="font-size:7.5pt;font-weight:600;color:#2d9e57;margin-top:3px;letter-spacing:.6px;text-transform:uppercase">Kelas ${s.kelas || '-'} &nbsp;•&nbsp; ${tahunAjaran}</div>
     </div>
-    <div class="sc-gold-div"></div>
-    <div class="sc-data-area">
-      <div class="sc-data-row">
-        <span class="sc-data-label">ID No</span>
-        <span class="sc-data-sep">:</span>
-        <span class="sc-data-value">${s.nisn || '-'}</span>
-      </div>
-      <div class="sc-data-row">
-        <span class="sc-data-label">Tempat Lahir</span>
-        <span class="sc-data-sep">:</span>
-        <span class="sc-data-value">${s.tempatLahir || '-'}</span>
-      </div>
-      <div class="sc-data-row">
-        <span class="sc-data-label">Tanggal Lahir</span>
-        <span class="sc-data-sep">:</span>
-        <span class="sc-data-value">${tglLahir}</span>
-      </div>
-      <div class="sc-data-row">
-        <span class="sc-data-label">Agama</span>
-        <span class="sc-data-sep">:</span>
-        <span class="sc-data-value">${s.agama || '-'}</span>
-      </div>
-      <div class="sc-data-row">
-        <span class="sc-data-label">Jenis Kelamin</span>
-        <span class="sc-data-sep">:</span>
-        <span class="sc-data-value">${s.jenisKelamin || '-'}</span>
-      </div>
+
+    <!-- GARIS EMAS -->
+    <div style="height:2px;margin:8px 24px 0;background:linear-gradient(90deg,transparent,#c8a000,transparent);flex-shrink:0"></div>
+
+    <!-- DATA -->
+    <div style="position:relative;z-index:2;padding:8px 16px 6px;flex:1">
+      ${dataRows.map((r,i) => `
+        <div style="display:flex;align-items:baseline;margin-bottom:${i===dataRows.length-1?'0':'5px'};padding-bottom:${i===dataRows.length-1?'0':'5px'};border-bottom:${i===dataRows.length-1?'none':'1px solid #f0ece0'}">
+          <span style="font-size:6pt;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.4px;min-width:70px;flex-shrink:0">${r.label}</span>
+          <span style="font-size:7pt;color:#ccc;margin:0 4px;flex-shrink:0">:</span>
+          <span style="font-size:7.5pt;font-weight:600;color:#222;flex:1;line-height:1.3">${r.val}</span>
+        </div>`).join('')}
     </div>
-    <div class="sc-qr-area">
-      <div class="sc-qr-frame">
+
+    <!-- QR -->
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:4px 12px 6px;flex-shrink:0">
+      <div style="width:74px;height:74px;background:#fff;border-radius:10px;padding:3px;box-sizing:border-box;border:2px solid #c8a000;box-shadow:0 2px 10px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
         <div class="qr-target-${s.id}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
-      <div class="sc-qr-hint">Scan untuk absensi &nbsp;•&nbsp; ${s.nisn || s.id}</div>
+      <div style="font-size:5pt;color:#aaa;text-align:center;margin-top:4px;letter-spacing:.3px">Scan untuk absensi &nbsp;•&nbsp; ${s.nisn || s.id}</div>
     </div>
-    ${_waveBottom()}
-    <div class="sc-bottom-band">
-      <span class="sc-bottom-text">${email || schoolAddr || schoolName}</span>
-    </div>`;
+
+    <!-- WAVE BAWAH -->
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:4px">
+      <svg viewBox="0 0 260 36" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,36 L260,36 L260,18 Q200,0 130,16 Q60,32 0,8 Z" fill="#1a6b3a"/>
+      </svg>
+    </div>
+
+    <!-- FOOTER BAND -->
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a,#b8920a);padding:5px 14px 8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:6pt;color:rgba(255,255,255,0.85);letter-spacing:.5px;font-weight:600">${email || schoolAddr || schoolName}</span>
+    </div>
+
+  </div>`;
 }
 
 function buildKartuBackHTML(s, settings) {
@@ -2214,153 +2223,142 @@ function buildKartuBackHTML(s, settings) {
   const email      = settings?.['EMAIL_SEKOLAH'] || '-';
 
   return `
-    <div class="sc-back-top">
-      <div class="sc-back-top-title">Informasi Kartu Pelajar</div>
-      <div class="sc-back-top-sub">${schoolName}</div>
+  <div style="width:260px;min-height:400px;border-radius:16px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;margin-top:10px">
+
+    <!-- HEADER -->
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:12px 14px 40px;flex-shrink:0;text-align:center">
+      <div style="font-size:8.5pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.6px">Informasi Kartu Pelajar</div>
+      <div style="font-size:5.5pt;color:rgba(255,255,255,0.75);margin-top:3px">${schoolName}</div>
     </div>
-    ${_waveBackTop()}
-    <div class="sc-back-owner">
-      <div class="sc-back-owner-name">${s.nama || '-'}</div>
-      <div class="sc-back-owner-detail">
+
+    <!-- WAVE -->
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:-2px">
+      <svg viewBox="0 0 260 48" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,0 L260,0 L260,20 Q200,52 130,36 Q60,20 0,48 Z" fill="#fff"/>
+      </svg>
+    </div>
+
+    <!-- PEMILIK -->
+    <div style="position:relative;z-index:2;margin:-6px 14px 0;background:linear-gradient(135deg,#f0faf4,#fdf9e8);border:1.5px solid #b8d4c0;border-radius:10px;padding:10px 12px;flex-shrink:0">
+      <div style="font-size:9pt;font-weight:800;color:#1a3a26;margin-bottom:2px">${s.nama || '-'}</div>
+      <div style="font-size:6.5pt;color:#555;line-height:1.5">
         NISN: <strong>${s.nisn || '-'}</strong> &nbsp;|&nbsp; Kelas: <strong>${s.kelas || '-'}</strong>
       </div>
     </div>
-    <div class="sc-back-cards">
-      <div class="sc-back-card danger">
-        <div class="sc-back-card-title">⚠ Jangan Hilangkan Kartu Ini!</div>
-        <div class="sc-back-card-body">
-          Kartu ini adalah identitas resmi pelajar yang digunakan untuk absensi harian.
-          Jika hilang, segera laporkan kepada pihak madrasah untuk pembuatan kartu pengganti.
-        </div>
-      </div>
-      <div class="sc-back-card">
-        <div class="sc-back-card-title">📢 Kepada Penemu Kartu Ini</div>
-        <div class="sc-back-card-body">
-          Mohon kembalikan kartu ini kepada pemiliknya atau serahkan kepada pihak madrasah.
-          Terima kasih atas kebaikan Anda.
-        </div>
-      </div>
-    </div>
-    <div class="sc-back-contact">
-      <div class="sc-back-contact-label">Hubungi Madrasah</div>
-      <div class="sc-back-contact-item">📍 ${schoolAddr}</div>
-      <div class="sc-back-contact-item">📞 ${telp}</div>
-      <div class="sc-back-contact-item">✉️ ${email}</div>
-    </div>
-    <div class="sc-back-ttd">
-      <div class="sc-back-ttd-space">Kepala Madrasah / Sekolah</div>
-      <div class="sc-back-ttd-line">${schoolName}</div>
-    </div>
-    ${_waveBackBottom()}
-    <div class="sc-back-bottom-band">
-      <span class="sc-back-bottom-text">${email || schoolName}</span>
-    </div>`;
-}
-// ── HELPER: capture satu kartu ke canvas dengan ukuran fix ──────
-async function captureKartu(element, wPx, hPx) {
-  // Paksa semua background color & gradient jadi inline style
-  // agar html2canvas bisa membacanya
-  const clone = element.cloneNode(true);
-  clone.style.cssText = `
-    width:${wPx}px !important;
-    min-height:${hPx}px !important;
-    max-height:${hPx}px !important;
-    position:fixed !important;
-    left:-9999px !important;
-    top:0 !important;
-    overflow:hidden !important;
-    flex-shrink:0 !important;
-    box-sizing:border-box !important;
-  `;
 
-  // Salin QR canvas secara manual (cloneNode tidak menyalin pixel canvas)
+    <!-- INFO CARDS -->
+    <div style="position:relative;z-index:2;flex:1;padding:10px 14px 0;display:flex;flex-direction:column;gap:7px">
+
+      <div style="background:#fff8f8;border-radius:8px;padding:8px 10px;border-left:3px solid #c62828">
+        <div style="font-size:6pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">⚠ Jangan Hilangkan Kartu Ini!</div>
+        <div style="font-size:6.5pt;color:#444;line-height:1.55">Kartu ini adalah identitas resmi pelajar yang digunakan untuk absensi harian. Jika hilang, segera laporkan kepada pihak madrasah untuk pembuatan kartu pengganti.</div>
+      </div>
+
+      <div style="background:#f8faf8;border-radius:8px;padding:8px 10px;border-left:3px solid #2d9e57">
+        <div style="font-size:6pt;font-weight:800;color:#1a6b3a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">📢 Kepada Penemu Kartu Ini</div>
+        <div style="font-size:6.5pt;color:#444;line-height:1.55">Mohon kembalikan kartu ini kepada pemiliknya atau serahkan kepada pihak madrasah. Terima kasih atas kebaikan Anda.</div>
+      </div>
+
+    </div>
+
+    <!-- KONTAK -->
+    <div style="position:relative;z-index:2;margin:10px 14px 0;background:linear-gradient(135deg,#1a6b3a,#2d9e57);border-radius:10px;padding:8px 12px;flex-shrink:0">
+      <div style="font-size:5.5pt;color:rgba(255,255,255,0.7);letter-spacing:.4px;margin-bottom:4px;text-transform:uppercase">Hubungi Madrasah</div>
+      <div style="font-size:6.5pt;color:#fff;font-weight:600;margin-bottom:2px">📍 ${schoolAddr}</div>
+      <div style="font-size:6.5pt;color:#fff;font-weight:600;margin-bottom:2px">📞 ${telp}</div>
+      <div style="font-size:6.5pt;color:#fff;font-weight:600">✉️ ${email}</div>
+    </div>
+
+    <!-- TTD -->
+    <div style="position:relative;z-index:2;text-align:center;padding:8px 14px 4px;flex-shrink:0">
+      <div style="font-size:6pt;color:#bbb;margin-bottom:20px">Kepala Madrasah / Sekolah</div>
+      <div style="font-size:6.5pt;font-weight:700;color:#1a6b3a;border-top:1px solid #2d9e57;padding-top:3px;display:inline-block">${schoolName}</div>
+    </div>
+
+    <!-- WAVE BAWAH -->
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:auto">
+      <svg viewBox="0 0 260 36" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,36 L260,36 L260,18 Q200,0 130,16 Q60,32 0,8 Z" fill="#1a6b3a"/>
+      </svg>
+    </div>
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a,#b8920a);padding:5px 14px 8px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+      <span style="font-size:6pt;color:rgba(255,255,255,0.85);letter-spacing:.5px;font-weight:600">${email || schoolName}</span>
+    </div>
+
+  </div>`;
+}
+  
+async function captureKartu(element) {
+  // Buat wrapper dengan ukuran tetap
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:260px;background:transparent;z-index:-1';
+  
+  // Clone element
+  const clone = element.cloneNode(true);
+  
+  // Salin canvas QR secara manual
   const origCanvases  = element.querySelectorAll('canvas');
   const cloneCanvases = clone.querySelectorAll('canvas');
-  origCanvases.forEach((oc, idx) => {
-    if (!cloneCanvases[idx]) return;
-    cloneCanvases[idx].width  = oc.width;
-    cloneCanvases[idx].height = oc.height;
-    cloneCanvases[idx].getContext('2d').drawImage(oc, 0, 0);
-    cloneCanvases[idx].style.width  = `${oc.width}px`;
-    cloneCanvases[idx].style.height = `${oc.height}px`;
-    // Hapus overflow:hidden pada parent .sc-qr-box agar tidak terpotong
-    const box = cloneCanvases[idx].closest('.sc-qr-box');
-    if (box) {
-      box.style.overflow = 'visible';
-      box.style.width    = `${oc.width + 6}px`;
-      box.style.height   = `${oc.height + 6}px`;
-    }
-    const qrWrap = cloneCanvases[idx].parentElement;
-    if (qrWrap) {
-      qrWrap.style.width  = `${oc.width}px`;
-      qrWrap.style.height = `${oc.height}px`;
-      qrWrap.style.overflow = 'visible';
-    }
+  origCanvases.forEach((oc, i) => {
+    if (!cloneCanvases[i]) return;
+    cloneCanvases[i].width  = oc.width;
+    cloneCanvases[i].height = oc.height;
+    cloneCanvases[i].getContext('2d').drawImage(oc, 0, 0);
+    cloneCanvases[i].style.cssText = `width:66px!important;height:66px!important;display:block!important`;
   });
 
-  document.body.appendChild(clone);
-  await new Promise(r => setTimeout(r, 150));
+  // Konversi semua img QRCode ke inline (hindari CORS)
+  const origImgs  = element.querySelectorAll('img[src^="data:"]');
+  const cloneImgs = clone.querySelectorAll('img[src^="data:"]');
+  origImgs.forEach((oi, i) => { if (cloneImgs[i]) cloneImgs[i].src = oi.src; });
 
-  const captured = await html2canvas(clone, {
-    scale:           4,
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+  
+  // Tunggu render
+  await new Promise(r => setTimeout(r, 300));
+
+  const canvas = await html2canvas(clone, {
+    scale:           3,
     useCORS:         true,
     allowTaint:      true,
     backgroundColor: null,
     logging:         false,
-    width:           wPx,
-    height:          hPx,
-    windowWidth:     wPx,
-    windowHeight:    hPx,
-    onclone: (doc) => {
-      // Paksa html2canvas membaca computed style background
-      const cards = doc.querySelectorAll(
-        '.student-card-print, .student-card-back'
-      );
-      cards.forEach(card => {
-        const computed = window.getComputedStyle(
-          element.classList.contains('student-card-print') ? element
-          : element
-        );
-        // Terapkan background langsung
-        card.style.background = card.classList.contains('student-card-back')
-          ? 'linear-gradient(160deg, #1a6b3a 0%, #0f4424 100%)'
-          : '#1a6b3a';
-      });
-    }
+    width:           260,
+    height:          clone.scrollHeight || 400,
   });
 
-  document.body.removeChild(clone);
-  return captured;
+  document.body.removeChild(wrapper);
+  return canvas;
 }
 
 async function downloadKartu(s, cardFront, cardBack) {
   const btn = document.getElementById('dlbtn_' + s.id);
   if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
-
-  const CARD_W = 270;
-  const CARD_H = 430;
-  const PDF_W  = 6.3;
-  const PDF_H  = 10;
-
   try {
     await new Promise(r => setTimeout(r, 200));
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PDF_W, PDF_H] });
 
-    const cfCanvas = await captureKartu(cardFront, CARD_W, CARD_H);
-    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
+    const cfCanvas = await captureKartu(cardFront);
+    const cfRatio  = cfCanvas.height / cfCanvas.width;
+    const pdfW = 6.5, pdfH = pdfW * cfRatio;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [pdfW, pdfH * 2 + 0.5] });
 
-    pdf.addPage([PDF_W, PDF_H], 'portrait');
-    const cbCanvas = await captureKartu(cardBack, CARD_W, CARD_H);
-    pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
+    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfW, pdfH);
+
+    if (cardBack) {
+      const cbCanvas = await captureKartu(cardBack);
+      pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, pdfH + 0.2, pdfW, pdfH);
+    }
 
     pdf.save(`Kartu_${s.nama.replace(/\s+/g,'_')}_${s.nisn||s.id}.pdf`);
     toast('✅ Kartu berhasil didownload!', 'success');
   } catch(e) {
     toast('❌ Gagal: ' + e.message, 'error');
+    console.error(e);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📥 Download'; }
-    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el=>el.remove());
+    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el => el.remove());
   }
 }
 
@@ -2368,17 +2366,19 @@ async function downloadAllKartuPDF() {
   const wraps = document.querySelectorAll('.kartu-item-wrap');
   if (!wraps.length) { toast('Tidak ada kartu', 'warning'); return; }
 
-  toast(`Menyiapkan ${wraps.length} kartu...`, 'info', 15000);
-
-  const CARD_W = 270;
-  const CARD_H = 430;
-  const PDF_W  = 6.3;
-  const PDF_H  = 10;
+  const btnAll = document.querySelector('button[onclick="downloadAllKartuPDF()"]');
+  if (btnAll) { btnAll.disabled = true; btnAll.textContent = '⏳ Memproses...'; }
+  toast(`Menyiapkan ${wraps.length} kartu...`, 'info', 20000);
 
   try {
-    await new Promise(r => setTimeout(r, 200));
+    const firstFront = wraps[0].querySelector('.student-card-print');
+    const testCanvas = await captureKartu(firstFront);
+    const ratio  = testCanvas.height / testCanvas.width;
+    const pdfW   = 6.5;
+    const pdfH   = pdfW * ratio;
+
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PDF_W, PDF_H] });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [pdfW, pdfH] });
     let first = true;
 
     for (const wrap of wraps) {
@@ -2386,16 +2386,16 @@ async function downloadAllKartuPDF() {
       const back  = wrap.querySelector('.student-card-back');
       if (!front) continue;
 
-      if (!first) pdf.addPage([PDF_W, PDF_H], 'portrait');
+      if (!first) pdf.addPage([pdfW, pdfH], 'portrait');
       first = false;
 
-      const cfCanvas = await captureKartu(front, CARD_W, CARD_H);
-      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
+      const cfCanvas = await captureKartu(front);
+      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfW, pdfH);
 
       if (back) {
-        pdf.addPage([PDF_W, PDF_H], 'portrait');
-        const cbCanvas = await captureKartu(back, CARD_W, CARD_H);
-        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, PDF_W, PDF_H);
+        pdf.addPage([pdfW, pdfH], 'portrait');
+        const cbCanvas = await captureKartu(back);
+        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfW, pdfH);
       }
     }
 
@@ -2403,18 +2403,20 @@ async function downloadAllKartuPDF() {
     toast(`✅ PDF ${wraps.length} kartu berhasil!`, 'success', 5000);
   } catch(e) {
     toast('❌ Gagal: ' + e.message, 'error');
+    console.error(e);
   } finally {
-    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el=>el.remove());
+    if (btnAll) { btnAll.disabled = false; btnAll.textContent = '📄 Download PDF'; }
+    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el => el.remove());
   }
 }
+
 async function printAllKartu() {
   const wraps = document.querySelectorAll('.kartu-item-wrap');
   if (!wraps.length) { toast('Tidak ada kartu untuk dicetak', 'warning'); return; }
 
-  toast('Menyiapkan gambar kartu untuk cetak...', 'info', 8000);
-
-  const CARD_W = 270;
-  const CARD_H = 430;
+  const btnPrint = document.querySelector('button[onclick="printAllKartu()"]');
+  if (btnPrint) { btnPrint.disabled = true; btnPrint.textContent = '⏳ Menyiapkan...'; }
+  toast('Menyiapkan gambar kartu...', 'info', 15000);
 
   try {
     const printArea = document.getElementById('printArea');
@@ -2425,20 +2427,18 @@ async function printAllKartu() {
       const back  = wrap.querySelector('.student-card-back');
       if (!front) continue;
 
-      // Capture depan jadi image
-      const cfCanvas = await captureKartu(front, CARD_W, CARD_H);
-      const imgFront = document.createElement('img');
-      imgFront.src = cfCanvas.toDataURL('image/png', 1.0);
-      imgFront.className = 'kartu-cetak';
-      printArea.appendChild(imgFront);
+      const cfCanvas = await captureKartu(front);
+      const imgF = document.createElement('img');
+      imgF.src = cfCanvas.toDataURL('image/png', 1.0);
+      imgF.className = 'kartu-cetak';
+      printArea.appendChild(imgF);
 
-      // Capture belakang jadi image
       if (back) {
-        const cbCanvas = await captureKartu(back, CARD_W, CARD_H);
-        const imgBack = document.createElement('img');
-        imgBack.src = cbCanvas.toDataURL('image/png', 1.0);
-        imgBack.className = 'kartu-cetak';
-        printArea.appendChild(imgBack);
+        const cbCanvas = await captureKartu(back);
+        const imgB = document.createElement('img');
+        imgB.src = cbCanvas.toDataURL('image/png', 1.0);
+        imgB.className = 'kartu-cetak';
+        printArea.appendChild(imgB);
       }
     }
 
@@ -2446,28 +2446,15 @@ async function printAllKartu() {
     style.id = 'printStyleTemp';
     style.textContent = `
       @media print {
-        * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-        @page { size: A4 portrait; margin: 8mm; }
-        #printArea {
-          display:flex !important;
-          flex-wrap:wrap !important;
-          gap:4mm !important;
-          width:194mm !important;
-        }
-        #printArea img.kartu-cetak {
-          width:94mm !important;
-          height:149mm !important;
-          object-fit:contain !important;
-          page-break-inside:avoid !important;
-          break-inside:avoid !important;
-        }
+        *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+        @page{size:A4 portrait;margin:8mm}
+        #printArea{display:flex!important;flex-wrap:wrap!important;gap:4mm!important;width:194mm!important}
+        #printArea img.kartu-cetak{width:94mm!important;height:auto!important;page-break-inside:avoid!important;break-inside:avoid!important}
       }
     `;
     document.head.appendChild(style);
-
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 400));
     window.print();
-
     setTimeout(() => {
       printArea.innerHTML = '';
       const s = document.getElementById('printStyleTemp');
@@ -2476,8 +2463,10 @@ async function printAllKartu() {
 
   } catch(e) {
     toast('❌ Gagal cetak: ' + e.message, 'error');
+    console.error(e);
   } finally {
-    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el=>el.remove());
+    if (btnPrint) { btnPrint.disabled = false; btnPrint.textContent = '🖨️ Cetak Semua'; }
+    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el => el.remove());
   }
 }
   

@@ -2223,7 +2223,7 @@ function buildKartuBackHTML(s, settings) {
   const email      = settings?.['EMAIL_SEKOLAH'] || '-';
 
   return `
-  <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;margin-top:6px">
+  <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER -->
     <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:7px 10px 28px;flex-shrink:0;text-align:center">
@@ -2288,24 +2288,23 @@ function buildKartuBackHTML(s, settings) {
   </div>`;
 }
   
-async function captureKartu(element) {
-  // Render langsung dari elemen asli yang sudah ada di DOM
-  // Tidak perlu clone — langsung capture elemen yang sudah ter-render browser
+async function captureKartu(element, forceWidth) {
+  const w = forceWidth || element.offsetWidth;
   const canvas = await html2canvas(element, {
     scale: 3,
     useCORS: true,
     allowTaint: true,
     backgroundColor: '#ffffff',
     logging: false,
-    width: element.offsetWidth,
-    height: element.offsetHeight,
-    windowWidth: element.offsetWidth,
-    windowHeight: element.offsetHeight,
+    width: w,
+    height: element.scrollHeight,
+    windowWidth: w,
     onclone: (doc, clonedEl) => {
-      // Pastikan semua CSS variable ter-resolve di clone document
       clonedEl.style.position = 'relative';
       clonedEl.style.left = '0';
       clonedEl.style.top = '0';
+      clonedEl.style.width = w + 'px';
+      clonedEl.style.marginTop = '0';
     }
   });
   return canvas;
@@ -2317,22 +2316,18 @@ async function downloadKartu(s, cardFront, cardBack) {
   try {
     const { jsPDF } = window.jspdf;
 
-    const cfCanvas = await captureKartu(cardFront);
-    const cbCanvas = cardBack ? await captureKartu(cardBack) : null;
+    // Ambil lebar dari kartu depan sebagai acuan tunggal
+    const fixedWidth = cardFront.offsetWidth;
 
-    // Pakai lebar canvas depan sebagai acuan (dalam px, scale=3)
-    const PX_PER_CM = 37.7953; // 96dpi → cm, tapi kita pakai rasio saja
-    const SCALE = 3; // sesuai captureKartu
+    // Capture keduanya dengan lebar yang sama persis
+    const cfCanvas = await captureKartu(cardFront, fixedWidth);
+    const cbCanvas = cardBack ? await captureKartu(cardBack, fixedWidth) : null;
 
-    // Lebar kartu fisik target: 5.7cm = 161.55pt
+    // Ukuran PDF dalam pt
     const CARD_W_PT = 5.7 * 28.3465;
-
-    // Tinggi masing-masing dihitung dari rasio canvas ASLI
-    // Ini memastikan tidak ada distorsi/ruang kosong
-    const cfH_PT = CARD_W_PT * (cfCanvas.height / cfCanvas.width);
-    const cbH_PT = cbCanvas ? CARD_W_PT * (cbCanvas.height / cbCanvas.width) : 0;
-    const GAP_PT = 4; // ~1.4mm jarak depan-belakang
-
+    const cfH_PT    = CARD_W_PT * (cfCanvas.height / cfCanvas.width);
+    const cbH_PT    = cbCanvas ? CARD_W_PT * (cbCanvas.height / cbCanvas.width) : 0;
+    const GAP_PT    = 4;
     const totalH_PT = cfH_PT + (cbCanvas ? GAP_PT + cbH_PT : 0);
 
     const pdf = new jsPDF({
@@ -2341,37 +2336,24 @@ async function downloadKartu(s, cardFront, cardBack) {
       format: [CARD_W_PT, totalH_PT]
     });
 
-    // Kartu depan — tarik penuh lebar & tinggi proporsional
-    pdf.addImage(
-      cfCanvas.toDataURL('image/png', 1.0), 'PNG',
-      0, 0,
-      CARD_W_PT, cfH_PT
-    );
+    // Kartu depan
+    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG',
+      0, 0, CARD_W_PT, cfH_PT);
 
-    // Kartu belakang — dirotasi 180° lalu ditarik ukuran SAMA dengan depan
+    // Kartu belakang — dirotasi 180°
     if (cbCanvas) {
-      // Buat canvas sementara dengan ukuran SAMA persis dengan cfCanvas
-      // supaya rasio & lebar identik → tidak ada ruang kosong di kanan
       const flipped = document.createElement('canvas');
-      flipped.width  = cfCanvas.width;   // paksa sama dengan depan
-      flipped.height = cbCanvas.height;  // tinggi boleh beda
+      flipped.width  = cbCanvas.width;
+      flipped.height = cbCanvas.height;
       const ctx = flipped.getContext('2d');
       ctx.save();
       ctx.translate(flipped.width / 2, flipped.height / 2);
       ctx.rotate(Math.PI);
-      // Gambar cbCanvas di-scale ke lebar cfCanvas supaya pas
-      ctx.drawImage(
-        cbCanvas,
-        -flipped.width / 2, -flipped.height / 2,
-        flipped.width, flipped.height
-      );
+      ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
       ctx.restore();
 
-      pdf.addImage(
-        flipped.toDataURL('image/png', 1.0), 'PNG',
-        0, cfH_PT + GAP_PT,
-        CARD_W_PT, cbH_PT
-      );
+      pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
+        0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
     }
 
     pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
@@ -2412,8 +2394,11 @@ async function downloadAllKartuPDF() {
       const front = wrap.querySelector('.student-card-print');
       const back  = wrap.querySelector('.student-card-back');
       if (!front) continue;
-      const cfCanvas = await captureKartu(front);
-      const cbCanvas = back ? await captureKartu(back) : null;
+
+      // Paksa lebar sama antara depan dan belakang
+      const fixedWidth = front.offsetWidth;
+      const cfCanvas = await captureKartu(front, fixedWidth);
+      const cbCanvas = back ? await captureKartu(back, fixedWidth) : null;
       cards.push({ cfCanvas, cbCanvas });
     }
 
@@ -2453,17 +2438,13 @@ async function downloadAllKartuPDF() {
       // Kartu belakang — dirotasi 180°, lebar dipaksa sama dengan depan
       if (cbCanvas) {
         const flipped = document.createElement('canvas');
-        flipped.width  = cfCanvas.width;   // paksa sama dengan depan
+        flipped.width  = cbCanvas.width;
         flipped.height = cbCanvas.height;
         const ctx = flipped.getContext('2d');
         ctx.save();
         ctx.translate(flipped.width / 2, flipped.height / 2);
         ctx.rotate(Math.PI);
-        ctx.drawImage(
-          cbCanvas,
-          -flipped.width / 2, -flipped.height / 2,
-          flipped.width, flipped.height
-        );
+        ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
         ctx.restore();
         pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
           x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);

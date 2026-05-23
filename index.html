@@ -743,6 +743,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="card-header"><h3>Data Siswa</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <select class="form-control" style="width:120px;padding:8px 12px;font-size:.82rem" id="filterKelas" onchange="loadSiswa()"><option value="">Semua Kelas</option></select>
+              <button class="btn btn-warning btn-sm" onclick="openModalNaikKelas()">🎓 Naik Kelas</button>
               <button class="btn btn-accent btn-sm" onclick="openModalImport()">📥 Import</button>
               <button class="btn btn-primary btn-sm" onclick="openModalSiswa()">+ Tambah</button>
             </div>
@@ -1375,7 +1376,59 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
   </div>
 </div>
-
+<!-- Modal Naik Kelas -->
+<div class="modal-backdrop" id="modalNaikKelas">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🎓 Naik Kelas / Luluskan Siswa</h3>
+      <button class="modal-close" onclick="closeModal('modalNaikKelas')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:12px 16px;background:var(--warning-light);border-radius:10px;border-left:4px solid var(--warning);margin-bottom:20px;font-size:.85rem;color:var(--warning)">
+        ⚠️ Tindakan ini mengubah data kelas seluruh siswa aktif di kelas yang dipilih dan tidak bisa dibatalkan.
+      </div>
+      <div class="absen-mode-toggle" style="margin-bottom:20px">
+        <button class="mode-btn active" id="btnModeNaik" onclick="setNaikMode('naik')">📈 Naikkan Kelas</button>
+        <button class="mode-btn" id="btnModeLulus" onclick="setNaikMode('lulus')">🎓 Luluskan</button>
+      </div>
+      <div id="panelNaik">
+        <div class="form-group">
+          <label>Dari Kelas</label>
+          <select id="naikDari" class="form-control" onchange="updateNaikPreview()">
+            <option value="">-- Pilih Kelas Asal --</option>
+          </select>
+        </div>
+        <div style="text-align:center;font-size:1.4rem;margin:8px 0">⬇️</div>
+        <div class="form-group">
+          <label>Ke Kelas</label>
+          <select id="naikKe" class="form-control" onchange="updateNaikPreview()">
+            <option value="">-- Pilih Kelas Tujuan --</option>
+          </select>
+        </div>
+      </div>
+      <div id="panelLulus" style="display:none">
+        <div class="form-group">
+          <label>Kelas yang Diluluskan</label>
+          <select id="lulusKelas" class="form-control" onchange="updateLulusPreview()">
+            <option value="">-- Pilih Kelas --</option>
+          </select>
+        </div>
+        <div style="margin-top:12px;padding:12px 16px;background:var(--danger-light);border-radius:10px;border-left:4px solid var(--danger);font-size:.85rem;color:var(--danger)">
+          ⚠️ Status siswa berubah menjadi <strong>Lulus</strong> dan tidak bisa absen lagi.
+        </div>
+      </div>
+      <div id="naikPreview" style="display:none;margin-top:16px;padding:14px;background:var(--primary-pale);border-radius:10px;text-align:center">
+        <div style="font-size:2rem;margin-bottom:6px" id="naikPreviewIcon">📋</div>
+        <div style="font-weight:700;color:var(--primary)" id="naikPreviewText">—</div>
+        <div style="font-size:.82rem;color:var(--text-muted);margin-top:4px" id="naikPreviewSub">—</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalNaikKelas')">Batal</button>
+      <button class="btn btn-warning" id="btnEksekusiNaik" onclick="eksekusiNaikKelas()" disabled>✅ Proses</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Import Siswa -->
 <div class="modal-backdrop" id="modalImport">
   <div class="modal modal-lg">
@@ -2789,7 +2842,94 @@ async function submitGantiPass(){
   toast(r.message,r.success?'success':'error');
   if(r.success)closeModal('modalGantiPass');
 }
+// ── NAIK KELAS ───────────────────────────────────────────────────
+let _naikMode = 'naik';
 
+function setNaikMode(mode) {
+  _naikMode = mode;
+  document.getElementById('btnModeNaik').classList.toggle('active', mode === 'naik');
+  document.getElementById('btnModeLulus').classList.toggle('active', mode === 'lulus');
+  document.getElementById('panelNaik').style.display  = mode === 'naik'  ? 'block' : 'none';
+  document.getElementById('panelLulus').style.display = mode === 'lulus' ? 'block' : 'none';
+  document.getElementById('naikPreview').style.display = 'none';
+  document.getElementById('btnEksekusiNaik').disabled = true;
+}
+
+async function openModalNaikKelas() {
+  await loadAndMergeKelas();
+  const kelas = APP.kelasList;
+  ['naikDari','naikKe','lulusKelas'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = '<option value="">-- Pilih Kelas --</option>';
+    kelas.forEach(k => el.innerHTML += `<option value="${k}">${k}</option>`);
+  });
+  setNaikMode('naik');
+  document.getElementById('naikPreview').style.display = 'none';
+  document.getElementById('btnEksekusiNaik').disabled = true;
+  openModal('modalNaikKelas');
+}
+
+async function updateNaikPreview() {
+  const dari = document.getElementById('naikDari').value;
+  const ke   = document.getElementById('naikKe').value;
+  const prev = document.getElementById('naikPreview');
+  const btn  = document.getElementById('btnEksekusiNaik');
+  if (!dari || !ke) { prev.style.display = 'none'; btn.disabled = true; return; }
+  if (dari === ke)  { toast('Kelas asal dan tujuan tidak boleh sama', 'warning'); btn.disabled = true; return; }
+  const r = await api('siswa', 'getAll', { activeOnly: true, kelas: dari });
+  const jumlah = r.success ? r.data.length : 0;
+  prev.style.display = 'block';
+  document.getElementById('naikPreviewIcon').textContent = '📈';
+  document.getElementById('naikPreviewText').textContent = `${jumlah} siswa akan dipindahkan`;
+  document.getElementById('naikPreviewSub').textContent  = `Kelas ${dari} → ${ke}`;
+  btn.disabled = jumlah === 0;
+  if (jumlah === 0) toast(`Tidak ada siswa aktif di kelas ${dari}`, 'warning');
+}
+
+async function updateLulusPreview() {
+  const kelas = document.getElementById('lulusKelas').value;
+  const prev  = document.getElementById('naikPreview');
+  const btn   = document.getElementById('btnEksekusiNaik');
+  if (!kelas) { prev.style.display = 'none'; btn.disabled = true; return; }
+  const r = await api('siswa', 'getAll', { activeOnly: true, kelas });
+  const jumlah = r.success ? r.data.length : 0;
+  prev.style.display = 'block';
+  document.getElementById('naikPreviewIcon').textContent = '🎓';
+  document.getElementById('naikPreviewText').textContent = `${jumlah} siswa akan diluluskan`;
+  document.getElementById('naikPreviewSub').textContent  = `Kelas ${kelas} → status Lulus`;
+  btn.disabled = jumlah === 0;
+  if (jumlah === 0) toast(`Tidak ada siswa aktif di kelas ${kelas}`, 'warning');
+}
+
+async function eksekusiNaikKelas() {
+  const btn = document.getElementById('btnEksekusiNaik');
+  btn.disabled = true; btn.textContent = '⏳ Memproses...';
+  try {
+    let r;
+    if (_naikMode === 'naik') {
+      const dari = document.getElementById('naikDari').value;
+      const ke   = document.getElementById('naikKe').value;
+      if (!dari || !ke) { toast('Pilih kelas asal dan tujuan', 'warning'); return; }
+      if (!confirm(`Naikkan semua siswa aktif dari kelas ${dari} ke ${ke}?\nTindakan ini tidak bisa dibatalkan.`)) return;
+      r = await api('siswa', 'naikkanKelas', { dari, ke, luluskan: false });
+    } else {
+      const kelas = document.getElementById('lulusKelas').value;
+      if (!kelas) { toast('Pilih kelas yang akan diluluskan', 'warning'); return; }
+      if (!confirm(`Luluskan semua siswa aktif di kelas ${kelas}?\nStatus mereka akan berubah menjadi Lulus.`)) return;
+      r = await api('siswa', 'naikkanKelas', { dari: kelas, luluskan: true });
+    }
+    toast(r.message, r.success ? 'success' : 'error', 5000);
+    if (r.success) {
+      closeModal('modalNaikKelas');
+      await loadAndMergeKelas();
+      loadSiswa();
+    }
+  } catch(e) {
+    toast('Terjadi kesalahan: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Proses';
+  }
+}
 // ── RESET DATA ───────────────────────────────────────────────────
 let _resetType = '';
 

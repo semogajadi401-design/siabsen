@@ -2320,16 +2320,20 @@ async function downloadKartu(s, cardFront, cardBack) {
     const cfCanvas = await captureKartu(cardFront);
     const cbCanvas = cardBack ? await captureKartu(cardBack) : null;
 
-    // Ambil rasio dari canvas asli (bukan hardcode)
-    const cfRatio = cfCanvas.height / cfCanvas.width;
-    const cbRatio = cbCanvas ? cbCanvas.height / cbCanvas.width : cfRatio;
+    // Pakai lebar canvas depan sebagai acuan (dalam px, scale=3)
+    const PX_PER_CM = 37.7953; // 96dpi → cm, tapi kita pakai rasio saja
+    const SCALE = 3; // sesuai captureKartu
 
-    // Lebar kartu dalam pt (1cm = 28.3465pt), target 5.7cm
+    // Lebar kartu fisik target: 5.7cm = 161.55pt
     const CARD_W_PT = 5.7 * 28.3465;
-    const cfH_PT    = CARD_W_PT * cfRatio;
-    const cbH_PT    = CARD_W_PT * cbRatio;
-    const GAP_PT    = 0.15 * 28.3465;
-    const totalH_PT = cfH_PT + GAP_PT + cbH_PT;
+
+    // Tinggi masing-masing dihitung dari rasio canvas ASLI
+    // Ini memastikan tidak ada distorsi/ruang kosong
+    const cfH_PT = CARD_W_PT * (cfCanvas.height / cfCanvas.width);
+    const cbH_PT = cbCanvas ? CARD_W_PT * (cbCanvas.height / cbCanvas.width) : 0;
+    const GAP_PT = 4; // ~1.4mm jarak depan-belakang
+
+    const totalH_PT = cfH_PT + (cbCanvas ? GAP_PT + cbH_PT : 0);
 
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -2337,25 +2341,37 @@ async function downloadKartu(s, cardFront, cardBack) {
       format: [CARD_W_PT, totalH_PT]
     });
 
-    // Kartu depan — normal
-    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG',
-      0, 0, CARD_W_PT, cfH_PT);
+    // Kartu depan — tarik penuh lebar & tinggi proporsional
+    pdf.addImage(
+      cfCanvas.toDataURL('image/png', 1.0), 'PNG',
+      0, 0,
+      CARD_W_PT, cfH_PT
+    );
 
-    // Kartu belakang — dirotasi 180° agar saat dilipat tidak terbalik
+    // Kartu belakang — dirotasi 180° lalu ditarik ukuran SAMA dengan depan
     if (cbCanvas) {
-      // Gambar belakang di-flip dengan transformasi canvas
+      // Buat canvas sementara dengan ukuran SAMA persis dengan cfCanvas
+      // supaya rasio & lebar identik → tidak ada ruang kosong di kanan
       const flipped = document.createElement('canvas');
-      flipped.width  = cbCanvas.width;
-      flipped.height = cbCanvas.height;
+      flipped.width  = cfCanvas.width;   // paksa sama dengan depan
+      flipped.height = cbCanvas.height;  // tinggi boleh beda
       const ctx = flipped.getContext('2d');
       ctx.save();
       ctx.translate(flipped.width / 2, flipped.height / 2);
       ctx.rotate(Math.PI);
-      ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
+      // Gambar cbCanvas di-scale ke lebar cfCanvas supaya pas
+      ctx.drawImage(
+        cbCanvas,
+        -flipped.width / 2, -flipped.height / 2,
+        flipped.width, flipped.height
+      );
       ctx.restore();
 
-      pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
-        0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
+      pdf.addImage(
+        flipped.toDataURL('image/png', 1.0), 'PNG',
+        0, cfH_PT + GAP_PT,
+        CARD_W_PT, cbH_PT
+      );
     }
 
     pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
@@ -2434,17 +2450,20 @@ async function downloadAllKartuPDF() {
       // Kartu depan
       pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', x, y, CARD_W, CARD_H_F);
 
-      // Kartu belakang (langsung di bawah depan)
-      // Kartu belakang — dirotasi 180° agar saat dilipat tidak terbalik
+      // Kartu belakang — dirotasi 180°, lebar dipaksa sama dengan depan
       if (cbCanvas) {
         const flipped = document.createElement('canvas');
-        flipped.width  = cbCanvas.width;
+        flipped.width  = cfCanvas.width;   // paksa sama dengan depan
         flipped.height = cbCanvas.height;
         const ctx = flipped.getContext('2d');
         ctx.save();
         ctx.translate(flipped.width / 2, flipped.height / 2);
         ctx.rotate(Math.PI);
-        ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
+        ctx.drawImage(
+          cbCanvas,
+          -flipped.width / 2, -flipped.height / 2,
+          flipped.width, flipped.height
+        );
         ctx.restore();
         pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
           x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);

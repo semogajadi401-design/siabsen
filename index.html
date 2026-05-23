@@ -2317,31 +2317,43 @@ async function downloadKartu(s, cardFront, cardBack) {
   try {
     const { jsPDF } = window.jspdf;
 
-    const CARD_W = 5.7;  // cm
-    const GAP    = 0.15; // cm jarak depan-belakang
-
     const cfCanvas = await captureKartu(cardFront);
-    const cfRatio  = cfCanvas.height / cfCanvas.width;
-    const cfH      = CARD_W * cfRatio;
+    const cbCanvas = cardBack ? await captureKartu(cardBack) : null;
 
-    let totalH = cfH;
-    let cbCanvas = null, cbH = 0;
-    if (cardBack) {
-      cbCanvas = await captureKartu(cardBack);
-      const cbRatio = cbCanvas.height / cbCanvas.width;
-      cbH = CARD_W * cbRatio;
-      totalH += GAP + cbH;
-    }
+    // Ambil rasio dari canvas asli (bukan hardcode)
+    const cfRatio = cfCanvas.height / cfCanvas.width;
+    const cbRatio = cbCanvas ? cbCanvas.height / cbCanvas.width : cfRatio;
+
+    // Lebar kartu dalam pt (1cm = 28.3465pt), target 5.7cm
+    const CARD_W_PT = 5.7 * 28.3465;
+    const cfH_PT    = CARD_W_PT * cfRatio;
+    const cbH_PT    = CARD_W_PT * cbRatio;
+    const GAP_PT    = 0.15 * 28.3465;
+    const totalH_PT = cfH_PT + GAP_PT + cbH_PT;
 
     const pdf = new jsPDF({
       orientation: 'portrait',
-      unit: 'cm',
-      format: [CARD_W, totalH]
+      unit: 'pt',
+      format: [CARD_W_PT, totalH_PT]
     });
 
-    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, CARD_W, cfH);
+    // Kartu depan — normal
+    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG',
+      0, 0, CARD_W_PT, cfH_PT);
+
+    // Kartu belakang — dirotasi 180° agar saat dilipat tidak terbalik
     if (cbCanvas) {
-      pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, cfH + GAP, CARD_W, cbH);
+      // Gambar belakang di-flip dengan transformasi canvas
+      const flipped = document.createElement('canvas');
+      flipped.width  = cbCanvas.width;
+      flipped.height = cbCanvas.height;
+      const ctx = flipped.getContext('2d');
+      ctx.translate(flipped.width, flipped.height);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(cbCanvas, 0, 0);
+
+      pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
+        0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
     }
 
     pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
@@ -2421,8 +2433,17 @@ async function downloadAllKartuPDF() {
       pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', x, y, CARD_W, CARD_H_F);
 
       // Kartu belakang (langsung di bawah depan)
+      // Kartu belakang — dirotasi 180° agar saat dilipat tidak terbalik
       if (cbCanvas) {
-        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);
+        const flipped = document.createElement('canvas');
+        flipped.width  = cbCanvas.width;
+        flipped.height = cbCanvas.height;
+        const ctx = flipped.getContext('2d');
+        ctx.translate(flipped.width, flipped.height);
+        ctx.rotate(Math.PI);
+        ctx.drawImage(cbCanvas, 0, 0);
+        pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
+          x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);
       }
 
       col++;

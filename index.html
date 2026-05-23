@@ -888,7 +888,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="card-body">
             <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
               <div class="form-group" style="margin:0"><label>Filter Kelas</label><select id="kartuKelas" class="form-control" onchange="loadKartuSiswa()"><option value="">Semua Kelas</option></select></div>
-              <button class="btn btn-primary" onclick="printAllKartu()">🖨️ Cetak Semua</button>
               <button class="btn btn-success" onclick="downloadAllKartuPDF()">📄 Download PDF</button>
             </div>
             <div id="kartuGrid" style="display:flex;flex-wrap:wrap;gap:20px"></div>
@@ -2059,6 +2058,7 @@ async function loadKartuSiswa(){
 
       const footer = document.createElement('div');
       footer.className = 'kartu-item-footer';
+      footer.style.cssText = 'padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface);border-top:1px solid var(--border)';
       footer.innerHTML = `<span style="font-size:.8rem;font-weight:600;color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nama}</span>
         <button class="btn btn-primary btn-sm" id="dlbtn_${s.id}">📥 Download</button>`;
 
@@ -2289,46 +2289,25 @@ function buildKartuBackHTML(s, settings) {
 }
   
 async function captureKartu(element) {
-  // Buat wrapper dengan ukuran tetap
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:260px;background:transparent;z-index:-1';
-  
-  // Clone element
-  const clone = element.cloneNode(true);
-  
-  // Salin canvas QR secara manual
-  const origCanvases  = element.querySelectorAll('canvas');
-  const cloneCanvases = clone.querySelectorAll('canvas');
-  origCanvases.forEach((oc, i) => {
-    if (!cloneCanvases[i]) return;
-    cloneCanvases[i].width  = oc.width;
-    cloneCanvases[i].height = oc.height;
-    cloneCanvases[i].getContext('2d').drawImage(oc, 0, 0);
-    cloneCanvases[i].style.cssText = `width:66px!important;height:66px!important;display:block!important`;
+  // Render langsung dari elemen asli yang sudah ada di DOM
+  // Tidak perlu clone — langsung capture elemen yang sudah ter-render browser
+  const canvas = await html2canvas(element, {
+    scale: 3,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: '#ffffff',
+    logging: false,
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    windowWidth: element.offsetWidth,
+    windowHeight: element.offsetHeight,
+    onclone: (doc, clonedEl) => {
+      // Pastikan semua CSS variable ter-resolve di clone document
+      clonedEl.style.position = 'relative';
+      clonedEl.style.left = '0';
+      clonedEl.style.top = '0';
+    }
   });
-
-  // Konversi semua img QRCode ke inline (hindari CORS)
-  const origImgs  = element.querySelectorAll('img[src^="data:"]');
-  const cloneImgs = clone.querySelectorAll('img[src^="data:"]');
-  origImgs.forEach((oi, i) => { if (cloneImgs[i]) cloneImgs[i].src = oi.src; });
-
-  wrapper.appendChild(clone);
-  document.body.appendChild(wrapper);
-  
-  // Tunggu render
-  await new Promise(r => setTimeout(r, 300));
-
-  const canvas = await html2canvas(clone, {
-    scale:           3,
-    useCORS:         true,
-    allowTaint:      true,
-    backgroundColor: null,
-    logging:         false,
-    width:           260,
-    height:          clone.scrollHeight || 400,
-  });
-
-  document.body.removeChild(wrapper);
   return canvas;
 }
 
@@ -2336,29 +2315,35 @@ async function downloadKartu(s, cardFront, cardBack) {
   const btn = document.getElementById('dlbtn_' + s.id);
   if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
   try {
-    await new Promise(r => setTimeout(r, 200));
     const { jsPDF } = window.jspdf;
 
+    // Capture langsung dari elemen asli yang sudah ada di DOM
     const cfCanvas = await captureKartu(cardFront);
-    const cfRatio  = cfCanvas.height / cfCanvas.width;
-    const pdfW = 6.5, pdfH = pdfW * cfRatio;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [pdfW, pdfH * 2 + 0.5] });
+    const cfW = cfCanvas.width / 3;   // scale=3, kembalikan ke px asli
+    const cfH = cfCanvas.height / 3;
 
-    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfW, pdfH);
+    // Konversi px ke cm (1px = 0.0264583 cm, tapi kita pakai unit px langsung di jsPDF)
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'px',
+      format: [cfW, cfH * 2 + 10]
+    });
+
+    pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, cfW, cfH);
 
     if (cardBack) {
       const cbCanvas = await captureKartu(cardBack);
-      pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, pdfH + 0.2, pdfW, pdfH);
+      const cbH = cbCanvas.height / 3;
+      pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, cfH + 10, cfW, cbH);
     }
 
-    pdf.save(`Kartu_${s.nama.replace(/\s+/g,'_')}_${s.nisn||s.id}.pdf`);
+    pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
     toast('✅ Kartu berhasil didownload!', 'success');
   } catch(e) {
     toast('❌ Gagal: ' + e.message, 'error');
     console.error(e);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📥 Download'; }
-    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el => el.remove());
   }
 }
 
@@ -2368,34 +2353,45 @@ async function downloadAllKartuPDF() {
 
   const btnAll = document.querySelector('button[onclick="downloadAllKartuPDF()"]');
   if (btnAll) { btnAll.disabled = true; btnAll.textContent = '⏳ Memproses...'; }
-  toast(`Menyiapkan ${wraps.length} kartu...`, 'info', 20000);
+  toast(`Menyiapkan ${wraps.length} kartu, harap tunggu...`, 'info', 30000);
 
   try {
-    const firstFront = wraps[0].querySelector('.student-card-print');
-    const testCanvas = await captureKartu(firstFront);
-    const ratio  = testCanvas.height / testCanvas.width;
-    const pdfW   = 6.5;
-    const pdfH   = pdfW * ratio;
-
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [pdfW, pdfH] });
-    let first = true;
+
+    // Ambil ukuran dari kartu pertama
+    const firstFront = wraps[0].querySelector('.student-card-print');
+    if (!firstFront) throw new Error('Kartu tidak ditemukan');
+
+    const testCanvas = await captureKartu(firstFront);
+    const cardW = testCanvas.width / 3;
+    const cardH = testCanvas.height / 3;
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'px',
+      format: [cardW, cardH]
+    });
+
+    let isFirst = true;
 
     for (const wrap of wraps) {
       const front = wrap.querySelector('.student-card-print');
       const back  = wrap.querySelector('.student-card-back');
       if (!front) continue;
 
-      if (!first) pdf.addPage([pdfW, pdfH], 'portrait');
-      first = false;
-
+      // Halaman depan
+      if (!isFirst) pdf.addPage([cardW, cardH], 'portrait');
+      isFirst = false;
       const cfCanvas = await captureKartu(front);
-      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfW, pdfH);
+      const cfH = cfCanvas.height / 3;
+      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, cardW, cfH);
 
+      // Halaman belakang
       if (back) {
-        pdf.addPage([pdfW, pdfH], 'portrait');
+        pdf.addPage([cardW, cardH], 'portrait');
         const cbCanvas = await captureKartu(back);
-        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfW, pdfH);
+        const cbH = cbCanvas.height / 3;
+        pdf.addImage(cbCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, cardW, cbH);
       }
     }
 
@@ -2406,70 +2402,9 @@ async function downloadAllKartuPDF() {
     console.error(e);
   } finally {
     if (btnAll) { btnAll.disabled = false; btnAll.textContent = '📄 Download PDF'; }
-    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el => el.remove());
   }
 }
 
-async function printAllKartu() {
-  const wraps = document.querySelectorAll('.kartu-item-wrap');
-  if (!wraps.length) { toast('Tidak ada kartu untuk dicetak', 'warning'); return; }
-
-  const btnPrint = document.querySelector('button[onclick="printAllKartu()"]');
-  if (btnPrint) { btnPrint.disabled = true; btnPrint.textContent = '⏳ Menyiapkan...'; }
-  toast('Menyiapkan gambar kartu...', 'info', 15000);
-
-  try {
-    const printArea = document.getElementById('printArea');
-    printArea.innerHTML = '';
-
-    for (const wrap of wraps) {
-      const front = wrap.querySelector('.student-card-print');
-      const back  = wrap.querySelector('.student-card-back');
-      if (!front) continue;
-
-      const cfCanvas = await captureKartu(front);
-      const imgF = document.createElement('img');
-      imgF.src = cfCanvas.toDataURL('image/png', 1.0);
-      imgF.className = 'kartu-cetak';
-      printArea.appendChild(imgF);
-
-      if (back) {
-        const cbCanvas = await captureKartu(back);
-        const imgB = document.createElement('img');
-        imgB.src = cbCanvas.toDataURL('image/png', 1.0);
-        imgB.className = 'kartu-cetak';
-        printArea.appendChild(imgB);
-      }
-    }
-
-    const style = document.createElement('style');
-    style.id = 'printStyleTemp';
-    style.textContent = `
-      @media print {
-        *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-        @page{size:A4 portrait;margin:8mm}
-        #printArea{display:flex!important;flex-wrap:wrap!important;gap:4mm!important;width:194mm!important}
-        #printArea img.kartu-cetak{width:94mm!important;height:auto!important;page-break-inside:avoid!important;break-inside:avoid!important}
-      }
-    `;
-    document.head.appendChild(style);
-    await new Promise(r => setTimeout(r, 400));
-    window.print();
-    setTimeout(() => {
-      printArea.innerHTML = '';
-      const s = document.getElementById('printStyleTemp');
-      if (s) s.remove();
-    }, 3000);
-
-  } catch(e) {
-    toast('❌ Gagal cetak: ' + e.message, 'error');
-    console.error(e);
-  } finally {
-    if (btnPrint) { btnPrint.disabled = false; btnPrint.textContent = '🖨️ Cetak Semua'; }
-    document.querySelectorAll('body>div[style*="-9999px"]').forEach(el => el.remove());
-  }
-}
-  
 // ── ABSENSI ──────────────────────────────────────────────────────
 let absenMode='datang';
 function setAbsenMode(mode){ absenMode=mode; document.getElementById('btnModeDatang').classList.toggle('active',mode==='datang'); document.getElementById('btnModePulang').classList.toggle('active',mode==='pulang'); document.getElementById('absenResult').className='absen-result'; APP.scanFailCount=0; }

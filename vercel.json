@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/scan", "destination": "/scan.html" },
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
   "headers": [

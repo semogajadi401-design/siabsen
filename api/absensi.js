@@ -44,7 +44,21 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
   const tglSelesai = String(semester.tanggal_selesai).substring(0, 10);
   if (today < tglMulai || today > tglSelesai)
     return { success: false, message: `Di luar periode semester aktif (${semester.nama})` };
+  // Cek apakah ada guru piket yang sudah scan hari ini
+  const { data: sesiList } = await supabase
+    .from('sesi_piket')
+    .select('id')
+    .eq('tanggal', today);
 
+  if (!sesiList || sesiList.length === 0)
+    return {
+      success: false,
+      message: 'Guru piket belum scan kartu. Absensi tidak bisa dilakukan.'
+    };
+  // ─────────────────────────────────────────────────────────────
+
+  // Ambil jam setting sekali saja
+  const jamSetting   = await getJamSetting();
   // Ambil jam setting sekali saja
   const jamSetting   = await getJamSetting();
   const jamMulai     = jamSetting['JAM_DATANG_MULAI']   || '06:00';

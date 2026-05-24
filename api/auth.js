@@ -21,14 +21,10 @@ module.exports = async (req, res) => {
 };
 
 async function login({ username, password }) {
-  if (!username || !password) 
+  if (!username || !password)
     return { success: false, message: 'Username dan password wajib diisi' };
-  
+
   const hashed = hashPassword(password);
-  
-  // Debug: log hash yang dihasilkan
-  console.log('Input password:', password);
-  console.log('Hash dihasilkan:', hashed);
 
   // Cek admin
   const { data: adminData } = await supabase
@@ -37,15 +33,11 @@ async function login({ username, password }) {
     .eq('username', username)
     .single();
 
-  console.log('Admin data:', adminData);
-  console.log('Hash di DB:', adminData?.password);
-  console.log('Hash match:', adminData?.password === hashed);
-
   if (adminData && adminData.password === hashed) {
-    return { 
-      success: true, role: 'admin', 
-      nama: adminData.nama, username, 
-      email: adminData.email 
+    return {
+      success: true, role: 'admin',
+      nama: adminData.nama, username,
+      email: adminData.email
     };
   }
 
@@ -58,14 +50,14 @@ async function login({ username, password }) {
     .single();
 
   if (guruData && guruData.password === hashed) {
-    return { 
-      success: true, role: 'guru', 
-      id: guruData.id, nama: guruData.nama, 
-      jabatan: guruData.jabatan, username 
+    return {
+      success: true, role: 'guru',
+      id: guruData.id, nama: guruData.nama,
+      jabatan: guruData.jabatan, username
     };
   }
 
-  return { success: false, message: `Login gagal. Hash: ${hashed}` };
+  return { success: false, message: 'Username atau password salah' };
 }
 
 async function changePassword({ username, oldPassword, newPassword }) {
@@ -76,6 +68,7 @@ async function changePassword({ username, oldPassword, newPassword }) {
     .from('admin').select('*')
     .eq('username', username)
     .eq('password', oldHashed).single();
+
   if (adm) {
     await supabase.from('admin')
       .update({ password: newHashed }).eq('username', username);
@@ -86,6 +79,7 @@ async function changePassword({ username, oldPassword, newPassword }) {
     .from('guru').select('*')
     .eq('username', username)
     .eq('password', oldHashed).single();
+
   if (guru) {
     await supabase.from('guru')
       .update({ password: newHashed }).eq('username', username);

@@ -3050,35 +3050,80 @@ async function doAbsensi(siswa){
   }
 }
 
-function showAbsenResult(result,siswa){
-  const el=document.getElementById('absenResult');
+function showAbsenResult(result, siswa) {
+  const el = document.getElementById('absenResult');
+
   // Tangani jika QR guru discan di halaman absensi guru
   if (result.tipe === 'guru') {
     el.className = 'absen-result show success';
-    el.innerHTML = `<div style="display:flex;align-items:center;gap:16px">
-      <div style="font-size:3rem">👤</div>
-      <div><div style="font-size:1rem;font-weight:800">${result.guru?.nama}</div>
-      <div style="font-size:.85rem;color:var(--text-muted)">Tercatat sebagai guru piket</div>
-      </div></div>`;
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="font-size:3rem">👤</div>
+        <div>
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75;margin-bottom:2px">GURU PIKET TERCATAT</div>
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text)">${result.guru?.nama || '-'}</div>
+          <div style="font-size:.85rem;color:var(--text-muted);margin-top:3px">${result.guru?.jabatan || ''}</div>
+          <div style="margin-top:8px">
+            <span style="background:rgba(0,0,0,0.08);padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">
+              🕐 ${result.guru?.jam || '-'}
+            </span>
+          </div>
+        </div>
+      </div>`;
+    clearTimeout(APP.absenResultTimer);
+    APP.absenResultTimer = setTimeout(() => {
+      el.className = 'absen-result';
+      el.innerHTML = '';
+    }, 7000);
     return;
   }
-  if(result.success){
-    const isLate=result.status==='Terlambat';
-    const isPulang=result.status==='Pulang';
-    const icon=isPulang?'🌙':isLate?'⚠️':'✅';
-    const statusText=isPulang?'ABSEN PULANG':isLate?'TERLAMBAT':'ABSEN DATANG';
-    const colorClass=isPulang?'success':isLate?'warning':'success';
-    const now=new Date(); const jam=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-    el.className=`absen-result show ${colorClass}`;
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:16px"><div style="font-size:3rem;flex-shrink:0">${icon}</div><div style="flex:1"><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75;margin-bottom:2px">${statusText} BERHASIL</div><div style="font-size:1.3rem;font-weight:800;color:var(--text)">${siswa?.nama||''}</div><div style="font-size:.85rem;color:var(--text-muted);margin-top:3px">Kelas <strong>${siswa?.kelas||''}</strong> &nbsp;•&nbsp; NISN: ${siswa?.nisn||''}</div><div style="margin-top:8px"><span style="background:rgba(0,0,0,0.08);padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">🕐 ${jam}</span></div></div></div>`;
-    playBeep(isLate?'warning':'success');
-  }else{
-    el.className='absen-result show error';
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:16px"><div style="font-size:3rem">❌</div><div><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75">GAGAL</div><div style="font-size:1rem;font-weight:700;color:var(--text)">${result.message}</div></div></div>`;
-    playBeep('error');
+
+  if (result.success) {
+    const isLate   = result.status === 'Terlambat';
+    const isPulang = result.status === 'Pulang';
+    const icon       = isPulang ? '🌙' : isLate ? '⚠️' : '✅';
+    const statusText = isPulang ? 'ABSEN PULANG' : isLate ? 'TERLAMBAT' : 'ABSEN DATANG';
+    const colorClass = isPulang ? 'success' : isLate ? 'warning' : 'success';
+    const now = new Date();
+    const jam = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+    el.className = `absen-result show ${colorClass}`;
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="font-size:3rem;flex-shrink:0">${icon}</div>
+        <div style="flex:1">
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75;margin-bottom:2px">
+            ${statusText} BERHASIL
+          </div>
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text)">${siswa?.nama || '-'}</div>
+          <div style="font-size:.85rem;color:var(--text-muted);margin-top:3px">
+            Kelas <strong>${siswa?.kelas || '-'}</strong> &nbsp;•&nbsp; NISN: ${siswa?.nisn || '-'}
+          </div>
+          <div style="margin-top:8px">
+            <span style="background:rgba(0,0,0,0.08);padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">
+              🕐 ${jam}
+            </span>
+          </div>
+        </div>
+      </div>`;
+
+  } else {
+    el.className = 'absen-result show error';
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="font-size:3rem">❌</div>
+        <div>
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75">GAGAL</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--text)">${result.message}</div>
+        </div>
+      </div>`;
   }
+
   clearTimeout(APP.absenResultTimer);
-  APP.absenResultTimer=setTimeout(()=>{el.className='absen-result';el.innerHTML='';},7000);
+  APP.absenResultTimer = setTimeout(() => {
+    el.className = 'absen-result';
+    el.innerHTML = '';
+  }, 7000);
 }
 
 function playBeep(type) {
@@ -3692,9 +3737,14 @@ let grafikBar = null;
 let grafikPie = null;
 
 async function loadEvaluasi() {
-  await loadSemesterList(); // ← tambah ini
-  populateKelasDropdowns(); // ← dan ini
+  // Load semester dulu agar dropdown terisi
+  await loadSemesterList();
+  populateKelasDropdowns();
+
   const semesterEl = document.getElementById('evalSemester');
+  const kelasEl    = document.getElementById('evalKelas'); // ← deklarasi yang hilang
+
+  // Auto-pilih semester pertama jika belum ada pilihan
   if (!semesterEl.value && semesterEl.options.length > 1) {
     semesterEl.value = semesterEl.options[1].value;
   }
@@ -3703,24 +3753,33 @@ async function loadEvaluasi() {
   const kelas      = kelasEl?.value   || '';
 
   if (!semesterId) {
-    toast('Pilih semester terlebih dahulu', 'warning'); return;
+    toast('Pilih semester terlebih dahulu', 'warning');
+    return;
   }
 
-  // Ambil tanggal semester
+  // Ambil tanggal dari option yang dipilih
   const opt = semesterEl.querySelector(`option[value="${semesterId}"]`);
-  const tanggalMulai = opt?.dataset?.mulai || '';
-  const tanggalSelesai = opt?.dataset?.selesai || '';
+  const tanggalMulai   = opt?.dataset?.mulai    || '';
+  const tanggalSelesai = opt?.dataset?.selesai  || '';
 
-  // Ambil data absensi periode semester
+  if (!tanggalMulai || !tanggalSelesai) {
+    toast('Data semester tidak lengkap', 'warning');
+    return;
+  }
+
+  // Ambil semua data sekaligus
   const [absenResult, ketResult, siswaResult] = await Promise.all([
     api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai, kelas }),
     api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai, kelas }),
     api('siswa', 'getAll', { activeOnly: true, kelas })
   ]);
 
-  if (!siswaResult.success) return;
+  if (!siswaResult.success) {
+    toast('Gagal memuat data siswa', 'error');
+    return;
+  }
 
-  // Hitung per siswa
+  // Buat map per siswa
   const siswaMap = {};
   siswaResult.data.forEach(s => {
     siswaMap[s.id] = {
@@ -3729,17 +3788,17 @@ async function loadEvaluasi() {
     };
   });
 
-  // Dari absensi
+  // Tambahkan data absensi
   if (absenResult.success) {
     absenResult.data.forEach(d => {
       if (siswaMap[d.idSiswa]) {
-        siswaMap[d.idSiswa].hadir += d.hadir || 0;
+        siswaMap[d.idSiswa].hadir     += d.hadir     || 0;
         siswaMap[d.idSiswa].terlambat += d.terlambat || 0;
       }
     });
   }
 
-  // Dari keterangan
+  // Tambahkan data keterangan sakit/izin
   if (ketResult.success) {
     ketResult.data.forEach(d => {
       if (siswaMap[d.idSiswa]) {
@@ -3751,55 +3810,51 @@ async function loadEvaluasi() {
 
   const allSiswa = Object.values(siswaMap);
 
-  // Hitung total hari sekolah dalam periode
-  // (estimasi dari data yang ada)
-  allSiswa.forEach(s => {
-    const totalTercatat = s.hadir + s.terlambat + s.sakit + s.izin;
-    // Alpha = tidak ada record sama sekali (tidak bisa dihitung tanpa total hari)
-    // Ditampilkan sebagai info saja
-  });
-
-  // Total keseluruhan
-  const totHadir = allSiswa.reduce((a,b) => a + b.hadir, 0);
+  // Hitung total
+  const totHadir     = allSiswa.reduce((a,b) => a + b.hadir, 0);
   const totTerlambat = allSiswa.reduce((a,b) => a + b.terlambat, 0);
-  const totSakit = allSiswa.reduce((a,b) => a + b.sakit, 0);
-  const totIzin = allSiswa.reduce((a,b) => a + b.izin, 0);
-  const totAll = totHadir + totTerlambat + totSakit + totIzin;
-  const persen = totAll > 0 ? Math.round((totHadir + totTerlambat) / totAll * 100) : 0;
+  const totSakit     = allSiswa.reduce((a,b) => a + b.sakit, 0);
+  const totIzin      = allSiswa.reduce((a,b) => a + b.izin, 0);
+  const totAll       = totHadir + totTerlambat + totSakit + totIzin;
+  const persen       = totAll > 0 ? Math.round((totHadir + totTerlambat) / totAll * 100) : 0;
 
-  document.getElementById('evalTotalHadir').textContent = totHadir;
+  // Update kartu statistik
+  document.getElementById('evalTotalHadir').textContent     = totHadir;
   document.getElementById('evalTotalTerlambat').textContent = totTerlambat;
-  document.getElementById('evalTotalSakit').textContent = totSakit;
-  document.getElementById('evalTotalIzin').textContent = totIzin;
-  document.getElementById('evalTotalAlpha').textContent = '—';
-  document.getElementById('evalPersen').textContent = persen + '%';
+  document.getElementById('evalTotalSakit').textContent     = totSakit;
+  document.getElementById('evalTotalIzin').textContent      = totIzin;
+  document.getElementById('evalTotalAlpha').textContent     = '—';
+  document.getElementById('evalPersen').textContent         = persen + '%';
 
-  // Ranking
+  // Urutkan berdasarkan kehadiran tertinggi
   const sorted = allSiswa.sort((a,b) => {
-    const pA = (a.hadir + a.terlambat);
-    const pB = (b.hadir + b.terlambat);
-    return pB - pA;
+    return (b.hadir + b.terlambat) - (a.hadir + a.terlambat);
   });
 
+  // Render tabel ranking
   const tbody = document.getElementById('evalRankingBody');
-  tbody.innerHTML = sorted.map((s, i) => {
-    const total = s.hadir + s.terlambat + s.sakit + s.izin;
-    const pct = total > 0 ? Math.round((s.hadir + s.terlambat) / total * 100) : 0;
-    const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
-    return `<tr>
-      <td><strong>${i+1}</strong></td>
-      <td>${s.nama}</td>
-      <td><span class="badge badge-primary">${s.kelas}</span></td>
-      <td><span class="badge badge-success">${s.hadir}</span></td>
-      <td><span class="badge badge-warning">${s.terlambat}</span></td>
-      <td><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
-      <td><span class="badge badge-primary">${s.izin}</span></td>
-      <td><span class="badge badge-danger">${s.alpha}</span></td>
-      <td><strong style="color:${pctColor}">${pct}%</strong></td>
-    </tr>`;
-  }).join('');
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
+  } else {
+    tbody.innerHTML = sorted.map((s, i) => {
+      const total    = s.hadir + s.terlambat + s.sakit + s.izin;
+      const pct      = total > 0 ? Math.round((s.hadir + s.terlambat) / total * 100) : 0;
+      const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
+      return `<tr>
+        <td><strong>${i+1}</strong></td>
+        <td>${s.nama}</td>
+        <td><span class="badge badge-primary">${s.kelas}</span></td>
+        <td><span class="badge badge-success">${s.hadir}</span></td>
+        <td><span class="badge badge-warning">${s.terlambat}</span></td>
+        <td><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
+        <td><span class="badge badge-primary">${s.izin}</span></td>
+        <td><span class="badge badge-danger">${s.alpha}</span></td>
+        <td><strong style="color:${pctColor}">${pct}%</strong></td>
+      </tr>`;
+    }).join('');
+  }
 
-  // Grafik per kelas
+  // Render grafik
   renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin);
 }
 

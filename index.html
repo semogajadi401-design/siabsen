@@ -2003,11 +2003,7 @@ async function loadSiswa(){
     const tbody=document.getElementById('siswaTableBody');
     if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data siswa</td></tr>';return;}
     window._siswaData = result.data;
-    tbody.innerHTML=result.data.map((s,i)=>`<tr><td>${i+1}</td><td><code style="font-size:.8rem">${s.nisn}</code></td><td><div style="font-weight:600">${s.nama}</div></td><td><span class="badge badge-primary">${s.kelas}</span></td><td>${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${s.agama}</td><td><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button>
-      <button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button>
-      <button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>
-      <button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)">🗑</button>
-    </div></td></tr>`).join('');
+    tbody.innerHTML=result.data.map((s,i)=>`<tr><td>${i+1}</td><td><code style="font-size:.8rem">${s.nisn}</code></td><td><div style="font-weight:600">${s.nama}</div></td><td><span class="badge badge-primary">${s.kelas}</span></td><td>${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${s.agama}</td><td><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button><button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)">🗑</button></div></td></tr>`).join('');
     // Setelah load siswa, refresh kelas (mungkin ada kelas baru dari DB)
     await loadAndMergeKelas();
     populateKelasDropdowns();

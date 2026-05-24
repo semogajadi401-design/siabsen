@@ -25,23 +25,43 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
   const today = todayStr();
   const hari  = hariIni();
 
+  // Cek hari libur kalender
   const cekLibur = await isHariLibur(today);
   if (cekLibur.libur)
     return { success: false, message: `Hari ini libur: ${cekLibur.keterangan}` };
 
+  // Cek hari kerja sekolah
   const hariAktif = await isHariKerja(hari);
   if (!hariAktif)
     return { success: false, message: `${hari} bukan hari sekolah` };
 
+  // Cek semester aktif
   const semester = await getSemesterAktif();
   if (!semester)
     return { success: false, message: 'Tidak ada semester aktif. Hubungi admin.' };
-  if (today < semester.tanggal_mulai || today > semester.tanggal_selesai)
+
+  const tglMulai   = String(semester.tanggal_mulai).substring(0, 10);
+  const tglSelesai = String(semester.tanggal_selesai).substring(0, 10);
+  if (today < tglMulai || today > tglSelesai)
     return { success: false, message: `Di luar periode semester aktif (${semester.nama})` };
 
+  // Ambil jam setting sekali saja
+  const jamSetting   = await getJamSetting();
+  const jamMulai     = jamSetting['JAM_DATANG_MULAI']   || '06:00';
+  const jamSelesaiOp = jamSetting['JAM_PULANG_SELESAI'] || '17:00';
+  const jamBatasDatang = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
+
+  const jam = jamSekarang();
+
+  // Cek jam operasional
+  if (jam < jamMulai || jam > jamSelesaiOp)
+    return { success: false, message: `Absensi hanya bisa dilakukan antara ${jamMulai} - ${jamSelesaiOp}` };
+
+  // Validasi identifier
   if (!identifier) return { success: false, message: 'Identifier kosong' };
   const id = identifier.trim();
 
+  // Cari siswa
   const { data: siswaById } = await supabase
     .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
     .eq('id', id).maybeSingle();
@@ -53,9 +73,12 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
   if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
   if (siswa.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
 
-  const jam = jamSekarang();
-
+  // MODE PULANG
   if (mode === 'pulang') {
+    const jamPulangMulai = jamSetting['JAM_PULANG_MULAI'] || '14:00';
+    if (jam < jamPulangMulai)
+      return { success: false, message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
+
     const { data: absen } = await supabase.from('absensi')
       .select('*').eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
     if (!absen)
@@ -76,14 +99,13 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
     };
   }
 
-  // Mode datang
+  // MODE DATANG
   const { data: existing } = await supabase.from('absensi')
     .select('id,jam_datang').eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
   if (existing?.jam_datang)
     return { success: false, message: `${siswa.nama} sudah absen datang pukul ${existing.jam_datang}` };
 
-  const jamSetting   = await getJamSetting();
-  const statusDatang = jam > (jamSetting['JAM_DATANG_SELESAI'] || '08:00') ? 'Terlambat' : 'Hadir';
+  const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
 
   const absenId = generateID('AB');
   const { error } = await supabase.from('absensi').insert({
@@ -103,7 +125,6 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
     siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
   };
 }
-
 async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
   const { data: siswa } = await supabase.from('siswa').select('*').eq('id', idSiswa).single();
   if (!siswa) return { success: false, message: 'Data siswa tidak ditemukan' };

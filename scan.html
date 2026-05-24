@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SIABSEN - Absensi</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#1565C0;--success:#2E7D32;--warning:#F57F17;
+  --danger:#C62828;--bg:#0a1628;--surface:#fff;
+  --font:'Segoe UI',system-ui,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;overflow-x:hidden}
+
+/* ── HEADER ── */
+.header{
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(10px);
+  padding:12px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  position:sticky;top:0;z-index:50;
+}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-logo{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,#1565C0,#42a5f5);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;overflow:hidden;
+}
+.header-logo img{width:100%;height:100%;object-fit:contain}
+.header-logo svg{width:20px;height:20px;fill:#fff}
+.header-info h1{font-size:.95rem;font-weight:700;color:#fff}
+.header-info p{font-size:.72rem;color:rgba(255,255,255,0.5);margin-top:1px}
+.header-time{text-align:right}
+.header-time .jam{font-size:1.4rem;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;line-height:1}
+.header-time .tgl{font-size:.7rem;color:rgba(255,255,255,0.5);margin-top:2px}
+.btn-admin{
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12);
+  color:rgba(255,255,255,0.5);
+  padding:6px 12px;border-radius:8px;
+  font-size:.72rem;cursor:pointer;
+  transition:all 0.2s;font-family:inherit;
+}
+.btn-admin:hover{background:rgba(255,255,255,0.15);color:#fff}
+
+/* ── MAIN LAYOUT ── */
+.main{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  padding:16px;
+  max-width:1200px;
+  margin:0 auto;
+}
+@media(max-width:768px){
+  .main{grid-template-columns:1fr;gap:12px;padding:12px}
+}
+
+/* ── PANEL KIRI — SCAN ── */
+.scan-panel{display:flex;flex-direction:column;gap:12px}
+
+/* Status guru piket */
+.guru-status{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:16px;padding:14px 16px;
+}
+.guru-status.no-guru{border-color:rgba(245,127,23,0.4);background:rgba(245,127,23,0.08)}
+.guru-status.ada-guru{border-color:rgba(46,125,50,0.4);background:rgba(46,125,50,0.08)}
+.guru-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.4);margin-bottom:8px}
+.guru-list{display:flex;flex-direction:column;gap:6px}
+.guru-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:10px;
+  background:rgba(255,255,255,0.05);
+}
+.guru-avatar{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,#1565C0,#42a5f5);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.85rem;color:#fff;flex-shrink:0;
+}
+.guru-nama{font-weight:600;font-size:.85rem;color:#fff}
+.guru-jam{font-size:.72rem;color:rgba(255,255,255,0.4);margin-top:1px}
+.no-guru-text{
+  display:flex;align-items:center;gap:10px;
+  color:rgba(245,127,23,0.9);font-size:.85rem;font-weight:600;
+}
+.no-guru-text span{font-size:1.4rem}
+
+/* Kamera */
+.scanner-card{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:16px;overflow:hidden;
+}
+.scanner-header{
+  padding:10px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.scanner-mode{font-size:.78rem;font-weight:600;color:rgba(255,255,255,0.6)}
+.scanner-mode.datang{color:#42a5f5}
+.scanner-mode.pulang{color:#ab47bc}
+.mode-toggle{
+  display:flex;gap:4px;background:rgba(0,0,0,0.3);
+  border-radius:8px;padding:3px;
+}
+.mode-btn{
+  padding:4px 10px;border-radius:6px;
+  font-size:.72rem;font-weight:600;
+  color:rgba(255,255,255,0.4);
+  background:transparent;cursor:pointer;
+  border:none;font-family:inherit;transition:all 0.2s;
+}
+.mode-btn.active{background:rgba(255,255,255,0.15);color:#fff}
+
+.scanner-wrap{
+  position:relative;width:100%;
+  aspect-ratio:1/1;background:#000;
+  max-height:300px;overflow:hidden;
+}
+@media(max-width:768px){.scanner-wrap{max-height:260px}}
+#scanVideo{width:100%;height:100%;object-fit:cover;display:block}
+.scan-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-frame{
+  width:55%;aspect-ratio:1/1;
+  border:2.5px solid rgba(66,165,245,0.8);
+  border-radius:12px;
+  box-shadow:0 0 0 999px rgba(0,0,0,0.5);
+  position:relative;
+}
+.scan-line{
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,#42a5f5,transparent);
+  animation:scanAnim 2s linear infinite;
+}
+@keyframes scanAnim{0%{top:0}100%{top:calc(100% - 2px)}}
+.scan-corner{position:absolute;width:18px;height:18px;border-color:#42a5f5;border-style:solid}
+.scan-corner.tl{top:-2px;left:-2px;border-width:2.5px 0 0 2.5px;border-radius:4px 0 0 0}
+.scan-corner.tr{top:-2px;right:-2px;border-width:2.5px 2.5px 0 0;border-radius:0 4px 0 0}
+.scan-corner.bl{bottom:-2px;left:-2px;border-width:0 0 2.5px 2.5px;border-radius:0 0 0 4px}
+.scan-corner.br{bottom:-2px;right:-2px;border-width:0 2.5px 2.5px 0;border-radius:0 0 4px 0}
+
+.scan-flash{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:700;
+  border-radius:0;opacity:0;transition:opacity .3s;
+  flex-direction:column;gap:8px;
+}
+.scan-flash.show{opacity:1}
+.scan-flash.success{background:rgba(46,125,50,0.92)}
+.scan-flash.error{background:rgba(198,40,40,0.92)}
+.scan-flash.warning{background:rgba(245,127,23,0.92)}
+.scan-flash.guru{background:rgba(21,101,192,0.92)}
+.scan-flash-icon{font-size:2.5rem}
+.scan-flash-text{font-size:.95rem;font-weight:700;text-align:center;padding:0 20px}
+
+/* Hasil scan terakhir */
+.last-result{
+  padding:12px 14px;
+  border-top:1px solid rgba(255,255,255,0.06);
+  min-height:60px;
+  display:flex;align-items:center;gap:12px;
+}
+.last-result-icon{font-size:1.8rem;flex-shrink:0}
+.last-result-info{flex:1}
+.last-result-nama{font-weight:700;font-size:.92rem;color:#fff}
+.last-result-detail{font-size:.75rem;color:rgba(255,255,255,0.5);margin-top:2px}
+.last-result-status{font-size:.78rem;font-weight:600;padding:3px 10px;border-radius:20px;flex-shrink:0}
+.status-hadir{background:rgba(46,125,50,0.25);color:#81c784}
+.status-terlambat{background:rgba(245,127,23,0.25);color:#ffb74d}
+.status-pulang{background:rgba(103,58,183,0.25);color:#ce93d8}
+.status-error{background:rgba(198,40,40,0.25);color:#ef9a9a}
+.status-guru{background:rgba(21,101,192,0.25);color:#90caf9}
+
+/* Manual input */
+.manual-input{
+  display:flex;gap:8px;padding:10px 14px;
+  border-top:1px solid rgba(255,255,255,0.06);
+}
+.manual-input input{
+  flex:1;background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:8px 14px;
+  color:#fff;font-size:.85rem;font-family:inherit;
+  outline:none;
+}
+.manual-input input::placeholder{color:rgba(255,255,255,0.3)}
+.manual-input input:focus{border-color:rgba(66,165,245,0.5)}
+.manual-input button{
+  background:linear-gradient(135deg,#1565C0,#1976D2);
+  color:#fff;border:none;border-radius:10px;
+  padding:8px 16px;font-size:.82rem;font-weight:600;
+  cursor:pointer;font-family:inherit;white-space:nowrap;
+}
+
+/* ── PANEL KANAN — LOG ── */
+.log-panel{display:flex;flex-direction:column;gap:12px}
+
+/* Stats */
+.stats-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+}
+.stat-box{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:12px;padding:12px;text-align:center;
+}
+.stat-box.green{border-color:rgba(46,125,50,0.4);background:rgba(46,125,50,0.1)}
+.stat-box.orange{border-color:rgba(245,127,23,0.4);background:rgba(245,127,23,0.1)}
+.stat-box.red{border-color:rgba(198,40,40,0.4);background:rgba(198,40,40,0.1)}
+.stat-num{font-size:1.6rem;font-weight:800;color:#fff;line-height:1}
+.stat-label{font-size:.65rem;color:rgba(255,255,255,0.4);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+
+/* Filter kelas */
+.filter-row{
+  display:flex;align-items:center;gap:8px;
+}
+.filter-row select{
+  flex:1;background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:8px 12px;
+  color:#fff;font-size:.82rem;font-family:inherit;
+  outline:none;
+}
+.filter-row select option{background:#1a2a4a;color:#fff}
+.btn-refresh{
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:8px 14px;
+  color:rgba(255,255,255,0.7);font-size:.82rem;
+  cursor:pointer;font-family:inherit;
+}
+
+/* Log tabs */
+.log-tabs{
+  display:flex;gap:4px;
+  background:rgba(0,0,0,0.3);
+  border-radius:10px;padding:3px;
+}
+.log-tab{
+  flex:1;padding:7px;text-align:center;
+  border-radius:8px;font-size:.78rem;font-weight:600;
+  color:rgba(255,255,255,0.4);cursor:pointer;
+  background:transparent;border:none;font-family:inherit;
+  transition:all 0.2s;
+}
+.log-tab.active{background:rgba(255,255,255,0.12);color:#fff}
+
+/* Log list */
+.log-container{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:16px;overflow:hidden;
+  max-height:calc(100vh - 320px);
+  min-height:300px;
+  overflow-y:auto;
+}
+@media(max-width:768px){.log-container{max-height:400px}}
+.log-container::-webkit-scrollbar{width:4px}
+.log-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+
+.log-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  transition:background 0.15s;
+}
+.log-item:last-child{border-bottom:none}
+.log-item:hover{background:rgba(255,255,255,0.04)}
+.log-avatar{
+  width:34px;height:34px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:700;color:#fff;
+  flex-shrink:0;
+}
+.log-avatar.hadir{background:rgba(46,125,50,0.4)}
+.log-avatar.terlambat{background:rgba(245,127,23,0.4)}
+.log-avatar.belum{background:rgba(255,255,255,0.08)}
+.log-nama{font-weight:600;font-size:.85rem;color:#fff;line-height:1.2}
+.log-kelas{font-size:.72rem;color:rgba(255,255,255,0.4);margin-top:2px}
+.log-right{margin-left:auto;text-align:right;flex-shrink:0}
+.log-jam{font-size:.78rem;color:rgba(255,255,255,0.6);font-weight:600}
+.log-badge{
+  font-size:.68rem;font-weight:700;
+  padding:2px 8px;border-radius:10px;margin-top:3px;
+  display:inline-block;
+}
+.badge-hadir{background:rgba(46,125,50,0.3);color:#81c784}
+.badge-terlambat{background:rgba(245,127,23,0.3);color:#ffb74d}
+.badge-pulang{background:rgba(103,58,183,0.3);color:#ce93d8}
+.badge-belum{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.4)}
+
+.log-empty{
+  padding:40px 20px;text-align:center;
+  color:rgba(255,255,255,0.3);font-size:.85rem;
+}
+.log-empty-icon{font-size:2.5rem;margin-bottom:8px}
+
+/* ── LIBUR BANNER ── */
+.libur-banner{
+  margin:16px;padding:20px;
+  background:rgba(245,127,23,0.1);
+  border:1px solid rgba(245,127,23,0.3);
+  border-radius:16px;text-align:center;
+}
+.libur-banner-icon{font-size:3rem;margin-bottom:8px}
+.libur-banner-title{font-size:1.1rem;font-weight:700;color:#ffb74d}
+.libur-banner-sub{font-size:.85rem;color:rgba(255,255,255,0.5);margin-top:6px}
+
+/* ── COOLDOWN BAR ── */
+.cooldown-bar{
+  height:3px;background:rgba(255,255,255,0.1);
+  overflow:hidden;
+}
+.cooldown-fill{
+  height:100%;background:#42a5f5;
+  width:100%;transition:width linear;
+}
+
+/* ── TOAST ── */
+#toastWrap{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  z-index:9999;display:flex;flex-direction:column;gap:8px;
+  align-items:center;pointer-events:none;
+}
+.s-toast{
+  background:rgba(20,30,50,0.95);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;padding:10px 18px;
+  font-size:.85rem;font-weight:500;color:#fff;
+  animation:toastIn .3s ease;white-space:nowrap;
+  backdrop-filter:blur(10px);
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="toastWrap"></div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo" id="headerLogo">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+    </div>
+    <div class="header-info">
+      <h1 id="namaSekolah">SIABSEN</h1>
+      <p id="headerSub">Sistem Informasi Absensi Sekolah</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="header-time">
+      <div class="jam" id="headerJam">00:00:00</div>
+      <div class="tgl" id="headerTgl"></div>
+    </div>
+    <button class="btn-admin" onclick="window.location.href='/'">⚙ Admin</button>
+  </div>
+</div>
+
+<!-- LIBUR BANNER (tersembunyi default) -->
+<div class="libur-banner" id="liburBanner" style="display:none">
+  <div class="libur-banner-icon">🏖️</div>
+  <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
+  <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
+</div>
+
+<!-- MAIN -->
+<div class="main" id="mainContent">
+
+  <!-- PANEL KIRI -->
+  <div class="scan-panel">
+
+    <!-- Status Guru Piket -->
+    <div class="guru-status no-guru" id="guruStatusBox">
+      <div class="guru-label">👤 Guru Piket Hari Ini</div>
+      <div id="guruStatusContent">
+        <div class="no-guru-text">
+          <span>⚠️</span>
+          <span>Belum ada guru piket. Scan kartu guru dulu.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scanner -->
+    <div class="scanner-card">
+      <div class="scanner-header">
+        <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="btnDatang" onclick="setMode('datang')">Datang</button>
+          <button class="mode-btn" id="btnPulang" onclick="setMode('pulang')">Pulang</button>
+        </div>
+      </div>
+
+      <div class="scanner-wrap">
+        <video id="scanVideo" autoplay playsinline muted></video>
+        <div class="scan-overlay">
+          <div class="scan-frame">
+            <div class="scan-line"></div>
+            <div class="scan-corner tl"></div>
+            <div class="scan-corner tr"></div>
+            <div class="scan-corner bl"></div>
+            <div class="scan-corner br"></div>
+          </div>
+        </div>
+        <div class="scan-flash" id="scanFlash">
+          <div class="scan-flash-icon" id="flashIcon"></div>
+          <div class="scan-flash-text" id="flashText"></div>
+        </div>
+        <canvas id="scanCanvas" style="display:none"></canvas>
+      </div>
+
+      <div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="transition:none"></div></div>
+
+      <!-- Hasil scan terakhir -->
+      <div class="last-result" id="lastResult">
+        <div class="last-result-icon">📷</div>
+        <div class="last-result-info">
+          <div class="last-result-nama">Arahkan kartu ke kamera</div>
+          <div class="last-result-detail">Scan QR kartu siswa atau kartu guru piket</div>
+        </div>
+      </div>
+
+      <!-- Manual input -->
+      <div class="manual-input">
+        <input type="text" id="manualInput" placeholder="Atau ketik ID / NISN siswa..." onkeyup="if(event.key==='Enter')doManual()">
+        <button onclick="doManual()">✓ Absen</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PANEL KANAN -->
+  <div class="log-panel">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-box green">
+        <div class="stat-num" id="statHadir">0</div>
+        <div class="stat-label">✅ Hadir</div>
+      </div>
+      <div class="stat-box orange">
+        <div class="stat-num" id="statBelum">0</div>
+        <div class="stat-label">⏳ Belum</div>
+      </div>
+      <div class="stat-box red">
+        <div class="stat-num" id="statTotal">0</div>
+        <div class="stat-label">👥 Total</div>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-row">
+      <select id="filterKelas" onchange="loadLog()">
+        <option value="">Semua Kelas</option>
+      </select>
+      <button class="btn-refresh" onclick="loadLog()">🔄</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="log-tabs">
+      <button class="log-tab active" id="tabBelum" onclick="switchTab('belum')">⏳ Belum Hadir (<span id="tabBelumCount">0</span>)</button>
+      <button class="log-tab" id="tabHadir" onclick="switchTab('hadir')">✅ Sudah Hadir (<span id="tabHadirCount">0</span>)</button>
+    </div>
+
+    <!-- Log list -->
+    <div class="log-container" id="logContainer">
+      <div class="log-empty">
+        <div class="log-empty-icon">📋</div>
+        <div>Memuat data...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+async function api(endpoint, action, params={}) {
+  const r = await fetch(`${API}/api/${endpoint}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action,...params})
+  });
+  return r.json();
+}
+
+// ── STATE ────────────────────────────────────────────────────────
+let scanMode      = 'datang';
+let scanCooldown  = false;
+let scanActive    = false;
+let scanStream    = null;
+let scanAnimFrame = null;
+let logData       = { hadir:[], belumHadir:[] };
+let activeTab     = 'belum';
+const scannedHistory = {};
+const PER_COOLDOWN   = 30000;
+
+// ── CLOCK ────────────────────────────────────────────────────────
+function updateClock() {
+  const now  = new Date(Date.now() + 8*60*60*1000);
+  const jam  = [now.getUTCHours(),now.getUTCMinutes(),now.getUTCSeconds()]
+               .map(v=>String(v).padStart(2,'0')).join(':');
+  const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const mons = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+  document.getElementById('headerJam').textContent = jam;
+  document.getElementById('headerTgl').textContent =
+    `${days[now.getUTCDay()]}, ${now.getUTCDate()} ${mons[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
+}
+setInterval(updateClock,1000); updateClock();
+
+// ── TOAST ────────────────────────────────────────────────────────
+function toast(msg, dur=3000) {
+  const t = document.createElement('div');
+  t.className = 's-toast'; t.textContent = msg;
+  document.getElementById('toastWrap').appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s';
+    setTimeout(()=>t.remove(),300); }, dur);
+}
+
+// ── MODE ─────────────────────────────────────────────────────────
+function setMode(mode) {
+  scanMode = mode;
+  document.getElementById('btnDatang').classList.toggle('active', mode==='datang');
+  document.getElementById('btnPulang').classList.toggle('active', mode==='pulang');
+  const lbl = document.getElementById('modeLabel');
+  lbl.textContent = mode==='datang' ? '☀️ Mode Datang' : '🌙 Mode Pulang';
+  lbl.className   = 'scanner-mode ' + mode;
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+async function init() {
+  // Load settings
+  try {
+    const r = await api('settings','getJamSetting');
+    if (r.success) {
+      const nama = r.data['NAMA_SEKOLAH'];
+      const logo = r.data['LOGO_URL'];
+      if (nama) document.getElementById('namaSekolah').textContent = nama;
+      if (logo) {
+        const el = document.getElementById('headerLogo');
+        el.innerHTML = `<img src="${logo}" alt="Logo">`;
+      }
+      // Populate kelas
+      const rSiswa = await api('siswa','getAll',{activeOnly:true,kelas:''});
+      if (rSiswa.success) {
+        const kelasSet = new Set();
+        rSiswa.data.forEach(s => { if(s.kelas) kelasSet.add(s.kelas); });
+        const sel = document.getElementById('filterKelas');
+        [...kelasSet].sort().forEach(k => {
+          sel.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+      }
+    }
+  } catch(e) {}
+
+  // Cek status hari ini
+  await checkStatus();
+
+  // Mulai kamera
+  startScanner();
+
+  // Load log pertama kali
+  await loadLog();
+
+  // Auto refresh log setiap 30 detik
+  setInterval(loadLog, 30000);
+  // Auto refresh status guru setiap 10 detik
+  setInterval(checkStatus, 10000);
+}
+
+// ── CEK STATUS ───────────────────────────────────────────────────
+async function checkStatus() {
+  try {
+    const r = await api('scan','getStatus');
+    if (!r.success) return;
+
+    const mainContent  = document.getElementById('mainContent');
+    const liburBanner  = document.getElementById('liburBanner');
+
+    if (!r.bisaAbsen) {
+      liburBanner.style.display = 'block';
+      mainContent.style.display = 'none';
+      document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
+      return;
+    }
+
+    liburBanner.style.display = 'none';
+    mainContent.style.display = 'grid';
+
+    // Update status guru
+    updateGuruStatus(r.guruPiket || []);
+
+    // Auto set mode berdasarkan jam
+    const jam = r.jam || '';
+    const jamPulang = '14:00';
+    if (jam >= jamPulang) setMode('pulang');
+
+  } catch(e) {}
+}
+
+function updateGuruStatus(guruList) {
+  const box     = document.getElementById('guruStatusBox');
+  const content = document.getElementById('guruStatusContent');
+
+  if (!guruList.length) {
+    box.className = 'guru-status no-guru';
+    content.innerHTML = `<div class="no-guru-text">
+      <span>⚠️</span>
+      <span>Belum ada guru piket. Scan kartu guru dulu.</span>
+    </div>`;
+    return;
+  }
+
+  box.className = 'guru-status ada-guru';
+  content.innerHTML = `<div class="guru-list">
+    ${guruList.map(g => `
+      <div class="guru-item">
+        <div class="guru-avatar">${g.nama_guru.charAt(0)}</div>
+        <div>
+          <div class="guru-nama">${g.nama_guru}</div>
+          <div class="guru-jam">${g.jabatan} • Scan ${g.jam_scan}</div>
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+// ── SCANNER ──────────────────────────────────────────────────────
+async function startScanner() {
+  if (scanActive) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal:'environment' } }
+    });
+    scanStream = stream; scanActive = true;
+    const video = document.getElementById('scanVideo');
+    video.srcObject = stream;
+    await video.play();
+    scanLoop();
+  } catch(e) {
+    toast('⚠️ Kamera tidak bisa diakses: ' + e.message);
+  }
+}
+
+function scanLoop() {
+  if (!scanActive) return;
+  const video  = document.getElementById('scanVideo');
+  const canvas = document.getElementById('scanCanvas');
+  if (!video.readyState || video.readyState < 2) {
+    scanAnimFrame = requestAnimationFrame(scanLoop); return;
+  }
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  ctx.drawImage(video, 0, 0);
+  const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height);
+  if (code) processQR(code.data);
+  else scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// ── PROSES QR ────────────────────────────────────────────────────
+async function processQR(data) {
+  const now = Date.now();
+  if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
+    scanAnimFrame = requestAnimationFrame(scanLoop); return;
+  }
+  if (scanCooldown) return;
+  scanCooldown = true;
+
+  try {
+    const parts      = data.split('|');
+    const identifier = parts[0].trim();
+    if (!identifier) {
+      showFlash('error','❌','QR tidak valid');
+      scanCooldown = false;
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+
+    const result = await api('scan','scanKartu',{ identifier, mode: scanMode });
+    handleScanResult(result, data, now);
+
+  } catch(e) {
+    showFlash('error','❌','Koneksi gagal');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
+}
+
+function handleScanResult(result, data, now) {
+  if (result.success) {
+    scannedHistory[data] = now;
+
+    if (result.tipe === 'guru') {
+      showFlash('guru','👤', result.guru.nama);
+      toast('✅ ' + result.message);
+      checkStatus();
+    } else {
+      const isLate   = result.status === 'Terlambat';
+      const isPulang = result.status === 'Pulang';
+      showFlash(
+        isPulang ? 'warning' : isLate ? 'warning' : 'success',
+        isPulang ? '🌙' : isLate ? '⚠️' : '✅',
+        result.siswa.nama + '\n' + result.siswa.kelas
+      );
+      toast(result.message);
+      updateLastResult(result);
+      loadLog();
+    }
+
+    startCooldown(3000);
+    setTimeout(() => {
+      scanCooldown = false;
+      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    }, 3000);
+
+  } else {
+    showFlash('error','❌', result.message);
+    toast('❌ ' + result.message);
+    updateLastResultError(result.message);
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
+}
+
+// ── MANUAL INPUT ─────────────────────────────────────────────────
+async function doManual() {
+  const id = document.getElementById('manualInput').value.trim();
+  if (!id) return;
+  try {
+    const result = await api('scan','scanKartu',{ identifier: id, mode: scanMode });
+    handleScanResult(result, id, Date.now());
+    document.getElementById('manualInput').value = '';
+  } catch(e) { toast('❌ Koneksi gagal'); }
+}
+
+// ── FLASH ────────────────────────────────────────────────────────
+function showFlash(type, icon, text) {
+  const el   = document.getElementById('scanFlash');
+  const ico  = document.getElementById('flashIcon');
+  const txt  = document.getElementById('flashText');
+  ico.textContent = icon;
+  txt.textContent = text;
+  el.className = `scan-flash show ${type}`;
+  setTimeout(() => { el.className = 'scan-flash'; }, 2000);
+  playBeep(type);
+}
+
+// ── COOLDOWN BAR ─────────────────────────────────────────────────
+function startCooldown(ms) {
+  const fill = document.getElementById('cooldownFill');
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  fill.getBoundingClientRect();
+  fill.style.transition = `width ${ms}ms linear`;
+  fill.style.width = '0%';
+}
+
+// ── LAST RESULT ──────────────────────────────────────────────────
+function updateLastResult(result) {
+  const el     = document.getElementById('lastResult');
+  const s      = result.siswa;
+  const isLate = result.status === 'Terlambat';
+  const isPul  = result.status === 'Pulang';
+  const icon   = isPul ? '🌙' : isLate ? '⚠️' : '✅';
+  const stCls  = isPul ? 'status-pulang' : isLate ? 'status-terlambat' : 'status-hadir';
+  const stTxt  = isPul ? 'Pulang' : isLate ? 'Terlambat' : 'Hadir';
+  const now    = new Date(Date.now()+8*60*60*1000);
+  const jam    = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`;
+  el.innerHTML = `
+    <div class="last-result-icon">${icon}</div>
+    <div class="last-result-info">
+      <div class="last-result-nama">${s.nama}</div>
+      <div class="last-result-detail">Kelas ${s.kelas} • NISN: ${s.nisn} • ${jam}</div>
+    </div>
+    <span class="last-result-status ${stCls}">${stTxt}</span>`;
+}
+
+function updateLastResultError(msg) {
+  const el = document.getElementById('lastResult');
+  el.innerHTML = `
+    <div class="last-result-icon">❌</div>
+    <div class="last-result-info">
+      <div class="last-result-nama" style="color:#ef9a9a">${msg}</div>
+      <div class="last-result-detail">Gagal diproses</div>
+    </div>`;
+}
+
+// ── LOAD LOG ─────────────────────────────────────────────────────
+async function loadLog() {
+  const kelas = document.getElementById('filterKelas').value;
+  try {
+    const r = await api('scan','getLogHariIni',{ kelas });
+    if (!r.success) return;
+    logData = r;
+    document.getElementById('statHadir').textContent = r.totalHadir;
+    document.getElementById('statBelum').textContent = r.totalBelum;
+    document.getElementById('statTotal').textContent = r.totalSiswa;
+    document.getElementById('tabBelumCount').textContent = r.totalBelum;
+    document.getElementById('tabHadirCount').textContent = r.totalHadir;
+    renderLog();
+  } catch(e) {}
+}
+
+// ── SWITCH TAB ───────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tabBelum').classList.toggle('active', tab==='belum');
+  document.getElementById('tabHadir').classList.toggle('active', tab==='hadir');
+  renderLog();
+}
+
+// ── RENDER LOG ───────────────────────────────────────────────────
+function renderLog() {
+  const container = document.getElementById('logContainer');
+  const list = activeTab === 'belum' ? logData.belumHadir : logData.hadir;
+
+  if (!list || !list.length) {
+    container.innerHTML = `<div class="log-empty">
+      <div class="log-empty-icon">${activeTab==='belum'?'🎉':'📋'}</div>
+      <div>${activeTab==='belum'?'Semua siswa sudah hadir!':'Belum ada siswa yang hadir'}</div>
+    </div>`;
+    return;
+  }
+
+  if (activeTab === 'belum') {
+    container.innerHTML = list.map(s => `
+      <div class="log-item">
+        <div class="log-avatar belum">${s.nama.charAt(0)}</div>
+        <div>
+          <div class="log-nama">${s.nama}</div>
+          <div class="log-kelas">${s.kelas} • ${s.nisn}</div>
+        </div>
+        <div class="log-right">
+          <span class="log-badge badge-belum">Belum Hadir</span>
+        </div>
+      </div>`).join('');
+  } else {
+    container.innerHTML = list.map(s => {
+      const isLate = s.statusDatang === 'Terlambat';
+      const isPul  = s.jamPulang;
+      const avCls  = isLate ? 'terlambat' : 'hadir';
+      const bdgCls = isPul ? 'badge-pulang' : isLate ? 'badge-terlambat' : 'badge-hadir';
+      const bdgTxt = isPul ? `Pulang ${s.jamPulang}` : isLate ? 'Terlambat' : 'Hadir';
+      return `
+        <div class="log-item">
+          <div class="log-avatar ${avCls}">${s.nama.charAt(0)}</div>
+          <div>
+            <div class="log-nama">${s.nama}</div>
+            <div class="log-kelas">${s.kelas} • ${s.nisn}</div>
+          </div>
+          <div class="log-right">
+            <div class="log-jam">${s.jamDatang}</div>
+            <span class="log-badge ${bdgCls}">${bdgTxt}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+}
+
+// ── BEEP ─────────────────────────────────────────────────────────
+function playBeep(type) {
+  try {
+    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if (type === 'success' || type === 'guru') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.8, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
+    } else if (type === 'warning') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(900, ctx.currentTime);
+      gain.gain.setValueAtTime(0.7, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+    } else {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      gain.gain.setValueAtTime(0.6, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+    }
+    setTimeout(()=>ctx.close(), 1000);
+  } catch(e) {}
+}
+
+// ── START ────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

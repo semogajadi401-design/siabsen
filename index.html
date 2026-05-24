@@ -3028,6 +3028,16 @@ async function doAbsensi(siswa){
 
 function showAbsenResult(result,siswa){
   const el=document.getElementById('absenResult');
+  // Tangani jika QR guru discan di halaman absensi guru
+  if (result.tipe === 'guru') {
+    el.className = 'absen-result show success';
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:3rem">👤</div>
+      <div><div style="font-size:1rem;font-weight:800">${result.guru?.nama}</div>
+      <div style="font-size:.85rem;color:var(--text-muted)">Tercatat sebagai guru piket</div>
+      </div></div>`;
+    return;
+  }
   if(result.success){
     const isLate=result.status==='Terlambat';
     const isPulang=result.status==='Pulang';
@@ -3658,10 +3668,9 @@ let grafikBar = null;
 let grafikPie = null;
 
 async function loadEvaluasi() {
+  await loadSemesterList(); // ← tambah ini
+  populateKelasDropdowns(); // ← dan ini
   const semesterEl = document.getElementById('evalSemester');
-  const kelasEl    = document.getElementById('evalKelas');
-
-  // Auto-pilih option pertama jika belum ada pilihan
   if (!semesterEl.value && semesterEl.options.length > 1) {
     semesterEl.value = semesterEl.options[1].value;
   }

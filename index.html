@@ -1785,9 +1785,10 @@ window.onload = async function() {
   const rb = document.getElementById('rekapBulan'); if(rb) rb.value = now.getMonth()+1;
   const ry = document.getElementById('rekapTahun'); if(ry) ry.value = now.getFullYear();
 
+  const nowWITA = new Date(Date.now()+8*60*60*1000);
   const ab = document.getElementById('absenTanggal');
   if(ab){ const days=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'],months=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
-    ab.textContent=`${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`; }
+    ab.textContent=`${days[nowWITA.getDay()]}, ${nowWITA.getDate()} ${months[nowWITA.getMonth()]} ${nowWITA.getFullYear()}`; }
 
   const months=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const cm = document.getElementById('calMonth');

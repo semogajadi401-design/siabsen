@@ -733,7 +733,8 @@ function handleScanResult(result, data, now) {
 
 // ── MANUAL INPUT ─────────────────────────────────────────────────
 async function doManual() {
-  const id = document.getElementById('manualInput').value.trim();
+  const raw = document.getElementById('manualInput').value.trim();
+  const id  = raw.split('|')[0].trim();
   if (!id) return;
   try {
     const result = await api('scan','scanKartu',{ identifier: id, mode: scanMode });

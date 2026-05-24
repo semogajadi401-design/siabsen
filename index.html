@@ -2988,11 +2988,8 @@ async function doManualAbsen() {
   const id = document.getElementById('manualId').value.trim();
   if (!id) { toast('Masukkan ID atau NISN siswa', 'warning'); return; }
   try {
-    const result = await api('absensi', 'scanAbsen', {
-      identifier: id,
-      idGuru: APP.user?.id || '',
-      namaGuru: APP.user?.nama || '',
-      mode: absenMode
+    const result = await api('scan', 'scanKartu', {
+      identifier, mode: absenMode
     });
     showAbsenResult(result, result.siswa || {});
     if (result.success) {

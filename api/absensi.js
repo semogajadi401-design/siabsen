@@ -55,11 +55,8 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
       success: false,
       message: 'Guru piket belum scan kartu. Absensi tidak bisa dilakukan.'
     };
-  // ─────────────────────────────────────────────────────────────
 
-  // Ambil jam setting sekali saja
-  const jamSetting   = await getJamSetting();
-  // Ambil jam setting sekali saja
+  // Ambil jam setting sekali saja  ← hanya satu ini yang dipakai
   const jamSetting   = await getJamSetting();
   const jamMulai     = jamSetting['JAM_DATANG_MULAI']   || '06:00';
   const jamSelesaiOp = jamSetting['JAM_PULANG_SELESAI'] || '17:00';

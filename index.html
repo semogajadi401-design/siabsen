@@ -1731,7 +1731,7 @@ async function renderKelasPage() {
 
 function populateKelasDropdowns() {
   const kelas = APP.kelasList;
-  const selectors = ['siswaKelas','filterKelas','kartuKelas','rekapKelasFilter','rekapKelasHarian'];
+  const selectors = ['siswaKelas','filterKelas','kartuKelas','rekapKelasFilter','rekapKelasHarian','khFilterKelas','evalKelas'];
   selectors.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1739,7 +1739,6 @@ function populateKelasDropdowns() {
     const hasAll = id !== 'siswaKelas';
     el.innerHTML = hasAll ? '<option value="">Semua Kelas</option>' : '';
     kelas.forEach(k => el.innerHTML += `<option value="${k}">${k}</option>`);
-    // Restore value if still valid
     if (kelas.includes(cur)) el.value = cur;
   });
 }
@@ -1780,7 +1779,7 @@ window.onload = async function() {
   } catch(e) { console.warn('constants error', e); }
 
   // Default dates
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date(Date.now()+8*60*60*1000).toISOString().split('T')[0];
   ['rekapTanggal','rekapTanggalGuru'].forEach(id => { const el=document.getElementById(id); if(el) el.value=today; });
   const now = new Date();
   const rb = document.getElementById('rekapBulan'); if(rb) rb.value = now.getMonth()+1;
@@ -2921,7 +2920,7 @@ function playBeep(type) {
 }
 
 async function loadLogAbsensi(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=new Date(Date.now()+8*60*60*1000).toISOString().split('T')[0];
   try{
     const result=await api('absensi','rekapHarian',{tanggal:today});
     const tbody=document.getElementById('logAbsensiBody');
@@ -3408,7 +3407,7 @@ async function loadSemesterList() {
 }
 
 async function loadHariKerjaSettings() {
-  const result = await api('kehadiran', 'getHariKerja');
+  const result = await api('settings', 'getPengaturanHari');
   const container = document.getElementById('hariKerjaList');
   if (!result.success || !container) return;
   container.innerHTML = result.data.map(h => `
@@ -3428,7 +3427,7 @@ async function saveHariKerja() {
     hari: h,
     aktif: document.getElementById('hk_' + h)?.checked || false
   }));
-  const result = await api('kehadiran', 'updateHariKerja', { hariList });
+  const result = await api('settings', 'updatePengaturanHari', { hariList });
   toast(result.message, result.success ? 'success' : 'error');
 }
 

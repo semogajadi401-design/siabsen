@@ -2003,7 +2003,11 @@ async function loadSiswa(){
     const tbody=document.getElementById('siswaTableBody');
     if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data siswa</td></tr>';return;}
     window._siswaData = result.data;
-    tbody.innerHTML=result.data.map((s,i)=>`<tr><td>${i+1}</td><td><code style="font-size:.8rem">${s.nisn}</code></td><td><div style="font-weight:600">${s.nama}</div></td><td><span class="badge badge-primary">${s.kelas}</span></td><td>${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${s.agama}</td><td><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editSiswa(window._siswaData[${i}])">✏️</button><button class="btn btn-danger btn-sm" onclick="hapusSiswa('${s.id}',window._siswaData[${i}].nama)">🗑</button></div></td></tr>`).join('');
+    tbody.innerHTML=result.data.map((s,i)=>`<tr><td>${i+1}</td><td><code style="font-size:.8rem">${s.nisn}</code></td><td><div style="font-weight:600">${s.nama}</div></td><td><span class="badge badge-primary">${s.kelas}</span></td><td>${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${s.agama}</td><td><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button>
+      <button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button>
+      <button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>
+      <button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)">🗑</button>
+    </div></td></tr>`).join('');
     // Setelah load siswa, refresh kelas (mungkin ada kelas baru dari DB)
     await loadAndMergeKelas();
     populateKelasDropdowns();
@@ -2014,6 +2018,138 @@ function editSiswa(s){ document.getElementById('siswaId').value=s.id; document.g
 async function submitSiswa(){ const id=document.getElementById('siswaId').value; const data={nisn:document.getElementById('siswaNISN').value.trim(),nama:document.getElementById('siswaNama').value.trim(),jenisKelamin:document.getElementById('siswaJK').value,agama:document.getElementById('siswaAgama').value,tempatLahir:document.getElementById('siswaTempatLahir').value,tanggalLahir:document.getElementById('siswaTanggalLahir').value,kelas:document.getElementById('siswaKelas').value,tahunMasuk:document.getElementById('siswaTahunMasuk').value,namaOrtu:document.getElementById('siswaOrtu').value,noHpOrtu:document.getElementById('siswaHPOrtu').value,alamat:document.getElementById('siswaAlamat').value}; if(!data.nama||!data.nisn){toast('Nama dan NISN wajib diisi','error');return;} try{const r=id?await api('siswa','edit',{id,data}):await api('siswa','tambah',{data}); toast(r.message,r.success?'success':'error'); if(r.success){closeModal('modalSiswa');loadSiswa();}}catch(e){toast('Terjadi kesalahan','error');} }
 async function hapusSiswa(id,nama){ if(!confirm(`Nonaktifkan siswa "${nama}"?`))return; const r=await api('siswa','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
 
+  // ── KARTU GURU ───────────────────────────────────────────────────
+async function cetakKartuGuru(guru) {
+  // Pastikan settings sudah dimuat
+  if (!APP.settings) {
+    const r = await api('settings','getJamSetting');
+    if (r.success) APP.settings = r.data;
+  }
+
+  const settings  = APP.settings || {};
+  const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const logoUrl    = settings['LOGO_URL'] || '';
+  const email      = settings['EMAIL_SEKOLAH'] || '';
+  const schoolAddr = settings['ALAMAT_SEKOLAH'] || '';
+  const tahunAjaran = settings['TAHUN_AJARAN'] || '2024/2025';
+  const avatar     = guru.jenisKelamin === 'Perempuan' ? '👩‍🏫' : '👨‍🏫';
+
+  const logoHTML = logoUrl
+    ? `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0"><img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain"></div>`
+    : `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">🏫</div>`;
+
+  // Buat elemen kartu guru
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
+  wrap.innerHTML = `
+  <div id="kartuGuruPrint" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+
+    <!-- HEADER BIRU -->
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:7px 10px 28px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:6px">
+        ${logoHTML}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:6.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.3px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+          <div style="font-size:5pt;color:rgba(255,255,255,0.75);margin-top:1px">Tahun Ajaran ${tahunAjaran}</div>
+        </div>
+        <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 5px;font-size:4.5pt;font-weight:700;color:#FFD700;white-space:nowrap;align-self:flex-start;flex-shrink:0">Kartu Guru</div>
+      </div>
+    </div>
+
+    <!-- WAVE -->
+    <div style="position:relative;z-index:2;margin-top:-2px;flex-shrink:0;line-height:0">
+      <svg viewBox="0 0 215 38" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,0 L215,0 L215,16 Q161,40 107,28 Q54,16 0,38 Z" fill="#fff"/>
+      </svg>
+    </div>
+
+    <!-- AVATAR -->
+    <div style="position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-top:-36px;flex-shrink:0">
+      <div style="width:60px;height:60px;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.18);background:linear-gradient(135deg,#E3F2FD,#BBDEFB);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+        <span style="font-size:28pt;line-height:1;margin-top:3px">${avatar}</span>
+      </div>
+    </div>
+
+    <!-- NAMA -->
+    <div style="position:relative;z-index:2;text-align:center;padding:5px 10px 1px;flex-shrink:0">
+      <div style="font-size:10pt;font-weight:800;color:#0D47A1;line-height:1.2;letter-spacing:.1px">${guru.nama}</div>
+      <div style="font-size:6pt;font-weight:600;color:#1565C0;margin-top:2px;letter-spacing:.5px;text-transform:uppercase">${guru.jabatan}</div>
+    </div>
+
+    <!-- GARIS -->
+    <div style="height:1.5px;margin:5px 18px 0;background:linear-gradient(90deg,transparent,#1565C0,transparent);flex-shrink:0"></div>
+
+    <!-- DATA -->
+    <div style="position:relative;z-index:2;padding:5px 12px 4px;flex:1">
+      ${guru.nip ? `<div style="display:flex;align-items:baseline;margin-bottom:3px;padding-bottom:3px;border-bottom:1px solid #e8ecf0">
+        <span style="font-size:5.5pt;font-weight:700;color:#999;text-transform:uppercase;min-width:58px;flex-shrink:0">NIP</span>
+        <span style="font-size:6.5pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
+        <span style="font-size:6.5pt;font-weight:600;color:#222;flex:1">${guru.nip}</span>
+      </div>` : ''}
+      <div style="display:flex;align-items:baseline;margin-bottom:0;padding-bottom:0">
+        <span style="font-size:5.5pt;font-weight:700;color:#999;text-transform:uppercase;min-width:58px;flex-shrink:0">Sekolah</span>
+        <span style="font-size:6.5pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
+        <span style="font-size:6pt;font-weight:600;color:#222;flex:1;line-height:1.3">${schoolName}</span>
+      </div>
+    </div>
+
+    <!-- QR -->
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:4px 12px 5px;flex-shrink:0">
+      <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuGuruQR" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      </div>
+      <div style="font-size:4.5pt;color:#aaa;text-align:center;margin-top:3px;letter-spacing:.2px">Scan untuk piket • ${guru.id}</div>
+    </div>
+
+    <!-- WAVE BAWAH -->
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:3px">
+      <svg viewBox="0 0 215 28" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,28 L215,28 L215,14 Q161,0 107,12 Q54,24 0,6 Z" fill="#0D47A1"/>
+      </svg>
+    </div>
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1,#1976D2);padding:4px 10px 6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolAddr || schoolName}</span>
+    </div>
+  </div>`;
+
+  document.body.appendChild(wrap);
+
+  // Generate QR
+  setTimeout(async () => {
+    const qrEl = document.getElementById('kartuGuruQR');
+    if (qrEl && typeof QRCode !== 'undefined') {
+      new QRCode(qrEl, {
+        text: guru.id,
+        width: 72, height: 72,
+        colorDark: '#0D47A1',
+        colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    // Download PDF
+    setTimeout(async () => {
+      try {
+        const { jsPDF } = window.jspdf;
+        const kartu = document.getElementById('kartuGuruPrint');
+        const canvas = await html2canvas(kartu, {
+          scale: 3, useCORS: true, backgroundColor: '#ffffff',
+          width: kartu.offsetWidth, height: kartu.scrollHeight
+        });
+        const CARD_W_PT = 5.7 * 28.3465;
+        const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
+        const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:[CARD_W_PT, CARD_H_PT] });
+        pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,CARD_W_PT,CARD_H_PT);
+        pdf.save(`Kartu_Guru_${guru.nama.replace(/\s+/g,'_')}.pdf`);
+        toast('✅ Kartu guru berhasil didownload!','success');
+      } catch(e) {
+        toast('❌ Gagal: ' + e.message,'error');
+      } finally {
+        document.body.removeChild(wrap);
+      }
+    }, 800);
+  }, 400);
+}
 // ── PIKET ────────────────────────────────────────────────────────
 async function loadPiket() {
   try {

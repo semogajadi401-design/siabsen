@@ -6,6 +6,21 @@
 <title>SIABSEN - Absensi</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
+<script>
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(reg => {
+        // Kirim perintah sync saat SW aktif
+        navigator.serviceWorker.addEventListener('message', e => {
+          if (e.data && e.data.type === 'DO_SYNC') checkAndSync();
+        });
+      })
+      .catch(() => {}); // SW gagal daftar = tidak apa-apa
+  });
+}
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -340,10 +355,207 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
   backdrop-filter:blur(10px);
 }
 @keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── OFFLINE INDICATOR BAR ── */
+#offlineBar{
+  position:fixed;top:0;left:0;right:0;z-index:8000;
+  background:linear-gradient(90deg,#b71c1c,#e53935);
+  color:#fff;font-size:.78rem;font-weight:600;
+  padding:0;height:0;overflow:hidden;
+  transition:height .3s ease,padding .3s ease;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+#offlineBar.show{height:36px;padding:0 16px}
+#offlineBar .ob-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#ff8a80;animation:obPulse 1.4s infinite;
+}
+@keyframes obPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+/* ── SYNC OVERLAY ── */
+#syncOverlay{
+  position:fixed;inset:0;z-index:9000;
+  background:rgba(5,10,25,0.97);
+  backdrop-filter:blur(20px);
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;
+}
+#syncOverlay.show{display:flex}
+
+.sync-card{
+  width:min(420px,92vw);
+  background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:24px;padding:40px 36px;
+  text-align:center;position:relative;overflow:hidden;
+}
+.sync-card::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 0%,rgba(33,150,243,0.12) 0%,transparent 70%);
+  pointer-events:none;
+}
+
+/* orbit ring */
+.sync-orbit{
+  width:100px;height:100px;margin:0 auto 28px;
+  position:relative;
+}
+.sync-orbit-ring{
+  position:absolute;inset:0;border-radius:50%;
+  border:2px solid transparent;
+  border-top-color:#2196f3;border-right-color:#42a5f5;
+  animation:orbitSpin 1.2s linear infinite;
+}
+.sync-orbit-ring:nth-child(2){
+  inset:10px;border-top-color:transparent;
+  border-bottom-color:#64b5f6;border-left-color:#90caf9;
+  animation:orbitSpin 1.8s linear infinite reverse;
+}
+.sync-orbit-core{
+  position:absolute;inset:22px;border-radius:50%;
+  background:linear-gradient(135deg,#1565C0,#42a5f5);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;
+  box-shadow:0 0 20px rgba(33,150,243,0.5);
+}
+@keyframes orbitSpin{to{transform:rotate(360deg)}}
+
+.sync-title{
+  font-size:1.3rem;font-weight:800;color:#fff;
+  margin-bottom:6px;letter-spacing:-.3px;
+}
+.sync-subtitle{
+  font-size:.82rem;color:rgba(255,255,255,0.45);
+  margin-bottom:28px;
+}
+
+/* progress bar */
+.sync-progress-wrap{
+  background:rgba(255,255,255,0.06);
+  border-radius:100px;height:6px;margin-bottom:10px;overflow:hidden;
+}
+.sync-progress-fill{
+  height:100%;border-radius:100px;width:0%;
+  background:linear-gradient(90deg,#1565C0,#42a5f5,#81d4fa);
+  background-size:200% 100%;
+  transition:width .4s cubic-bezier(.4,0,.2,1);
+  animation:progressShimmer 1.5s linear infinite;
+}
+@keyframes progressShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+.sync-progress-label{
+  display:flex;justify-content:space-between;
+  font-size:.73rem;color:rgba(255,255,255,0.4);
+  margin-bottom:24px;
+}
+
+/* item list */
+.sync-log{
+  max-height:180px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:6px;
+  margin-bottom:24px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent;
+}
+.sync-log-item{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:10px;padding:8px 12px;
+  font-size:.78rem;color:rgba(255,255,255,0.7);
+  text-align:left;transition:all .3s;
+}
+.sync-log-item.ok{border-color:rgba(76,175,80,0.3);background:rgba(76,175,80,0.07)}
+.sync-log-item.err{border-color:rgba(244,67,54,0.3);background:rgba(244,67,54,0.07)}
+.sync-log-item.loading{opacity:.5}
+.sync-log-icon{font-size:1rem;flex-shrink:0;width:22px;text-align:center}
+.sync-log-text{flex:1;line-height:1.3}
+.sync-log-nama{font-weight:600;color:#fff}
+.sync-log-status{font-size:.7rem;color:rgba(255,255,255,0.4)}
+
+/* result summary */
+.sync-result{display:none;flex-direction:column;gap:12px;margin-bottom:24px}
+.sync-result.show{display:flex}
+.sync-result-row{display:flex;justify-content:space-between;align-items:center;
+  background:rgba(255,255,255,0.04);border-radius:10px;padding:10px 14px}
+.sync-result-label{font-size:.8rem;color:rgba(255,255,255,0.5)}
+.sync-result-val{font-size:1rem;font-weight:700;color:#fff}
+.sync-result-val.green{color:#69f0ae}.sync-result-val.red{color:#ff5252}
+
+.sync-done-icon{font-size:2.5rem;margin-bottom:8px;display:none}
+.sync-done-icon.show{display:block;animation:popIn .4s cubic-bezier(.175,.885,.32,1.275)}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+.sync-close-btn{
+  background:linear-gradient(135deg,#1565C0,#42a5f5);
+  border:none;color:#fff;font-size:.9rem;font-weight:700;
+  padding:14px 32px;border-radius:14px;cursor:pointer;
+  display:none;transition:transform .15s,box-shadow .15s;
+  box-shadow:0 4px 20px rgba(33,150,243,0.4);
+}
+.sync-close-btn.show{display:inline-block}
+.sync-close-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(33,150,243,0.5)}
+
+/* ── OFFLINE BADGE (header) ── */
+.offline-badge{
+  display:none;align-items:center;gap:5px;
+  background:rgba(183,28,28,0.25);border:1px solid rgba(239,83,80,0.4);
+  border-radius:8px;padding:4px 10px;font-size:.7rem;font-weight:700;
+  color:#ef9a9a;cursor:pointer;transition:all .2s;
+}
+.offline-badge.show{display:flex}
+.offline-badge .badge-count{
+  background:#ef5350;color:#fff;border-radius:5px;
+  padding:1px 6px;font-size:.65rem;font-weight:800;min-width:18px;text-align:center;
+}
 </style>
 </head>
 <body>
 <div id="toastWrap"></div>
+
+<!-- OFFLINE TOP BAR -->
+<div id="offlineBar">
+  <div class="ob-dot"></div>
+  <span>Tidak ada koneksi internet — scan tetap berjalan, data disimpan lokal</span>
+</div>
+
+<!-- SYNC OVERLAY -->
+<div id="syncOverlay">
+  <div class="sync-card">
+    <div class="sync-orbit">
+      <div class="sync-orbit-ring"></div>
+      <div class="sync-orbit-ring"></div>
+      <div class="sync-orbit-core">📡</div>
+    </div>
+    <div class="sync-title" id="syncTitle">Mengirim Data</div>
+    <div class="sync-subtitle" id="syncSubtitle">Menyinkronkan data offline ke server...</div>
+
+    <div class="sync-progress-wrap">
+      <div class="sync-progress-fill" id="syncProgressFill"></div>
+    </div>
+    <div class="sync-progress-label">
+      <span id="syncProgressText">Mempersiapkan...</span>
+      <span id="syncProgressPct">0%</span>
+    </div>
+
+    <div class="sync-log" id="syncLog"></div>
+
+    <div class="sync-result" id="syncResult">
+      <div class="sync-result-row">
+        <span class="sync-result-label">✅ Berhasil dikirim</span>
+        <span class="sync-result-val green" id="syncOkCount">0</span>
+      </div>
+      <div class="sync-result-row">
+        <span class="sync-result-label">❌ Gagal / duplikat</span>
+        <span class="sync-result-val red" id="syncErrCount">0</span>
+      </div>
+    </div>
+
+    <div class="sync-done-icon" id="syncDoneIcon">🎉</div>
+    <button class="sync-close-btn" id="syncCloseBtn" onclick="closeSyncOverlay()">
+      Selesai — Lanjutkan Scan
+    </button>
+  </div>
+</div>
 
 <!-- HEADER -->
 <div class="header">
@@ -362,6 +574,10 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
       <div class="tgl" id="headerTgl"></div>
     </div>
     <button class="btn-admin" onclick="window.location.href='/'">⚙ Admin</button>
+    <div class="offline-badge" id="offlineBadge" onclick="showSyncOverlay()" title="Klik untuk kirim data offline">
+      <span>📴 Offline</span>
+      <span class="badge-count" id="offlineCount">0</span>
+    </div>
   </div>
 </div>
 
@@ -697,22 +913,9 @@ async function processQR(data) {
 function handleScanResult(result, data, now) {
   if (result.success) {
     // ========== CEK ADMIN ==========
-    // KODE BARU
     if (result.tipe === 'admin') {
       showFlash('guru', '👑', 'Admin Login');
       toast('🔐 Mengalihkan ke dashboard admin...', 2000);
-    
-      // Simpan session ke localStorage agar index.html langsung masuk dashboard
-      const sessionData = {
-        user: {
-          username: result.admin.username,
-          nama: result.admin.nama,
-          role: 'admin'
-        },
-        loginTime: Date.now()
-      };
-      localStorage.setItem('siabsen_session', JSON.stringify(sessionData));
-    
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);
@@ -921,8 +1124,298 @@ function playBeep(type) {
   } catch(e) {}
 }
 
+// ══════════════════════════════════════════════════════════════════
+// ── OFFLINE SYSTEM ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+
+const DB_NAME    = 'siabsen_offline';
+const DB_VERSION = 1;
+const STORE_NAME = 'antrian';
+let offlineDB    = null;
+let isOnline     = navigator.onLine;
+let isSyncing    = false;
+
+// ── BUKA IndexedDB ───────────────────────────────────────────────
+function openDB() {
+  return new Promise((resolve, reject) => {
+    if (offlineDB) { resolve(offlineDB); return; }
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'localId' });
+        store.createIndex('tanggal', 'tanggal', { unique: false });
+      }
+    };
+    req.onsuccess = e => { offlineDB = e.target.result; resolve(offlineDB); };
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+// ── SIMPAN KE ANTRIAN ─────────────────────────────────────────────
+async function simpanKeAntrian(item) {
+  const db    = await openDB();
+  const localId = `off_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const data  = { ...item, localId, waktuSimpan: new Date().toISOString() };
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).add(data);
+    tx.oncomplete = () => { resolve(localId); updateOfflineBadge(); };
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+// ── AMBIL SEMUA ANTRIAN ───────────────────────────────────────────
+async function getAntrian() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+// ── HAPUS ITEM DARI ANTRIAN ───────────────────────────────────────
+async function hapusDariAntrian(localId) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(localId);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+// ── UPDATE BADGE COUNT ────────────────────────────────────────────
+async function updateOfflineBadge() {
+  const antrian = await getAntrian();
+  const count   = antrian.length;
+  document.getElementById('offlineCount').textContent = count;
+  const badge = document.getElementById('offlineBadge');
+  if (!isOnline && count > 0) badge.classList.add('show');
+  else badge.classList.remove('show');
+}
+
+// ── UPDATE STATUS BAR ─────────────────────────────────────────────
+function updateOnlineStatus(online) {
+  isOnline = online;
+  const bar = document.getElementById('offlineBar');
+  if (online) {
+    bar.classList.remove('show');
+    document.getElementById('offlineBadge').classList.remove('show');
+    // Cek antrian saat kembali online
+    checkAndSync();
+  } else {
+    bar.classList.add('show');
+    updateOfflineBadge();
+  }
+}
+
+// ── CEK & TAMPILKAN NOTIF SYNC ────────────────────────────────────
+async function checkAndSync() {
+  const antrian = await getAntrian();
+  if (antrian.length === 0) return;
+  // Tampilkan overlay konfirmasi/otomatis sync
+  showSyncOverlay(antrian);
+}
+
+// ── TAMPILKAN SYNC OVERLAY ────────────────────────────────────────
+async function showSyncOverlay(antrian) {
+  if (isSyncing) return;
+  const data = antrian || await getAntrian();
+  if (data.length === 0) { toast('✅ Tidak ada data offline untuk dikirim'); return; }
+
+  // Reset UI
+  const overlay = document.getElementById('syncOverlay');
+  document.getElementById('syncTitle').textContent      = 'Mengirim Data Offline';
+  document.getElementById('syncSubtitle').textContent   = `${data.length} data scan akan dikirim ke server`;
+  document.getElementById('syncProgressFill').style.width = '0%';
+  document.getElementById('syncProgressText').textContent = 'Mempersiapkan...';
+  document.getElementById('syncProgressPct').textContent  = '0%';
+  document.getElementById('syncLog').innerHTML   = '';
+  document.getElementById('syncResult').classList.remove('show');
+  document.getElementById('syncDoneIcon').classList.remove('show');
+  document.getElementById('syncCloseBtn').classList.remove('show');
+  document.getElementById('syncOkCount').textContent  = '0';
+  document.getElementById('syncErrCount').textContent = '0';
+
+  // Tampilkan preview item
+  const logEl = document.getElementById('syncLog');
+  data.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'sync-log-item loading';
+    div.id = `sli_${item.localId}`;
+    div.innerHTML = `
+      <div class="sync-log-icon">⏳</div>
+      <div class="sync-log-text">
+        <div class="sync-log-nama">${item.namaCache || item.identifier}</div>
+        <div class="sync-log-status">${item.tanggal} • ${item.jam} • ${item.mode === 'pulang' ? 'Pulang' : 'Datang'}</div>
+      </div>`;
+    logEl.appendChild(div);
+  });
+
+  overlay.classList.add('show');
+
+  // Jeda sebentar agar animasi muncul dulu
+  await sleep(600);
+  await jalankanSync(data);
+}
+
+// ── JALANKAN SYNC KE SERVER ───────────────────────────────────────
+async function jalankanSync(antrian) {
+  isSyncing = true;
+  const logEl = document.getElementById('syncLog');
+  let berhasil = 0, gagal = 0;
+
+  for (let i = 0; i < antrian.length; i++) {
+    const item   = antrian[i];
+    const liEl   = document.getElementById(`sli_${item.localId}`);
+    const pct    = Math.round(((i) / antrian.length) * 100);
+
+    // Update progress
+    document.getElementById('syncProgressFill').style.width = pct + '%';
+    document.getElementById('syncProgressPct').textContent  = pct + '%';
+    document.getElementById('syncProgressText').textContent = `Mengirim ${i+1} dari ${antrian.length}...`;
+    if (liEl) liEl.querySelector('.sync-log-icon').textContent = '📡';
+    logEl.scrollTop = logEl.scrollHeight;
+
+    try {
+      const res = await api('sync', 'batchSync', { items: [item] });
+      const r   = res.results?.[0] || res;
+
+      if (r.success) {
+        berhasil++;
+        await hapusDariAntrian(item.localId);
+        if (liEl) {
+          liEl.className = 'sync-log-item ok';
+          liEl.querySelector('.sync-log-icon').textContent = '✅';
+          liEl.querySelector('.sync-log-status').textContent = r.message || 'Berhasil';
+        }
+      } else {
+        // Duplikat / sudah ada = hapus juga dari antrian
+        const isDuplikat = r.message && (r.message.includes('sudah') || r.message.includes('tidak ditemukan'));
+        if (isDuplikat) await hapusDariAntrian(item.localId);
+        gagal++;
+        if (liEl) {
+          liEl.className = 'sync-log-item err';
+          liEl.querySelector('.sync-log-icon').textContent = isDuplikat ? '⚠️' : '❌';
+          liEl.querySelector('.sync-log-status').textContent = r.message || 'Gagal';
+        }
+      }
+    } catch(e) {
+      gagal++;
+      if (liEl) {
+        liEl.className = 'sync-log-item err';
+        liEl.querySelector('.sync-log-icon').textContent = '❌';
+        liEl.querySelector('.sync-log-status').textContent = 'Koneksi terputus';
+      }
+    }
+
+    document.getElementById('syncOkCount').textContent  = berhasil;
+    document.getElementById('syncErrCount').textContent = gagal;
+    await sleep(120);
+  }
+
+  // Selesai
+  document.getElementById('syncProgressFill').style.width = '100%';
+  document.getElementById('syncProgressPct').textContent  = '100%';
+  document.getElementById('syncProgressText').textContent = 'Selesai!';
+  document.getElementById('syncTitle').textContent        = berhasil === antrian.length ? 'Sinkronisasi Berhasil!' : 'Sinkronisasi Selesai';
+  document.getElementById('syncSubtitle').textContent     = `${berhasil} data berhasil, ${gagal} gagal`;
+
+  await sleep(300);
+  document.getElementById('syncResult').classList.add('show');
+  await sleep(300);
+  document.getElementById('syncDoneIcon').classList.add('show');
+  await sleep(400);
+  document.getElementById('syncCloseBtn').classList.add('show');
+
+  isSyncing = false;
+  updateOfflineBadge();
+  loadLog(); // refresh log
+}
+
+function closeSyncOverlay() {
+  document.getElementById('syncOverlay').classList.remove('show');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── OVERRIDE processQR: tangkap offline ──────────────────────────
+const _origProcessQR = processQR;
+async function processQRWithOffline(data) {
+  if (isOnline) {
+    // Online: jalur normal
+    await _origProcessQR(data);
+    return;
+  }
+
+  // Offline: simpan ke antrian
+  if (scanCooldown) return;
+  const now = Date.now();
+  if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
+    scanAnimFrame = requestAnimationFrame(scanLoop); return;
+  }
+  scanCooldown = true;
+
+  const identifier = data.trim();
+  if (!identifier) {
+    showFlash('error','❌','QR tidak valid');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+
+  // Jangan simpan admin ke antrian
+  if (identifier.startsWith('ADMIN|')) {
+    showFlash('error','⚠️','Login admin butuh internet');
+    toast('⚠️ Scan kartu admin membutuhkan koneksi internet');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+
+  // Buat data scan offline
+  const witaNow  = new Date(Date.now() + 8*60*60*1000);
+  const tanggal  = witaNow.toISOString().split('T')[0];
+  const jam      = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
+  const days     = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const hari     = days[witaNow.getUTCDay()];
+
+  const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier };
+
+  try {
+    await simpanKeAntrian(scanData);
+    scannedHistory[data] = now;
+    showFlash('warning','📴', 'Disimpan Offline');
+    toast(`📴 Tersimpan offline — akan dikirim saat internet aktif`);
+    updateOfflineBadge();
+  } catch(e) {
+    showFlash('error','❌','Gagal simpan lokal');
+    toast('❌ Gagal menyimpan data offline: ' + e.message);
+  }
+
+  startCooldown(2500);
+  setTimeout(() => {
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }, 2500);
+}
+
+// ── PASANG EVENT LISTENER ONLINE/OFFLINE ─────────────────────────
+window.addEventListener('online',  () => updateOnlineStatus(true));
+window.addEventListener('offline', () => updateOnlineStatus(false));
+
 // ── START ────────────────────────────────────────────────────────
-init();
+init().then(() => {
+  // Patch processQR setelah init
+  window.processQR = processQRWithOffline;
+  // Set status awal
+  updateOnlineStatus(navigator.onLine);
+  // Load badge
+  updateOfflineBadge();
+});
 </script>
 </body>
 </html>

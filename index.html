@@ -836,6 +836,24 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         </div>
       </div>
 
+      <!-- ADMIN CARD SECTION IN DASHBOARD -->
+      <div id="adminCardSection" style="display:none;margin-top:20px">
+        <div class="card" style="background:linear-gradient(135deg,#0a0a1a 0%,#0d1b3e 50%,#0a0a1a 100%);border:1px solid rgba(0,212,255,0.3);box-shadow:0 0 30px rgba(0,212,255,0.15),0 4px 20px rgba(0,0,0,0.5)">
+          <div class="card-header" style="border-bottom:1px solid rgba(0,212,255,0.2)">
+            <h3 style="color:#00d4ff;font-size:1rem;display:flex;align-items:center;gap:8px">
+              <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+              Kartu Identitas Admin
+            </h3>
+            <button class="btn btn-sm" onclick="downloadKartuAdmin()" style="background:linear-gradient(135deg,#00d4ff,#0080ff);color:#fff;border:none;font-weight:700;box-shadow:0 0 15px rgba(0,212,255,0.4)">
+              ⬇ Download Kartu
+            </button>
+          </div>
+          <div class="card-body" style="display:flex;justify-content:center;padding:30px">
+            <div id="adminCardPreview" style="transform:scale(1);transform-origin:top center"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- DATA GURU -->
       <div class="page" id="page-guru">
         <div class="card">
@@ -2174,6 +2192,186 @@ async function cetakKartuGuru(guru) {
     }, 800);
   }, 400);
 }
+// ── ADMIN CARD ───────────────────────────────────────────────────
+function buildAdminCardHTML(settings, adminUser) {
+  const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const logoUrl    = settings['LOGO_URL'] || '';
+  const tahunAjaran = settings['TAHUN_AJARAN'] || '2024/2025';
+  const adminNama  = adminUser?.nama || 'Administrator';
+  const adminUsername = adminUser?.username || 'admin';
+  const ADMIN_QR_ID = 'ADMIN|' + adminUsername;
+
+  const logoHTML = logoUrl
+    ? `<img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain">`
+    : `<svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px;color:#00d4ff"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>`;
+
+  return { html: `
+  <div id="kartuAdminPrint" style="width:215px;border-radius:16px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#070714;color:#fff;flex-shrink:0;border:1px solid rgba(0,212,255,0.4);box-shadow:0 0 40px rgba(0,212,255,0.2)">
+
+    <!-- ANIMATED GRID BG -->
+    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.04) 1px,transparent 1px);background-size:12px 12px;pointer-events:none;z-index:0"></div>
+
+    <!-- GLOW TOP -->
+    <div style="position:absolute;top:-30px;left:50%;transform:translateX(-50%);width:180px;height:80px;background:radial-gradient(ellipse,rgba(0,212,255,0.35),transparent 70%);pointer-events:none;z-index:0"></div>
+
+    <!-- HEADER -->
+    <div style="position:relative;z-index:2;padding:10px 12px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(0,212,255,0.2)">
+      <div style="width:28px;height:28px;border-radius:8px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.4);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${logoHTML}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:5.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.4px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+        <div style="font-size:4.5pt;color:rgba(0,212,255,0.6);margin-top:1px">T.A. ${tahunAjaran}</div>
+      </div>
+      <div style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.5);border-radius:4px;padding:2px 6px;font-size:4pt;font-weight:800;color:#00d4ff;white-space:nowrap;letter-spacing:.5px;text-transform:uppercase">ADMIN</div>
+    </div>
+
+    <!-- HEXAGON AVATAR AREA -->
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:14px 12px 8px">
+
+      <!-- Outer ring glow -->
+      <div style="position:relative;width:72px;height:72px;flex-shrink:0">
+        <div style="position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,#00d4ff,#0080ff,#7c3aed,#00d4ff);animation:spinRing 4s linear infinite;opacity:0.8"></div>
+        <div style="position:absolute;inset:-2px;border-radius:50%;background:#070714"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(124,58,237,0.2));display:flex;align-items:center;justify-content:center;font-size:26pt">🛡️</div>
+      </div>
+
+      <!-- Name -->
+      <div style="margin-top:10px;text-align:center">
+        <div style="font-size:11pt;font-weight:800;color:#fff;letter-spacing:.3px;line-height:1.1">${adminNama}</div>
+        <div style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(0,128,255,0.15));border:1px solid rgba(0,212,255,0.4);border-radius:20px;padding:2px 8px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#00d4ff;box-shadow:0 0 6px #00d4ff"></div>
+          <span style="font-size:5.5pt;color:#00d4ff;font-weight:700;letter-spacing:.8px;text-transform:uppercase">Administrator</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIVIDER WITH GLOW -->
+    <div style="position:relative;z-index:2;height:1px;margin:0 14px;background:linear-gradient(90deg,transparent,#00d4ff,transparent)"></div>
+
+    <!-- INFO ROW -->
+    <div style="position:relative;z-index:2;padding:8px 14px;display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:14px;height:14px;border-radius:4px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:8px;height:8px;color:#00d4ff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        </div>
+        <span style="font-size:5.5pt;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;letter-spacing:.4px;min-width:40px">Username</span>
+        <span style="font-size:6pt;color:#00d4ff;font-weight:600;font-family:monospace">${adminUsername}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:14px;height:14px;border-radius:4px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:8px;height:8px;color:#00d4ff"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+        </div>
+        <span style="font-size:5.5pt;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;letter-spacing:.4px;min-width:40px">Akses</span>
+        <span style="font-size:6pt;color:#7c3aed;font-weight:600">Full System Access</span>
+      </div>
+    </div>
+
+    <!-- DIVIDER -->
+    <div style="position:relative;z-index:2;height:1px;margin:0 14px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3),transparent)"></div>
+
+    <!-- QR AREA -->
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:10px 12px 8px">
+      <div style="font-size:4.5pt;color:rgba(0,212,255,0.5);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">Scan untuk Akses Admin</div>
+      <div style="width:84px;height:84px;background:#fff;border-radius:10px;padding:4px;box-sizing:border-box;border:2px solid rgba(0,212,255,0.6);box-shadow:0 0 20px rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuAdminQR" style="width:74px;height:74px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      </div>
+      <div style="font-size:4pt;color:rgba(0,212,255,0.4);margin-top:4px;letter-spacing:.3px;font-family:monospace">ADMIN SYSTEM ACCESS</div>
+    </div>
+
+    <!-- BOTTOM BAR -->
+    <div style="position:relative;z-index:2;background:linear-gradient(90deg,rgba(0,212,255,0.1),rgba(0,128,255,0.1),rgba(124,58,237,0.1));border-top:1px solid rgba(0,212,255,0.2);padding:5px 12px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:3px">
+        <div style="width:5px;height:5px;border-radius:50%;background:#00d4ff;opacity:0.8"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:#0080ff;opacity:0.6"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:#7c3aed;opacity:0.4"></div>
+      </div>
+      <span style="font-size:4pt;color:rgba(255,255,255,0.3);letter-spacing:.5px;font-family:monospace">SiAbsen System</span>
+      <div style="font-size:4pt;color:rgba(0,212,255,0.5);font-family:monospace">v2.0</div>
+    </div>
+  </div>`, qrId: 'ADMIN|' + adminUsername };
+}
+
+async function renderAdminCardPreview() {
+  const user = APP.user;
+  if (!user || user.role !== 'admin') return;
+
+  if (!APP.settings) {
+    const r = await api('settings', 'getJamSetting');
+    if (r.success) APP.settings = r.data;
+  }
+
+  const section = document.getElementById('adminCardSection');
+  if (section) section.style.display = 'block';
+
+  const container = document.getElementById('adminCardPreview');
+  if (!container) return;
+
+  const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
+  container.innerHTML = html;
+
+  setTimeout(() => {
+    const qrEl = document.getElementById('kartuAdminQR');
+    if (qrEl && typeof QRCode !== 'undefined') {
+      new QRCode(qrEl, {
+        text: qrId,
+        width: 74, height: 74,
+        colorDark: '#0D47A1',
+        colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+  }, 300);
+}
+
+async function downloadKartuAdmin() {
+  const user = APP.user;
+  if (!user || user.role !== 'admin') { toast('Hanya admin yang bisa download kartu ini', 'error'); return; }
+
+  if (!APP.settings) {
+    const r = await api('settings', 'getJamSetting');
+    if (r.success) APP.settings = r.data;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
+  const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+
+  setTimeout(async () => {
+    const qrEl = document.getElementById('kartuAdminQR');
+    if (qrEl && typeof QRCode !== 'undefined') {
+      new QRCode(qrEl, {
+        text: qrId,
+        width: 74, height: 74,
+        colorDark: '#0D47A1',
+        colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    setTimeout(async () => {
+      try {
+        const { jsPDF } = window.jspdf;
+        const kartu = document.getElementById('kartuAdminPrint');
+        const canvas = await html2canvas(kartu, {
+          scale: 3, useCORS: true, backgroundColor: '#070714',
+          width: kartu.offsetWidth, height: kartu.scrollHeight
+        });
+        const CARD_W_PT = 5.7 * 28.3465;
+        const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });
+        pdf.addImage(canvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
+        pdf.save(`Kartu_Admin_${(user.nama || 'Administrator').replace(/\s+/g, '_')}.pdf`);
+        toast('✅ Kartu Admin berhasil didownload!', 'success');
+      } catch (e) {
+        toast('❌ Gagal: ' + e.message, 'error');
+      } finally {
+        document.body.removeChild(wrap);
+      }
+    }, 800);
+  }, 400);
+}
+
 // ── PIKET ────────────────────────────────────────────────────────
 async function loadPiket() {
   try {

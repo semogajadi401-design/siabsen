@@ -70,7 +70,7 @@ async function getStatus() {
   };
 }
 
-// ── SCAN KARTU (guru atau siswa) ─────────────────────────────────
+// ── SCAN KARTU (admin, guru, atau siswa) ─────────────────────────
 async function scanKartu({ identifier, mode }) {
   if (!identifier) return { success: false, message: 'QR tidak valid' };
 
@@ -79,7 +79,7 @@ async function scanKartu({ identifier, mode }) {
   const hari  = hariIni();
   const id    = identifier.trim();
 
-  // ========== TAMBAHKAN INI: CEK QR ADMIN ==========
+  // ========== 1. CEK ADMIN (PRIORITAS UTAMA, TANPA VALIDASI APAPUN) ==========
   if (id.startsWith('ADMIN|')) {
     const adminUsername = id.split('|')[1];
     
@@ -109,9 +109,21 @@ async function scanKartu({ identifier, mode }) {
       message: 'Admin tidak dikenali' 
     };
   }
-  // =================================================
+  // ===========================================================================
 
-  // ── CEK APAKAH QR GURU ───────────────────────────────────────
+  // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
+  const jamSetting = await getJamSetting();
+  const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';
+  const jamSelesaiOp   = jamSetting['JAM_PULANG_SELESAI'] || '16:00';
+  
+  if (jam < jamMulai || jam > jamSelesaiOp) {
+    return { 
+      success: false, 
+      message: `Absensi hanya ${jamMulai} - ${jamSelesaiOp}` 
+    };
+  }
+
+  // ── 2. CEK APAKAH QR GURU ───────────────────────────────────────
   if (id.startsWith('GR')) {
     const { data: guru } = await supabase
       .from('guru')
@@ -165,7 +177,7 @@ async function scanKartu({ identifier, mode }) {
     };
   }
 
-  // ── CEK APAKAH QR SISWA ──────────────────────────────────────
+  // ── 3. CEK APAKAH QR SISWA ──────────────────────────────────────
   // Cek ada guru piket dulu
   const { data: sesiList } = await supabase
     .from('sesi_piket')
@@ -181,11 +193,12 @@ async function scanKartu({ identifier, mode }) {
     };
   }
 
-  // Cek semester dan jam
+  // Cek libur
   const cekLibur = await isHariLibur(today);
   if (cekLibur.libur)
     return { success: false, tipe: 'siswa', message: `Hari ini libur: ${cekLibur.keterangan}` };
 
+  // Cek semester
   const semester = await getSemesterAktif();
   if (!semester)
     return { success: false, tipe: 'siswa', message: 'Tidak ada semester aktif' };
@@ -195,14 +208,8 @@ async function scanKartu({ identifier, mode }) {
   if (today < tglMulai || today > tglSelesai)
     return { success: false, tipe: 'siswa', message: `Di luar periode semester (${semester.nama})` };
 
-  const jamSetting     = await getJamSetting();
-  const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';
-  const jamSelesaiOp   = jamSetting['JAM_PULANG_SELESAI'] || '17:00';
   const jamBatasDatang = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
   const jamPulangMulai = jamSetting['JAM_PULANG_MULAI']   || '14:00';
-
-  if (jam < jamMulai || jam > jamSelesaiOp)
-    return { success: false, tipe: 'siswa', message: `Absensi hanya ${jamMulai} - ${jamSelesaiOp}` };
 
   // Nama guru piket — pakai yang terakhir scan
   const guruPiketAktif = sesiList[sesiList.length - 1];
@@ -270,6 +277,7 @@ async function scanKartu({ identifier, mode }) {
     siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
   };
 }
+
 // ── GET LOG ABSENSI HARI INI ──────────────────────────────────────
 async function getLogHariIni({ kelas }) {
   const today = todayStr();

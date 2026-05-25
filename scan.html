@@ -697,6 +697,18 @@ async function processQR(data) {
 
 function handleScanResult(result, data, now) {
   if (result.success) {
+    // ========== TAMBAHKAN INI: CEK JIKA ADMIN ==========
+    if (result.tipe === 'admin') {
+      // Redirect ke halaman utama (dashboard admin)
+      toast('🔐 Login sebagai Admin, mengalihkan...', 2000);
+      showFlash('guru', '👑', 'Admin Login');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+      return;
+    }
+    // ===================================================
+    
     scannedHistory[data] = now;
 
     if (result.tipe === 'guru') {

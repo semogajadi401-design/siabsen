@@ -676,8 +676,7 @@ async function processQR(data) {
   scanCooldown = true;
 
   try {
-    const parts      = data.split('|');
-    const identifier = parts[0].trim();
+    const identifier = data.trim();
     if (!identifier) {
       showFlash('error','❌','QR tidak valid');
       scanCooldown = false;
@@ -745,7 +744,7 @@ function handleScanResult(result, data, now) {
 // ── MANUAL INPUT ─────────────────────────────────────────────────
 async function doManual() {
   const raw = document.getElementById('manualInput').value.trim();
-  const id  = raw.split('|')[0].trim();
+  const id  = raw.trim();
   if (!id) return;
   try {
     const result = await api('scan','scanKartu',{ identifier: id, mode: scanMode });

@@ -697,9 +697,22 @@ async function processQR(data) {
 function handleScanResult(result, data, now) {
   if (result.success) {
     // ========== CEK ADMIN ==========
+    // KODE BARU
     if (result.tipe === 'admin') {
       showFlash('guru', '👑', 'Admin Login');
       toast('🔐 Mengalihkan ke dashboard admin...', 2000);
+    
+      // Simpan session ke localStorage agar index.html langsung masuk dashboard
+      const sessionData = {
+        user: {
+          username: result.admin.username,
+          nama: result.admin.nama,
+          role: 'admin'
+        },
+        loginTime: Date.now()
+      };
+      localStorage.setItem('siabsen_session', JSON.stringify(sessionData));
+    
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);

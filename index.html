@@ -2009,7 +2009,7 @@ async function submitGuru(){
 }
 function generatePasswordField(){ const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let p=''; for(let i=0;i<8;i++) p+=chars.charAt(Math.floor(Math.random()*chars.length)); document.getElementById('guruPassword').value=p; }
 async function resetPasswordGuru(id){ if(!confirm('Reset password guru ini?'))return; const r=await api('guru','resetPassword',{id}); if(r.success){document.getElementById('resetUsername').textContent=r.username;document.getElementById('resetPassword').textContent=r.password;openModal('modalResetPass');}else toast(r.message,'error'); }
-async function hapusGuru(id,nama){ if(!confirm(`Nonaktifkan guru "${nama}"?`))return; const r=await api('guru','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadGuru(); }
+async function hapusGuru(id,nama){ if(!confirm(`Nonaktifkan guru "${nama}"?`))return; const r = await api('guru', 'hapusPermanen', { id }); toast(r.message,r.success?'success':'error'); if(r.success)loadGuru(); }
 
 // ── SISWA ────────────────────────────────────────────────────────
 async function loadSiswa(){

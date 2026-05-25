@@ -1861,6 +1861,15 @@ function setupUserUI(user) {
   document.getElementById('userAvatar').textContent = user.nama.charAt(0).toUpperCase();
   document.getElementById('adminNav').style.display = user.role==='admin'?'block':'none';
   document.getElementById('guruNav').style.display = user.role==='guru'?'block':'none';
+  
+  // ========== TAMBAHKAN KODE INI ==========
+  if (user.role === 'admin') {
+    // Tunggu sedikit agar dashboard sempat load
+    setTimeout(() => {
+      renderAdminCardPreview();
+    }, 500);
+  }
+  // ========================================
 }
 function doLogout() {
   APP.user=null; clearSession(); stopScanner();

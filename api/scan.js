@@ -79,6 +79,38 @@ async function scanKartu({ identifier, mode }) {
   const hari  = hariIni();
   const id    = identifier.trim();
 
+  // ========== TAMBAHKAN INI: CEK QR ADMIN ==========
+  if (id.startsWith('ADMIN|')) {
+    const adminUsername = id.split('|')[1];
+    
+    // Cek apakah admin valid (opsional, bisa langsung terima)
+    const { data: admin } = await supabase
+      .from('admin')
+      .select('username, nama')
+      .eq('username', adminUsername)
+      .maybeSingle();
+    
+    // Admin default 'admin' atau yang terdaftar di database
+    if (admin || adminUsername === 'admin') {
+      return {
+        success: true,
+        tipe: 'admin',
+        message: 'Login sebagai Administrator',
+        admin: { 
+          username: adminUsername, 
+          nama: admin?.nama || 'Administrator' 
+        }
+      };
+    }
+    
+    return { 
+      success: false, 
+      tipe: 'admin',
+      message: 'Admin tidak dikenali' 
+    };
+  }
+  // =================================================
+
   // ── CEK APAKAH QR GURU ───────────────────────────────────────
   if (id.startsWith('GR')) {
     const { data: guru } = await supabase
@@ -238,7 +270,6 @@ async function scanKartu({ identifier, mode }) {
     siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
   };
 }
-
 // ── GET LOG ABSENSI HARI INI ──────────────────────────────────────
 async function getLogHariIni({ kelas }) {
   const today = todayStr();

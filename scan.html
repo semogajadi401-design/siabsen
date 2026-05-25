@@ -697,11 +697,10 @@ async function processQR(data) {
 
 function handleScanResult(result, data, now) {
   if (result.success) {
-    // ========== TAMBAHKAN INI: CEK JIKA ADMIN ==========
+    // ========== CEK ADMIN ==========
     if (result.tipe === 'admin') {
-      // Redirect ke halaman utama (dashboard admin)
-      toast('🔐 Login sebagai Admin, mengalihkan...', 2000);
       showFlash('guru', '👑', 'Admin Login');
+      toast('🔐 Mengalihkan ke dashboard admin...', 2000);
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);

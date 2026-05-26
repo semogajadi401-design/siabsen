@@ -2346,7 +2346,7 @@ async function renderAdminCardPreview() {
       new QRCode(qrEl, {
         text: qrId,
         width: 74, height: 74,
-        colorDark: '#0D47A1',
+        colorDark: '#000000',
         colorLight: '#FFFFFF',
         correctLevel: QRCode.CorrectLevel.M
       });
@@ -2393,7 +2393,7 @@ async function downloadKartuAdmin() {
     qrEl.innerHTML = '';
     new QRCode(qrEl, {
       text: qrId, width: 74, height: 74,
-      colorDark: '#00d4ff', colorLight: '#FFFFFF',
+      colorDark: '#000000', colorLight: '#FFFFFF',
       correctLevel: QRCode.CorrectLevel.M
     });
     await new Promise(r => setTimeout(r, 600));

@@ -982,6 +982,8 @@ function handleScanResult(result, data, now) {
     if (result.tipe === 'guru') {
       showFlash('guru','👤', result.guru.nama);
       toast('✅ ' + result.message);
+      // Simpan lokal agar dikenali saat offline
+      simpanGuruOffline(result.guru.nama, result.guru.id || '', result.guru.jam);
       checkStatus();
     } else {
       const isLate   = result.status === 'Terlambat';
@@ -1197,6 +1199,38 @@ const DB_NAME    = 'siabsen_offline';
 const DB_VERSION = 1;
 const STORE_NAME = 'antrian';
 // [offline vars dipindah ke atas]
+
+// ── STATUS GURU PIKET OFFLINE (disimpan di localStorage) ─────────
+const GURU_OFFLINE_KEY = 'siabsen_guru_piket_offline';
+
+function simpanGuruOffline(namaGuru, idGuru, jam) {
+  const witaNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  const tanggal = witaNow.toISOString().split('T')[0];
+  const data = { namaGuru, idGuru, jam, tanggal };
+  localStorage.setItem(GURU_OFFLINE_KEY, JSON.stringify(data));
+}
+
+function getGuruOffline() {
+  try {
+    const raw = localStorage.getItem(GURU_OFFLINE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // Hanya valid untuk hari ini
+    const witaNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const tanggalHariIni = witaNow.toISOString().split('T')[0];
+    if (data.tanggal !== tanggalHariIni) {
+      localStorage.removeItem(GURU_OFFLINE_KEY);
+      return null;
+    }
+    return data;
+  } catch(e) {
+    return null;
+  }
+}
+
+function hapusGuruOffline() {
+  localStorage.removeItem(GURU_OFFLINE_KEY);
+}
 
 // ── BUKA IndexedDB ───────────────────────────────────────────────
 function openDB() {
@@ -1471,11 +1505,53 @@ async function processQRWithOffline(data) {
   }
 
   // Buat data scan offline
-  const witaNow  = new Date(Date.now() + 8*60*60*1000);
+  const witaNow  = new Date(Date.now() + 8 * 60 * 60 * 1000);
   const tanggal  = witaNow.toISOString().split('T')[0];
   const jam      = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
   const days     = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   const hari     = days[witaNow.getUTCDay()];
+
+  // ── CEK APAKAH QR GURU (scan offline guru) ───────────────────────
+  if (identifier.startsWith('GR')) {
+    const guruSudahAda = getGuruOffline();
+    if (guruSudahAda) {
+      showFlash('error','⚠️', 'Guru sudah scan hari ini');
+      toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
+      scanCooldown = false;
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+    // Simpan status guru ke localStorage
+    simpanGuruOffline('(menunggu sync)', identifier, jam);
+    const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru' };
+    try {
+      await simpanKeAntrian(scanData);
+      scannedHistory[data] = now;
+      showFlash('guru','👤','Guru Tercatat Offline');
+      toast(`📴 Guru piket tersimpan offline — akan dikirim saat internet aktif`);
+      updateOfflineBadge();
+    } catch(e) {
+      hapusGuruOffline(); // rollback kalau gagal simpan
+      showFlash('error','❌','Gagal simpan lokal');
+      toast('❌ Gagal menyimpan data offline: ' + e.message);
+    }
+    startCooldown(2500);
+    setTimeout(() => {
+      scanCooldown = false;
+      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    }, 2500);
+    return;
+  }
+
+  // ── CEK GURU PIKET SEBELUM SIMPAN SCAN SISWA ────────────────────
+  const guruAktif = getGuruOffline();
+  if (!guruAktif) {
+    showFlash('error','⛔','Guru belum scan');
+    toast('⛔ Guru piket belum scan kartu. Minta guru piket scan kartunya dulu.');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
 
   const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier };
 

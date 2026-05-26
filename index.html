@@ -2364,39 +2364,69 @@ async function downloadKartuAdmin() {
 
   toast('⏳ Menyiapkan kartu admin...');
 
-  // Buat elemen offscreen yang benar-benar dirender browser
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:absolute;top:0;left:0;width:215px;opacity:0;pointer-events:none;z-index:-1';
   const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
+
+  // Buat wrapper yang VISIBLE tapi di luar viewport (bukan display:none atau opacity:0)
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;left:-500px;top:50px;width:215px;z-index:9999;visibility:hidden';
   wrap.innerHTML = html;
   document.body.appendChild(wrap);
 
-  // Tunggu render DOM
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 80));
 
-  // Render QR ke elemen yang sudah ada di DOM
+  // Hapus semua elemen yang pakai conic-gradient atau animation (tidak didukung html2canvas)
+  const kartu = document.getElementById('kartuAdminPrint');
+  if (!kartu) { toast('❌ Gagal: elemen kartu tidak ditemukan'); document.body.removeChild(wrap); return; }
+
+  // Ganti ring animasi dengan border biasa yang kompatibel
+  kartu.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
+    el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
+    el.style.animation = 'none';
+  });
+  kartu.querySelectorAll('[style*="animation"]').forEach(el => {
+    el.style.animation = 'none';
+  });
+
+  // Render QR
   const qrEl = document.getElementById('kartuAdminQR');
   if (qrEl && typeof QRCode !== 'undefined') {
     qrEl.innerHTML = '';
     new QRCode(qrEl, {
       text: qrId, width: 74, height: 74,
-      colorDark: '#0D47A1', colorLight: '#FFFFFF',
+      colorDark: '#00d4ff', colorLight: '#FFFFFF',
       correctLevel: QRCode.CorrectLevel.M
     });
   }
 
-  // Tunggu QR render
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 700));
 
   try {
     const { jsPDF } = window.jspdf;
-    const kartu = document.getElementById('kartuAdminPrint');
-    const w = kartu.offsetWidth || 215;
-    const h = kartu.scrollHeight || kartu.offsetHeight || 350;
+    const w = 215;
+    const h = kartu.scrollHeight || kartu.offsetHeight || 400;
+
     const canvas = await html2canvas(kartu, {
-      scale: 3, useCORS: true, backgroundColor: '#070714',
-      width: w, height: h, windowWidth: w
+      scale: 3,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#070714',
+      width: w,
+      height: h,
+      windowWidth: 215,
+      logging: false,
+      imageTimeout: 0,
+      onclone: (doc) => {
+        // Dalam klon, hapus semua conic-gradient dan animasi
+        doc.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
+          el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
+          el.style.animation = 'none';
+        });
+        doc.querySelectorAll('[style*="animation"]').forEach(el => {
+          el.style.animation = 'none';
+        });
+      }
     });
+
     const CARD_W_PT = 5.7 * 28.3465;
     const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });

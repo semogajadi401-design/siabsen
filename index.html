@@ -1706,7 +1706,7 @@ async function loadAndMergeKelas() {
   // Ambil kelas unik dari siswa di DB
   let dbKelas = [];
   try {
-    const r = await api('siswa', 'getAll', { activeOnly: false, kelas: '' });
+    const r = await api('siswa', 'getAll', { activeOnly: true, kelas: '' });
     if (r.success) {
       const set = new Set();
       r.data.forEach(s => { if(s.kelas && s.kelas.trim()) set.add(s.kelas.trim()); });

@@ -833,6 +833,18 @@ async function checkStatus() {
   }
   try {
     const r = await api('scan','getStatus');
+
+    // ── SINKRON STATUS GURU DARI SERVER ──────────────────────────
+    if (r.success) {
+      if (!r.adaGuru || !r.guruPiket || r.guruPiket.length === 0) {
+        hapusGuruOffline();
+      } else {
+        const guruTerakhir = r.guruPiket[r.guruPiket.length - 1];
+        simpanGuruOffline(guruTerakhir.nama_guru, guruTerakhir.id_guru, guruTerakhir.jam_scan);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────
+
     if (!r.success) return;
 
     const mainContent  = document.getElementById('mainContent');

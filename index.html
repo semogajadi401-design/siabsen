@@ -2387,7 +2387,7 @@ async function downloadKartuAdmin() {
     el.style.animation = 'none';
   });
 
-  // Render QR
+  // Render QR — lalu konversi canvas QR ke <img> agar kompatibel dengan Edge
   const qrEl = document.getElementById('kartuAdminQR');
   if (qrEl && typeof QRCode !== 'undefined') {
     qrEl.innerHTML = '';
@@ -2398,7 +2398,20 @@ async function downloadKartuAdmin() {
     });
   }
 
-  await new Promise(r => setTimeout(r, 700));
+  // Tunggu QR selesai di-render, lalu ganti canvas QR dengan <img>
+  // agar html2canvas tidak crash di Edge (canvas 0x0 bug)
+  await new Promise(r => setTimeout(r, 800));
+  if (qrEl) {
+    const qrCanvas = qrEl.querySelector('canvas');
+    if (qrCanvas && qrCanvas.width > 0 && qrCanvas.height > 0) {
+      const dataUrl = qrCanvas.toDataURL('image/png');
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.cssText = 'width:74px;height:74px;display:block';
+      qrEl.innerHTML = '';
+      qrEl.appendChild(img);
+    }
+  }
 
   try {
     const { jsPDF } = window.jspdf;
@@ -2423,6 +2436,16 @@ async function downloadKartuAdmin() {
         });
         doc.querySelectorAll('[style*="animation"]').forEach(el => {
           el.style.animation = 'none';
+        });
+        // Konversi canvas QR di dalam klon juga (fallback untuk Edge)
+        doc.querySelectorAll('#kartuAdminQR canvas').forEach(c => {
+          if (c.width > 0 && c.height > 0) {
+            const dataUrl = c.toDataURL('image/png');
+            const img = doc.createElement('img');
+            img.src = dataUrl;
+            img.style.cssText = 'width:74px;height:74px;display:block';
+            c.parentNode.replaceChild(img, c);
+          }
         });
       }
     });

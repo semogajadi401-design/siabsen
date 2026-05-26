@@ -2068,7 +2068,7 @@ async function hapusGuru(id,nama){ if(!confirm(`Apakah anda yakin ingin menghapu
 async function loadSiswa(){
   const kelas=document.getElementById('filterKelas')?.value||'';
   try{
-    const result=await api('siswa','getAll',{activeOnly:false,kelas});
+    const result=await api('siswa','getAll',{activeOnly:true,kelas});
     const tbody=document.getElementById('siswaTableBody');
     if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data siswa</td></tr>';return;}
     window._siswaData = result.data;

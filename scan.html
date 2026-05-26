@@ -735,7 +735,7 @@ async function pingServer() {
     if (wasOnline) updateOnlineStatus(false);
   }
 }
-setInterval(pingServer, 8000);
+let _pingInterval = setInterval(pingServer, 8000);
 
 // ── STATE ────────────────────────────────────────────────────────
 let scanMode      = 'datang';
@@ -958,6 +958,18 @@ function handleScanResult(result, data, now) {
     if (result.tipe === 'admin') {
       showFlash('guru', '👑', 'Admin Login');
       toast('🔐 Mengalihkan ke dashboard admin...', 2000);
+
+      // Simpan session ke localStorage agar index.html langsung masuk dashboard
+      const sessionData = {
+        user: {
+          username: result.admin.username,
+          nama: result.admin.nama,
+          role: 'admin'
+        },
+        loginTime: Date.now()
+      };
+      localStorage.setItem('siabsen_session', JSON.stringify(sessionData));
+
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);
@@ -1267,8 +1279,27 @@ function updateOnlineStatus(online) {
 async function checkAndSync() {
   const antrian = await getAntrian();
   if (antrian.length === 0) return;
-  // Tampilkan overlay konfirmasi/otomatis sync
-  showSyncOverlay(antrian);
+  // Tampilkan toast konfirmasi dulu, bukan langsung overlay
+  showSyncConfirm(antrian.length);
+}
+
+function showSyncConfirm(jumlah) {
+  // Hapus toast konfirmasi lama jika ada
+  const oldToast = document.getElementById('syncConfirmToast');
+  if (oldToast) oldToast.remove();
+
+  const wrap = document.getElementById('toastWrap');
+  const div  = document.createElement('div');
+  div.id = 'syncConfirmToast';
+  div.style.cssText = 'background:rgba(21,101,192,0.97);border:1px solid rgba(66,165,245,0.4);border-radius:14px;padding:12px 18px;font-size:.82rem;font-weight:500;color:#fff;display:flex;align-items:center;gap:12px;pointer-events:all;backdrop-filter:blur(10px);box-shadow:0 4px 20px rgba(21,101,192,0.4);';
+  div.innerHTML = `
+    <span>📡 Internet aktif — <b>${jumlah}</b> data offline siap dikirim</span>
+    <button onclick="document.getElementById('syncConfirmToast').remove();showSyncOverlay();" style="background:#42a5f5;border:none;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.78rem;white-space:nowrap;">Kirim Sekarang</button>
+    <button onclick="document.getElementById('syncConfirmToast').remove();" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;">✕</button>
+  `;
+  wrap.appendChild(div);
+  // Auto hilang setelah 15 detik jika tidak diklik
+  setTimeout(() => { if (div.parentNode) div.remove(); }, 15000);
 }
 
 // ── TAMPILKAN SYNC OVERLAY ────────────────────────────────────────
@@ -1316,6 +1347,8 @@ async function showSyncOverlay(antrian) {
 // ── JALANKAN SYNC KE SERVER ───────────────────────────────────────
 async function jalankanSync(antrian) {
   isSyncing = true;
+  // Pause ping selama sync agar tidak spam console
+  clearInterval(_pingInterval);
   const logEl = document.getElementById('syncLog');
   let berhasil = 0, gagal = 0;
 
@@ -1383,8 +1416,10 @@ async function jalankanSync(antrian) {
   document.getElementById('syncCloseBtn').classList.add('show');
 
   isSyncing = false;
+  // Resume ping setelah sync selesai
+  _pingInterval = setInterval(pingServer, 8000);
   updateOfflineBadge();
-  loadLog(); // refresh log
+  if (isOnline) loadLog();
 }
 
 function closeSyncOverlay() {

@@ -920,7 +920,7 @@ function scanLoop() {
   ctx.drawImage(video, 0, 0);
   const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
   const code = jsQR(imageData.data, imageData.width, imageData.height);
-  if (code) processQR(code.data);
+  if (code) processQRWithOffline(code.data);
   else scanAnimFrame = requestAnimationFrame(scanLoop);
 }
 
@@ -1579,8 +1579,6 @@ window.addEventListener('offline', () => updateOnlineStatus(false));
 
 // ── START ────────────────────────────────────────────────────────
 init().then(() => {
-  // Patch processQR setelah init
-  window.processQR = processQRWithOffline;
   // Ping server langsung untuk cek koneksi nyata
   pingServer();
   // Load badge

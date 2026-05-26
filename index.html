@@ -756,7 +756,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-amber">Laporan</div>
       <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
-      <div class="nav-item color-amber" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Siswa</span></div>
+      <div class="nav-item color-amber" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Identitas</span></div>
     
       <div class="nav-section-label lbl-red">Sistem</div>
       <div class="nav-item color-red" onclick="showPage('reset')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg><span>Reset Data</span></div>
@@ -835,23 +835,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           </div>
         </div>
 
-        <!-- KARTU ADMIN — hanya tampil di dashboard -->
-        <div id="adminCardSection" style="display:none;margin-top:20px">
-          <div class="card" style="background:linear-gradient(135deg,#0a0a1a 0%,#0d1b3e 50%,#0a0a1a 100%);border:1px solid rgba(0,212,255,0.3);box-shadow:0 0 30px rgba(0,212,255,0.15),0 4px 20px rgba(0,0,0,0.5)">
-            <div class="card-header" style="border-bottom:1px solid rgba(0,212,255,0.2)">
-              <h3 style="color:#00d4ff;font-size:1rem;display:flex;align-items:center;gap:8px">
-                <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                Kartu Identitas Admin
-              </h3>
-              <button class="btn btn-sm" onclick="downloadKartuAdmin()" style="background:linear-gradient(135deg,#00d4ff,#0080ff);color:#fff;border:none;font-weight:700;box-shadow:0 0 15px rgba(0,212,255,0.4)">
-                ⬇ Download Kartu
-              </button>
-            </div>
-            <div class="card-body" style="display:flex;justify-content:center;padding:30px">
-              <div id="adminCardPreview" style="transform:scale(1);transform-origin:top center"></div>
-            </div>
-          </div>
-        </div>
+
       </div>
 
       <!-- DATA GURU -->
@@ -1043,14 +1027,55 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
       <!-- KARTU SISWA -->
       <div class="page" id="page-kartu">
-        <div class="card">
-          <div class="card-header"><h3>Cetak Kartu Siswa</h3></div>
-          <div class="card-body">
-            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-              <div class="form-group" style="margin:0"><label>Filter Kelas</label><select id="kartuKelas" class="form-control" onchange="loadKartuSiswa()"><option value="">Semua Kelas</option></select></div>
-              <button class="btn btn-success" onclick="downloadAllKartuPDF()">📄 Download PDF</button>
+        <!-- TAB NAVIGATION -->
+        <div style="display:flex;gap:0;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;width:fit-content">
+          <button id="tabBtnAdmin" onclick="switchKartuTab('admin')" style="padding:8px 20px;border-radius:9px;border:none;cursor:pointer;font-size:.82rem;font-weight:700;background:var(--primary);color:#fff;transition:all .2s">👑 Admin</button>
+          <button id="tabBtnGuru" onclick="switchKartuTab('guru')" style="padding:8px 20px;border-radius:9px;border:none;cursor:pointer;font-size:.82rem;font-weight:700;background:transparent;color:var(--text-muted);transition:all .2s">👤 Guru</button>
+          <button id="tabBtnSiswa" onclick="switchKartuTab('siswa')" style="padding:8px 20px;border-radius:9px;border:none;cursor:pointer;font-size:.82rem;font-weight:700;background:transparent;color:var(--text-muted);transition:all .2s">🎓 Siswa</button>
+        </div>
+
+        <!-- TAB: ADMIN -->
+        <div id="tabKartuAdmin">
+          <div class="card" style="background:linear-gradient(135deg,#0a0a1a 0%,#0d1b3e 50%,#0a0a1a 100%);border:1px solid rgba(0,212,255,0.3);box-shadow:0 0 30px rgba(0,212,255,0.1)">
+            <div class="card-header" style="border-bottom:1px solid rgba(0,212,255,0.2)">
+              <h3 style="color:#00d4ff;display:flex;align-items:center;gap:8px">
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                Kartu Identitas Admin
+              </h3>
+              <button class="btn btn-sm" onclick="downloadKartuAdmin()" style="background:linear-gradient(135deg,#00d4ff,#0080ff);color:#fff;border:none;font-weight:700">⬇ Download Kartu</button>
             </div>
-            <div id="kartuGrid" style="display:flex;flex-wrap:wrap;gap:20px"></div>
+            <div class="card-body" style="display:flex;justify-content:center;padding:30px">
+              <div id="adminCardPreview"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: GURU -->
+        <div id="tabKartuGuru" style="display:none">
+          <div class="card">
+            <div class="card-header">
+              <h3>Kartu Identitas Guru</h3>
+            </div>
+            <div class="card-body">
+              <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Pilih guru untuk melihat preview dan download kartu identitasnya.</p>
+              <div id="kartuGuruGrid" style="display:flex;flex-wrap:wrap;gap:20px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: SISWA -->
+        <div id="tabKartuSiswa" style="display:none">
+          <div class="card">
+            <div class="card-header">
+              <h3>Kartu Identitas Siswa</h3>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <select id="kartuKelas" class="form-control" onchange="loadKartuSiswa()" style="width:auto;min-width:140px"><option value="">Semua Kelas</option></select>
+                <button class="btn btn-success btn-sm" onclick="downloadAllKartuPDF()">📄 Download PDF</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="kartuGrid" style="display:flex;flex-wrap:wrap;gap:20px"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1866,7 +1891,7 @@ function setupUserUI(user) {
   if (user.role === 'admin') {
     // Tunggu sedikit agar dashboard sempat load
     setTimeout(() => {
-      renderAdminCardPreview();
+
     }, 500);
   }
   // ========================================
@@ -1887,9 +1912,9 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Siswa',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadKartuSiswa,absensi:()=>{loadLogAbsensi();}};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,absensi:()=>{loadLogAbsensi();}};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
@@ -2308,9 +2333,6 @@ async function renderAdminCardPreview() {
     if (r.success) APP.settings = r.data;
   }
 
-  const section = document.getElementById('adminCardSection');
-  if (section) section.style.display = 'block';
-
   const container = document.getElementById('adminCardPreview');
   if (!container) return;
 
@@ -2575,6 +2597,132 @@ async function loadRekapHarianGuru(){
 function exportExcel(){ toast('Fitur export Excel: gunakan screenshot atau print halaman','info',5000); }
 
 // ── KARTU SISWA ──────────────────────────────────────────────────
+// ── TAB KARTU IDENTITAS ──────────────────────────────────────────
+let _activeKartuTab = 'admin';
+
+function switchKartuTab(tab) {
+  _activeKartuTab = tab;
+  // Reset semua tab button
+  ['admin','guru','siswa'].forEach(t => {
+    const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+    const panel = document.getElementById('tabKartu' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) { btn.style.background = 'transparent'; btn.style.color = 'var(--text-muted)'; }
+    if (panel) panel.style.display = 'none';
+  });
+  // Aktifkan tab yang dipilih
+  const activeBtn = document.getElementById('tabBtn' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  const activePanel = document.getElementById('tabKartu' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (activeBtn) { activeBtn.style.background = 'var(--primary)'; activeBtn.style.color = '#fff'; }
+  if (activePanel) activePanel.style.display = 'block';
+  // Load konten tab
+  if (tab === 'admin') renderAdminCardPreview();
+  else if (tab === 'guru') loadKartuGuruGrid();
+  else if (tab === 'siswa') loadKartuSiswa();
+}
+
+async function loadHalamanKartu() {
+  // Populate filter kelas untuk tab siswa
+  const selectors = ['kartuKelas'];
+  const stored = getKelasFromStorage();
+  selectors.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">Semua Kelas</option>';
+    stored.forEach(k => el.innerHTML += `<option value="${k}">${k}</option>`);
+    if (cur) el.value = cur;
+  });
+  // Tampilkan tab admin by default
+  switchKartuTab('admin');
+}
+
+async function loadKartuGuruGrid() {
+  const grid = document.getElementById('kartuGuruGrid');
+  if (!grid) return;
+  grid.innerHTML = '<p style="color:var(--text-muted)">Memuat data guru...</p>';
+  try {
+    const [guruRes, settingsRes] = await Promise.all([
+      api('guru', 'getAll'),
+      api('settings', 'getJamSetting')
+    ]);
+    if (settingsRes.success) APP.settings = settingsRes.data;
+    if (!guruRes.success || !guruRes.data.length) {
+      grid.innerHTML = '<p style="color:var(--text-muted)">Tidak ada guru aktif.</p>';
+      return;
+    }
+    grid.innerHTML = '';
+    guruRes.data.filter(g => g.status === 'Aktif').forEach((guru, idx) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:inline-flex;flex-direction:column;width:215px;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface)';
+      // Preview area (akan dirender setelah append)
+      const previewDiv = document.createElement('div');
+      previewDiv.id = 'previewGuru_' + guru.id;
+      // Footer dengan nama dan tombol download
+      const footer = document.createElement('div');
+      footer.style.cssText = 'padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface);border-top:1px solid var(--border)';
+      footer.innerHTML = `<span style="font-size:.8rem;font-weight:600;color:var(--text);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${guru.nama}</span>
+        <button class="btn btn-primary btn-sm" id="dlGuruBtn_${guru.id}">📥 Download</button>`;
+      wrap.appendChild(previewDiv);
+      wrap.appendChild(footer);
+      grid.appendChild(wrap);
+      // Render kartu ke previewDiv
+      setTimeout(async () => {
+        try {
+          const settings = APP.settings || {};
+          const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+          const logoUrl = settings['LOGO_URL'] || '';
+          const tahunAjaran = settings['TAHUN_AJARAN'] || '2024/2025';
+          const avatar = guru.jenisKelamin === 'Perempuan' ? '👩‍‍🏫' : '👨‍‍🏫';
+          const logoHTML = logoUrl
+            ? `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);overflow:hidden;flex-shrink:0"><img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain"></div>`
+            : `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">🏫</div>`;
+          const qrId = 'GR' + guru.id;
+          previewDiv.innerHTML = `
+            <div id="kartuGuruPreview_${guru.id}" style="width:215px;border-radius:12px 12px 0 0;font-family:'Segoe UI',Arial,sans-serif;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a">
+              <div style="background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:7px 10px 28px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  ${logoHTML}
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:6.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+                    <div style="font-size:5pt;color:rgba(255,255,255,0.75);margin-top:1px">Tahun Ajaran ${tahunAjaran}</div>
+                  </div>
+                  <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 5px;font-size:4.5pt;font-weight:700;color:#FFD700;white-space:nowrap;flex-shrink:0">Kartu Guru</div>
+                </div>
+              </div>
+              <div style="padding:10px 12px 8px;display:flex;gap:10px;align-items:flex-start;background:#fff">
+                <div style="width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#e3f2fd,#bbdefb);border:2px solid #1565C0;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${avatar}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:8pt;font-weight:800;color:#0D47A1;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${guru.nama}</div>
+                  <div style="font-size:6pt;color:#555;margin-top:2px">${guru.jabatan || 'Guru'}</div>
+                  <div style="font-size:6pt;color:#777;margin-top:1px">NIP: ${guru.nip || '-'}</div>
+                </div>
+              </div>
+              <div style="padding:6px 12px 10px;display:flex;align-items:center;gap:10px;background:#f8f9ff;border-top:1px solid #e3e8ff">
+                <div id="qrGuruPreview_${guru.id}" style="width:60px;height:60px;flex-shrink:0"></div>
+                <div style="font-size:5.5pt;color:#666;line-height:1.5">
+                  <div style="font-weight:700;color:#1565C0;font-size:6pt">ID: ${guru.id}</div>
+                  <div>Username: ${guru.username || '-'}</div>
+                </div>
+              </div>
+            </div>`;
+          // Render QR
+          const qrEl = document.getElementById(`qrGuruPreview_${guru.id}`);
+          if (qrEl && typeof QRCode !== 'undefined') {
+            new QRCode(qrEl, { text: guru.id, width: 60, height: 60, colorDark: '#0D47A1', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.M });
+          }
+          // Tombol download
+          const dlBtn = document.getElementById(`dlGuruBtn_${guru.id}`);
+          if (dlBtn) dlBtn.addEventListener('click', () => cetakKartuGuru(guru));
+        } catch(e) {
+          previewDiv.innerHTML = `<p style="padding:10px;color:var(--danger);font-size:.75rem">Gagal render: ${e.message}</p>`;
+        }
+      }, idx * 100);
+    });
+  } catch(e) {
+    grid.innerHTML = `<p style="color:var(--danger)">Gagal memuat: ${e.message}</p>`;
+  }
+}
+
 async function loadKartuSiswa(){
   const kelas=document.getElementById('kartuKelas')?.value||'';
   const container=document.getElementById('kartuGrid');

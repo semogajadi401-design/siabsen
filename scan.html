@@ -707,6 +707,36 @@ async function api(endpoint, action, params={}) {
   return r.json();
 }
 
+// ── OFFLINE STATE (harus di atas init agar tersedia saat dipanggil) ──
+let offlineDB    = null;
+let isOnline     = navigator.onLine;
+let isSyncing    = false;
+let _lastPingOk  = navigator.onLine;
+
+async function pingServer() {
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 4000);
+    await fetch(`${API}/api/scan`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'ping' }),
+      signal: ctrl.signal
+    });
+    clearTimeout(tid);
+    const wasOffline = !_lastPingOk;
+    _lastPingOk = true;
+    isOnline    = true;
+    if (wasOffline) updateOnlineStatus(true);
+  } catch(e) {
+    const wasOnline = _lastPingOk;
+    _lastPingOk = false;
+    isOnline    = false;
+    if (wasOnline) updateOnlineStatus(false);
+  }
+}
+setInterval(pingServer, 8000);
+
 // ── STATE ────────────────────────────────────────────────────────
 let scanMode      = 'datang';
 let scanCooldown  = false;
@@ -776,6 +806,9 @@ async function init() {
     }
   } catch(e) {}
 
+  // Ping server dulu untuk cek koneksi nyata sebelum checkStatus
+  await pingServer();
+
   // Cek status hari ini
   await checkStatus();
 
@@ -783,16 +816,21 @@ async function init() {
   startScanner();
 
   // Load log pertama kali
-  await loadLog();
+  if (isOnline) await loadLog();
 
-  // Auto refresh log setiap 30 detik
-  setInterval(loadLog, 30000);
-  // Auto refresh status guru setiap 10 detik
-  setInterval(checkStatus, 10000);
+  // Auto refresh — hanya jika online
+  setInterval(() => { if (isOnline) loadLog(); }, 30000);
+  setInterval(() => { if (isOnline) checkStatus(); }, 10000);
 }
 
 // ── CEK STATUS ───────────────────────────────────────────────────
 async function checkStatus() {
+  // Jika offline, tampilkan mainContent langsung tanpa cek server
+  if (!isOnline) {
+    document.getElementById('liburBanner').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'grid';
+    return;
+  }
   try {
     const r = await api('scan','getStatus');
     if (!r.success) return;
@@ -818,7 +856,11 @@ async function checkStatus() {
     const jamPulang = '14:00';
     if (jam >= jamPulang) setMode('pulang');
 
-  } catch(e) {}
+  } catch(e) {
+    // Jika fetch gagal, tetap tampilkan mainContent agar scan bisa jalan
+    document.getElementById('liburBanner').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'grid';
+  }
 }
 
 function updateGuruStatus(guruList) {
@@ -1142,35 +1184,7 @@ function playBeep(type) {
 const DB_NAME    = 'siabsen_offline';
 const DB_VERSION = 1;
 const STORE_NAME = 'antrian';
-let offlineDB    = null;
-let isOnline     = navigator.onLine;
-let isSyncing    = false;
-let _lastPingOk  = navigator.onLine;
-
-// Ping server nyata setiap 8 detik — lebih akurat dari navigator.onLine
-async function pingServer() {
-  try {
-    const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), 4000);
-    await fetch(`${API}/api/scan`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ action: 'ping' }),
-      signal: ctrl.signal
-    });
-    clearTimeout(tid);
-    const wasOffline = !_lastPingOk;
-    _lastPingOk = true;
-    isOnline    = true;
-    if (wasOffline) updateOnlineStatus(true);
-  } catch(e) {
-    const wasOnline = _lastPingOk;
-    _lastPingOk = false;
-    isOnline    = false;
-    if (wasOnline) updateOnlineStatus(false);
-  }
-}
-setInterval(pingServer, 8000);
+// [offline vars dipindah ke atas]
 
 // ── BUKA IndexedDB ───────────────────────────────────────────────
 function openDB() {

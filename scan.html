@@ -1562,8 +1562,12 @@ async function processQRWithOffline(data) {
   if (!guruAktif) {
     showFlash('error','⛔','Guru belum scan');
     toast('⛔ Guru piket belum scan kartu. Minta guru piket scan kartunya dulu.');
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    scannedHistory[data] = now;  // ← catat agar tidak spam
+    startCooldown(2500);
+    setTimeout(() => {
+      scanCooldown = false;
+      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    }, 2500);
     return;
   }
 

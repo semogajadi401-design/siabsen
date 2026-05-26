@@ -834,22 +834,22 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- ADMIN CARD SECTION IN DASHBOARD -->
-      <div id="adminCardSection" style="display:none;margin-top:20px">
-        <div class="card" style="background:linear-gradient(135deg,#0a0a1a 0%,#0d1b3e 50%,#0a0a1a 100%);border:1px solid rgba(0,212,255,0.3);box-shadow:0 0 30px rgba(0,212,255,0.15),0 4px 20px rgba(0,0,0,0.5)">
-          <div class="card-header" style="border-bottom:1px solid rgba(0,212,255,0.2)">
-            <h3 style="color:#00d4ff;font-size:1rem;display:flex;align-items:center;gap:8px">
-              <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-              Kartu Identitas Admin
-            </h3>
-            <button class="btn btn-sm" onclick="downloadKartuAdmin()" style="background:linear-gradient(135deg,#00d4ff,#0080ff);color:#fff;border:none;font-weight:700;box-shadow:0 0 15px rgba(0,212,255,0.4)">
-              ⬇ Download Kartu
-            </button>
-          </div>
-          <div class="card-body" style="display:flex;justify-content:center;padding:30px">
-            <div id="adminCardPreview" style="transform:scale(1);transform-origin:top center"></div>
+        <!-- KARTU ADMIN — hanya tampil di dashboard -->
+        <div id="adminCardSection" style="display:none;margin-top:20px">
+          <div class="card" style="background:linear-gradient(135deg,#0a0a1a 0%,#0d1b3e 50%,#0a0a1a 100%);border:1px solid rgba(0,212,255,0.3);box-shadow:0 0 30px rgba(0,212,255,0.15),0 4px 20px rgba(0,0,0,0.5)">
+            <div class="card-header" style="border-bottom:1px solid rgba(0,212,255,0.2)">
+              <h3 style="color:#00d4ff;font-size:1rem;display:flex;align-items:center;gap:8px">
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                Kartu Identitas Admin
+              </h3>
+              <button class="btn btn-sm" onclick="downloadKartuAdmin()" style="background:linear-gradient(135deg,#00d4ff,#0080ff);color:#fff;border:none;font-weight:700;box-shadow:0 0 15px rgba(0,212,255,0.4)">
+                ⬇ Download Kartu
+              </button>
+            </div>
+            <div class="card-body" style="display:flex;justify-content:center;padding:30px">
+              <div id="adminCardPreview" style="transform:scale(1);transform-origin:top center"></div>
+            </div>
           </div>
         </div>
       </div>

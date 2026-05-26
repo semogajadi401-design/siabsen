@@ -2366,19 +2366,18 @@ async function downloadKartuAdmin() {
 
   const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
 
-  // Buat wrapper yang VISIBLE tapi di luar viewport (bukan display:none atau opacity:0)
+  // Buat wrapper di luar viewport tapi tetap visible (bukan display:none/opacity:0)
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;left:-500px;top:50px;width:215px;z-index:9999;visibility:hidden';
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:50px;width:215px;z-index:9999;visibility:visible';
   wrap.innerHTML = html;
   document.body.appendChild(wrap);
 
   await new Promise(r => setTimeout(r, 80));
 
-  // Hapus semua elemen yang pakai conic-gradient atau animation (tidak didukung html2canvas)
   const kartu = document.getElementById('kartuAdminPrint');
   if (!kartu) { toast('❌ Gagal: elemen kartu tidak ditemukan'); document.body.removeChild(wrap); return; }
 
-  // Ganti ring animasi dengan border biasa yang kompatibel
+  // Hapus conic-gradient dan animasi (tidak didukung html2canvas)
   kartu.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
     el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
     el.style.animation = 'none';
@@ -2387,7 +2386,9 @@ async function downloadKartuAdmin() {
     el.style.animation = 'none';
   });
 
-  // Render QR — lalu konversi canvas QR ke <img> agar kompatibel dengan Edge
+  // Render QR lalu ekstrak sebagai dataURL PNG
+  // Ini dilakukan SEBELUM html2canvas agar tidak ada canvas 0x0 di clone (bug Edge)
+  let qrDataUrl = null;
   const qrEl = document.getElementById('kartuAdminQR');
   if (qrEl && typeof QRCode !== 'undefined') {
     qrEl.innerHTML = '';
@@ -2396,22 +2397,25 @@ async function downloadKartuAdmin() {
       colorDark: '#00d4ff', colorLight: '#FFFFFF',
       correctLevel: QRCode.CorrectLevel.M
     });
-  }
-
-  // Tunggu QR selesai di-render, lalu ganti canvas QR dengan <img>
-  // agar html2canvas tidak crash di Edge (canvas 0x0 bug)
-  await new Promise(r => setTimeout(r, 800));
-  if (qrEl) {
+    // Tunggu QR selesai render
+    await new Promise(r => setTimeout(r, 600));
     const qrCanvas = qrEl.querySelector('canvas');
     if (qrCanvas && qrCanvas.width > 0 && qrCanvas.height > 0) {
-      const dataUrl = qrCanvas.toDataURL('image/png');
+      qrDataUrl = qrCanvas.toDataURL('image/png');
+    }
+    // Ganti canvas QR dengan <img> — html2canvas jauh lebih andal render <img>
+    if (qrDataUrl) {
       const img = document.createElement('img');
-      img.src = dataUrl;
-      img.style.cssText = 'width:74px;height:74px;display:block';
+      img.src = qrDataUrl;
+      img.width = 74; img.height = 74;
+      img.style.cssText = 'width:74px;height:74px;display:block;flex-shrink:0';
       qrEl.innerHTML = '';
       qrEl.appendChild(img);
     }
   }
+
+  // Tunggu sebentar agar <img> QR terload
+  await new Promise(r => setTimeout(r, 200));
 
   try {
     const { jsPDF } = window.jspdf;
@@ -2427,9 +2431,9 @@ async function downloadKartuAdmin() {
       height: h,
       windowWidth: 215,
       logging: false,
-      imageTimeout: 0,
+      imageTimeout: 15000,
       onclone: (doc) => {
-        // Dalam klon, hapus semua conic-gradient dan animasi
+        // Hapus conic-gradient & animasi di klon
         doc.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
           el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
           el.style.animation = 'none';
@@ -2437,15 +2441,31 @@ async function downloadKartuAdmin() {
         doc.querySelectorAll('[style*="animation"]').forEach(el => {
           el.style.animation = 'none';
         });
-        // Konversi canvas QR di dalam klon juga (fallback untuk Edge)
-        doc.querySelectorAll('#kartuAdminQR canvas').forEach(c => {
-          if (c.width > 0 && c.height > 0) {
-            const dataUrl = c.toDataURL('image/png');
-            const img = doc.createElement('img');
-            img.src = dataUrl;
-            img.style.cssText = 'width:74px;height:74px;display:block';
-            c.parentNode.replaceChild(img, c);
-          }
+        // Ganti SEMUA canvas di klon dengan <img> (fix Edge canvas 0x0)
+        // html2canvas membuat clone baru, jadi canvas QR muncul lagi di sini
+        doc.querySelectorAll('canvas').forEach(c => {
+          try {
+            if (c.width > 0 && c.height > 0) {
+              const du = c.toDataURL('image/png');
+              const img = doc.createElement('img');
+              img.src = du;
+              img.style.cssText = c.style.cssText || 'display:block';
+              img.width = c.width; img.height = c.height;
+              c.parentNode.replaceChild(img, c);
+            } else {
+              // Canvas masih 0x0 — gunakan dataUrl yang sudah kita ambil sebelumnya
+              if (qrDataUrl && c.closest && c.closest('#kartuAdminQR')) {
+                const img = doc.createElement('img');
+                img.src = qrDataUrl;
+                img.width = 74; img.height = 74;
+                img.style.cssText = 'width:74px;height:74px;display:block';
+                c.parentNode.replaceChild(img, c);
+              } else {
+                // Canvas kosong tak dikenal — hapus saja agar tidak crash
+                c.parentNode.removeChild(c);
+              }
+            }
+          } catch(e2) { /* skip canvas yang gagal */ }
         });
       }
     });

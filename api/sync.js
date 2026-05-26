@@ -46,7 +46,11 @@ async function batchSync({ items }) {
 async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru }) {
   if (!identifier) return { success: false, message: 'Identifier kosong' };
 
-  const id = identifier.trim();
+  // Format QR siswa: "SW_ID|NISN" — ambil bagian sebelum "|"
+  const raw = identifier.trim();
+  const id  = raw.includes('|') && !raw.startsWith('ADMIN|') && !raw.startsWith('GR')
+    ? raw.split('|')[0]
+    : raw;
 
   // ── CEK GURU ────────────────────────────────────────────────────
   if (id.startsWith('GR')) {

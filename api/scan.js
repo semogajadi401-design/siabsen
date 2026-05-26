@@ -9,6 +9,7 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   const { action, ...params } = req.body || {};
   try {
+    if (action === 'ping')            return res.json({ ok: true });
     if (action === 'getStatus')       return res.json(await getStatus());
     if (action === 'scanKartu')       return res.json(await scanKartu(params));
     if (action === 'getLogHariIni')   return res.json(await getLogHariIni(params));

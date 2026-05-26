@@ -6,6 +6,7 @@
 <title>SIABSEN - Sistem Informasi Absensi Sekolah</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/src/dom-to-image-more.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -2366,7 +2367,7 @@ async function downloadKartuAdmin() {
 
   const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
 
-  // Buat wrapper di luar viewport tapi tetap visible (bukan display:none/opacity:0)
+  // Buat wrapper di luar viewport tapi tetap visible
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:fixed;left:-9999px;top:50px;width:215px;z-index:9999;visibility:visible';
   wrap.innerHTML = html;
@@ -2377,7 +2378,7 @@ async function downloadKartuAdmin() {
   const kartu = document.getElementById('kartuAdminPrint');
   if (!kartu) { toast('❌ Gagal: elemen kartu tidak ditemukan'); document.body.removeChild(wrap); return; }
 
-  // Hapus conic-gradient dan animasi (tidak didukung html2canvas)
+  // Hapus conic-gradient dan animasi
   kartu.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
     el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
     el.style.animation = 'none';
@@ -2386,9 +2387,7 @@ async function downloadKartuAdmin() {
     el.style.animation = 'none';
   });
 
-  // Render QR lalu ekstrak sebagai dataURL PNG
-  // Ini dilakukan SEBELUM html2canvas agar tidak ada canvas 0x0 di clone (bug Edge)
-  let qrDataUrl = null;
+  // Render QR lalu ganti canvas dengan <img>
   const qrEl = document.getElementById('kartuAdminQR');
   if (qrEl && typeof QRCode !== 'undefined') {
     qrEl.innerHTML = '';
@@ -2397,83 +2396,53 @@ async function downloadKartuAdmin() {
       colorDark: '#00d4ff', colorLight: '#FFFFFF',
       correctLevel: QRCode.CorrectLevel.M
     });
-    // Tunggu QR selesai render
     await new Promise(r => setTimeout(r, 600));
     const qrCanvas = qrEl.querySelector('canvas');
     if (qrCanvas && qrCanvas.width > 0 && qrCanvas.height > 0) {
-      qrDataUrl = qrCanvas.toDataURL('image/png');
-    }
-    // Ganti canvas QR dengan <img> — html2canvas jauh lebih andal render <img>
-    if (qrDataUrl) {
+      const du = qrCanvas.toDataURL('image/png');
       const img = document.createElement('img');
-      img.src = qrDataUrl;
-      img.width = 74; img.height = 74;
+      img.src = du;
       img.style.cssText = 'width:74px;height:74px;display:block;flex-shrink:0';
       qrEl.innerHTML = '';
       qrEl.appendChild(img);
     }
   }
 
-  // Tunggu sebentar agar <img> QR terload
   await new Promise(r => setTimeout(r, 200));
 
   try {
     const { jsPDF } = window.jspdf;
-    const w = 215;
+    const w = kartu.offsetWidth || 215;
     const h = kartu.scrollHeight || kartu.offsetHeight || 400;
 
-    const canvas = await html2canvas(kartu, {
-      scale: 3,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#070714',
-      width: w,
-      height: h,
-      windowWidth: 215,
-      logging: false,
-      imageTimeout: 15000,
-      onclone: (doc) => {
-        // Hapus conic-gradient & animasi di klon
-        doc.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
-          el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
-          el.style.animation = 'none';
-        });
-        doc.querySelectorAll('[style*="animation"]').forEach(el => {
-          el.style.animation = 'none';
-        });
-        // Ganti SEMUA canvas di klon dengan <img> (fix Edge canvas 0x0)
-        // html2canvas membuat clone baru, jadi canvas QR muncul lagi di sini
-        doc.querySelectorAll('canvas').forEach(c => {
-          try {
-            if (c.width > 0 && c.height > 0) {
-              const du = c.toDataURL('image/png');
-              const img = doc.createElement('img');
-              img.src = du;
-              img.style.cssText = c.style.cssText || 'display:block';
-              img.width = c.width; img.height = c.height;
-              c.parentNode.replaceChild(img, c);
-            } else {
-              // Canvas masih 0x0 — gunakan dataUrl yang sudah kita ambil sebelumnya
-              if (qrDataUrl && c.closest && c.closest('#kartuAdminQR')) {
-                const img = doc.createElement('img');
-                img.src = qrDataUrl;
-                img.width = 74; img.height = 74;
-                img.style.cssText = 'width:74px;height:74px;display:block';
-                c.parentNode.replaceChild(img, c);
-              } else {
-                // Canvas kosong tak dikenal — hapus saja agar tidak crash
-                c.parentNode.removeChild(c);
-              }
-            }
-          } catch(e2) { /* skip canvas yang gagal */ }
-        });
-      }
-    });
+    // Coba dom-to-image-more dulu (kompatibel Edge/Chrome/Firefox)
+    // Fallback ke html2canvas kalau gagal
+    let pngDataUrl;
+    if (typeof domtoimage !== 'undefined') {
+      pngDataUrl = await domtoimage.toPng(kartu, {
+        width: w,
+        height: h,
+        style: { 'box-shadow': 'none' },
+        quality: 1,
+        scale: 3
+      });
+    } else {
+      // Fallback html2canvas
+      const cv = await html2canvas(kartu, {
+        scale: 3, useCORS: true, allowTaint: true,
+        backgroundColor: '#070714', width: w, height: h,
+        windowWidth: 215, logging: false, imageTimeout: 15000
+      });
+      pngDataUrl = cv.toDataURL('image/png', 1.0);
+    }
 
+    // Buat PDF dari PNG
+    const tmpImg = new Image();
+    await new Promise((res, rej) => { tmpImg.onload = res; tmpImg.onerror = rej; tmpImg.src = pngDataUrl; });
     const CARD_W_PT = 5.7 * 28.3465;
-    const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
+    const CARD_H_PT = CARD_W_PT * (tmpImg.naturalHeight / tmpImg.naturalWidth);
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });
-    pdf.addImage(canvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
+    pdf.addImage(pngDataUrl, 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
     pdf.save(`Kartu_Admin_${(user.nama || 'Administrator').replace(/\s+/g, '_')}.pdf`);
     toast('✅ Kartu Admin berhasil didownload!', 'success');
   } catch (e) {

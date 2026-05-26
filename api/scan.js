@@ -78,7 +78,11 @@ async function scanKartu({ identifier, mode }) {
   const today = todayStr();
   const jam   = jamSekarang();
   const hari  = hariIni();
-  const id    = identifier.trim();
+  // Format QR siswa: "SW_ID|NISN" — ambil bagian sebelum "|"
+  const raw   = identifier.trim();
+  const id    = raw.includes('|') && !raw.startsWith('ADMIN|') && !raw.startsWith('GR')
+    ? raw.split('|')[0]
+    : raw;
 
   // ========== 1. CEK ADMIN (PRIORITAS UTAMA, TANPA VALIDASI APAPUN) ==========
   if (id.startsWith('ADMIN|')) {

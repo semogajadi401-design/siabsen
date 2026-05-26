@@ -962,11 +962,22 @@ async function doManual() {
   const raw = document.getElementById('manualInput').value.trim();
   const id  = raw.trim();
   if (!id) return;
+  if (!isOnline) {
+    // Offline: simpan ke antrian
+    await processQRWithOffline(id);
+    document.getElementById('manualInput').value = '';
+    return;
+  }
   try {
     const result = await api('scan','scanKartu',{ identifier: id, mode: scanMode });
     handleScanResult(result, id, Date.now());
     document.getElementById('manualInput').value = '';
-  } catch(e) { toast('❌ Koneksi gagal'); }
+  } catch(e) {
+    _lastPingOk = false; isOnline = false;
+    updateOnlineStatus(false);
+    await processQRWithOffline(id);
+    document.getElementById('manualInput').value = '';
+  }
 }
 
 // ── FLASH ────────────────────────────────────────────────────────
@@ -1134,6 +1145,32 @@ const STORE_NAME = 'antrian';
 let offlineDB    = null;
 let isOnline     = navigator.onLine;
 let isSyncing    = false;
+let _lastPingOk  = navigator.onLine;
+
+// Ping server nyata setiap 8 detik — lebih akurat dari navigator.onLine
+async function pingServer() {
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 4000);
+    await fetch(`${API}/api/scan`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'ping' }),
+      signal: ctrl.signal
+    });
+    clearTimeout(tid);
+    const wasOffline = !_lastPingOk;
+    _lastPingOk = true;
+    isOnline    = true;
+    if (wasOffline) updateOnlineStatus(true);
+  } catch(e) {
+    const wasOnline = _lastPingOk;
+    _lastPingOk = false;
+    isOnline    = false;
+    if (wasOnline) updateOnlineStatus(false);
+  }
+}
+setInterval(pingServer, 8000);
 
 // ── BUKA IndexedDB ───────────────────────────────────────────────
 function openDB() {
@@ -1346,9 +1383,17 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 const _origProcessQR = processQR;
 async function processQRWithOffline(data) {
   if (isOnline) {
-    // Online: jalur normal
-    await _origProcessQR(data);
-    return;
+    // Online: coba kirim ke server dulu
+    try {
+      await _origProcessQR(data);
+      return;
+    } catch(e) {
+      // Fetch gagal walau isOnline — berarti internet mati tiba-tiba
+      _lastPingOk = false;
+      isOnline    = false;
+      updateOnlineStatus(false);
+      // Lanjut ke blok offline di bawah
+    }
   }
 
   // Offline: simpan ke antrian
@@ -1411,8 +1456,8 @@ window.addEventListener('offline', () => updateOnlineStatus(false));
 init().then(() => {
   // Patch processQR setelah init
   window.processQR = processQRWithOffline;
-  // Set status awal
-  updateOnlineStatus(navigator.onLine);
+  // Ping server langsung untuk cek koneksi nyata
+  pingServer();
   // Load badge
   updateOfflineBadge();
 });

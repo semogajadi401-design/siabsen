@@ -2362,45 +2362,52 @@ async function downloadKartuAdmin() {
     if (r.success) APP.settings = r.data;
   }
 
+  toast('⏳ Menyiapkan kartu admin...');
+
+  // Buat elemen offscreen yang benar-benar dirender browser
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
+  wrap.style.cssText = 'position:absolute;top:0;left:0;width:215px;opacity:0;pointer-events:none;z-index:-1';
   const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
   wrap.innerHTML = html;
   document.body.appendChild(wrap);
 
-  setTimeout(async () => {
-    const qrEl = document.getElementById('kartuAdminQR');
-    if (qrEl && typeof QRCode !== 'undefined') {
-      new QRCode(qrEl, {
-        text: qrId,
-        width: 74, height: 74,
-        colorDark: '#0D47A1',
-        colorLight: '#FFFFFF',
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    }
+  // Tunggu render DOM
+  await new Promise(r => setTimeout(r, 100));
 
-    setTimeout(async () => {
-      try {
-        const { jsPDF } = window.jspdf;
-        const kartu = document.getElementById('kartuAdminPrint');
-        const canvas = await html2canvas(kartu, {
-          scale: 3, useCORS: true, backgroundColor: '#070714',
-          width: kartu.offsetWidth, height: kartu.scrollHeight
-        });
-        const CARD_W_PT = 5.7 * 28.3465;
-        const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });
-        pdf.addImage(canvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
-        pdf.save(`Kartu_Admin_${(user.nama || 'Administrator').replace(/\s+/g, '_')}.pdf`);
-        toast('✅ Kartu Admin berhasil didownload!', 'success');
-      } catch (e) {
-        toast('❌ Gagal: ' + e.message, 'error');
-      } finally {
-        document.body.removeChild(wrap);
-      }
-    }, 800);
-  }, 400);
+  // Render QR ke elemen yang sudah ada di DOM
+  const qrEl = document.getElementById('kartuAdminQR');
+  if (qrEl && typeof QRCode !== 'undefined') {
+    qrEl.innerHTML = '';
+    new QRCode(qrEl, {
+      text: qrId, width: 74, height: 74,
+      colorDark: '#0D47A1', colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
+  // Tunggu QR render
+  await new Promise(r => setTimeout(r, 600));
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const kartu = document.getElementById('kartuAdminPrint');
+    const w = kartu.offsetWidth || 215;
+    const h = kartu.scrollHeight || kartu.offsetHeight || 350;
+    const canvas = await html2canvas(kartu, {
+      scale: 3, useCORS: true, backgroundColor: '#070714',
+      width: w, height: h, windowWidth: w
+    });
+    const CARD_W_PT = 5.7 * 28.3465;
+    const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });
+    pdf.addImage(canvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
+    pdf.save(`Kartu_Admin_${(user.nama || 'Administrator').replace(/\s+/g, '_')}.pdf`);
+    toast('✅ Kartu Admin berhasil didownload!', 'success');
+  } catch (e) {
+    toast('❌ Gagal: ' + e.message, 'error');
+  } finally {
+    if (wrap.parentNode) document.body.removeChild(wrap);
+  }
 }
 
 // ── PIKET ────────────────────────────────────────────────────────
@@ -2621,17 +2628,20 @@ function switchKartuTab(tab) {
 }
 
 async function loadHalamanKartu() {
-  // Populate filter kelas untuk tab siswa
-  const selectors = ['kartuKelas'];
-  const stored = getKelasFromStorage();
-  selectors.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = '<option value="">Semua Kelas</option>';
-    stored.forEach(k => el.innerHTML += `<option value="${k}">${k}</option>`);
-    if (cur) el.value = cur;
-  });
+  // Ambil daftar kelas dari data siswa aktif di database
+  try {
+    const r = await api('siswa', 'getAll', { activeOnly: true });
+    if (r.success && r.data.length) {
+      const kelasSet = new Set(r.data.map(s => s.kelas).filter(Boolean));
+      const el = document.getElementById('kartuKelas');
+      if (el) {
+        el.innerHTML = '<option value="">Semua Kelas</option>';
+        [...kelasSet].sort().forEach(k => {
+          el.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+      }
+    }
+  } catch(e) {}
   // Tampilkan tab admin by default
   switchKartuTab('admin');
 }

@@ -384,10 +384,12 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
 
 .sync-card{
   width:min(420px,92vw);
+  max-height:90vh;
+  overflow-y:auto;
   background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
   border:1px solid rgba(255,255,255,0.08);
   border-radius:24px;padding:40px 36px;
-  text-align:center;position:relative;overflow:hidden;
+  text-align:center;position:relative;
 }
 .sync-card::before{
   content:'';position:absolute;inset:0;
@@ -451,7 +453,7 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
 
 /* item list */
 .sync-log{
-  max-height:180px;overflow-y:auto;
+  max-height:240px;overflow-y:auto;
   display:flex;flex-direction:column;gap:6px;
   margin-bottom:24px;
   scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent;

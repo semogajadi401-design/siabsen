@@ -6,7 +6,8 @@ const { supabase, generateID, setCors, getJamSetting, hariIni, requireAdminToken
 // admin. Hanya aksi yang MENGUBAH pengaturan yang dikunci.
 const AKSI_TERKUNCI = new Set([
   'updateJamSetting', 'setJadwalPiket',
-  'setHariLibur', 'hapusHariLibur', 'updatePengaturanHari'
+  'setHariLibur', 'hapusHariLibur', 'updatePengaturanHari',
+  'resetPengaturanAplikasi'
 ]);
 
 module.exports = async (req, res) => {
@@ -31,6 +32,7 @@ module.exports = async (req, res) => {
     if (action === 'getGuruPiket')      return res.json(await getGuruPiket());
     if (action === 'getPengaturanHari') return res.json(await getPengaturanHari());
     if (action === 'updatePengaturanHari') return res.json(await updatePengaturanHari(params));
+    if (action === 'resetPengaturanAplikasi') return res.json(await resetPengaturanAplikasi());
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -209,5 +211,46 @@ function getConstants() {
     agamaList: ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu'],
     hariList: ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'],
     kelasList: ['X-1','X-2','X-3','XI-1','XI-2','XI-3','XII-1','XII-2','XII-3']
+  };
+}
+
+// ── RESET PENGATURAN APLIKASI KE DEFAULT ──────────────────────────
+// Mengembalikan 3 hal ke kondisi default seperti saat instalasi pertama
+// (lihat schema.sql):
+//  1. jam_setting     → jam operasional, toleransi, dan profil sekolah
+//  2. pengaturan_hari_kerja → hari sekolah aktif (dikosongkan, jadi
+//     otomatis kembali ke default Senin-Jumat lewat getPengaturanHari())
+//  3. hari_kerja      → kalender hari libur per tanggal (dikosongkan)
+// TIDAK menyentuh jadwal_piket, siswa, guru, absensi, atau semester —
+// itu domain reset masing-masing (guru.resetSemua, siswa.resetSemua,
+// absensi.resetAbsensi, semester.resetSemua).
+async function resetPengaturanAplikasi() {
+  const NAMA_SEKOLAH_SEBELUMNYA = (await getJamSetting())['NAMA_SEKOLAH'] || '';
+
+  const defaults = [
+    { kunci: 'JAM_DATANG_MULAI',   nilai: '06:30', deskripsi: 'Jam mulai absensi datang' },
+    { kunci: 'JAM_DATANG_SELESAI', nilai: '08:00', deskripsi: 'Batas jam datang' },
+    { kunci: 'JAM_PULANG_MULAI',   nilai: '14:00', deskripsi: 'Jam mulai absensi pulang' },
+    { kunci: 'JAM_PULANG_SELESAI', nilai: '16:00', deskripsi: 'Batas jam absensi pulang' },
+    { kunci: 'TOLERANSI_MENIT',    nilai: '15',    deskripsi: 'Toleransi keterlambatan menit' },
+    // Profil sekolah (nama/alamat/NPSN/dll) SENGAJA tidak ikut direset ke
+    // nilai contoh bawaan supaya identitas sekolah yang sudah diisi admin
+    // tidak hilang tanpa sengaja hanya karena reset jam operasional.
+  ];
+
+  const { error: e1 } = await supabase
+    .from('jam_setting')
+    .upsert(defaults, { onConflict: 'kunci' });
+  if (e1) return { success: false, message: 'Gagal reset jam operasional: ' + e1.message };
+
+  const { error: e2 } = await supabase.from('pengaturan_hari_kerja').delete().neq('hari', 'x');
+  if (e2) return { success: false, message: 'Gagal reset hari sekolah aktif: ' + e2.message };
+
+  const { error: e3 } = await supabase.from('hari_kerja').delete().neq('tanggal', '1900-01-01');
+  if (e3) return { success: false, message: 'Gagal reset kalender hari libur: ' + e3.message };
+
+  return {
+    success: true,
+    message: `Jam operasional, hari sekolah aktif (kembali ke Senin–Jumat), dan kalender hari libur berhasil direset ke default. Profil sekolah "${NAMA_SEKOLAH_SEBELUMNYA}" tetap dipertahankan.`
   };
 }

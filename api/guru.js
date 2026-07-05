@@ -77,6 +77,18 @@ async function hapus({ id }) {
 }
 
 async function hapusPermanen({ id }) {
+  // SAMA seperti resetSemua() di bawah: jadwal_piket & sesi_piket.id_guru
+  // adalah FOREIGN KEY ke guru(id) tanpa ON DELETE CASCADE (schema.sql).
+  // Kalau baris guru ini pernah dijadwalkan piket atau pernah scan sebagai
+  // guru piket, DELETE langsung ke tabel guru akan GAGAL (foreign key
+  // violation) dan admin cuma lihat error mentah dari database. Bersihkan
+  // dulu baris terkait guru ini sebelum hapus baris guru-nya.
+  const { error: e1 } = await supabase.from('jadwal_piket').delete().eq('id_guru', id);
+  if (e1) return { success: false, message: 'Gagal hapus jadwal piket guru ini: ' + e1.message };
+
+  const { error: e2 } = await supabase.from('sesi_piket').delete().eq('id_guru', id);
+  if (e2) return { success: false, message: 'Gagal hapus riwayat sesi piket guru ini: ' + e2.message };
+
   const { error } = await supabase.from('guru').delete().eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Data guru berhasil dihapus permanen' };

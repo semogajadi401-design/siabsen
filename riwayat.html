@@ -11,21 +11,29 @@
   --bg:#0e2818;--surface:#fff;--text:#1a1a1a;--text-muted:#777;--border:#eee;
   --danger:#c62828;--warning:#b8920a;--font:'Segoe UI',system-ui,Arial,sans-serif;
 }
+html,body{height:100%}
 body{
   font-family:var(--font);
   min-height:100vh;
+  min-height:100dvh;
   background:
     radial-gradient(circle at 20% 0%, rgba(45,158,87,.35), transparent 55%),
     radial-gradient(circle at 90% 100%, rgba(184,146,10,.3), transparent 55%),
     var(--bg);
   color:var(--text);
-  display:flex;justify-content:center;padding:22px 12px 40px;
+  display:flex;justify-content:center;align-items:center;
+  padding:16px;
 }
-.wrap{width:100%;max-width:480px}
+
+/* Wrap membungkus baik kartu lanskap (hasil/error) maupun state loading.
+   align-items:center supaya state-box (yang lebih sempit) tetap di
+   tengah walau .wrap sendiri melebar untuk kartu riwayat. */
+.wrap{width:100%;max-width:960px;display:flex;flex-direction:column;align-items:center}
 
 /* ── STATE: LOADING / ERROR ── */
 .state-box{
-  background:var(--surface);border-radius:16px;padding:40px 24px;text-align:center;
+  width:100%;max-width:420px;
+  background:var(--surface);border-radius:16px;padding:36px 24px;text-align:center;
   box-shadow:0 20px 50px rgba(0,0,0,.35);
 }
 .spinner{width:40px;height:40px;border:4px solid #e5e5e5;border-top-color:var(--green);border-radius:50%;
@@ -34,80 +42,107 @@ body{
 .state-box h3{font-size:1rem;color:var(--text);margin-bottom:6px}
 .state-box p{font-size:.85rem;color:var(--text-muted);line-height:1.5}
 .state-box .emoji{font-size:2.2rem;margin-bottom:10px}
+.state-box .btn-close{margin-top:22px}
 
-/* ── CARD MODAL ── */
+/* ── KARTU LANSKAP (hasil riwayat) ── */
 .modal-card{
+  width:100%;
   background:var(--surface);border-radius:18px;overflow:hidden;
   box-shadow:0 25px 60px rgba(0,0,0,.45);
-  animation:popIn .35s cubic-bezier(.2,.9,.3,1.2);
+  animation:popIn .3s cubic-bezier(.2,.9,.3,1.2);
+  display:flex;flex-direction:column;
+  max-height:78vh;max-height:78dvh;
 }
-@keyframes popIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 
+/* Header ramping (bukan lagi blok tinggi dengan wave) supaya ruang
+   vertikal lebih banyak tersisa untuk isi, dan tombol tutup langsung
+   kelihatan tanpa scroll. */
 .header{
-  background:linear-gradient(135deg,var(--green-dark) 0%,var(--green) 55%,var(--gold) 100%);
-  padding:20px 20px 34px;color:#fff;position:relative;
+  flex-shrink:0;
+  background:linear-gradient(120deg,var(--green-dark) 0%,var(--green) 55%,var(--gold) 100%);
+  padding:14px 20px;color:#fff;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
 }
+.header .who{min-width:0}
 .header .tag{
-  display:inline-block;background:rgba(255,215,0,.22);border:1px solid rgba(255,215,0,.6);
-  color:var(--gold-light);font-size:.65rem;font-weight:700;letter-spacing:.4px;
-  padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:10px;
+  display:inline-block;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);
+  color:#fff;font-size:.62rem;font-weight:700;letter-spacing:.4px;
+  padding:2px 8px;border-radius:20px;text-transform:uppercase;margin-bottom:5px;
 }
-.header h1{font-size:1.15rem;font-weight:800;line-height:1.3}
-.header .sub{font-size:.78rem;color:rgba(255,255,255,.85);margin-top:3px}
-.wave{margin-top:-2px;line-height:0}
+.header h1{font-size:1.05rem;font-weight:800;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header .sub{font-size:.75rem;color:rgba(255,255,255,.9);margin-top:2px}
+.header .persen-chip{
+  flex-shrink:0;text-align:center;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.4);
+  border-radius:12px;padding:6px 16px;
+}
+.header .persen-chip .n{font-size:1.3rem;font-weight:800;color:#fff;line-height:1}
+.header .persen-chip .l{font-size:.6rem;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
 
-.body-pad{padding:0 18px 18px;margin-top:-22px;position:relative;z-index:2}
+/* Badan kartu: dua kolom (lanskap) — kiri filter+ringkasan, kanan daftar
+   riwayat. Ini yang memanfaatkan area kosong kiri-kanan supaya tidak
+   perlu scroll ke bawah lagi. */
+.body-pad{
+  flex:1;min-height:0;
+  padding:16px 20px 18px;
+  display:flex;flex-direction:column;
+}
+.content-row{display:flex;gap:18px;flex:1;min-height:0}
+
+.side-col{
+  width:230px;flex-shrink:0;
+  display:flex;flex-direction:column;gap:12px;
+  overflow-y:auto;padding-right:2px;
+}
+.main-col{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
 
 /* ── FILTER BAR ── */
 .filters{
-  display:grid;grid-template-columns:1fr 1fr;gap:8px;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:12px;box-shadow:0 6px 18px rgba(0,0,0,.08);
+  display:flex;flex-direction:column;gap:10px;
+  background:#fafbfc;border:1px solid var(--border);border-radius:12px;
+  padding:12px;flex-shrink:0;
 }
-.filters .full{grid-column:1 / -1}
-.filters label{font-size:.65rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px}
+.filters label{font-size:.63rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px}
 .filters select{
   width:100%;padding:8px 9px;border-radius:8px;border:1.5px solid #e2e2e2;
-  font-size:.82rem;font-family:var(--font);background:#fafafa;color:var(--text);
+  font-size:.8rem;font-family:var(--font);background:#fff;color:var(--text);
 }
 .filters select:focus{outline:none;border-color:var(--green)}
 
-/* ── STAT GRID ── */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+/* ── STAT GRID (ringkas, 2 kolom, di kolom kiri) ── */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
 .stat-item{
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:10px 6px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.05);
+  background:#fafbfc;border:1px solid var(--border);border-radius:12px;
+  padding:9px 6px;text-align:center;
 }
-.stat-item .n{font-size:1.15rem;font-weight:800;line-height:1.1}
-.stat-item .l{font-size:.62rem;color:var(--text-muted);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.2px}
+.stat-item .n{font-size:1.05rem;font-weight:800;line-height:1.1}
+.stat-item .l{font-size:.6rem;color:var(--text-muted);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.2px}
 .stat-item.hadir .n{color:var(--green-dark)}
 .stat-item.terlambat .n{color:var(--warning)}
 .stat-item.sakit .n{color:#1565C0}
 .stat-item.izin .n{color:#6a1b9a}
 .stat-item.alpha .n{color:var(--danger)}
-.stat-item.persen{grid-column:1 / -1;background:linear-gradient(135deg,var(--green-dark),var(--green));}
-.stat-item.persen .n{color:#fff;font-size:1.5rem}
-.stat-item.persen .l{color:rgba(255,255,255,.85)}
+.stat-item.total{grid-column:1 / -1;background:#f2f6f3}
 
-/* ── LIST ── */
-.list-title{font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin:16px 0 8px}
-.riwayat-list{display:flex;flex-direction:column;gap:7px;max-height:420px;overflow-y:auto;padding-right:2px}
+/* ── LIST (kolom kanan, satu-satunya bagian yang boleh scroll) ── */
+.list-title{flex-shrink:0;font-size:.76rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px}
+.riwayat-list{flex:1;min-height:0;display:flex;flex-direction:column;gap:7px;overflow-y:auto;padding-right:4px}
 .riwayat-item{
-  display:flex;align-items:center;gap:10px;background:var(--surface);
-  border:1px solid var(--border);border-left:4px solid #ccc;border-radius:10px;padding:9px 11px;
+  display:flex;align-items:center;gap:10px;background:#fff;
+  border:1px solid var(--border);border-left:4px solid #ccc;border-radius:10px;padding:8px 11px;flex-shrink:0;
 }
 .riwayat-item.hadir{border-left-color:var(--green)}
 .riwayat-item.terlambat{border-left-color:var(--warning)}
 .riwayat-item.sakit{border-left-color:#1565C0}
 .riwayat-item.izin{border-left-color:#6a1b9a}
 .riwayat-item.alpha{border-left-color:var(--danger)}
-.riwayat-item .tgl-box{min-width:46px;text-align:center;flex-shrink:0}
-.riwayat-item .tgl-box .d{font-size:1.05rem;font-weight:800;color:var(--text)}
-.riwayat-item .tgl-box .m{font-size:.6rem;color:var(--text-muted);text-transform:uppercase;font-weight:700}
+.riwayat-item .tgl-box{min-width:44px;text-align:center;flex-shrink:0}
+.riwayat-item .tgl-box .d{font-size:1rem;font-weight:800;color:var(--text)}
+.riwayat-item .tgl-box .m{font-size:.58rem;color:var(--text-muted);text-transform:uppercase;font-weight:700}
 .riwayat-item .info{flex:1;min-width:0}
-.riwayat-item .info .hari{font-size:.82rem;font-weight:700;color:var(--text)}
-.riwayat-item .info .jam{font-size:.72rem;color:var(--text-muted);margin-top:1px}
-.badge-status{font-size:.66rem;font-weight:800;padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.riwayat-item .info .hari{font-size:.8rem;font-weight:700;color:var(--text)}
+.riwayat-item .info .jam{font-size:.7rem;color:var(--text-muted);margin-top:1px}
+.badge-status{font-size:.64rem;font-weight:800;padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
 .badge-status.hadir{background:#e6f7ec;color:var(--green-dark)}
 .badge-status.terlambat{background:#fff6e0;color:var(--warning)}
 .badge-status.sakit{background:#e3f0fd;color:#1565C0}
@@ -116,19 +151,32 @@ body{
 .empty-note{text-align:center;color:var(--text-muted);font-size:.82rem;padding:26px 10px}
 
 .footer-note{
-  text-align:center;font-size:.68rem;color:rgba(255,255,255,.55);padding:14px 10px 0;
+  text-align:center;font-size:.66rem;color:rgba(255,255,255,.55);padding:10px 10px 0;
 }
 
 /* ── TOMBOL TUTUP ── */
 .btn-close{
   display:flex;align-items:center;justify-content:center;gap:8px;
-  width:100%;margin-top:18px;padding:16px 18px;border:none;border-radius:14px;
+  width:100%;margin-top:14px;padding:15px 18px;border:none;border-radius:14px;
   background:linear-gradient(135deg,var(--green-dark) 0%,var(--green) 55%,var(--gold) 100%);
-  color:#fff;font-family:var(--font);font-size:1rem;font-weight:800;letter-spacing:.2px;
+  color:#fff;font-family:var(--font);font-size:.95rem;font-weight:800;letter-spacing:.2px;
   cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.28);
   -webkit-tap-highlight-color:transparent;transition:transform .15s,box-shadow .15s;
+  flex-shrink:0;
 }
 .btn-close:active{transform:scale(.97);box-shadow:0 4px 14px rgba(0,0,0,.28)}
+
+/* ── RESPONSIVE: layar sempit tetap dua kolom selama muat, kalau
+   terlalu sempit baru ditumpuk ── */
+@media (max-width:640px){
+  .content-row{flex-direction:column}
+  .side-col{width:100%;overflow-y:visible}
+  .filters{flex-direction:row;flex-wrap:wrap;gap:8px}
+  .filters > div{flex:1;min-width:110px}
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .stat-item.total{grid-column:auto}
+  .modal-card{max-height:82vh;max-height:82dvh}
+}
 </style>
 </head>
 <body>
@@ -270,43 +318,54 @@ function render(r) {
   document.getElementById('app').innerHTML = `
     <div class="modal-card">
       <div class="header">
-        <span class="tag">🎓 Riwayat Kehadiran</span>
-        <h1>${info.siswa.nama}</h1>
-        <div class="sub">Kelas ${info.siswa.kelas} &nbsp;•&nbsp; NISN ${info.siswa.nisn}</div>
+        <div class="who">
+          <span class="tag">🎓 Riwayat Kehadiran</span>
+          <h1>${info.siswa.nama}</h1>
+          <div class="sub">Kelas ${info.siswa.kelas} &nbsp;•&nbsp; NISN ${info.siswa.nisn}</div>
+        </div>
+        <div class="persen-chip">
+          <div class="n">${st.persentaseKehadiran}%</div>
+          <div class="l">Kehadiran</div>
+        </div>
       </div>
-      <div class="wave">
-        <svg viewBox="0 0 480 30" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-          <path d="M0,0 L480,0 L480,14 Q360,32 240,20 Q120,8 0,26 Z" fill="#fff"/>
-        </svg>
-      </div>
+
       <div class="body-pad">
-        <div class="filters">
-          <div>
-            <label>Semester</label>
-            <select id="selSemester">${semesterOpts}</select>
-          </div>
-          <div>
-            <label>Bulan</label>
-            <select id="selBulan">${bulanOptionsHTML}</select>
-          </div>
-          <div class="full">
-            <label>Status Kehadiran</label>
-            <select id="selStatus">${statusOptionsHTML}</select>
-          </div>
-        </div>
+        <div class="content-row">
 
-        <div class="stats">
-          <div class="stat-item hadir"><div class="n">${st.totalHadir}</div><div class="l">Hadir</div></div>
-          <div class="stat-item terlambat"><div class="n">${st.totalTerlambat}</div><div class="l">Terlambat</div></div>
-          <div class="stat-item sakit"><div class="n">${st.totalSakit}</div><div class="l">Sakit</div></div>
-          <div class="stat-item izin"><div class="n">${st.totalIzin}</div><div class="l">Izin</div></div>
-          <div class="stat-item alpha"><div class="n">${st.totalAlpha}</div><div class="l">Alpha</div></div>
-          <div class="stat-item"><div class="n">${st.totalHariSekolah}</div><div class="l">Total Hari</div></div>
-          <div class="stat-item persen"><div class="n">${st.persentaseKehadiran}%</div><div class="l">Persentase Kehadiran</div></div>
-        </div>
+          <!-- KOLOM KIRI: filter + ringkasan angka -->
+          <div class="side-col">
+            <div class="filters">
+              <div>
+                <label>Semester</label>
+                <select id="selSemester">${semesterOpts}</select>
+              </div>
+              <div>
+                <label>Bulan</label>
+                <select id="selBulan">${bulanOptionsHTML}</select>
+              </div>
+              <div>
+                <label>Status Kehadiran</label>
+                <select id="selStatus">${statusOptionsHTML}</select>
+              </div>
+            </div>
 
-        <div class="list-title">Detail Riwayat (${r.rentang.start} s/d ${r.rentang.end})</div>
-        <div class="riwayat-list">${listHTML}</div>
+            <div class="stats">
+              <div class="stat-item hadir"><div class="n">${st.totalHadir}</div><div class="l">Hadir</div></div>
+              <div class="stat-item terlambat"><div class="n">${st.totalTerlambat}</div><div class="l">Terlambat</div></div>
+              <div class="stat-item sakit"><div class="n">${st.totalSakit}</div><div class="l">Sakit</div></div>
+              <div class="stat-item izin"><div class="n">${st.totalIzin}</div><div class="l">Izin</div></div>
+              <div class="stat-item alpha"><div class="n">${st.totalAlpha}</div><div class="l">Alpha</div></div>
+              <div class="stat-item total"><div class="n">${st.totalHariSekolah}</div><div class="l">Total Hari</div></div>
+            </div>
+          </div>
+
+          <!-- KOLOM KANAN: daftar riwayat (satu-satunya yang scroll) -->
+          <div class="main-col">
+            <div class="list-title">Detail Riwayat (${r.rentang.start} s/d ${r.rentang.end})</div>
+            <div class="riwayat-list">${listHTML}</div>
+          </div>
+
+        </div>
       </div>
     </div>
     ${tombolTutupHTML()}

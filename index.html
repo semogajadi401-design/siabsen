@@ -1056,9 +1056,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="card">
             <div class="card-header">
               <h3>Kartu Identitas Guru</h3>
+              <button class="btn btn-success btn-sm" id="btnDownloadSemuaGuru" onclick="downloadAllKartuGuruPDF()">📄 Download Semua PDF</button>
             </div>
             <div class="card-body">
-              <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Pilih guru untuk melihat preview dan download kartu identitasnya.</p>
+              <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Pilih guru untuk melihat preview dan download kartu identitasnya, atau download semua sekaligus dalam satu PDF siap gunting.</p>
               <div id="kartuGuruGrid" style="display:flex;flex-wrap:wrap;gap:20px"></div>
             </div>
           </div>
@@ -2098,14 +2099,11 @@ async function hapusSiswa(id,nama){ if(!confirm(`Nonaktifkan siswa "${nama}"?`))
 async function resetRiwayatToken(id,nama){ if(!confirm(`Reset QR riwayat kehadiran untuk "${nama}"?\n\nQR riwayat di kartu LAMA tidak akan bisa dipakai lagi. Cetak ulang kartunya setelah ini.`))return; const r=await api('siswa','resetRiwayatToken',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
 
   // ── KARTU GURU ───────────────────────────────────────────────────
-async function cetakKartuGuru(guru) {
-  // Pastikan settings sudah dimuat
-  if (!APP.settings) {
-    const r = await api('settings','getJamSetting');
-    if (r.success) APP.settings = r.data;
-  }
-
-  const settings  = APP.settings || {};
+// Membangun markup kartu guru (dipakai baik untuk download per-individu
+// maupun download massal) supaya desainnya selalu sama persis.
+// `uid` dipakai sebagai suffix id elemen supaya aman dirender banyak
+// kartu sekaligus di halaman yang sama (download massal) tanpa bentrok id.
+function buildKartuGuruPrintHTML(guru, settings, uid) {
   const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
   const logoUrl    = settings['LOGO_URL'] || '';
   const email      = settings['EMAIL_SEKOLAH'] || '';
@@ -2117,11 +2115,8 @@ async function cetakKartuGuru(guru) {
     ? `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0"><img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain"></div>`
     : `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">🏫</div>`;
 
-  // Buat elemen kartu guru
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
-  wrap.innerHTML = `
-  <div id="kartuGuruPrint" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+  return `
+  <div id="kartuGuruPrint_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER BIRU -->
     <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:7px 10px 28px;flex-shrink:0">
@@ -2175,7 +2170,7 @@ async function cetakKartuGuru(guru) {
     <!-- QR -->
     <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:4px 12px 5px;flex-shrink:0">
       <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div id="kartuGuruQR" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+        <div id="kartuGuruQR_${uid}" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
       <div style="font-size:4.5pt;color:#aaa;text-align:center;margin-top:3px;letter-spacing:.2px">Scan untuk piket • ${guru.id}</div>
     </div>
@@ -2190,12 +2185,28 @@ async function cetakKartuGuru(guru) {
       <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolAddr || schoolName}</span>
     </div>
   </div>`;
+}
+
+async function cetakKartuGuru(guru) {
+  // Pastikan settings sudah dimuat
+  if (!APP.settings) {
+    const r = await api('settings','getJamSetting');
+    if (r.success) APP.settings = r.data;
+  }
+
+  const settings = APP.settings || {};
+  const uid = 'single_' + guru.id;
+
+  // Buat elemen kartu guru
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
+  wrap.innerHTML = buildKartuGuruPrintHTML(guru, settings, uid);
 
   document.body.appendChild(wrap);
 
   // Generate QR
   setTimeout(async () => {
-    const qrEl = document.getElementById('kartuGuruQR');
+    const qrEl = document.getElementById('kartuGuruQR_' + uid);
     if (qrEl && typeof QRCode !== 'undefined') {
       new QRCode(qrEl, {
         text: guru.id,
@@ -2210,7 +2221,7 @@ async function cetakKartuGuru(guru) {
     setTimeout(async () => {
       try {
         const { jsPDF } = window.jspdf;
-        const kartu = document.getElementById('kartuGuruPrint');
+        const kartu = document.getElementById('kartuGuruPrint_' + uid);
         const canvas = await html2canvas(kartu, {
           scale: 3, useCORS: true, backgroundColor: '#ffffff',
           width: kartu.offsetWidth, height: kartu.scrollHeight
@@ -2228,6 +2239,102 @@ async function cetakKartuGuru(guru) {
       }
     }, 800);
   }, 400);
+}
+
+// Download massal — satu PDF berisi kartu identitas SEMUA guru aktif,
+// disusun dalam grid siap gunting seperti kartu siswa (bisa langsung
+// dimasukkan ke gantungan kartu / ID card holder).
+async function downloadAllKartuGuruPDF() {
+  const btnAll = document.getElementById('btnDownloadSemuaGuru');
+  if (btnAll) { btnAll.disabled = true; btnAll.textContent = '⏳ Memproses...'; }
+
+  let hiddenWrap = null;
+  try {
+    if (!APP.settings) {
+      const r = await api('settings', 'getJamSetting');
+      if (r.success) APP.settings = r.data;
+    }
+    const settings = APP.settings || {};
+
+    const guruRes = await api('guru', 'getAll');
+    if (!guruRes.success) throw new Error(guruRes.message || 'Gagal memuat data guru');
+    const guruList = guruRes.data.filter(g => g.status === 'Aktif');
+    if (!guruList.length) { toast('Tidak ada guru aktif', 'warning'); return; }
+
+    toast(`Menyiapkan ${guruList.length} kartu guru, harap tunggu...`, 'info', 60000);
+
+    // Render semua kartu sekaligus (tersembunyi di luar layar) supaya QR
+    // sempat digambar sebelum di-capture oleh html2canvas.
+    hiddenWrap = document.createElement('div');
+    hiddenWrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
+    hiddenWrap.innerHTML = guruList.map((g, i) =>
+      `<div style="margin-bottom:20px">${buildKartuGuruPrintHTML(g, settings, 'bulk_' + i)}</div>`
+    ).join('');
+    document.body.appendChild(hiddenWrap);
+
+    // Tunggu satu tick render sebelum generate QR
+    await new Promise(res => setTimeout(res, 50));
+    guruList.forEach((g, i) => {
+      const qrEl = document.getElementById('kartuGuruQR_bulk_' + i);
+      if (qrEl && typeof QRCode !== 'undefined') {
+        new QRCode(qrEl, {
+          text: g.id, width: 72, height: 72,
+          colorDark: '#0D47A1', colorLight: '#FFFFFF',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+    });
+    // Beri waktu QRCode.js selesai menggambar sebelum di-capture
+    await new Promise(res => setTimeout(res, 400));
+
+    // Capture semua kartu — diproses 4 per batch secara paralel supaya cepat.
+    const canvases = await runInBatches(guruList, async (g, i) => {
+      const el = document.getElementById('kartuGuruPrint_bulk_' + i);
+      return captureKartu(el, el.offsetWidth);
+    }, 4);
+
+    const { jsPDF } = window.jspdf;
+
+    // Ukuran halaman & grid — kartu guru satu sisi saja (tanpa bagian
+    // belakang) jadi bisa disusun lebih rapat, 3 kolom per halaman.
+    const PAGE_W  = 21.5;
+    const PAGE_H  = 33.0;
+    const MARGIN  = 0.6;
+    const COLS    = 3;
+    const GAP_COL = 0.4;
+    const GAP_ROW = 0.5;
+
+    const CARD_W = (PAGE_W - MARGIN * 2 - GAP_COL * (COLS - 1)) / COLS;
+    const refRatio = canvases[0].height / canvases[0].width;
+    const CARD_H   = CARD_W * refRatio;
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
+
+    let col = 0;
+    let y   = MARGIN;
+
+    canvases.forEach((canvas, i) => {
+      if (col === COLS) { col = 0; y += CARD_H + GAP_ROW; }
+      if (col === 0 && i > 0 && y + CARD_H > PAGE_H - MARGIN) {
+        pdf.addPage();
+        y = MARGIN;
+        col = 0;
+      }
+      const x = MARGIN + col * (CARD_W + GAP_COL);
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, CARD_W, CARD_H);
+      col++;
+    });
+
+    const totalPages = pdf.getNumberOfPages();
+    pdf.save('Kartu_Guru_Semua.pdf');
+    toast(`✅ PDF ${canvases.length} kartu guru (${totalPages} halaman) berhasil!`, 'success', 5000);
+  } catch (e) {
+    toast('❌ Gagal: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    if (hiddenWrap) document.body.removeChild(hiddenWrap);
+    if (btnAll) { btnAll.disabled = false; btnAll.textContent = '📄 Download Semua PDF'; }
+  }
 }
 // ── ADMIN CARD ───────────────────────────────────────────────────
 function buildAdminCardHTML(settings, adminUser) {

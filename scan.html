@@ -635,6 +635,18 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
         <canvas id="scanCanvas" style="display:none"></canvas>
       </div>
 
+      <!-- Modal konfirmasi jadi guru piket pengganti -->
+      <div id="modalKonfirmasiPiket" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:var(--surface);color:#1a1a1a;border-radius:14px;max-width:380px;width:100%;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)">
+          <div style="font-size:2.4rem;margin-bottom:8px">🙋</div>
+          <div id="konfirmasiPiketText" style="font-size:1rem;line-height:1.5;margin-bottom:20px"></div>
+          <div style="display:flex;gap:10px;justify-content:center">
+            <button onclick="batalKonfirmasiPiket()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#e0e0e0;color:#333;font-weight:600;font-size:.95rem;cursor:pointer" id="btnBatalKonfirmasiPiket">Batal</button>
+            <button onclick="yaKonfirmasiPiket()" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">Ya</button>
+          </div>
+        </div>
+      </div>
+
       <div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="transition:none"></div></div>
 
       <!-- Hasil scan terakhir -->
@@ -912,17 +924,10 @@ function updateGuruStatus(guruList, status) {
       </div>`;
     } else {
       const namaTerjadwal = jadwal.map(j => j.nama_guru).join(', ');
-      if (status.slotPenggantiTerbuka) {
-        content.innerHTML = `<div class="no-guru-text">
-          <span>⚠️</span>
-          <span>Menunggu <b>${namaTerjadwal}</b> (piket terjadwal) belum hadir. Slot pengganti sudah dibuka — guru lain boleh scan.</span>
-        </div>`;
-      } else {
-        content.innerHTML = `<div class="no-guru-text">
-          <span>⏳</span>
-          <span>Menunggu <b>${namaTerjadwal}</b> (piket terjadwal hari ini). Slot pengganti dibuka pukul <b>${status.batasPengganti || ''}</b> jika belum hadir.</span>
-        </div>`;
-      }
+      content.innerHTML = `<div class="no-guru-text">
+        <span>⏳</span>
+        <span>Menunggu <b>${namaTerjadwal}</b> (piket terjadwal hari ini). Guru lain yang scan akan diminta konfirmasi jadi pengganti.</span>
+      </div>`;
     }
     return;
   }
@@ -1085,6 +1090,10 @@ function handleScanResult(result, data, now) {
       if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
     }, 3000);
 
+  } else if (result.perluKonfirmasi) {
+    // Guru bukan piket terjadwal -> tampilkan dialog konfirmasi, JANGAN
+    // dianggap error dan JANGAN lanjut scan loop dulu (tunggu jawaban user).
+    tampilkanKonfirmasiPiket(result, data);
   } else {
     showFlash('error','❌', result.message);
     toast('❌ ' + result.message);
@@ -1092,6 +1101,50 @@ function handleScanResult(result, data, now) {
     scanCooldown = false;
     scanAnimFrame = requestAnimationFrame(scanLoop);
   }
+}
+
+// ── KONFIRMASI GURU PIKET PENGGANTI ──────────────────────────────
+// Dipicu saat scanKartu balas perluKonfirmasi:true (guru bukan piket
+// terjadwal, tapi slot masih kosong). Simpan identifier scan asli supaya
+// bisa dikirim ulang dengan flag konfirmasiPiket:true kalau user tekan Ya.
+let _pendingKonfirmasiPiket = null;
+
+function tampilkanKonfirmasiPiket(result, rawData) {
+  _pendingKonfirmasiPiket = { identifier: rawData };
+  document.getElementById('konfirmasiPiketText').textContent = result.message;
+  // Sebelum toleransi lewat -> tombol "Batal", sesudah -> tombol "Tidak"
+  document.getElementById('btnBatalKonfirmasiPiket').textContent =
+    result.sebelumToleransi ? 'Batal' : 'Tidak';
+  document.getElementById('modalKonfirmasiPiket').style.display = 'flex';
+}
+
+function tutupModalKonfirmasiPiket() {
+  document.getElementById('modalKonfirmasiPiket').style.display = 'none';
+  _pendingKonfirmasiPiket = null;
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+function batalKonfirmasiPiket() {
+  toast('Dibatalkan — tidak menggantikan guru piket.');
+  tutupModalKonfirmasiPiket();
+}
+
+async function yaKonfirmasiPiket() {
+  if (!_pendingKonfirmasiPiket) return tutupModalKonfirmasiPiket();
+  const { identifier } = _pendingKonfirmasiPiket;
+  document.getElementById('modalKonfirmasiPiket').style.display = 'none';
+  try {
+    const result = await api('scan', 'scanKartu', {
+      identifier, mode: scanMode, konfirmasiPiket: true
+    });
+    handleScanResult(result, identifier, Date.now());
+  } catch (e) {
+    toast('❌ Gagal konfirmasi. Cek koneksi internet lalu scan ulang.');
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
+  _pendingKonfirmasiPiket = null;
 }
 
 // ── MANUAL INPUT ─────────────────────────────────────────────────

@@ -210,7 +210,14 @@ function tutupDanKembaliKeScan() {
 }
 
 const params = new URLSearchParams(window.location.search);
-const TOKEN = params.get('t') || params.get('token') || '';
+// Dukung 2 format URL:
+//  1) /riwayat?t=TOKEN   (format lama, query string)
+//  2) /riwayat/TOKEN     (format baru, lebih pendek -> QR lebih renggang)
+// Rewrite Vercel ke file statis TIDAK menyuntikkan query string ke
+// window.location di browser, jadi untuk format (2) token harus
+// diambil dari path-nya langsung, bukan dari query string.
+const pathMatch = window.location.pathname.match(/\/riwayat\/([^/?#]+)/i);
+const TOKEN = params.get('t') || params.get('token') || (pathMatch ? pathMatch[1] : '') || '';
 
 const STATE = { info: null, semesterId: '', bulan: '', status: 'Semua' };
 

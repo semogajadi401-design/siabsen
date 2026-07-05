@@ -955,7 +955,27 @@ function scanLoop() {
 }
 
 // ── PROSES QR ────────────────────────────────────────────────────
+// QR belakang kartu siswa berisi URL riwayat (bukan identifier absensi),
+// contoh: "https://xxx.vercel.app/riwayat?t=abcd1234". Ini SENGAJA beda
+// format dari QR depan ("SW_ID|NISN") karena tujuannya beda: buka halaman
+// riwayat kehadiran, bukan mencatat absen. Kalau dikirim ke scanKartu apa
+// adanya, server tidak akan menemukan siswa manapun ("Siswa tidak
+// ditemukan") karena URL tidak cocok dengan id/NISN siapapun.
+// Deteksi di sini dan langsung buka halamannya, jangan diproses sebagai
+// scan absensi/piket.
+function isKartuRiwayatUrl(data) {
+  return typeof data === 'string' && /^https?:\/\//i.test(data.trim()) && data.includes('/riwayat');
+}
+
+function bukaKartuRiwayat(data) {
+  showFlash('guru', '📖', 'Membuka riwayat...');
+  toast('📖 Ini QR riwayat kehadiran — membuka halamannya...');
+  scanCooldown = false;
+  setTimeout(() => { window.location.href = data.trim(); }, 600);
+}
+
 async function processQR(data) {
+  if (isKartuRiwayatUrl(data)) { bukaKartuRiwayat(data); return; }
   const now = Date.now();
   if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
     scanAnimFrame = requestAnimationFrame(scanLoop); return;
@@ -1509,6 +1529,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ── OVERRIDE processQR: tangkap offline ──────────────────────────
 const _origProcessQR = processQR;
 async function processQRWithOffline(data) {
+  if (isKartuRiwayatUrl(data)) { bukaKartuRiwayat(data); return; }
   if (isOnline) {
     // Online: coba kirim ke server dulu
     try {

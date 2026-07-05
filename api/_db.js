@@ -57,6 +57,47 @@ async function generateRiwayatToken() {
   return randomBase62(RIWAYAT_TOKEN_LENGTH) + Date.now().toString(36);
 }
 
+// ── GENERATE BANYAK TOKEN RIWAYAT SEKALIGUS (untuk import massal) ──
+// generateRiwayatToken() di atas melakukan 1 query SELECT ke Supabase
+// PER TOKEN — kalau dipanggil 300x berurutan dalam satu loop import,
+// itu 300 round-trip jaringan cuma untuk urusan token, salah satu
+// penyebab utama import siswa terasa lama. Fungsi ini menggantikannya
+// dengan HANYA 1 query total, tidak peduli berapa banyak token yang
+// dibutuhkan:
+//   1. Generate `count` token acak sekaligus di memori (tidak ke DB).
+//   2. Cek sekali ke DB, token mana saja dari hasil generate itu yang
+//      ternyata sudah kepakai (in-clause tunggal).
+//   3. Kalau ada yang bentrok (harusnya nyaris tidak pernah terjadi —
+//      ruang kombinasi 62^8), generate ulang khusus yang bentrok saja,
+//      lalu cek ulang. Diulang maksimal 5x sebelum fallback timestamp.
+async function generateRiwayatTokenBatch(count) {
+  let tokens = new Set();
+  while (tokens.size < count) tokens.add(randomBase62(RIWAYAT_TOKEN_LENGTH));
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const arr = [...tokens];
+    const { data: dipakai } = await supabase
+      .from('siswa')
+      .select('riwayat_token')
+      .in('riwayat_token', arr);
+
+    const setDipakai = new Set((dipakai || []).map(d => d.riwayat_token));
+    if (setDipakai.size === 0) return arr; // tidak ada yang bentrok -> aman semua
+
+    // Ganti hanya yang bentrok, sisanya tetap dipakai
+    for (const t of arr) {
+      if (setDipakai.has(t)) {
+        tokens.delete(t);
+        let baru;
+        do { baru = randomBase62(RIWAYAT_TOKEN_LENGTH); } while (tokens.has(baru));
+        tokens.add(baru);
+      }
+    }
+  }
+  // Fallback ekstrem: tambah timestamp+index supaya pasti unik
+  return [...tokens].map((t, i) => t + Date.now().toString(36) + i);
+}
+
 // ── GENERATE ID ───────────────────────────────────────────
 function generateID(prefix) {
   const now = new Date();
@@ -187,6 +228,7 @@ module.exports = {
   supabase, hashPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
   jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
+  generateRiwayatTokenBatch,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken

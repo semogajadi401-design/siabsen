@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Riwayat Kehadiran Siswa</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-dark:#1a6b3a;--green:#2d9e57;--gold:#b8920a;--gold-light:#FFD700;
+  --bg:#0e2818;--surface:#fff;--text:#1a1a1a;--text-muted:#777;--border:#eee;
+  --danger:#c62828;--warning:#b8920a;--font:'Segoe UI',system-ui,Arial,sans-serif;
+}
+body{
+  font-family:var(--font);
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(45,158,87,.35), transparent 55%),
+    radial-gradient(circle at 90% 100%, rgba(184,146,10,.3), transparent 55%),
+    var(--bg);
+  color:var(--text);
+  display:flex;justify-content:center;padding:22px 12px 40px;
+}
+.wrap{width:100%;max-width:480px}
+
+/* ── STATE: LOADING / ERROR ── */
+.state-box{
+  background:var(--surface);border-radius:16px;padding:40px 24px;text-align:center;
+  box-shadow:0 20px 50px rgba(0,0,0,.35);
+}
+.spinner{width:40px;height:40px;border:4px solid #e5e5e5;border-top-color:var(--green);border-radius:50%;
+  margin:0 auto 16px;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.state-box h3{font-size:1rem;color:var(--text);margin-bottom:6px}
+.state-box p{font-size:.85rem;color:var(--text-muted);line-height:1.5}
+.state-box .emoji{font-size:2.2rem;margin-bottom:10px}
+
+/* ── CARD MODAL ── */
+.modal-card{
+  background:var(--surface);border-radius:18px;overflow:hidden;
+  box-shadow:0 25px 60px rgba(0,0,0,.45);
+  animation:popIn .35s cubic-bezier(.2,.9,.3,1.2);
+}
+@keyframes popIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+
+.header{
+  background:linear-gradient(135deg,var(--green-dark) 0%,var(--green) 55%,var(--gold) 100%);
+  padding:20px 20px 34px;color:#fff;position:relative;
+}
+.header .tag{
+  display:inline-block;background:rgba(255,215,0,.22);border:1px solid rgba(255,215,0,.6);
+  color:var(--gold-light);font-size:.65rem;font-weight:700;letter-spacing:.4px;
+  padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:10px;
+}
+.header h1{font-size:1.15rem;font-weight:800;line-height:1.3}
+.header .sub{font-size:.78rem;color:rgba(255,255,255,.85);margin-top:3px}
+.wave{margin-top:-2px;line-height:0}
+
+.body-pad{padding:0 18px 18px;margin-top:-22px;position:relative;z-index:2}
+
+/* ── FILTER BAR ── */
+.filters{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:12px;box-shadow:0 6px 18px rgba(0,0,0,.08);
+}
+.filters .full{grid-column:1 / -1}
+.filters label{font-size:.65rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px}
+.filters select{
+  width:100%;padding:8px 9px;border-radius:8px;border:1.5px solid #e2e2e2;
+  font-size:.82rem;font-family:var(--font);background:#fafafa;color:var(--text);
+}
+.filters select:focus{outline:none;border-color:var(--green)}
+
+/* ── STAT GRID ── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.stat-item{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:10px 6px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.05);
+}
+.stat-item .n{font-size:1.15rem;font-weight:800;line-height:1.1}
+.stat-item .l{font-size:.62rem;color:var(--text-muted);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.2px}
+.stat-item.hadir .n{color:var(--green-dark)}
+.stat-item.terlambat .n{color:var(--warning)}
+.stat-item.sakit .n{color:#1565C0}
+.stat-item.izin .n{color:#6a1b9a}
+.stat-item.alpha .n{color:var(--danger)}
+.stat-item.persen{grid-column:1 / -1;background:linear-gradient(135deg,var(--green-dark),var(--green));}
+.stat-item.persen .n{color:#fff;font-size:1.5rem}
+.stat-item.persen .l{color:rgba(255,255,255,.85)}
+
+/* ── LIST ── */
+.list-title{font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin:16px 0 8px}
+.riwayat-list{display:flex;flex-direction:column;gap:7px;max-height:420px;overflow-y:auto;padding-right:2px}
+.riwayat-item{
+  display:flex;align-items:center;gap:10px;background:var(--surface);
+  border:1px solid var(--border);border-left:4px solid #ccc;border-radius:10px;padding:9px 11px;
+}
+.riwayat-item.hadir{border-left-color:var(--green)}
+.riwayat-item.terlambat{border-left-color:var(--warning)}
+.riwayat-item.sakit{border-left-color:#1565C0}
+.riwayat-item.izin{border-left-color:#6a1b9a}
+.riwayat-item.alpha{border-left-color:var(--danger)}
+.riwayat-item .tgl-box{min-width:46px;text-align:center;flex-shrink:0}
+.riwayat-item .tgl-box .d{font-size:1.05rem;font-weight:800;color:var(--text)}
+.riwayat-item .tgl-box .m{font-size:.6rem;color:var(--text-muted);text-transform:uppercase;font-weight:700}
+.riwayat-item .info{flex:1;min-width:0}
+.riwayat-item .info .hari{font-size:.82rem;font-weight:700;color:var(--text)}
+.riwayat-item .info .jam{font-size:.72rem;color:var(--text-muted);margin-top:1px}
+.badge-status{font-size:.66rem;font-weight:800;padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.badge-status.hadir{background:#e6f7ec;color:var(--green-dark)}
+.badge-status.terlambat{background:#fff6e0;color:var(--warning)}
+.badge-status.sakit{background:#e3f0fd;color:#1565C0}
+.badge-status.izin{background:#f2e6fa;color:#6a1b9a}
+.badge-status.alpha{background:#fde8e8;color:var(--danger)}
+.empty-note{text-align:center;color:var(--text-muted);font-size:.82rem;padding:26px 10px}
+
+.footer-note{
+  text-align:center;font-size:.68rem;color:rgba(255,255,255,.55);padding:14px 10px 0;
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="state-box">
+    <div class="spinner"></div>
+    <h3>Memuat riwayat kehadiran…</h3>
+    <p>Mohon tunggu sebentar</p>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+async function api(action, params = {}) {
+  const res = await fetch(`${API_BASE}/api/riwayat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...params })
+  });
+  return res.json();
+}
+
+const params = new URLSearchParams(window.location.search);
+const TOKEN = params.get('t') || params.get('token') || '';
+
+const STATE = { info: null, semesterId: '', bulan: '', status: 'Semua' };
+
+const BULAN_NAMA = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const HARI_SINGKAT = { 'Senin':'Sen','Selasa':'Sel','Rabu':'Rab','Kamis':'Kam','Jumat':'Jum','Sabtu':'Sab','Minggu':'Min' };
+
+function renderState(html) {
+  document.getElementById('app').innerHTML = `<div class="state-box">${html}</div>`;
+}
+
+function renderError(msg) {
+  renderState(`
+    <div class="emoji">🚫</div>
+    <h3>Tidak Bisa Menampilkan Riwayat</h3>
+    <p>${msg}</p>
+  `);
+}
+
+async function init() {
+  if (!TOKEN) { renderError('Kode QR tidak ditemukan di tautan ini.'); return; }
+
+  const info = await api('getInfo', { token: TOKEN });
+  if (!info.success) { renderError(info.message || 'Terjadi kesalahan.'); return; }
+  if (!info.semesters.length) {
+    renderError('Belum ada riwayat kehadiran yang bisa ditampilkan untuk siswa ini.');
+    return;
+  }
+
+  STATE.info = info;
+  const aktif = info.semesters.find(s => s.aktif) || info.semesters[0];
+  STATE.semesterId = aktif.id;
+
+  await loadRiwayat();
+}
+
+function bulanOptionsForSemester(sm) {
+  const opts = [];
+  const today = new Date().toISOString().substring(0,10);
+  let end = sm.tanggalSelesai < today ? sm.tanggalSelesai : today;
+  const cur = new Date(sm.tanggalMulai + 'T00:00:00');
+  const endDate = new Date(end + 'T00:00:00');
+  const seen = new Set();
+  while (cur <= endDate) {
+    const key = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      opts.push({ value: key, label: `${BULAN_NAMA[cur.getMonth()]} ${cur.getFullYear()}` });
+    }
+    cur.setMonth(cur.getMonth() + 1);
+    cur.setDate(1);
+  }
+  return opts.reverse();
+}
+
+async function loadRiwayat() {
+  const result = await api('getRiwayat', {
+    token: TOKEN,
+    semesterId: STATE.semesterId,
+    bulan: STATE.bulan,
+    status: STATE.status
+  });
+  if (!result.success) { renderError(result.message || 'Terjadi kesalahan.'); return; }
+  render(result);
+}
+
+function render(r) {
+  const info = STATE.info;
+  const semesterOpts = info.semesters.map(s =>
+    `<option value="${s.id}" ${s.id === STATE.semesterId ? 'selected' : ''}>${s.nama}${s.tahunAjaran ? ' - ' + s.tahunAjaran : ''}</option>`
+  ).join('');
+
+  const currentSm = info.semesters.find(s => s.id === STATE.semesterId);
+  const bulanOpts = currentSm ? bulanOptionsForSemester(currentSm) : [];
+  const bulanOptionsHTML = `<option value="">Semua Bulan</option>` + bulanOpts.map(b =>
+    `<option value="${b.value}" ${b.value === STATE.bulan ? 'selected' : ''}>${b.label}</option>`
+  ).join('');
+
+  const statusList = ['Semua','Hadir','Terlambat','Sakit','Izin','Alpha'];
+  const statusOptionsHTML = statusList.map(s =>
+    `<option value="${s}" ${s === STATE.status ? 'selected' : ''}>${s}</option>`
+  ).join('');
+
+  const st = r.statistik;
+  const listHTML = r.riwayat.length ? r.riwayat.map(item => {
+    const cls = statusClass(item.statusDatang);
+    const d = new Date(item.tanggal + 'T00:00:00');
+    const jamText = item.jamDatang
+      ? `Datang ${item.jamDatang}${item.jamPulang ? ' • Pulang ' + item.jamPulang : ''}`
+      : (item.keterangan || '-');
+    return `
+      <div class="riwayat-item ${cls}">
+        <div class="tgl-box">
+          <div class="d">${String(d.getDate()).padStart(2,'0')}</div>
+          <div class="m">${BULAN_NAMA[d.getMonth()].substring(0,3)}</div>
+        </div>
+        <div class="info">
+          <div class="hari">${item.hari || HARI_SINGKAT_FULL(d)}</div>
+          <div class="jam">${jamText}</div>
+        </div>
+        <div class="badge-status ${cls}">${item.statusDatang}</div>
+      </div>`;
+  }).join('') : `<div class="empty-note">Tidak ada data untuk filter yang dipilih.</div>`;
+
+  document.getElementById('app').innerHTML = `
+    <div class="modal-card">
+      <div class="header">
+        <span class="tag">🎓 Riwayat Kehadiran</span>
+        <h1>${info.siswa.nama}</h1>
+        <div class="sub">Kelas ${info.siswa.kelas} &nbsp;•&nbsp; NISN ${info.siswa.nisn}</div>
+      </div>
+      <div class="wave">
+        <svg viewBox="0 0 480 30" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+          <path d="M0,0 L480,0 L480,14 Q360,32 240,20 Q120,8 0,26 Z" fill="#fff"/>
+        </svg>
+      </div>
+      <div class="body-pad">
+        <div class="filters">
+          <div>
+            <label>Semester</label>
+            <select id="selSemester">${semesterOpts}</select>
+          </div>
+          <div>
+            <label>Bulan</label>
+            <select id="selBulan">${bulanOptionsHTML}</select>
+          </div>
+          <div class="full">
+            <label>Status Kehadiran</label>
+            <select id="selStatus">${statusOptionsHTML}</select>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat-item hadir"><div class="n">${st.totalHadir}</div><div class="l">Hadir</div></div>
+          <div class="stat-item terlambat"><div class="n">${st.totalTerlambat}</div><div class="l">Terlambat</div></div>
+          <div class="stat-item sakit"><div class="n">${st.totalSakit}</div><div class="l">Sakit</div></div>
+          <div class="stat-item izin"><div class="n">${st.totalIzin}</div><div class="l">Izin</div></div>
+          <div class="stat-item alpha"><div class="n">${st.totalAlpha}</div><div class="l">Alpha</div></div>
+          <div class="stat-item"><div class="n">${st.totalHariSekolah}</div><div class="l">Total Hari</div></div>
+          <div class="stat-item persen"><div class="n">${st.persentaseKehadiran}%</div><div class="l">Persentase Kehadiran</div></div>
+        </div>
+
+        <div class="list-title">Detail Riwayat (${r.rentang.start} s/d ${r.rentang.end})</div>
+        <div class="riwayat-list">${listHTML}</div>
+      </div>
+    </div>
+    <div class="footer-note">Halaman ini bersifat pribadi — jangan sebarkan tautan/QR kartu ke orang lain.</div>
+  `;
+
+  document.getElementById('selSemester').addEventListener('change', e => {
+    STATE.semesterId = e.target.value; STATE.bulan = '';
+    loadRiwayat();
+  });
+  document.getElementById('selBulan').addEventListener('change', e => {
+    STATE.bulan = e.target.value;
+    loadRiwayat();
+  });
+  document.getElementById('selStatus').addEventListener('change', e => {
+    STATE.status = e.target.value;
+    loadRiwayat();
+  });
+}
+
+function statusClass(status) {
+  if (status === 'Hadir') return 'hadir';
+  if (status === 'Terlambat') return 'terlambat';
+  if (status === 'Sakit') return 'sakit';
+  if (status === 'Alpha') return 'alpha';
+  return 'izin';
+}
+function HARI_SINGKAT_FULL(d) {
+  const arr = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  return arr[d.getDay()];
+}
+
+init();
+</script>
+</body>
+</html>

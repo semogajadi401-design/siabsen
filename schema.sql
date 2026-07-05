@@ -153,6 +153,7 @@ INSERT INTO jam_setting (kunci, nilai, deskripsi) VALUES
   ('JAM_PULANG_MULAI',   '14:00', 'Jam mulai absensi pulang'),
   ('JAM_PULANG_SELESAI', '16:00', 'Batas jam absensi pulang'),
   ('TOLERANSI_MENIT',    '15',    'Toleransi keterlambatan menit'),
+  ('TOLERANSI_PIKET_MENIT', '15', 'Menit setelah jam mulai datang sebelum guru pengganti (di luar jadwal piket) diizinkan scan, jika guru piket terjadwal belum hadir'),
   ('NAMA_SEKOLAH',       'SMA NEGERI 1', 'Nama Sekolah'),
   ('ALAMAT_SEKOLAH',     'Jl. Pendidikan No.1', 'Alamat Sekolah'),
   ('TAHUN_AJARAN',       '2024/2025', 'Tahun Ajaran Aktif'),

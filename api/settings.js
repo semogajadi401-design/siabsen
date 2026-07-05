@@ -1,5 +1,5 @@
 // api/settings.js — Jam setting, jadwal piket, hari kerja
-const { supabase, generateID, setCors, getJamSetting } = require('./_db');
+const { supabase, generateID, setCors, getJamSetting, hariIni } = require('./_db');
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -168,9 +168,10 @@ async function updatePengaturanHari({ hariList }) {
 
 // ── GURU PIKET HARI INI ───────────────────────────────────────────
 async function getGuruPiket() {
-  const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-  const wib = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
-  const hari = days[wib.getDay()];
+  // Pakai hariIni() dari _db.js supaya konsisten dengan seluruh sistem (WITA).
+  // Sebelumnya fungsi ini menghitung sendiri pakai offset WIB (UTC+7)
+  // sehingga bisa beda hari dengan endpoint lain menjelang tengah malam.
+  const hari = hariIni();
   const { data } = await supabase
     .from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari);
   return {

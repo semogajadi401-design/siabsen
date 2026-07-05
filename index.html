@@ -1003,6 +1003,21 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 </div>
               </div>
             </div>
+            <div style="margin-top:24px;padding-top:20px;border-top:2px solid var(--border)">
+              <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">🔐 Kode Rahasia Masuk Admin (Halaman Scan)</h4>
+              <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px;line-height:1.6">
+                Di halaman scan (<code>scan.html</code>) sudah tidak ada tombol "Admin" yang terlihat.
+                Untuk masuk ke halaman login, cukup ketik kode ini di mana saja pada halaman scan
+                (tidak perlu klik ke kolom apa pun dulu) — begitu ketikan terakhir cocok dengan kode ini,
+                otomatis diarahkan ke halaman login. Kosongkan untuk menonaktifkan fitur ini.
+                <br><b>Catatan:</b> kode ini hanya jalan pintas ke halaman login, bukan pengganti
+                username/password — jadi tidak masalah kalau bukan sesuatu yang super rahasia.
+              </div>
+              <div class="form-group" style="max-width:320px">
+                <label>Kode Rahasia</label>
+                <input type="text" id="set_KODE_RAHASIA_ADMIN" class="form-control" placeholder="Contoh: admin123">
+              </div>
+            </div>
             <div style="margin-top:24px;display:flex;gap:10px">
               <button class="btn btn-primary" onclick="savePengaturan()">💾 Simpan</button>
               <button class="btn btn-outline" onclick="loadPengaturan()">↺ Reset</button>
@@ -2800,10 +2815,10 @@ async function hapusLibur(dateStr){ if(!confirm('Hapus hari libur ini?'))return;
 // ── PENGATURAN ───────────────────────────────────────────────────
 async function loadPengaturan(){
   const r=await api('settings','getJamSetting');
-  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
+  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
 }
 async function savePengaturan(){
-  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT'];
+  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN'];
   const settings={};
   keys.forEach(k=>{const el=document.getElementById('set_'+k);if(el)settings[k]=el.value;});
   const r=await api('settings','updateJamSetting',{settings});

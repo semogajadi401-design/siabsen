@@ -118,6 +118,17 @@ body{
 .footer-note{
   text-align:center;font-size:.68rem;color:rgba(255,255,255,.55);padding:14px 10px 0;
 }
+
+/* ── TOMBOL TUTUP ── */
+.btn-close{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;margin-top:18px;padding:16px 18px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,var(--green-dark) 0%,var(--green) 55%,var(--gold) 100%);
+  color:#fff;font-family:var(--font);font-size:1rem;font-weight:800;letter-spacing:.2px;
+  cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.28);
+  -webkit-tap-highlight-color:transparent;transition:transform .15s,box-shadow .15s;
+}
+.btn-close:active{transform:scale(.97);box-shadow:0 4px 14px rgba(0,0,0,.28)}
 </style>
 </head>
 <body>
@@ -140,6 +151,16 @@ async function api(action, params = {}) {
   return res.json();
 }
 
+// Tombol besar "Tutup dan kembali ke halaman scan" — dipakai di semua
+// state (berhasil maupun error) supaya siswa yang selesai cek riwayat
+// tahu persis cara keluar dari halaman ini dan kembali ke kamera scan.
+function tombolTutupHTML() {
+  return `<button class="btn-close" onclick="tutupDanKembaliKeScan()">✖ Tutup dan kembali ke halaman scan</button>`;
+}
+function tutupDanKembaliKeScan() {
+  window.location.href = window.location.origin + '/scan';
+}
+
 const params = new URLSearchParams(window.location.search);
 const TOKEN = params.get('t') || params.get('token') || '';
 
@@ -157,6 +178,7 @@ function renderError(msg) {
     <div class="emoji">🚫</div>
     <h3>Tidak Bisa Menampilkan Riwayat</h3>
     <p>${msg}</p>
+    ${tombolTutupHTML()}
   `);
 }
 
@@ -287,6 +309,7 @@ function render(r) {
         <div class="riwayat-list">${listHTML}</div>
       </div>
     </div>
+    ${tombolTutupHTML()}
     <div class="footer-note">Halaman ini bersifat pribadi — jangan sebarkan tautan/QR kartu ke orang lain.</div>
   `;
 

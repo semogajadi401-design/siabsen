@@ -5,9 +5,16 @@ const {
 } = require('./_db');
 
 // Hanya resetAbsensi yang dikunci — itu aksi paling merusak di file ini
-// (bisa menghapus seluruh riwayat absensi). Aksi lain (scanAbsen, datang,
-// pulang, rekap*, dashboard) tetap terbuka karena dipakai alur absensi
-// harian oleh guru piket, bukan hanya admin.
+// (bisa menghapus seluruh riwayat absensi). Aksi lain (datang, pulang,
+// rekap*, dashboard) tetap terbuka karena dipakai alur absensi harian
+// oleh guru piket, bukan hanya admin.
+//
+// CATATAN: action 'scanAbsen' yang dulu ada di file ini SUDAH DIHAPUS
+// karena isinya menduplikasi scanKartu() di api/scan.js dan tidak pernah
+// dipanggil oleh index.html maupun scan.html (keduanya memakai
+// api('scan','scanKartu', ...)). Membiarkan dua implementasi kembar
+// berisiko: perbaikan bug di satu tempat gampang lupa diterapkan juga
+// di tempat lain. Kalau butuh endpoint scan, pakai api/scan.js.
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -26,26 +33,35 @@ module.exports = async (req, res) => {
     if (action === 'rekapBulananRange') return res.json(await rekapBulananRange(params));
     if (action === 'dashboard')         return res.json(await dashboard());
     if (action === 'resetAbsensi')      return res.json(await resetAbsensi(params));
-    if (action === 'scanAbsen')         return res.json(await scanAbsen(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
 
-async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
+// ── ABSEN DATANG (INPUT MANUAL OLEH ADMIN/GURU) ──────────────────
+// Dipakai saat admin input kehadiran manual dari dashboard (bukan scan QR).
+// Cek hari libur / hari sekolah aktif / periode semester DISAMAKAN dengan
+// scanKartu() di api/scan.js supaya data yang masuk lewat input manual
+// mengikuti aturan yang sama seperti data yang masuk lewat scan — cuma beda
+// cara masuknya, bukan beda aturannya. Satu hal yang SENGAJA beda: input
+// manual tidak mewajibkan guru piket sudah scan duluan, karena ini memang
+// aksi admin/guru yang sedang login, bukan aksi siswa lewat kamera scan.
+async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
+  const { data: siswa } = await supabase.from('siswa').select('*').eq('id', idSiswa).single();
+  if (!siswa) return { success: false, message: 'Data siswa tidak ditemukan' };
+  if (siswa.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
+
   const today = todayStr();
+  const jam   = jamSekarang();
   const hari  = hariIni();
 
-  // Cek hari libur kalender
   const cekLibur = await isHariLibur(today);
   if (cekLibur.libur)
     return { success: false, message: `Hari ini libur: ${cekLibur.keterangan}` };
 
-  // Cek hari kerja sekolah
   const hariAktif = await isHariKerja(hari);
   if (!hariAktif)
     return { success: false, message: `${hari} bukan hari sekolah` };
 
-  // Cek semester aktif
   const semester = await getSemesterAktif();
   if (!semester)
     return { success: false, message: 'Tidak ada semester aktif. Hubungi admin.' };
@@ -54,107 +70,6 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
   const tglSelesai = String(semester.tanggal_selesai).substring(0, 10);
   if (today < tglMulai || today > tglSelesai)
     return { success: false, message: `Di luar periode semester aktif (${semester.nama})` };
-  // Cek apakah ada guru piket yang sudah scan hari ini
-  const { data: sesiList } = await supabase
-    .from('sesi_piket')
-    .select('id')
-    .eq('tanggal', today);
-
-  if (!sesiList || sesiList.length === 0)
-    return {
-      success: false,
-      message: 'Guru piket belum scan kartu. Absensi tidak bisa dilakukan.'
-    };
-
-  // Ambil jam setting sekali saja  ← hanya satu ini yang dipakai
-  const jamSetting   = await getJamSetting();
-  const jamMulai     = jamSetting['JAM_DATANG_MULAI']   || '06:00';
-  const jamSelesaiOp = jamSetting['JAM_PULANG_SELESAI'] || '17:00';
-  const toleransi    = Number(jamSetting['TOLERANSI_MENIT'] || 0);
-  // Batas "Hadir" = jam batas datang + toleransi keterlambatan (menit)
-  const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
-
-  const jam = jamSekarang();
-
-  // Cek jam operasional
-  if (jam < jamMulai || jam > jamSelesaiOp)
-    return { success: false, message: `Absensi hanya bisa dilakukan antara ${jamMulai} - ${jamSelesaiOp}` };
-
-  // Validasi identifier
-  if (!identifier) return { success: false, message: 'Identifier kosong' };
-  const id = identifier.trim();
-
-  // Cari siswa
-  const { data: siswaById } = await supabase
-    .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
-    .eq('id', id).maybeSingle();
-  const { data: siswaByNisn } = siswaById ? { data: null } : await supabase
-    .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
-    .eq('nisn', id).maybeSingle();
-
-  const siswa = siswaById || siswaByNisn;
-  if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
-  if (siswa.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
-
-  // MODE PULANG
-  if (mode === 'pulang') {
-    const jamPulangMulai = jamSetting['JAM_PULANG_MULAI'] || '14:00';
-    if (jam < jamPulangMulai)
-      return { success: false, message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
-
-    const { data: absen } = await supabase.from('absensi')
-      .select('*').eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
-    if (!absen)
-      return { success: false, message: 'Belum absen datang hari ini' };
-    if (absen.jam_pulang)
-      return { success: false, message: `${siswa.nama} sudah absen pulang pukul ${absen.jam_pulang}` };
-
-    const { error } = await supabase.from('absensi').update({
-      jam_pulang: jam, status_pulang: 'Pulang',
-      id_guru_piket: idGuru || '', nama_guru_piket: namaGuru || ''
-    }).eq('id', absen.id);
-    if (error) return { success: false, message: 'Gagal simpan absensi pulang: ' + error.message };
-
-    return {
-      success: true, status: 'Pulang',
-      message: `✅ ${siswa.nama} absen pulang - ${jam}`,
-      siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
-    };
-  }
-
-  // MODE DATANG
-  const { data: existing } = await supabase.from('absensi')
-    .select('id,jam_datang').eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
-  if (existing?.jam_datang)
-    return { success: false, message: `${siswa.nama} sudah absen datang pukul ${existing.jam_datang}` };
-
-  const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
-
-  const absenId = generateID('AB');
-  const { error } = await supabase.from('absensi').insert({
-    id: absenId, id_siswa: siswa.id, nisn: siswa.nisn,
-    nama_siswa: siswa.nama, kelas: siswa.kelas,
-    tanggal: today, hari, jam_datang: jam,
-    status_datang: statusDatang,
-    id_guru_piket: idGuru || '', nama_guru_piket: namaGuru || '', metode: 'QR'
-  });
-  if (error) return { success: false, message: 'Gagal simpan absensi: ' + error.message };
-
-  return {
-    success: true, status: statusDatang,
-    message: statusDatang === 'Terlambat'
-      ? `⚠️ ${siswa.nama} TERLAMBAT - ${jam}`
-      : `✅ ${siswa.nama} absen datang - ${jam}`,
-    siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
-  };
-}
-async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
-  const { data: siswa } = await supabase.from('siswa').select('*').eq('id', idSiswa).single();
-  if (!siswa) return { success: false, message: 'Data siswa tidak ditemukan' };
-
-  const today = todayStr();
-  const jam   = jamSekarang();
-  const hari  = hariIni();
 
   const { data: existing } = await supabase.from('absensi')
     .select('id,jam_datang').eq('id_siswa', idSiswa).eq('tanggal', today).maybeSingle();
@@ -185,9 +100,30 @@ async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
   };
 }
 
+// ── ABSEN PULANG (INPUT MANUAL OLEH ADMIN/GURU) ──────────────────
+// Sama seperti absensiDatang di atas: tambahkan cek libur/hari-kerja/semester
+// supaya konsisten dengan jalur scan, tanpa mewajibkan guru piket sudah scan.
 async function absensiPulang({ idSiswa, idGuru, namaGuru, metode }) {
   const today = todayStr();
   const jam   = jamSekarang();
+  const hari  = hariIni();
+
+  const cekLibur = await isHariLibur(today);
+  if (cekLibur.libur)
+    return { success: false, message: `Hari ini libur: ${cekLibur.keterangan}` };
+
+  const hariAktif = await isHariKerja(hari);
+  if (!hariAktif)
+    return { success: false, message: `${hari} bukan hari sekolah` };
+
+  const semester = await getSemesterAktif();
+  if (!semester)
+    return { success: false, message: 'Tidak ada semester aktif. Hubungi admin.' };
+
+  const tglMulai   = String(semester.tanggal_mulai).substring(0, 10);
+  const tglSelesai = String(semester.tanggal_selesai).substring(0, 10);
+  if (today < tglMulai || today > tglSelesai)
+    return { success: false, message: `Di luar periode semester aktif (${semester.nama})` };
 
   const { data: absen } = await supabase.from('absensi')
     .select('*').eq('id_siswa', idSiswa).eq('tanggal', today).maybeSingle();

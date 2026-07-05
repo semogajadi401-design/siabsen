@@ -4,22 +4,35 @@ const {
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting
 } = require('./_db');
 
-// ── CEK APAKAH SLOT PIKET PENGGANTI SUDAH "DIBUKA" ───────────────
+// ── SEBUTAN BAPAK/IBU BERDASARKAN JENIS KELAMIN GURU ─────────────
+function sebutanGuru(nama, jenisKelamin) {
+  return `${jenisKelamin === 'Perempuan' ? 'Ibu' : 'Bapak'} ${nama}`;
+}
+
+// ── CEK APAKAH GURU BOLEH SCAN SEBAGAI PIKET ─────────────────────
 // Aturan disiplin jadwal piket:
 //  - Kalau hari ini TIDAK ada jadwal piket yang diatur admin sama sekali
 //    (jadwal_piket kosong untuk hari itu) -> tidak ada pembatasan, guru
 //    aktif manapun boleh scan (supaya sekolah yang belum sempat mengisi
 //    jadwal tidak macet total).
-//  - Kalau ADA jadwal untuk hari ini -> hanya guru yang terjadwal yang
-//    boleh scan sebagai piket, KECUALI sudah lewat
-//    (JAM_DATANG_MULAI + TOLERANSI_PIKET_MENIT) DAN belum satupun guru
-//    yang terjadwal hari ini yang scan -> baru guru lain (pengganti)
-//    diizinkan scan. Begitu ada guru terjadwal yang scan, slot pengganti
-//    otomatis tertutup lagi untuk sisa hari itu.
+//  - Kalau ADA jadwal untuk hari ini dan guru yang scan bukan yang
+//    terjadwal -> selama belum ada SIAPAPUN yang tercatat sebagai piket
+//    hari itu (baik guru terjadwal maupun pengganti), guru ini ditawari
+//    konfirmasi jadi pengganti — TIDAK menunggu batas toleransi lagi.
+//    Alasan: yang lebih dulu tahu guru piket asli izin biasanya justru
+//    guru yang ada di lokasi, bukan admin di depan komputer, jadi tidak
+//    perlu dipaksa menunggu.
+//    Pesan konfirmasi beda tergantung sudah lewat batas toleransi atau
+//    belum (murni soal kata-kata, bukan soal boleh/tidaknya):
+//      - Sebelum toleransi lewat : "...Apakah Anda akan menggantikan...?" (Ya/Batal)
+//      - Sudah lewat toleransi   : "Anda akan menjadi guru piket menggantikan...' (Ya/Tidak)
+//    Begitu SATU guru (siapapun) sudah terkonfirmasi/tercatat piket hari
+//    itu, slot langsung terkunci — guru lain yang scan setelahnya ditolak,
+//    tidak ditawari konfirmasi lagi.
 async function cekIzinPiket({ guruId, hari, today, jam }) {
   const { data: jadwalHariIni } = await supabase
     .from('jadwal_piket')
-    .select('id_guru')
+    .select('id_guru,nama_guru')
     .eq('hari', hari);
 
   const idTerjadwal = (jadwalHariIni || []).map(j => j.id_guru);
@@ -34,35 +47,49 @@ async function cekIzinPiket({ guruId, hari, today, jam }) {
     return { boleh: true };
   }
 
-  // Guru ini TIDAK terjadwal -> cek apakah slot pengganti sudah terbuka
-  const jamSetting = await getJamSetting();
-  const jamMulai   = jamSetting['JAM_DATANG_MULAI'] || '06:30';
-  const toleransi  = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
-  const batasJam   = tambahMenit(jamMulai, toleransi);
-
-  if (jam < batasJam) {
-    return {
-      boleh: false,
-      message: `Belum jadwal piket Anda hari ini. Slot pengganti baru dibuka pukul ${batasJam} jika guru piket terjadwal belum hadir.`
-    };
-  }
-
-  // Sudah lewat batas jam -> cek apakah salah satu guru terjadwal SUDAH scan
-  const { data: sesiTerjadwal } = await supabase
+  // Guru ini TIDAK terjadwal -> cek apakah SUDAH ADA guru piket tercatat
+  // hari ini (siapapun). Kalau sudah ada, slot terkunci, tidak ada
+  // konfirmasi lagi untuk guru lain.
+  const { data: sesiHariIni } = await supabase
     .from('sesi_piket')
     .select('id_guru')
-    .eq('tanggal', today)
-    .in('id_guru', idTerjadwal);
+    .eq('tanggal', today);
 
-  if (sesiTerjadwal && sesiTerjadwal.length > 0) {
+  if (sesiHariIni && sesiHariIni.length > 0) {
     return {
       boleh: false,
-      message: 'Guru piket terjadwal hari ini sudah hadir dan tercatat. Slot pengganti tidak dibuka.'
+      message: 'Guru piket hari ini sudah tercatat. Slot pengganti tidak dibuka lagi.'
     };
   }
 
-  // Belum ada guru terjadwal yang scan & sudah lewat batas jam -> buka untuk pengganti
-  return { boleh: true, pengganti: true };
+  // Belum ada siapapun yang tercatat piket hari ini -> tawarkan konfirmasi
+  // jadi pengganti. Ambil jenis kelamin guru terjadwal untuk sebutan
+  // Bapak/Ibu di pesan konfirmasi.
+  const { data: dataGuruTerjadwal } = await supabase
+    .from('guru')
+    .select('id,nama,jenis_kelamin')
+    .in('id', idTerjadwal);
+
+  const teksNama = (dataGuruTerjadwal && dataGuruTerjadwal.length
+    ? dataGuruTerjadwal
+    : jadwalHariIni.map(j => ({ nama: j.nama_guru, jenis_kelamin: null }))
+  ).map(g => sebutanGuru(g.nama, g.jenis_kelamin)).join(' / ');
+
+  const jamSetting = await getJamSetting();
+  const jamMulai    = jamSetting['JAM_DATANG_MULAI'] || '06:30';
+  const toleransi   = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
+  const batasJam    = tambahMenit(jamMulai, toleransi);
+  const sebelumToleransi = jam < batasJam;
+
+  return {
+    boleh: false,
+    perluKonfirmasi: true,
+    sebelumToleransi,
+    teksNama,
+    message: sebelumToleransi
+      ? `Anda bukan guru piket hari ini. Apakah Anda akan menggantikan ${teksNama} untuk piket hari ini?`
+      : `Anda akan menjadi guru piket menggantikan ${teksNama} hari ini. Tekan Ya jika benar.`
+  };
 }
 
 module.exports = async (req, res) => {
@@ -148,7 +175,9 @@ async function getStatus() {
 }
 
 // ── SCAN KARTU (admin, guru, atau siswa) ─────────────────────────
-async function scanKartu({ identifier, mode }) {
+// konfirmasiPiket: true dikirim scan.html pada percobaan KEDUA, setelah
+// guru menekan "Ya" di dialog konfirmasi jadi guru piket pengganti.
+async function scanKartu({ identifier, mode, konfirmasiPiket }) {
   if (!identifier) return { success: false, message: 'QR tidak valid' };
 
   const today = todayStr();
@@ -220,11 +249,33 @@ async function scanKartu({ identifier, mode }) {
     if (!guru) return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
 
-    // Cek jadwal piket: hanya guru terjadwal yang boleh, kecuali slot
-    // pengganti sudah terbuka (lihat cekIzinPiket di atas)
+    // Cek jadwal piket: hanya guru terjadwal yang boleh langsung, guru
+    // lain ditawari konfirmasi jadi pengganti (lihat cekIzinPiket di atas)
     const izin = await cekIzinPiket({ guruId: guru.id, hari, today, jam });
+    let pengganti = false;
+
     if (!izin.boleh) {
-      return { success: false, tipe: 'guru', message: izin.message };
+      // Guru ini bukan yang terjadwal dan slot belum dikonfirmasi olehnya
+      // pada percobaan ini -> minta konfirmasi dulu, JANGAN catat apapun.
+      if (izin.perluKonfirmasi && !konfirmasiPiket) {
+        return {
+          success: false,
+          tipe: 'guru',
+          perluKonfirmasi: true,
+          sebelumToleransi: izin.sebelumToleransi,
+          message: izin.message,
+          guru: { id: guru.id, nama: guru.nama, jabatan: guru.jabatan }
+        };
+      }
+      // Ditolak murni (jadwal sudah tertutup/sudah ada piket lain) —
+      // termasuk kalau kondisinya berubah di antara scan pertama dan saat
+      // guru menekan "Ya" (mis. ada guru lain yang keburu terkonfirmasi).
+      if (!(izin.perluKonfirmasi && konfirmasiPiket)) {
+        return { success: false, tipe: 'guru', message: izin.message };
+      }
+      // Sudah dikonfirmasi guru ini ("Ya" ditekan) -> lanjut daftar sebagai
+      // pengganti di bawah, langsung mengunci slot untuk sisa hari itu.
+      pengganti = true;
     }
 
     // Cek sudah scan hari ini belum
@@ -278,10 +329,10 @@ async function scanKartu({ identifier, mode }) {
     return {
       success: true,
       tipe: 'guru',
-      message: izin.pengganti
-        ? `✅ ${guru.nama} tercatat sebagai guru piket PENGGANTI (guru terjadwal belum hadir)`
+      message: pengganti
+        ? `✅ ${guru.nama} tercatat sebagai guru piket PENGGANTI (dikonfirmasi menggantikan guru terjadwal)`
         : `✅ ${guru.nama} tercatat sebagai guru piket`,
-      guru: { nama: guru.nama, jabatan: guru.jabatan, jam: jam, pengganti: !!izin.pengganti }
+      guru: { nama: guru.nama, jabatan: guru.jabatan, jam: jam, pengganti }
     };
   }
 

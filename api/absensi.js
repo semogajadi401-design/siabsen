@@ -218,6 +218,7 @@ async function dashboard() {
     { count: totalSiswa },
     { count: totalGuru },
     { data: absenHariIni },
+    { data: ketHariIni },
     jamSetting,
     piket
   ] = await Promise.all([
@@ -226,6 +227,7 @@ async function dashboard() {
     supabase.from('absensi')
       .select('nama_siswa, kelas, jam_datang, status_datang, status_pulang')
       .eq('tanggal', today),
+    supabase.from('keterangan_absensi').select('id_siswa').eq('tanggal', today),
     getJamSetting(),
     supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari)
   ]);
@@ -236,7 +238,15 @@ async function dashboard() {
   const terlambatHariIni = (absenHariIni || []).filter(a =>
     a.status_datang === 'Terlambat'
   ).length;
-  const alphaHariIni     = Math.max(0, (totalSiswa || 0) - hadirHariIni);
+  // SEBELUMNYA: alphaHariIni = totalSiswa - hadirHariIni, menganggap SEMUA
+  // siswa yang belum absen fisik hari ini otomatis "Alpha" — padahal
+  // sebagian bisa jadi sudah diinput Sakit/Izin lewat menu "Kehadiran Hari
+  // Ini" (api/kehadiran.js). Akibatnya kartu "Tidak Hadir" di dashboard
+  // selalu ikut menghitung siswa sakit/izin sebagai Alpha juga, padahal
+  // halaman "Kehadiran Hari Ini" sudah benar memisahkannya. Sekarang
+  // dikurangi dulu dengan siswa yang sudah ada keterangan hari ini.
+  const sudahAdaKeterangan = new Set((ketHariIni || []).map(k => k.id_siswa));
+  const alphaHariIni = Math.max(0, (totalSiswa || 0) - hadirHariIni - sudahAdaKeterangan.size);
 
   const absenTerkini = (absenHariIni || [])
     .filter(a => a.jam_datang)

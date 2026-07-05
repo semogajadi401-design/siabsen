@@ -71,8 +71,57 @@ CREATE TABLE IF NOT EXISTS absensi (
   nama_guru_piket TEXT,
   keterangan TEXT,
   metode TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Mencegah 1 siswa punya lebih dari 1 baris absensi di tanggal yang
+  -- sama, sebagai pengaman level database (bukan cuma cek di kode).
+  CONSTRAINT uniq_absensi_siswa_tanggal UNIQUE (id_siswa, tanggal)
+);
+
+-- ─── TABEL SESI PIKET (guru yang scan sebagai guru piket) ──
+CREATE TABLE IF NOT EXISTS sesi_piket (
+  id TEXT PRIMARY KEY,
+  tanggal DATE NOT NULL,
+  id_guru TEXT REFERENCES guru(id),
+  nama_guru TEXT,
+  jabatan TEXT,
+  jam_scan TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT uniq_sesipiket_tanggal_guru UNIQUE (tanggal, id_guru)
+);
+CREATE INDEX IF NOT EXISTS idx_sesi_piket_tanggal ON sesi_piket(tanggal);
+
+-- ─── TABEL SEMESTER ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS semester (
+  id TEXT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  tahun_ajaran TEXT,
+  tanggal_mulai DATE NOT NULL,
+  tanggal_selesai DATE NOT NULL,
+  aktif BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ─── TABEL PENGATURAN HARI KERJA ────────────────────────────
+CREATE TABLE IF NOT EXISTS pengaturan_hari_kerja (
+  hari TEXT PRIMARY KEY,
+  aktif BOOLEAN DEFAULT true
+);
+
+-- ─── TABEL KETERANGAN ABSENSI (sakit/izin, dst) ─────────────
+CREATE TABLE IF NOT EXISTS keterangan_absensi (
+  id TEXT PRIMARY KEY,
+  id_siswa TEXT REFERENCES siswa(id),
+  nisn TEXT,
+  nama_siswa TEXT,
+  kelas TEXT,
+  tanggal DATE NOT NULL,
+  status TEXT,
+  keterangan TEXT,
+  diinput_oleh TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_keterangan_absensi_tanggal ON keterangan_absensi(tanggal);
+CREATE INDEX IF NOT EXISTS idx_keterangan_absensi_siswa   ON keterangan_absensi(id_siswa);
 
 -- ─── TABEL JADWAL PIKET ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS jadwal_piket (
@@ -133,5 +182,9 @@ ALTER TABLE guru          DISABLE ROW LEVEL SECURITY;
 ALTER TABLE siswa         DISABLE ROW LEVEL SECURITY;
 ALTER TABLE absensi       DISABLE ROW LEVEL SECURITY;
 ALTER TABLE jadwal_piket  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sesi_piket    DISABLE ROW LEVEL SECURITY;
+ALTER TABLE semester      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pengaturan_hari_kerja DISABLE ROW LEVEL SECURITY;
+ALTER TABLE keterangan_absensi    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE hari_kerja    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE jam_setting   DISABLE ROW LEVEL SECURITY;

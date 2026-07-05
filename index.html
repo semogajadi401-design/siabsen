@@ -2578,7 +2578,32 @@ function handleLogoUpload(event){
   const file=event.target.files[0]; if(!file)return;
   if(file.size>800*1024){toast('File terlalu besar. Maks 800KB.','warning');return;}
   const reader=new FileReader();
-  reader.onload=e=>{const url=e.target.result;document.getElementById('set_LOGO_URL').value=url;if(!APP.settings)APP.settings={};APP.settings['LOGO_URL']=url;previewLogoFromURL(url);renderKartuMiniPreview();toast('Logo diupload! Klik Simpan.','success');};
+  reader.onload=e=>{
+    // Perkecil & kompres logo ke maks 200x200px sebelum disimpan sebagai
+    // base64. Logo yang disimpan mentah (bisa ratusan KB-MB) ikut dirender
+    // ulang oleh html2canvas di SETIAP kartu siswa saat download massal —
+    // ini salah satu penyebab utama proses jadi sangat lambat untuk kelas
+    // dengan banyak siswa.
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 200;
+      const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * ratio);
+      const h = Math.round(img.height * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.85);
+      document.getElementById('set_LOGO_URL').value=compressed;
+      if(!APP.settings)APP.settings={};
+      APP.settings['LOGO_URL']=compressed;
+      previewLogoFromURL(compressed);
+      renderKartuMiniPreview();
+      toast('Logo diupload & dikompres! Klik Simpan.','success');
+    };
+    img.src = e.target.result;
+  };
   reader.readAsDataURL(file);
 }
 function previewLogoFromURL(url){
@@ -3035,6 +3060,20 @@ function buildKartuBackHTML(s, settings) {
   </div>`;
 }
   
+// Jalankan beberapa capture html2canvas sekaligus (dibatasi jumlahnya),
+// bukan satu per satu berurutan seperti sebelumnya. html2canvas punya
+// tahap async (decode gambar dsb) yang bisa saling tumpang tindih,
+// jadi ini mempercepat total waktu tanpa membebani browser sekaligus.
+async function runInBatches(items, worker, batchSize = 4) {
+  const results = new Array(items.length);
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(worker));
+    batchResults.forEach((r, j) => { results[i + j] = r; });
+  }
+  return results;
+}
+
 async function captureKartu(element, forceWidth) {
   const w = forceWidth || element.offsetWidth;
   const canvas = await html2canvas(element, {
@@ -3135,19 +3174,19 @@ async function downloadAllKartuPDF() {
 
     const CARD_W = (PAGE_W - MARGIN * 2 - GAP_COL * (COLS - 1)) / COLS; // ≈ 6.43cm
 
-    // Capture semua kartu
-    const cards = [];
-    for (const wrap of wraps) {
+    // Capture semua kartu — diproses 4 per batch secara paralel, bukan
+    // satu per satu. Ini adalah penyebab utama proses lama sebelumnya:
+    // untuk kelas isi 40 siswa, versi lama melakukan 80 kali render
+    // html2canvas (depan+belakang) SATU PER SATU secara berurutan.
+    const validWraps = Array.from(wraps).filter(w => w.querySelector('.student-card-print'));
+    const cards = await runInBatches(validWraps, async (wrap) => {
       const front = wrap.querySelector('.student-card-print');
       const back  = wrap.querySelector('.student-card-back');
-      if (!front) continue;
-
-      // Paksa lebar sama antara depan dan belakang
       const fixedWidth = front.offsetWidth;
       const cfCanvas = await captureKartu(front, fixedWidth);
       const cbCanvas = back ? await captureKartu(back, fixedWidth) : null;
-      cards.push({ cfCanvas, cbCanvas });
-    }
+      return { cfCanvas, cbCanvas };
+    }, 4);
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
 
@@ -3179,8 +3218,10 @@ async function downloadAllKartuPDF() {
 
       const x = MARGIN + col * (CARD_W + GAP_COL);
 
-      // Kartu depan
-      pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG', x, y, CARD_W, CARD_H_F);
+      // Kartu depan — pakai JPEG (bukan PNG) untuk encoding yang jauh lebih
+      // cepat dan ukuran PDF yang lebih kecil. Kartu tidak memakai
+      // transparansi (background putih solid) jadi aman dipakai JPEG.
+      pdf.addImage(cfCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, CARD_W, CARD_H_F);
 
       // Kartu belakang — dirotasi 180°, lebar dipaksa sama dengan depan
       if (cbCanvas) {
@@ -3193,7 +3234,7 @@ async function downloadAllKartuPDF() {
         ctx.rotate(Math.PI);
         ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
         ctx.restore();
-        pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
+        pdf.addImage(flipped.toDataURL('image/jpeg', 0.92), 'JPEG',
           x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);
       }
 

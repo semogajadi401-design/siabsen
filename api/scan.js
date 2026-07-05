@@ -4,6 +4,67 @@ const {
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting
 } = require('./_db');
 
+// ── CEK APAKAH SLOT PIKET PENGGANTI SUDAH "DIBUKA" ───────────────
+// Aturan disiplin jadwal piket:
+//  - Kalau hari ini TIDAK ada jadwal piket yang diatur admin sama sekali
+//    (jadwal_piket kosong untuk hari itu) -> tidak ada pembatasan, guru
+//    aktif manapun boleh scan (supaya sekolah yang belum sempat mengisi
+//    jadwal tidak macet total).
+//  - Kalau ADA jadwal untuk hari ini -> hanya guru yang terjadwal yang
+//    boleh scan sebagai piket, KECUALI sudah lewat
+//    (JAM_DATANG_MULAI + TOLERANSI_PIKET_MENIT) DAN belum satupun guru
+//    yang terjadwal hari ini yang scan -> baru guru lain (pengganti)
+//    diizinkan scan. Begitu ada guru terjadwal yang scan, slot pengganti
+//    otomatis tertutup lagi untuk sisa hari itu.
+async function cekIzinPiket({ guruId, hari, today, jam }) {
+  const { data: jadwalHariIni } = await supabase
+    .from('jadwal_piket')
+    .select('id_guru')
+    .eq('hari', hari);
+
+  const idTerjadwal = (jadwalHariIni || []).map(j => j.id_guru);
+
+  // Tidak ada jadwal diatur untuk hari ini sama sekali -> bebas (opsi 1)
+  if (idTerjadwal.length === 0) {
+    return { boleh: true };
+  }
+
+  // Guru ini memang terjadwal hari ini -> selalu boleh
+  if (idTerjadwal.includes(guruId)) {
+    return { boleh: true };
+  }
+
+  // Guru ini TIDAK terjadwal -> cek apakah slot pengganti sudah terbuka
+  const jamSetting = await getJamSetting();
+  const jamMulai   = jamSetting['JAM_DATANG_MULAI'] || '06:30';
+  const toleransi  = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
+  const batasJam   = tambahMenit(jamMulai, toleransi);
+
+  if (jam < batasJam) {
+    return {
+      boleh: false,
+      message: `Belum jadwal piket Anda hari ini. Slot pengganti baru dibuka pukul ${batasJam} jika guru piket terjadwal belum hadir.`
+    };
+  }
+
+  // Sudah lewat batas jam -> cek apakah salah satu guru terjadwal SUDAH scan
+  const { data: sesiTerjadwal } = await supabase
+    .from('sesi_piket')
+    .select('id_guru')
+    .eq('tanggal', today)
+    .in('id_guru', idTerjadwal);
+
+  if (sesiTerjadwal && sesiTerjadwal.length > 0) {
+    return {
+      boleh: false,
+      message: 'Guru piket terjadwal hari ini sudah hadir dan tercatat. Slot pengganti tidak dibuka.'
+    };
+  }
+
+  // Belum ada guru terjadwal yang scan & sudah lewat batas jam -> buka untuk pengganti
+  return { boleh: true, pengganti: true };
+}
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -56,6 +117,19 @@ async function getStatus() {
 
   const adaGuru = sesiList && sesiList.length > 0;
 
+  // Info jadwal piket hari ini (buat ditampilkan di scan.html, misalnya
+  // "menunggu Bu Ani (piket terjadwal)" atau "slot pengganti dibuka jam..")
+  const { data: jadwalHariIni } = await supabase
+    .from('jadwal_piket')
+    .select('id_guru,nama_guru')
+    .eq('hari', hari);
+
+  const idTerjadwal = (jadwalHariIni || []).map(j => j.id_guru);
+  const sudahScanIds = (sesiList || []).map(s => s.id_guru);
+  const terjadwalSudahHadir = idTerjadwal.some(id => sudahScanIds.includes(id));
+  const toleransiPiket = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
+  const batasPengganti = tambahMenit(jamMulai, toleransiPiket);
+
   return {
     success: true,
     bisaAbsen: true,
@@ -66,7 +140,10 @@ async function getStatus() {
     jamSelesai,
     hari,
     tanggal: today,
-    semester: semester.nama
+    semester: semester.nama,
+    jadwalPiketHariIni: jadwalHariIni || [],
+    slotPenggantiTerbuka: idTerjadwal.length > 0 && !terjadwalSudahHadir && jam >= batasPengganti,
+    batasPengganti
   };
 }
 
@@ -143,6 +220,13 @@ async function scanKartu({ identifier, mode }) {
     if (!guru) return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
 
+    // Cek jadwal piket: hanya guru terjadwal yang boleh, kecuali slot
+    // pengganti sudah terbuka (lihat cekIzinPiket di atas)
+    const izin = await cekIzinPiket({ guruId: guru.id, hari, today, jam });
+    if (!izin.boleh) {
+      return { success: false, tipe: 'guru', message: izin.message };
+    }
+
     // Cek sudah scan hari ini belum
     const { data: sudahScan } = await supabase
       .from('sesi_piket')
@@ -194,8 +278,10 @@ async function scanKartu({ identifier, mode }) {
     return {
       success: true,
       tipe: 'guru',
-      message: `✅ ${guru.nama} tercatat sebagai guru piket`,
-      guru: { nama: guru.nama, jabatan: guru.jabatan, jam: jam }
+      message: izin.pengganti
+        ? `✅ ${guru.nama} tercatat sebagai guru piket PENGGANTI (guru terjadwal belum hadir)`
+        : `✅ ${guru.nama} tercatat sebagai guru piket`,
+      guru: { nama: guru.nama, jabatan: guru.jabatan, jam: jam, pengganti: !!izin.pengganti }
     };
   }
 

@@ -70,10 +70,26 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     };
 
     const sesiId = generateID('SP');
-    await supabase.from('sesi_piket').insert({
+    const { error: sesiError } = await supabase.from('sesi_piket').insert({
       id: sesiId, tanggal, id_guru: guru.id,
       nama_guru: guru.nama, jabatan: guru.jabatan, jam_scan: jam
     });
+
+    if (sesiError) {
+      // Kode 23505 = unique_violation. Ini bisa terjadi kalau 2 perangkat
+      // offline sama-sama menyimpan scan guru yang sama dan melakukan
+      // sync nyaris bersamaan — constraint UNIQUE(tanggal, id_guru) di
+      // database yang mencegahnya. Perlakukan sebagai duplikat (pesan
+      // mengandung kata "sudah"), BUKAN kegagalan, supaya item ini
+      // otomatis dihapus dari antrian offline oleh scan.html.
+      if (sesiError.code === '23505') {
+        return {
+          success: false, tipe: 'guru',
+          message: `${guru.nama} sudah tercatat sebagai guru piket`
+        };
+      }
+      return { success: false, tipe: 'guru', message: 'Gagal simpan sesi piket: ' + sesiError.message };
+    }
 
     return {
       success: true, tipe: 'guru',
@@ -135,7 +151,7 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   const statusDatang   = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
   const absenId        = generateID('AB');
 
-  await supabase.from('absensi').insert({
+  const { error: absenError } = await supabase.from('absensi').insert({
     id: absenId, id_siswa: siswa.id, nisn: siswa.nisn,
     nama_siswa: siswa.nama, kelas: siswa.kelas,
     tanggal, hari, jam_datang: jam,
@@ -143,6 +159,15 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     id_guru_piket: idGP, nama_guru_piket: namaGP,
     metode: 'QR-OFFLINE'
   });
+
+  if (absenError) {
+    // Sama seperti di atas: 23505 = unique_violation dari
+    // UNIQUE(id_siswa, tanggal). Perlakukan sebagai duplikat.
+    if (absenError.code === '23505') {
+      return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang hari ini` };
+    }
+    return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + absenError.message };
+  }
 
   return {
     success: true, tipe: 'siswa', status: statusDatang,

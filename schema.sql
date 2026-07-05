@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS admin (
   nama TEXT NOT NULL,
   email TEXT,
   role TEXT DEFAULT 'admin',
+  qr_token TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1178,22 +1178,43 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
                 <div style="font-size:2rem;margin-bottom:10px">📋</div>
                 <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Riwayat Absensi</h4>
-                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus data absensi berdasarkan kelas atau semua kelas sekaligus.</p>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus data absensi (+ data sakit/izin, dan riwayat sesi piket bila reset semua kelas) berdasarkan kelas atau semua kelas sekaligus.</p>
                 <button class="btn btn-danger btn-sm" onclick="openResetAbsensi()">🗑 Reset Absensi</button>
               </div>
               <!-- Reset Siswa -->
               <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
                 <div style="font-size:2rem;margin-bottom:10px">👨‍🎓</div>
                 <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Data Siswa</h4>
-                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data siswa (beserta riwayat absensinya).</p>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data siswa (beserta riwayat absensi dan data sakit/izinnya).</p>
                 <button class="btn btn-danger btn-sm" onclick="konfirmasiReset('siswa')">🗑 Reset Siswa</button>
               </div>
               <!-- Reset Guru -->
               <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
                 <div style="font-size:2rem;margin-bottom:10px">👨‍🏫</div>
                 <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Data Guru</h4>
-                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data guru (kecuali akun admin).</p>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data guru, jadwal piket, dan riwayat sesi piket (kecuali akun admin).</p>
                 <button class="btn btn-danger btn-sm" onclick="konfirmasiReset('guru')">🗑 Reset Guru</button>
+              </div>
+              <!-- Reset Semester -->
+              <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
+                <div style="font-size:2rem;margin-bottom:10px">🗓️</div>
+                <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Semester / Periode Akademik</h4>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data semester. Absensi tidak bisa dilakukan sampai semester baru dibuat & diaktifkan.</p>
+                <button class="btn btn-danger btn-sm" onclick="konfirmasiReset('semester')">🗑 Reset Semester</button>
+              </div>
+              <!-- Reset Pengaturan Aplikasi -->
+              <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
+                <div style="font-size:2rem;margin-bottom:10px">⚙️</div>
+                <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Pengaturan Aplikasi</h4>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Kembalikan jam operasional, hari sekolah aktif, dan kalender hari libur ke pengaturan default. Profil sekolah tidak berubah.</p>
+                <button class="btn btn-danger btn-sm" onclick="konfirmasiReset('pengaturan')">🗑 Reset Pengaturan</button>
+              </div>
+              <!-- Reset Total -->
+              <div style="border:2px solid var(--danger);border-radius:14px;padding:20px;background:var(--danger-light)">
+                <div style="font-size:2rem;margin-bottom:10px">☢️</div>
+                <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px;color:var(--danger)">Reset Total (Semua Data)</h4>
+                <p style="font-size:.82rem;color:var(--danger);margin-bottom:16px">Menjalankan SEMUA kartu reset di atas sekaligus secara berurutan: absensi, siswa, guru, semester, dan pengaturan aplikasi. Akun admin tetap aman.</p>
+                <button class="btn btn-danger btn-sm" onclick="konfirmasiResetTotal()">☢️ Reset Total</button>
               </div>
             </div>
           </div>
@@ -1534,6 +1555,29 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalKonfirmasiReset')">Batal</button>
       <button class="btn btn-danger" onclick="eksekusiReset()">🗑 Hapus</button>
+    </div>
+  </div>
+</div>
+<!-- Modal Reset Total -->
+<div class="modal-backdrop" id="modalResetTotal">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>☢️ Konfirmasi Reset Total</h3><button class="modal-close" onclick="closeModal('modalResetTotal')">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;line-height:1.6">
+        Ini akan menghapus <strong>SELURUH</strong> data aplikasi: riwayat absensi, data sakit/izin, riwayat sesi piket,
+        seluruh data siswa, seluruh data guru &amp; jadwal piket, seluruh data semester, serta mengembalikan jam operasional,
+        hari sekolah aktif, dan kalender hari libur ke pengaturan default. Akun admin dan profil sekolah tetap aman.
+        <br><br><strong style="color:var(--danger)">Tindakan ini tidak bisa dibatalkan.</strong>
+      </p>
+      <div style="margin-top:16px">
+        <label style="font-size:.85rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:8px">Ketik <strong style="color:var(--danger)">RESET TOTAL</strong> untuk konfirmasi:</label>
+        <input type="text" id="resetTotalInput" class="form-control" placeholder="Ketik RESET TOTAL">
+      </div>
+      <div id="resetTotalProgress" style="display:none;margin-top:16px;font-size:.82rem;color:var(--text-muted);line-height:1.8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" id="btnBatalResetTotal" onclick="closeModal('modalResetTotal')">Batal</button>
+      <button class="btn btn-danger" id="btnEksekusiResetTotal" onclick="eksekusiResetTotal()">☢️ Reset Total</button>
     </div>
   </div>
 </div>
@@ -3938,7 +3982,9 @@ function konfirmasiReset(tipe) {
   _resetType = tipe;
   const texts = {
     siswa: 'Semua data siswa dan riwayat absensinya akan dihapus permanen.',
-    guru: 'Semua data guru (kecuali akun admin) akan dihapus permanen.'
+    guru: 'Semua data guru, jadwal piket, dan riwayat sesi piket (kecuali akun admin) akan dihapus permanen.',
+    semester: 'Semua data semester (periode akademik) akan dihapus permanen. Absensi tidak bisa dilakukan sampai admin membuat & mengaktifkan semester baru.',
+    pengaturan: 'Jam operasional, hari sekolah aktif, dan kalender hari libur akan dikembalikan ke pengaturan default. Profil sekolah (nama, alamat, dll) tidak akan berubah.'
   };
   document.getElementById('konfirmasiResetText').textContent = texts[tipe] || '';
   document.getElementById('konfirmasiResetInput').value = '';
@@ -3951,11 +3997,65 @@ async function eksekusiReset() {
 
   try {
     let r;
-    if (_resetType === 'siswa') r = await api('siswa', 'resetSemua', {});
-    else if (_resetType === 'guru') r = await api('guru', 'resetSemua', {});
+    if (_resetType === 'siswa')          r = await api('siswa', 'resetSemua', {});
+    else if (_resetType === 'guru')      r = await api('guru', 'resetSemua', {});
+    else if (_resetType === 'semester')  r = await api('semester', 'resetSemua', {});
+    else if (_resetType === 'pengaturan') r = await api('settings', 'resetPengaturanAplikasi', {});
     toast(r?.message || 'Selesai', r?.success ? 'success' : 'error', 5000);
     if (r?.success) closeModal('modalKonfirmasiReset');
   } catch(e) { toast('Gagal: '+e.message, 'error'); }
+}
+
+// ── RESET TOTAL (semua kartu reset sekaligus, berurutan) ──────────
+function konfirmasiResetTotal() {
+  document.getElementById('resetTotalInput').value = '';
+  document.getElementById('resetTotalProgress').style.display = 'none';
+  document.getElementById('resetTotalProgress').innerHTML = '';
+  openModal('modalResetTotal');
+}
+
+async function eksekusiResetTotal() {
+  const val = document.getElementById('resetTotalInput').value.trim();
+  if (val !== 'RESET TOTAL') { toast('Ketik RESET TOTAL untuk konfirmasi', 'warning'); return; }
+
+  const btn      = document.getElementById('btnEksekusiResetTotal');
+  const btnBatal = document.getElementById('btnBatalResetTotal');
+  const progress = document.getElementById('resetTotalProgress');
+  btn.disabled = true; btnBatal.disabled = true; btn.textContent = '⏳ Memproses...';
+  progress.style.display = 'block';
+
+  // Dijalankan berurutan (bukan Promise.all) supaya urutannya aman terhadap
+  // foreign key: absensi & keterangan_absensi/sesi_piket dulu, baru siswa
+  // (yang di-reference oleh absensi) dan guru (yang di-reference oleh
+  // sesi_piket/jadwal_piket), baru semester, baru pengaturan aplikasi.
+  const steps = [
+    { label: 'Riwayat absensi, sakit/izin & sesi piket', call: () => api('absensi', 'resetAbsensi', { semua: true }) },
+    { label: 'Data siswa',                                call: () => api('siswa', 'resetSemua', {}) },
+    { label: 'Data guru & jadwal piket',                  call: () => api('guru', 'resetSemua', {}) },
+    { label: 'Data semester',                             call: () => api('semester', 'resetSemua', {}) },
+    { label: 'Pengaturan aplikasi (jam, hari kerja, kalender libur)', call: () => api('settings', 'resetPengaturanAplikasi', {}) }
+  ];
+
+  let semuaBerhasil = true;
+  for (const step of steps) {
+    const baris = document.createElement('div');
+    baris.textContent = `⏳ ${step.label}...`;
+    progress.appendChild(baris);
+    try {
+      const r = await step.call();
+      baris.textContent = `${r?.success ? '✅' : '❌'} ${step.label}${r?.success ? '' : ' — ' + (r?.message || 'gagal')}`;
+      if (!r?.success) semuaBerhasil = false;
+    } catch(e) {
+      baris.textContent = `❌ ${step.label} — ${e.message}`;
+      semuaBerhasil = false;
+    }
+  }
+
+  toast(semuaBerhasil ? 'Reset total berhasil dijalankan' : 'Reset total selesai dengan beberapa kegagalan — lihat rincian di atas', semuaBerhasil ? 'success' : 'error', 6000);
+  btn.textContent = '☢️ Reset Total'; btn.disabled = false; btnBatal.disabled = false;
+  if (semuaBerhasil) {
+    setTimeout(() => { closeModal('modalResetTotal'); location.reload(); }, 1500);
+  }
 }
 
 // ── IMPORT SISWA ─────────────────────────────────────────────────

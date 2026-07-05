@@ -46,8 +46,13 @@ CREATE TABLE IF NOT EXISTS siswa (
   no_hp_ortu TEXT,
   alamat TEXT,
   status TEXT DEFAULT 'Aktif',
+  riwayat_token TEXT UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Untuk database yang sudah ada sebelum kolom ini ditambahkan
+ALTER TABLE siswa ADD COLUMN IF NOT EXISTS riwayat_token TEXT UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_siswa_riwayat_token ON siswa(riwayat_token);
 
 -- ─── TABEL ABSENSI ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS absensi (

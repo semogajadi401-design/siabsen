@@ -882,7 +882,7 @@ async function checkStatus() {
     mainContent.style.display = 'grid';
 
     // Update status guru
-    updateGuruStatus(r.guruPiket || []);
+    updateGuruStatus(r.guruPiket || [], r);
 
     // Auto set mode berdasarkan jam
     const jam = r.jam || '';
@@ -896,30 +896,53 @@ async function checkStatus() {
   }
 }
 
-function updateGuruStatus(guruList) {
+function updateGuruStatus(guruList, status) {
   const box     = document.getElementById('guruStatusBox');
   const content = document.getElementById('guruStatusContent');
 
   if (!guruList.length) {
     box.className = 'guru-status no-guru';
-    content.innerHTML = `<div class="no-guru-text">
-      <span>⚠️</span>
-      <span>Belum ada guru piket. Scan kartu guru dulu.</span>
-    </div>`;
+    const jadwal = (status && status.jadwalPiketHariIni) || [];
+
+    if (!jadwal.length) {
+      // Tidak ada jadwal diatur untuk hari ini -> guru manapun boleh scan
+      content.innerHTML = `<div class="no-guru-text">
+        <span>⚠️</span>
+        <span>Belum ada guru piket. Scan kartu guru dulu.</span>
+      </div>`;
+    } else {
+      const namaTerjadwal = jadwal.map(j => j.nama_guru).join(', ');
+      if (status.slotPenggantiTerbuka) {
+        content.innerHTML = `<div class="no-guru-text">
+          <span>⚠️</span>
+          <span>Menunggu <b>${namaTerjadwal}</b> (piket terjadwal) belum hadir. Slot pengganti sudah dibuka — guru lain boleh scan.</span>
+        </div>`;
+      } else {
+        content.innerHTML = `<div class="no-guru-text">
+          <span>⏳</span>
+          <span>Menunggu <b>${namaTerjadwal}</b> (piket terjadwal hari ini). Slot pengganti dibuka pukul <b>${status.batasPengganti || ''}</b> jika belum hadir.</span>
+        </div>`;
+      }
+    }
     return;
   }
 
+  const idTerjadwal = ((status && status.jadwalPiketHariIni) || []).map(j => j.id_guru);
+
   box.className = 'guru-status ada-guru';
   content.innerHTML = `<div class="guru-list">
-    ${guruList.map(g => `
+    ${guruList.map(g => {
+      const pengganti = idTerjadwal.length > 0 && !idTerjadwal.includes(g.id_guru);
+      return `
       <div class="guru-item">
         <div class="guru-avatar">${g.nama_guru.charAt(0)}</div>
         <div>
-          <div class="guru-nama">${g.nama_guru}</div>
+          <div class="guru-nama">${g.nama_guru}${pengganti ? ' <span style="font-size:.7em;opacity:.8">(Pengganti)</span>' : ''}</div>
           <div class="guru-jam">${g.jabatan} • Scan ${g.jam_scan}</div>
         </div>
       </div>
-    `).join('')}
+    `;
+    }).join('')}
   </div>`;
 }
 

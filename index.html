@@ -2025,7 +2025,12 @@ async function loadGuru() {
     const tbody=document.getElementById('guruTableBody');
     if(!result.success||result.data.length===0){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">${result.success?'Belum ada data guru':result.message}</td></tr>`; return; }
     window._guruData = result.data;
-    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${g.nama}</div><div style="font-size:.76rem;color:var(--text-muted)">${g.nip||'-'}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${g.jabatan}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${g.username}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button><button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)">🗑</button></div></td></tr>`).join('');
+    // Tombol "Nonaktifkan" (soft-delete, status -> Nonaktif) hanya tampil untuk
+    // guru yang masih Aktif, supaya alur guru sama seperti siswa: nonaktifkan
+    // dulu (data & histori piket tetap aman), baru hapus permanen kalau memang
+    // yakin. Sebelumnya guru cuma bisa dihapus permanen dari UI meski backend
+    // sudah punya endpoint nonaktifkan (guru.hapus) — sekarang dipakai.
+    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${g.nama}</div><div style="font-size:.76rem;color:var(--text-muted)">${g.nip||'-'}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${g.jabatan}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${g.username}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
   } catch(e){ toast('Gagal memuat data guru','error'); }
 }
 function openModalGuru(){
@@ -2070,7 +2075,8 @@ async function submitGuru(){
 }
 function generatePasswordField(){ const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let p=''; for(let i=0;i<8;i++) p+=chars.charAt(Math.floor(Math.random()*chars.length)); document.getElementById('guruPassword').value=p; }
 async function resetPasswordGuru(id){ if(!confirm('Reset password guru ini?'))return; const r=await api('guru','resetPassword',{id}); if(r.success){document.getElementById('resetUsername').textContent=r.username;document.getElementById('resetPassword').textContent=r.password;openModal('modalResetPass');}else toast(r.message,'error'); }
-async function hapusGuru(id,nama){ if(!confirm(`Apakah anda yakin ingin menghapus "${nama}"?`))return; const r = await api('guru', 'hapusPermanen', { id }); toast(r.message,r.success?'success':'error'); if(r.success)loadGuru(); }
+async function hapusGuru(id,nama){ if(!confirm(`Hapus PERMANEN data guru "${nama}"?\n\nData ini tidak bisa dikembalikan. Kalau hanya ingin menonaktifkan sementara (misal guru cuti/pindah), gunakan tombol Nonaktifkan (🚫) saja.`))return; const r = await api('guru', 'hapusPermanen', { id }); toast(r.message,r.success?'success':'error'); if(r.success)loadGuru(); }
+async function nonaktifkanGuru(id,nama){ if(!confirm(`Nonaktifkan guru "${nama}"?\n\nAkun tidak bisa dipakai login dan tidak muncul di jadwal piket, tapi data & histori tetap tersimpan.`))return; const r = await api('guru', 'hapus', { id }); toast(r.message,r.success?'success':'error'); if(r.success)loadGuru(); }
 
 // ── SISWA ────────────────────────────────────────────────────────
 async function loadSiswa(){

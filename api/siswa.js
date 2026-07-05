@@ -1,5 +1,5 @@
 // api/siswa.js — CRUD Data Siswa
-const { supabase, generateID, setCors, generateQrToken, generateRiwayatToken, requireAdminToken } = require('./_db');
+const { supabase, generateID, setCors, generateQrToken, generateRiwayatToken, generateRiwayatTokenBatch, requireAdminToken } = require('./_db');
 
 // getAll & getByScan TETAP TERBUKA karena dipakai scan.html (guru piket
 // offline, tanpa sesi admin) untuk mengisi daftar kelas & mencari siswa.
@@ -123,52 +123,114 @@ async function getByScan({ identifier }) {
 }
 
 // ── IMPORT SISWA ─────────────────────────────────────────────────
+// ── IMPORT SISWA (batch, bukan satu-satu) ─────────────────────────
+// Versi sebelumnya melakukan minimal 3 query per baris siswa (cek NISN,
+// generate token riwayat, insert) di dalam for-loop berurutan -- untuk
+// 300 siswa itu ratusan/ribuan round-trip jaringan satu-satu, membuat
+// import terasa sangat lama dan berisiko kena timeout function.
+// Versi ini menggantinya dengan hanya BEBERAPA query total, tidak
+// peduli berapa banyak baris yang diimport:
+//   1. Satu query SELECT untuk cek semua NISN yang sudah terdaftar.
+//   2. Satu query (generateRiwayatTokenBatch) untuk semua token riwayat.
+//   3. Insert per-batch (200 baris/batch) supaya tetap tangguh kalau ada
+//      satu batch gagal, tanpa balik lagi ke pola satu-per-baris.
 async function importSiswa({ dataList }) {
   if (!dataList || !dataList.length)
     return { success: false, message: 'Tidak ada data untuk diimport' };
 
-  let berhasil = 0, gagal = 0;
   const errors = [];
+  let gagal = 0;
 
+  // 1. Validasi dasar + buang duplikat NISN di DALAM file itu sendiri
+  //    (kalau tidak dibuang di sini, baru ketahuan saat insert gagal
+  //    karena constraint unique, dan errornya kurang jelas untuk admin)
+  const valid = [];
+  const nisnTerlihat = new Set();
   for (const data of dataList) {
     if (!data.nisn || !data.nama) {
       gagal++;
       errors.push(`Baris dilewati: NISN atau Nama kosong (${data.nisn || '-'})`);
       continue;
     }
-
-    // Cek NISN sudah ada
-    const { data: existing } = await supabase
-      .from('siswa').select('id').eq('nisn', data.nisn.trim()).maybeSingle();
-    if (existing) {
+    const nisn = String(data.nisn).trim();
+    if (nisnTerlihat.has(nisn)) {
       gagal++;
-      errors.push(`NISN ${data.nisn} (${data.nama}) sudah terdaftar, dilewati`);
+      errors.push(`NISN ${nisn} (${data.nama}) duplikat di dalam file, dilewati`);
       continue;
     }
+    nisnTerlihat.add(nisn);
+    valid.push({ ...data, nisn });
+  }
 
-    const id = generateID('SW');
-    const { error } = await supabase.from('siswa').insert({
-      id,
-      nisn: data.nisn.trim(),
-      nama: data.nama.trim(),
-      jenis_kelamin: data.jenisKelamin || 'Laki-laki',
-      tempat_lahir: data.tempatLahir || '',
-      tanggal_lahir: data.tanggalLahir || null,
-      agama: data.agama || 'Islam',
-      kelas: data.kelas || '',
-      tahun_masuk: parseInt(data.tahunMasuk) || new Date().getFullYear(),
-      nama_ortu: data.namaOrtu || '',
-      no_hp_ortu: data.noHpOrtu || '',
-      alamat: data.alamat || '',
-      status: 'Aktif',
-      riwayat_token: await generateRiwayatToken()
-    });
+  if (!valid.length) {
+    return { success: true, message: `Import selesai: 0 berhasil, ${gagal} gagal`, berhasil: 0, gagal, errors };
+  }
 
-    if (error) {
+  // 2. Cek NISN yang sudah ada di database -- SATU query untuk semua
+  //    NISN sekaligus (bukan satu query per baris seperti sebelumnya)
+  const { data: existingRows, error: errCekExisting } = await supabase
+    .from('siswa')
+    .select('nisn')
+    .in('nisn', valid.map(v => v.nisn));
+
+  if (errCekExisting) {
+    return { success: false, message: 'Gagal cek NISN yang sudah terdaftar: ' + errCekExisting.message };
+  }
+
+  const nisnSudahAda = new Set((existingRows || []).map(r => r.nisn));
+  const siapInsert = [];
+  for (const v of valid) {
+    if (nisnSudahAda.has(v.nisn)) {
       gagal++;
-      errors.push(`Gagal import ${data.nama} (${data.nisn}): ${error.message}`);
+      errors.push(`NISN ${v.nisn} (${v.nama}) sudah terdaftar, dilewati`);
+      continue;
+    }
+    siapInsert.push(v);
+  }
+
+  if (!siapInsert.length) {
+    return { success: true, message: `Import selesai: 0 berhasil, ${gagal} gagal`, berhasil: 0, gagal, errors };
+  }
+
+  // 3. Generate semua token riwayat sekaligus -- SATU query cek tabrakan
+  //    total, bukan satu query per siswa (lihat generateRiwayatTokenBatch
+  //    di _db.js)
+  const tokens = await generateRiwayatTokenBatch(siapInsert.length);
+
+  // 4. Susun baris siap insert. Tambahan index di belakang ID supaya
+  //    dijamin unik walau ratusan ID dibuat beruntun tanpa jeda dalam
+  //    detik yang sama (bagian acak generateID cuma 4 digit, berisiko
+  //    bentrok kalau dipakai sangat cepat berkali-kali tanpa penanda ini)
+  const rows = siapInsert.map((data, i) => ({
+    id: `${generateID('SW')}${i}`,
+    nisn: data.nisn,
+    nama: data.nama.trim(),
+    jenis_kelamin: data.jenisKelamin || 'Laki-laki',
+    tempat_lahir: data.tempatLahir || '',
+    tanggal_lahir: data.tanggalLahir || null,
+    agama: data.agama || 'Islam',
+    kelas: data.kelas || '',
+    tahun_masuk: parseInt(data.tahunMasuk) || new Date().getFullYear(),
+    nama_ortu: data.namaOrtu || '',
+    no_hp_ortu: data.noHpOrtu || '',
+    alamat: data.alamat || '',
+    status: 'Aktif',
+    riwayat_token: tokens[i]
+  }));
+
+  // 5. Insert per-batch (bukan satu-satu, juga bukan satu insert raksasa
+  //    untuk ribuan baris) -- kalau satu batch gagal, batch lain tetap
+  //    lanjut, dan pesan error tetap bisa menunjuk baris yang bermasalah.
+  const UKURAN_BATCH = 200;
+  let berhasil = 0;
+  for (let i = 0; i < rows.length; i += UKURAN_BATCH) {
+    const batch = rows.slice(i, i + UKURAN_BATCH);
+    const { error } = await supabase.from('siswa').insert(batch);
+    if (error) {
+      gagal += batch.length;
+      errors.push(`Gagal import baris ${i + 1}-${i + batch.length}: ${error.message}`);
     } else {
-      berhasil++;
+      berhasil += batch.length;
     }
   }
 

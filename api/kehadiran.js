@@ -1,9 +1,18 @@
 // api/kehadiran.js — Kehadiran hari ini, input sakit/izin
 const {
   supabase, generateID, setCors, todayStr, hariIni,
-  isHariLibur, isHariKerja, getHariKerjaSettings
+  isHariLibur, isHariKerja
 } = require('./_db');
 
+// CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
+// ini SUDAH DIHAPUS karena isinya menduplikasi persis action
+// 'getPengaturanHari'/'updatePengaturanHari' di api/settings.js (sama-sama
+// baca/tulis tabel pengaturan_hari_kerja). Frontend (index.html) memang
+// sudah memakai versi settings.js, jadi versi di sini kode mati — dan
+// nama 'getHariKerja' di sini membingungkan karena api/settings.js punya
+// action dengan nama SAMA ('getHariKerja') untuk hal yang beda sama sekali
+// (kalender hari libur per tanggal, tabel hari_kerja). Kalau butuh
+// pengaturan hari sekolah aktif, pakai api/settings.js.
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -13,9 +22,7 @@ module.exports = async (req, res) => {
     if (action === 'getSiswaKehadiran')    return res.json(await getSiswaKehadiran(params));
     if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
-    if (action === 'getHariKerja')         return res.json(await getHariKerja());
     if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
-    if (action === 'updateHariKerja')      return res.json(await updateHariKerja(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -219,39 +226,4 @@ async function rekapKeteranganRange({ tanggalMulai, tanggalSelesai, kelas }) {
   };
 }
 
-// ── GET PENGATURAN HARI KERJA (Senin-Sabtu) ──────────────────────
-async function getHariKerja() {
-  const urutan = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
-  const { data, error } = await supabase
-    .from('pengaturan_hari_kerja').select('*');
-  if (error) return { success: false, message: error.message };
-
-  // Jika tabel kosong, kembalikan default
-  if (!data || !data.length) {
-    return {
-      success: true,
-      data: urutan.map(h => ({
-        hari: h,
-        aktif: ['Senin','Selasa','Rabu','Kamis','Jumat'].includes(h)
-      }))
-    };
-  }
-
-  const sorted = [...data].sort(
-    (a, b) => urutan.indexOf(a.hari) - urutan.indexOf(b.hari)
-  );
-  return { success: true, data: sorted };
-}
-
-// ── UPDATE PENGATURAN HARI KERJA ─────────────────────────────────
-async function updateHariKerja({ hariList }) {
-  if (!hariList || !hariList.length)
-    return { success: false, message: 'Data hari kerja kosong' };
-
-  for (const item of hariList) {
-    await supabase
-      .from('pengaturan_hari_kerja')
-      .upsert({ hari: item.hari, aktif: item.aktif }, { onConflict: 'hari' });
-  }
-  return { success: true, message: 'Pengaturan hari kerja berhasil disimpan' };
-}
+// (getHariKerja/updateHariKerja duplikat sudah dihapus — lihat catatan di atas)

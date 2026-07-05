@@ -256,7 +256,10 @@ async function init() {
 
 function bulanOptionsForSemester(sm) {
   const opts = [];
-  const today = new Date().toISOString().substring(0,10);
+  // Samakan dengan api/_db.js & scan.html: pakai offset WITA (+8), bukan
+  // UTC polos, supaya "hari ini" di dropdown bulan tidak geser 1 hari
+  // menjelang tengah malam WITA.
+  const today = new Date(Date.now() + 8*60*60*1000).toISOString().substring(0,10);
   let end = sm.tanggalSelesai < today ? sm.tanggalSelesai : today;
   const cur = new Date(sm.tanggalMulai + 'T00:00:00');
   const endDate = new Date(end + 'T00:00:00');

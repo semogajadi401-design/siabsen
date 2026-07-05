@@ -169,7 +169,20 @@ async function scanKartu({ identifier, mode }) {
       jabatan: guru.jabatan,
       jam_scan: jam
     });
-    if (error) return { success: false, message: 'Gagal simpan sesi piket: ' + error.message, tipe: 'guru' };
+    if (error) {
+      // Kode 23505 = unique_violation. Bisa terjadi kalau 2 perangkat scan
+      // guru piket yang sama nyaris bersamaan — constraint UNIQUE(tanggal,
+      // id_guru) di database yang mencegahnya. Perlakukan sebagai duplikat
+      // (sama seperti penanganan di processSingleScan() / api/sync.js),
+      // BUKAN error mentah dari database.
+      if (error.code === '23505') {
+        return {
+          success: false, tipe: 'guru',
+          message: `${guru.nama} sudah tercatat sebagai guru piket hari ini`
+        };
+      }
+      return { success: false, message: 'Gagal simpan sesi piket: ' + error.message, tipe: 'guru' };
+    }
 
     // Update semua absensi hari ini yang nama_guru_piket kosong
     await supabase
@@ -283,7 +296,17 @@ async function scanKartu({ identifier, mode }) {
     id_guru_piket: idGuru, nama_guru_piket: namaGuru,
     metode: 'QR'
   });
-  if (error) return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + error.message };
+  if (error) {
+    // Kode 23505 = unique_violation. Bisa terjadi kalau 2 perangkat scan
+    // siswa yang sama nyaris bersamaan — constraint UNIQUE(id_siswa,
+    // tanggal) di database yang mencegahnya. Perlakukan sebagai duplikat
+    // (sama seperti penanganan di processSingleScan() / api/sync.js),
+    // BUKAN error mentah dari database.
+    if (error.code === '23505') {
+      return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang hari ini` };
+    }
+    return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + error.message };
+  }
 
   return {
     success: true, tipe: 'siswa', status: statusDatang,

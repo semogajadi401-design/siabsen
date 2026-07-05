@@ -177,10 +177,22 @@ async function updatePengaturanHari({ hariList }) {
   if (!hariList || !hariList.length)
     return { success: false, message: 'Data hari kerja kosong' };
 
-  for (const item of hariList) {
-    await supabase
-      .from('pengaturan_hari_kerja')
-      .upsert({ hari: item.hari, aktif: item.aktif }, { onConflict: 'hari' });
+  // PENTING: sebelumnya kode ini upsert satu-satu di dalam loop TANPA
+  // pernah mengecek hasil error dari Supabase. Kalau upsert gagal (RLS,
+  // koneksi, tipe data, dsb.), fungsi ini tetap mengembalikan
+  // success:true seolah-olah tersimpan -- padahal tabel di database
+  // tidak berubah sama sekali. Efeknya: toast bilang "berhasil
+  // disimpan", tapi begitu halaman dibuka lagi, getPengaturanHari()
+  // membaca tabel yang ternyata masih kosong, jadi semua centang balik
+  // ke tidak aktif lagi. Sekarang upsert dilakukan sekaligus (batch)
+  // dan error-nya benar-benar dicek & dilaporkan ke user.
+  const rows = hariList.map(item => ({ hari: item.hari, aktif: item.aktif }));
+  const { error } = await supabase
+    .from('pengaturan_hari_kerja')
+    .upsert(rows, { onConflict: 'hari' });
+
+  if (error) {
+    return { success: false, message: 'Gagal menyimpan pengaturan hari kerja: ' + error.message };
   }
   return { success: true, message: 'Pengaturan hari kerja berhasil disimpan' };
 }

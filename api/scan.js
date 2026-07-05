@@ -1,6 +1,6 @@
 const {
   supabase, generateID, setCors,
-  todayStr, jamSekarang, hariIni,
+  todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting
 } = require('./_db');
 
@@ -84,38 +84,43 @@ async function scanKartu({ identifier, mode }) {
     ? raw.split('|')[0]
     : raw;
 
-  // ========== 1. CEK ADMIN (PRIORITAS UTAMA, TANPA VALIDASI APAPUN) ==========
+  // ========== 1. CEK ADMIN — WAJIB COCOK DENGAN qr_token RAHASIA ==========
+  // Format QR: "ADMIN|username|qr_token". qr_token adalah string acak yang
+  // hanya diketahui setelah admin login (lihat auth.js) dan tidak boleh
+  // ditebak. Sebelumnya endpoint ini menerima siapa saja yang mengetik
+  // "ADMIN|admin" tanpa validasi apapun — lubang keamanan yang memberi
+  // akses admin tanpa password sama sekali.
   if (id.startsWith('ADMIN|')) {
-    const adminUsername = id.split('|')[1];
-    
-    // Cek apakah admin valid (opsional, bisa langsung terima)
+    const parts = id.split('|');
+    const adminUsername = parts[1];
+    const qrToken = parts[2];
+
+    if (!adminUsername || !qrToken) {
+      return { success: false, tipe: 'admin', message: 'QR admin tidak valid' };
+    }
+
     const { data: admin } = await supabase
       .from('admin')
-      .select('username, nama')
+      .select('username, nama, qr_token')
       .eq('username', adminUsername)
       .maybeSingle();
-    
-    // Admin default 'admin' atau yang terdaftar di database
-    if (admin || adminUsername === 'admin') {
+
+    if (admin && admin.qr_token && admin.qr_token === qrToken) {
       return {
         success: true,
         tipe: 'admin',
         message: 'Login sebagai Administrator',
-        admin: { 
-          username: adminUsername, 
-          nama: admin?.nama || 'Administrator' 
-        }
+        admin: { username: admin.username, nama: admin.nama }
       };
     }
-    
-    return { 
-      success: false, 
+
+    return {
+      success: false,
       tipe: 'admin',
-      message: 'Admin tidak dikenali' 
+      message: 'Admin tidak dikenali'
     };
   }
   // ===========================================================================
-
   // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
   const jamSetting = await getJamSetting();
   const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';
@@ -213,7 +218,8 @@ async function scanKartu({ identifier, mode }) {
   if (today < tglMulai || today > tglSelesai)
     return { success: false, tipe: 'siswa', message: `Di luar periode semester (${semester.nama})` };
 
-  const jamBatasDatang = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
+  const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
+  const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
   const jamPulangMulai = jamSetting['JAM_PULANG_MULAI']   || '14:00';
 
   // Nama guru piket — pakai yang terakhir scan
@@ -238,8 +244,14 @@ async function scanKartu({ identifier, mode }) {
     .from('absensi').select('*')
     .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
 
-  // Mode pulang
-  if (mode === 'pulang' || jam >= jamPulangMulai) {
+  // Mode pulang — hanya dipicu jika front-end memang eksplisit mengirim
+  // mode 'pulang'. Sebelumnya ada auto-switch berdasarkan jam
+  // (`jam >= jamPulangMulai`) yang membuat perilaku beda dari scanAbsen()
+  // di absensi.js dan bisa mengabaikan pilihan mode yang sudah dipilih
+  // guru piket di halaman scan.
+  if (mode === 'pulang') {
+    if (jam < jamPulangMulai)
+      return { success: false, tipe: 'siswa', message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
     if (!absenHariIni)
       return { success: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
     if (absenHariIni.jam_pulang)

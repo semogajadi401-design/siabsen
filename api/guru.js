@@ -94,8 +94,16 @@ async function resetSemua() {
   const { error: e1 } = await supabase.from('jadwal_piket').delete().neq('id', 'x');
   if (e1) return { success: false, message: 'Gagal hapus jadwal piket: ' + e1.message };
 
-  const { error: e2 } = await supabase.from('guru').delete().neq('id', 'x');
-  if (e2) return { success: false, message: 'Gagal hapus guru: ' + e2.message };
+  // PENTING: sesi_piket.id_guru adalah FOREIGN KEY ke guru(id) tanpa
+  // ON DELETE CASCADE (lihat schema.sql). Kalau baris ini tidak dihapus
+  // dulu, DELETE ke tabel guru akan GAGAL (foreign key violation) begitu
+  // ada guru yang pernah tercatat sebagai guru piket — bug ini sebelumnya
+  // membuat "Reset Guru" bisa diam-diam gagal di tengah proses.
+  const { error: e2 } = await supabase.from('sesi_piket').delete().neq('id', 'x');
+  if (e2) return { success: false, message: 'Gagal hapus riwayat sesi piket: ' + e2.message };
 
-  return { success: true, message: 'Semua data guru berhasil dihapus (akun admin tetap aman)' };
+  const { error: e3 } = await supabase.from('guru').delete().neq('id', 'x');
+  if (e3) return { success: false, message: 'Gagal hapus guru: ' + e3.message };
+
+  return { success: true, message: 'Semua data guru, jadwal piket, dan riwayat sesi piket berhasil dihapus (akun admin tetap aman)' };
 }

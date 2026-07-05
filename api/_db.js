@@ -195,14 +195,21 @@ async function isHariLibur(tanggal) {
   return data ? { libur: true, keterangan: data.keterangan } : { libur: false };
 }
 
-// ── CEK HARI KERJA (Senin-Sabtu sesuai pengaturan) ───────
+// ── CEK HARI KERJA (sesuai pengaturan admin di Pengaturan Semester) ──
+// PENTING: kalau baris untuk hari itu belum ada di tabel (admin belum
+// pernah menyimpan Pengaturan Hari Kerja sama sekali), dianggap TIDAK
+// aktif — bukan otomatis aktif. Ini supaya konsisten dengan
+// getPengaturanHari() di settings.js (default awal = belum ada hari
+// aktif) dan supaya sistem absensi benar-benar menahan diri sampai
+// admin mengatur hari sekolah aktif, bukan diam-diam mengizinkan absen
+// di semua hari (termasuk Sabtu/Minggu) sebelum diatur.
 async function isHariKerja(namaHari) {
   const { data } = await supabase
     .from('pengaturan_hari_kerja')
     .select('aktif')
     .eq('hari', namaHari)
     .maybeSingle();
-  return data ? data.aktif : true;
+  return data ? data.aktif : false;
 }
 
 // ── GET SEMUA PENGATURAN HARI KERJA ──────────────────────

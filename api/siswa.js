@@ -1,5 +1,5 @@
 // api/siswa.js — CRUD Data Siswa
-const { supabase, generateID, setCors } = require('./_db');
+const { supabase, generateID, setCors, generateQrToken } = require('./_db');
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -15,6 +15,8 @@ module.exports = async (req, res) => {
     if (action === 'resetSemua')  return res.json(await resetSemua());
     if (action === 'naikkanKelas') return res.json(await naikkanKelas(params));
     // ↑ TAMBAHAN: action resetSemua yang dipanggil dari halaman Reset Data
+    if (action === 'resetRiwayatToken') return res.json(await resetRiwayatToken(params));
+    // ↑ TAMBAHAN: reset token QR riwayat (dipakai saat kartu hilang/dicetak ulang)
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
@@ -26,6 +28,16 @@ async function getAll({ activeOnly, kelas }) {
   if (kelas && kelas !== '') q = q.eq('kelas', kelas);
   const { data, error } = await q;
   if (error) return { success: false, message: error.message };
+
+  // Backfill riwayat_token untuk siswa lama yang belum punya token
+  // (misal siswa yang ditambahkan sebelum fitur QR riwayat ada).
+  const belumAdaToken = (data || []).filter(s => !s.riwayat_token);
+  for (const s of belumAdaToken) {
+    const token = generateQrToken();
+    const { error: eUpdate } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', s.id);
+    if (!eUpdate) s.riwayat_token = token;
+  }
+
   return {
     success: true,
     data: (data || []).map(s => ({
@@ -33,7 +45,8 @@ async function getAll({ activeOnly, kelas }) {
       jenisKelamin: s.jenis_kelamin, tempatLahir: s.tempat_lahir,
       tanggalLahir: s.tanggal_lahir, agama: s.agama, kelas: s.kelas,
       tahunMasuk: s.tahun_masuk, namaOrtu: s.nama_ortu,
-      noHpOrtu: s.no_hp_ortu, alamat: s.alamat, status: s.status
+      noHpOrtu: s.no_hp_ortu, alamat: s.alamat, status: s.status,
+      riwayatToken: s.riwayat_token
     }))
   };
 }
@@ -46,7 +59,8 @@ async function tambah({ data }) {
     tanggal_lahir: data.tanggalLahir || null, agama: data.agama,
     kelas: data.kelas, tahun_masuk: data.tahunMasuk || new Date().getFullYear(),
     nama_ortu: data.namaOrtu || '', no_hp_ortu: data.noHpOrtu || '',
-    alamat: data.alamat || '', status: 'Aktif'
+    alamat: data.alamat || '', status: 'Aktif',
+    riwayat_token: generateQrToken()
   });
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Siswa berhasil ditambahkan', id };
@@ -133,7 +147,8 @@ async function importSiswa({ dataList }) {
       nama_ortu: data.namaOrtu || '',
       no_hp_ortu: data.noHpOrtu || '',
       alamat: data.alamat || '',
-      status: 'Aktif'
+      status: 'Aktif',
+      riwayat_token: generateQrToken()
     });
 
     if (error) {
@@ -164,6 +179,17 @@ async function resetSemua() {
 
   return { success: true, message: 'Semua data siswa dan absensi berhasil dihapus' };
 }
+// ── RESET TOKEN QR RIWAYAT (kartu hilang / dicetak ulang) ────────
+// Token lama otomatis tidak berlaku lagi begitu diganti, karena
+// halaman riwayat mencari siswa berdasarkan token yang cocok persis.
+async function resetRiwayatToken({ id }) {
+  if (!id) return { success: false, message: 'ID siswa wajib diisi' };
+  const token = generateQrToken();
+  const { error } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', id);
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: 'Token QR riwayat berhasil direset. Cetak ulang kartu agar QR baru terpakai.', riwayatToken: token };
+}
+
 async function naikkanKelas({ dari, ke, luluskan }) {
   if (!dari) return { success: false, message: 'Kelas asal wajib dipilih' };
 
@@ -190,4 +216,3 @@ async function naikkanKelas({ dari, ke, luluskan }) {
   if (error) return { success: false, message: error.message };
   return { success: true, message: `${data.length} siswa berhasil dinaikkan dari ${dari} ke ${ke}`, jumlah: data.length };
 }
-

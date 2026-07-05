@@ -1608,6 +1608,22 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
   </div>
 </div>
+
+<div class="modal-backdrop" id="modalPiketBelumAturHari">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>📅 Hari Sekolah Aktif Belum Diatur</h3><button class="modal-close" onclick="closeModal('modalPiketBelumAturHari')">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;line-height:1.6">
+        Jadwal Piket mengikuti hari sekolah aktif yang diatur di menu <strong>Pengaturan Semester</strong>.
+        Silakan atur dulu hari sekolah aktif (centang minimal satu hari) sebelum mengisi jadwal piket.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalPiketBelumAturHari')">Nanti Saja</button>
+      <button class="btn btn-primary" onclick="closeModal('modalPiketBelumAturHari');showPage('semester')">⚙️ Atur Hari Kerja</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Naik Kelas -->
 <div class="modal-backdrop" id="modalNaikKelas">
   <div class="modal">
@@ -2651,14 +2667,35 @@ async function downloadKartuAdmin() {
 }
 
 // ── PIKET ────────────────────────────────────────────────────────
+// Jadwal piket mengikuti hari sekolah aktif yang dicentang admin di menu
+// Pengaturan Semester (bukan daftar hari tetap Senin-Sabtu). Disimpan di
+// variabel global ini supaya saveJadwalPiket() memakai daftar hari yang
+// sama persis dengan yang sedang ditampilkan ke user.
+let piketHariAktifList = [];
+
 async function loadPiket() {
   try {
+    const pengaturanHari = await api('settings', 'getPengaturanHari');
+    const hariList = pengaturanHari.success
+      ? pengaturanHari.data.filter(h => h.aktif).map(h => h.hari)
+      : [];
+    piketHariAktifList = hariList;
+
+    if (!hariList.length) {
+      document.getElementById('piketBody').innerHTML = `
+        <p style="color:var(--text-muted);font-size:.88rem">
+          ⚠️ Hari sekolah aktif belum diatur. Silakan atur dulu di menu
+          <b>Pengaturan Semester</b> sebelum mengisi jadwal piket.
+        </p>`;
+      openModal('modalPiketBelumAturHari');
+      return;
+    }
+
     const [jadwal, guru] = await Promise.all([
       api('settings', 'getJadwalPiket'),
       api('guru', 'getAll', { activeOnly: true })
     ]);
-    const hariList = APP.constants?.hariList || ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-    
+
     // Buat map: hari → [idGuru, ...]
     const jadwalMap = {};
     if (jadwal.success) {
@@ -2704,7 +2741,11 @@ async function loadPiket() {
 }
 
 async function saveJadwalPiket() {
-  const hariList = APP.constants?.hariList || ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const hariList = piketHariAktifList;
+  if (!hariList.length) {
+    openModal('modalPiketBelumAturHari');
+    return;
+  }
   const jadwalList = [];
   hariList.forEach(hari => {
     const idGuruList = Array.from(

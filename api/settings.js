@@ -233,6 +233,7 @@ async function resetPengaturanAplikasi() {
     { kunci: 'JAM_PULANG_MULAI',   nilai: '14:00', deskripsi: 'Jam mulai absensi pulang' },
     { kunci: 'JAM_PULANG_SELESAI', nilai: '16:00', deskripsi: 'Batas jam absensi pulang' },
     { kunci: 'TOLERANSI_MENIT',    nilai: '15',    deskripsi: 'Toleransi keterlambatan menit' },
+    { kunci: 'TOLERANSI_PIKET_MENIT', nilai: '15', deskripsi: 'Menit tunggu sebelum guru pengganti di luar jadwal piket diizinkan scan' },
     // Profil sekolah (nama/alamat/NPSN/dll) SENGAJA tidak ikut direset ke
     // nilai contoh bawaan supaya identitas sekolah yang sudah diisi admin
     // tidak hilang tanpa sengaja hanya karena reset jam operasional.

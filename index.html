@@ -1072,6 +1072,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <h3>Kartu Identitas Siswa</h3>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <select id="kartuKelas" class="form-control" onchange="loadKartuSiswa()" style="width:auto;min-width:140px"><option value="">Semua Kelas</option></select>
+                <button class="btn btn-warning btn-sm" onclick="regenerateSemuaTokenRiwayat()" title="Perpendek QR riwayat kehadiran untuk SEMUA siswa (sekali jalan)">🔳 Perbarui QR Riwayat (Semua)</button>
                 <button class="btn btn-success btn-sm" onclick="downloadAllKartuPDF()">📄 Download PDF</button>
               </div>
             </div>
@@ -2154,6 +2155,19 @@ function editSiswa(s){ document.getElementById('siswaId').value=s.id; document.g
 async function submitSiswa(){ const id=document.getElementById('siswaId').value; const data={nisn:document.getElementById('siswaNISN').value.trim(),nama:document.getElementById('siswaNama').value.trim(),jenisKelamin:document.getElementById('siswaJK').value,agama:document.getElementById('siswaAgama').value,tempatLahir:document.getElementById('siswaTempatLahir').value,tanggalLahir:document.getElementById('siswaTanggalLahir').value,kelas:document.getElementById('siswaKelas').value,tahunMasuk:document.getElementById('siswaTahunMasuk').value,namaOrtu:document.getElementById('siswaOrtu').value,noHpOrtu:document.getElementById('siswaHPOrtu').value,alamat:document.getElementById('siswaAlamat').value}; if(!data.nama||!data.nisn){toast('Nama dan NISN wajib diisi','error');return;} try{const r=id?await api('siswa','edit',{id,data}):await api('siswa','tambah',{data}); toast(r.message,r.success?'success':'error'); if(r.success){closeModal('modalSiswa');loadSiswa();}}catch(e){toast('Terjadi kesalahan','error');} }
 async function hapusSiswa(id,nama){ if(!confirm(`Nonaktifkan siswa "${nama}"?`))return; const r=await api('siswa','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
 async function resetRiwayatToken(id,nama){ if(!confirm(`Reset QR riwayat kehadiran untuk "${nama}"?\n\nQR riwayat di kartu LAMA tidak akan bisa dipakai lagi. Cetak ulang kartunya setelah ini.`))return; const r=await api('siswa','resetRiwayatToken',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
+// Perbarui token QR riwayat untuk SEMUA siswa sekaligus (dipakai saat
+// format QR diganti, misal ke versi yang lebih pendek/renggang seperti
+// sekarang). Kalau kamu sudah menghapus semua data siswa lama dan
+// menambah siswa baru, tombol ini TIDAK perlu dipakai lagi — siswa baru
+// otomatis dapat token pendek. Tombol ini hanya berguna kalau suatu saat
+// nanti ada siswa lama yang masih memegang token format lama.
+async function regenerateSemuaTokenRiwayat(){
+  if(!confirm('Perbarui token QR riwayat untuk SEMUA siswa sekaligus?\n\nSemua QR riwayat di kartu yang SUDAH dicetak akan tidak berlaku lagi (harus dicetak ulang). Lanjutkan?'))return;
+  toast('⏳ Memperbarui token, harap tunggu...','info',15000);
+  const r = await api('siswa','regenerateAllRiwayatTokens',{});
+  toast(r.message, r.success?'success':'error', 8000);
+  if(r.success) loadKartuSiswa();
+}
 
   // ── KARTU GURU ───────────────────────────────────────────────────
 // Membangun markup kartu guru (dipakai baik untuk download per-individu
@@ -3009,14 +3023,20 @@ async function loadKartuSiswa(){
         const qt = document.querySelector('.qr-target-' + s.id);
         if (qt && typeof QRCode !== 'undefined') {
           qt.innerHTML = '';
-          const qrText = s.id + '|' + (s.nisn || '');
+          // Dulu isinya "s.id|NISN", tapi backend (api/scan.js) cuma
+          // pernah pakai bagian sebelum "|" untuk mencari siswa — NISN
+          // di baliknya tidak pernah dipakai untuk pencocokan, cuma
+          // menambah panjang data & membuat QR lebih padat tanpa
+          // manfaat. Sekarang cukup ID-nya saja: fungsinya identik,
+          // datanya jauh lebih pendek, QR jadi lebih renggang.
+          const qrText = s.id;
           new QRCode(qt, {
             text: qrText,
             width: 72,
             height: 72,
             colorDark: '#1a6b3a',
             colorLight: '#FFFFFF',
-            correctLevel: QRCode.CorrectLevel.M
+            correctLevel: QRCode.CorrectLevel.L
           });
         }
         // QR RIWAYAT — beda dari QR di atas. Pakai riwayat_token acak
@@ -3024,11 +3044,16 @@ async function loadKartuSiswa(){
         const qtRiwayat = document.querySelector('.qr-riwayat-' + s.id);
         if (qtRiwayat && typeof QRCode !== 'undefined' && s.riwayatToken) {
           qtRiwayat.innerHTML = '';
-          const riwayatUrl = window.location.origin + '/riwayat?t=' + s.riwayatToken;
+          // URL dipersingkat: dulu "/riwayat?t=TOKEN", sekarang
+          // "/riwayat/TOKEN" (token taruh di path, bukan query string).
+          // Digabung dengan token yang sudah diperpendek di backend,
+          // total karakter yang di-encode jauh lebih sedikit -> QR
+          // jauh lebih renggang modulnya dibanding sebelumnya.
+          const riwayatUrl = window.location.origin + '/riwayat/' + s.riwayatToken;
           // correctLevel L (bukan M) dipakai di sini karena token sekarang
-          // sudah pendek (12 karakter) — dengan L, QR yang dihasilkan makin
-          // renggang modulnya (lebih gampang dibaca kamera HP), sementara
-          // 7% toleransi kerusakan L tetap lebih dari cukup untuk kartu
+          // sudah pendek — dengan L, QR yang dihasilkan makin renggang
+          // modulnya (lebih gampang dibaca kamera HP), sementara 7%
+          // toleransi kerusakan L tetap lebih dari cukup untuk kartu
           // yang dicetak & dilaminating rapi (bukan dipakai di lapangan
           // kasar seperti kartu absen harian).
           new QRCode(qtRiwayat, {

@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/scan", "destination": "/scan.html" },
+    { "source": "/riwayat", "destination": "/riwayat.html" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],

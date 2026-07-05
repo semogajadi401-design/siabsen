@@ -1,10 +1,24 @@
 // api/settings.js — Jam setting, jadwal piket, hari kerja
-const { supabase, generateID, setCors, getJamSetting, hariIni } = require('./_db');
+const { supabase, generateID, setCors, getJamSetting, hariIni, requireAdminToken } = require('./_db');
+
+// Semua aksi "get*" tetap terbuka karena dipakai scan.html secara offline
+// (getJamSetting untuk cek jam operasional) dan halaman lain tanpa sesi
+// admin. Hanya aksi yang MENGUBAH pengaturan yang dikunci.
+const AKSI_TERKUNCI = new Set([
+  'updateJamSetting', 'setJadwalPiket',
+  'setHariLibur', 'hapusHariLibur', 'updatePengaturanHari'
+]);
 
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, adminToken, ...params } = req.body || {};
+
+  if (AKSI_TERKUNCI.has(action)) {
+    const valid = await requireAdminToken(adminToken);
+    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
+
   try {
     if (action === 'getJamSetting')     return res.json(await getAll());
     if (action === 'updateJamSetting')  return res.json(await updateSetting(params));

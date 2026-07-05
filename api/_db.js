@@ -112,11 +112,14 @@ async function getJamSetting() {
 // Kalau beda, jam yang tercatat saat scan offline (di HP/tablet) akan
 // tidak sinkron dengan jam yang dihitung server saat data disinkronkan.
 //   WIB  (Jawa, Sumatera bagian selatan, dst)     = 7
-//   WITA (Bali, NTB, NTT, Kalimantan, Sulawesi)   = 8
+//   WITA (Bali, NTB, NTT, Kalimantan, Sulawesi)   = 8  <- default saat ini
 //   WIT  (Maluku, Papua)                          = 9
-// Sebaiknya diarahkan lewat environment variable agar tidak perlu
-// mengubah kode saat deploy ke sekolah di zona waktu lain.
-const TIMEZONE_OFFSET_HOURS = Number(process.env.TIMEZONE_OFFSET_HOURS || 7);
+// Default diubah ke 8 (WITA) karena sekolah yang pakai sistem ini (Yayasan
+// Alkhairaat Tatakalai) berada di Sulawesi. Kalau di kemudian hari dijual ke
+// sekolah di zona lain, override lewat environment variable
+// TIMEZONE_OFFSET_HOURS di Vercel — TAPI ingat scan.html juga harus
+// diubah manual ke angka yang sama karena file itu tidak baca env var.
+const TIMEZONE_OFFSET_HOURS = Number(process.env.TIMEZONE_OFFSET_HOURS || 8);
 const TZ_OFFSET_MS = TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000;
 function witaNow() { return new Date(Date.now() + TZ_OFFSET_MS); }
 

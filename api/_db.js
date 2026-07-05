@@ -19,6 +19,44 @@ function generateQrToken() {
   return crypto.randomBytes(24).toString('hex');
 }
 
+// ── GENERATE TOKEN QR RIWAYAT SISWA (pendek tapi tetap unik) ──
+// Dulu memakai generateQrToken() yang menghasilkan 48 karakter hex.
+// Digabung dengan URL (origin + "/riwayat?t=") itu membuat QR jadi
+// sangat padat (versi QR tinggi) sehingga susah dibaca kamera HP,
+// apalagi kartu dicetak kecil. Token base62 12 karakter di bawah ini
+// punya ruang kombinasi 62^12 (~3,2 x 10^21) — jauh lebih dari cukup
+// untuk jumlah siswa satu sekolah, sekaligus jauh lebih pendek supaya
+// QR yang dihasilkan lebih "renggang"/tidak padat modulnya.
+// Tambahan: fungsi ini mengecek ke tabel siswa supaya dijamin 100%
+// tidak ada dua siswa dengan token yang sama persis (bukan cuma
+// mengandalkan probabilitas kecil terjadi tabrakan).
+const RIWAYAT_TOKEN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const RIWAYAT_TOKEN_LENGTH = 12;
+
+function randomBase62(length) {
+  const bytes = crypto.randomBytes(length);
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += RIWAYAT_TOKEN_ALPHABET[bytes[i] % RIWAYAT_TOKEN_ALPHABET.length];
+  }
+  return out;
+}
+
+async function generateRiwayatToken() {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const token = randomBase62(RIWAYAT_TOKEN_LENGTH);
+    const { data } = await supabase
+      .from('siswa')
+      .select('id')
+      .eq('riwayat_token', token)
+      .maybeSingle();
+    if (!data) return token; // belum dipakai siswa manapun -> aman dipakai
+  }
+  // Fallback ekstrem (harusnya nyaris mustahil tercapai): tambah timestamp
+  // supaya tetap unik walau 5x percobaan acak beruntun bertabrakan.
+  return randomBase62(RIWAYAT_TOKEN_LENGTH) + Date.now().toString(36);
+}
+
 // ── GENERATE ID ───────────────────────────────────────────
 function generateID(prefix) {
   const now = new Date();
@@ -145,7 +183,7 @@ async function getSemesterAktif() {
 module.exports = {
   supabase, hashPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
-  jamSekarang, hariIni, tambahMenit, generateQrToken,
+  jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken

@@ -227,7 +227,7 @@ async function dashboard() {
     supabase.from('absensi')
       .select('nama_siswa, kelas, jam_datang, status_datang, status_pulang')
       .eq('tanggal', today),
-    supabase.from('keterangan_absensi').select('id_siswa').eq('tanggal', today),
+    supabase.from('keterangan_absensi').select('id_siswa, status').eq('tanggal', today),
     getJamSetting(),
     supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari)
   ]);
@@ -238,6 +238,14 @@ async function dashboard() {
   const terlambatHariIni = (absenHariIni || []).filter(a =>
     a.status_datang === 'Terlambat'
   ).length;
+  // Rincian sakit/izin hari ini, DITAMPILKAN sebagai kartu tersendiri di
+  // dashboard (bukan cuma dikurangkan diam-diam dari Alpha) supaya
+  // angkanya tetap kelihatan dan tidak jadi informasi yang hilang/tidak
+  // relevan — total Hadir+Terlambat+Sakit/Izin+Alpha harus selalu pas
+  // dengan Total Siswa.
+  const sakitHariIni = (ketHariIni || []).filter(k => k.status === 'Sakit').length;
+  const izinHariIni  = (ketHariIni || []).filter(k => k.status !== 'Sakit').length;
+  const sakitIzinHariIni = sakitHariIni + izinHariIni;
   // SEBELUMNYA: alphaHariIni = totalSiswa - hadirHariIni, menganggap SEMUA
   // siswa yang belum absen fisik hari ini otomatis "Alpha" — padahal
   // sebagian bisa jadi sudah diinput Sakit/Izin lewat menu "Kehadiran Hari
@@ -245,8 +253,7 @@ async function dashboard() {
   // selalu ikut menghitung siswa sakit/izin sebagai Alpha juga, padahal
   // halaman "Kehadiran Hari Ini" sudah benar memisahkannya. Sekarang
   // dikurangi dulu dengan siswa yang sudah ada keterangan hari ini.
-  const sudahAdaKeterangan = new Set((ketHariIni || []).map(k => k.id_siswa));
-  const alphaHariIni = Math.max(0, (totalSiswa || 0) - hadirHariIni - sudahAdaKeterangan.size);
+  const alphaHariIni = Math.max(0, (totalSiswa || 0) - hadirHariIni - sakitIzinHariIni);
 
   const absenTerkini = (absenHariIni || [])
     .filter(a => a.jam_datang)
@@ -266,6 +273,7 @@ async function dashboard() {
       totalGuru:       totalGuru  || 0,
       hadirHariIni,
       terlambatHariIni,
+      sakitIzinHariIni,
       alphaHariIni,
       jamSetting,
       piketHariIni: (piket.data || []).map(p => ({

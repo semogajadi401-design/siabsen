@@ -1,7 +1,7 @@
 // api/kehadiran.js — Kehadiran hari ini, input sakit/izin
 const {
   supabase, generateID, setCors, todayStr, hariIni,
-  isHariLibur, isHariKerja
+  isHariLibur, isHariKerja, requireAdminToken
 } = require('./_db');
 
 // CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
@@ -13,10 +13,23 @@ const {
 // action dengan nama SAMA ('getHariKerja') untuk hal yang beda sama sekali
 // (kalender hari libur per tanggal, tabel hari_kerja). Kalau butuh
 // pengaturan hari sekolah aktif, pakai api/settings.js.
+//
+// PENTING — SEBELUMNYA FILE INI TIDAK PUNYA PENGECEKAN LOGIN ADMIN SAMA
+// SEKALI, beda dari semua file admin lain (guru.js, siswa.js, semester.js,
+// settings.js, absensi.js) yang selalu cek requireAdminToken di awal.
+// Semua action di sini (getSiswaKehadiran, inputKeterangan, hapusKeterangan,
+// rekapKeteranganRange) hanya dipanggil dari index.html (dashboard admin),
+// TIDAK PERNAH dari scan.html, jadi aman dikunci semua — dan memang
+// harus dikunci karena isinya termasuk data sensitif (alasan sakit/izin
+// siswa) serta aksi hapus/ubah data.
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, adminToken, ...params } = req.body || {};
+
+  const valid = await requireAdminToken(adminToken);
+  if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+
   try {
     if (action === 'getStatusHariIni')     return res.json(await getStatusHariIni());
     if (action === 'getSiswaKehadiran')    return res.json(await getSiswaKehadiran(params));

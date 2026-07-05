@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/scan", "destination": "/scan.html" },
     { "source": "/riwayat", "destination": "/riwayat.html" },
+    { "source": "/riwayat/:token", "destination": "/riwayat.html?t=:token" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],

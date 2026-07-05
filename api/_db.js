@@ -68,8 +68,19 @@ async function getJamSetting() {
   return result;
 }
 
-const WITA_OFFSET = 8 * 60 * 60 * 1000;
-function witaNow() { return new Date(Date.now() + WITA_OFFSET); }
+// ── ZONA WAKTU ────────────────────────────────────────────────────
+// PENTING: nilai ini WAJIB SAMA PERSIS dengan TIMEZONE_OFFSET_HOURS
+// di file scan.html (dan riwayat.html bila ada logika jam serupa).
+// Kalau beda, jam yang tercatat saat scan offline (di HP/tablet) akan
+// tidak sinkron dengan jam yang dihitung server saat data disinkronkan.
+//   WIB  (Jawa, Sumatera bagian selatan, dst)     = 7
+//   WITA (Bali, NTB, NTT, Kalimantan, Sulawesi)   = 8
+//   WIT  (Maluku, Papua)                          = 9
+// Sebaiknya diarahkan lewat environment variable agar tidak perlu
+// mengubah kode saat deploy ke sekolah di zona waktu lain.
+const TIMEZONE_OFFSET_HOURS = Number(process.env.TIMEZONE_OFFSET_HOURS || 7);
+const TZ_OFFSET_MS = TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000;
+function witaNow() { return new Date(Date.now() + TZ_OFFSET_MS); }
 
 function todayStr() {
   return witaNow().toISOString().split('T')[0];

@@ -13,7 +13,6 @@ module.exports = async (req, res) => {
     if (action === 'getStatus')       return res.json(await getStatus());
     if (action === 'scanKartu')       return res.json(await scanKartu(params));
     if (action === 'getLogHariIni')   return res.json(await getLogHariIni(params));
-    if (action === 'getSesiPiket')    return res.json(await getSesiPiket());
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -341,12 +340,7 @@ async function getLogHariIni({ kelas }) {
   };
 }
 
-// ── GET SESI PIKET HARI INI ───────────────────────────────────────
-async function getSesiPiket() {
-  const today = todayStr();
-  const { data, error } = await supabase
-    .from('sesi_piket').select('*')
-    .eq('tanggal', today).order('jam_scan');
-  if (error) return { success: false, message: error.message };
-  return { success: true, data: data || [] };
-}
+// CATATAN: fungsi getSesiPiket() yang dulu ada di sini SUDAH DIHAPUS karena
+// tidak pernah dipanggil dari scan.html/index.html (kode mati). Data sesi
+// piket hari ini sudah tersedia lewat action 'getStatus' di atas
+// (field guruPiket), jadi tidak ada fitur yang hilang.

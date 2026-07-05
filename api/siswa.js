@@ -1,5 +1,5 @@
 // api/siswa.js — CRUD Data Siswa
-const { supabase, generateID, setCors, generateQrToken, requireAdminToken } = require('./_db');
+const { supabase, generateID, setCors, generateQrToken, generateRiwayatToken, requireAdminToken } = require('./_db');
 
 // getAll & getByScan TETAP TERBUKA karena dipakai scan.html (guru piket
 // offline, tanpa sesi admin) untuk mengisi daftar kelas & mencari siswa.
@@ -46,7 +46,7 @@ async function getAll({ activeOnly, kelas }) {
   // (misal siswa yang ditambahkan sebelum fitur QR riwayat ada).
   const belumAdaToken = (data || []).filter(s => !s.riwayat_token);
   for (const s of belumAdaToken) {
-    const token = generateQrToken();
+    const token = await generateRiwayatToken();
     const { error: eUpdate } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', s.id);
     if (!eUpdate) s.riwayat_token = token;
   }
@@ -73,7 +73,7 @@ async function tambah({ data }) {
     kelas: data.kelas, tahun_masuk: data.tahunMasuk || new Date().getFullYear(),
     nama_ortu: data.namaOrtu || '', no_hp_ortu: data.noHpOrtu || '',
     alamat: data.alamat || '', status: 'Aktif',
-    riwayat_token: generateQrToken()
+    riwayat_token: await generateRiwayatToken()
   });
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Siswa berhasil ditambahkan', id };
@@ -161,7 +161,7 @@ async function importSiswa({ dataList }) {
       no_hp_ortu: data.noHpOrtu || '',
       alamat: data.alamat || '',
       status: 'Aktif',
-      riwayat_token: generateQrToken()
+      riwayat_token: await generateRiwayatToken()
     });
 
     if (error) {
@@ -197,7 +197,7 @@ async function resetSemua() {
 // halaman riwayat mencari siswa berdasarkan token yang cocok persis.
 async function resetRiwayatToken({ id }) {
   if (!id) return { success: false, message: 'ID siswa wajib diisi' };
-  const token = generateQrToken();
+  const token = await generateRiwayatToken();
   const { error } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Token QR riwayat berhasil direset. Cetak ulang kartu agar QR baru terpakai.', riwayatToken: token };

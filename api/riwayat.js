@@ -113,7 +113,10 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
   const liburSet = new Set((liburRows || []).map(r => String(r.tanggal).substring(0, 10)));
   const hariAktifMap = {};
   (hariKerjaSetting || []).forEach(h => { hariAktifMap[h.hari] = h.aktif; });
-  const defaultAktif = { Senin: true, Selasa: true, Rabu: true, Kamis: true, Jumat: true, Sabtu: false, Minggu: false };
+  // Kalau hari belum pernah diatur admin (baris tidak ada di tabel),
+  // dianggap TIDAK aktif — konsisten dengan isHariKerja() di _db.js dan
+  // getPengaturanHari() di settings.js. Jangan asumsikan Senin-Jumat
+  // otomatis sekolah sebelum admin benar-benar mengatur hari aktif.
   const namaHariArr = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
   const rowsMap = {};
@@ -143,7 +146,7 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
     const tgl = cur.toISOString().substring(0, 10);
     if (!rowsMap[tgl] && !liburSet.has(tgl)) {
       const namaHari = namaHariArr[cur.getDay()];
-      const aktif = hariAktifMap.hasOwnProperty(namaHari) ? hariAktifMap[namaHari] : defaultAktif[namaHari];
+      const aktif = hariAktifMap.hasOwnProperty(namaHari) ? hariAktifMap[namaHari] : false;
       if (aktif) {
         rowsMap[tgl] = {
           tanggal: tgl, hari: namaHari, jamDatang: null,

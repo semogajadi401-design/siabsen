@@ -1,10 +1,25 @@
 // api/siswa.js — CRUD Data Siswa
-const { supabase, generateID, setCors, generateQrToken } = require('./_db');
+const { supabase, generateID, setCors, generateQrToken, requireAdminToken } = require('./_db');
+
+// getAll & getByScan TETAP TERBUKA karena dipakai scan.html (guru piket
+// offline, tanpa sesi admin) untuk mengisi daftar kelas & mencari siswa.
+// Aksi lain (tambah/ubah/hapus/reset/import/naik-kelas) mengubah data
+// master, jadi wajib token admin valid.
+const AKSI_TERKUNCI = new Set([
+  'tambah', 'edit', 'hapus', 'resetSemua',
+  'importSiswa', 'naikkanKelas', 'resetRiwayatToken'
+]);
 
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, adminToken, ...params } = req.body || {};
+
+  if (AKSI_TERKUNCI.has(action)) {
+    const valid = await requireAdminToken(adminToken);
+    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
+
   try {
     if (action === 'getAll')      return res.json(await getAll(params));
     if (action === 'tambah')      return res.json(await tambah(params));
@@ -14,9 +29,7 @@ module.exports = async (req, res) => {
     if (action === 'importSiswa') return res.json(await importSiswa(params));
     if (action === 'resetSemua')  return res.json(await resetSemua());
     if (action === 'naikkanKelas') return res.json(await naikkanKelas(params));
-    // ↑ TAMBAHAN: action resetSemua yang dipanggil dari halaman Reset Data
     if (action === 'resetRiwayatToken') return res.json(await resetRiwayatToken(params));
-    // ↑ TAMBAHAN: reset token QR riwayat (dipakai saat kartu hilang/dicetak ulang)
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };

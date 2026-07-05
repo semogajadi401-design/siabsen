@@ -7,7 +7,8 @@ const { supabase, generateID, setCors, generateQrToken, generateRiwayatToken, re
 // master, jadi wajib token admin valid.
 const AKSI_TERKUNCI = new Set([
   'tambah', 'edit', 'hapus', 'resetSemua',
-  'importSiswa', 'naikkanKelas', 'resetRiwayatToken'
+  'importSiswa', 'naikkanKelas', 'resetRiwayatToken',
+  'regenerateAllRiwayatTokens'
 ]);
 
 module.exports = async (req, res) => {
@@ -30,6 +31,7 @@ module.exports = async (req, res) => {
     if (action === 'resetSemua')  return res.json(await resetSemua());
     if (action === 'naikkanKelas') return res.json(await naikkanKelas(params));
     if (action === 'resetRiwayatToken') return res.json(await resetRiwayatToken(params));
+    if (action === 'regenerateAllRiwayatTokens') return res.json(await regenerateAllRiwayatTokens());
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
@@ -201,6 +203,33 @@ async function resetRiwayatToken({ id }) {
   const { error } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Token QR riwayat berhasil direset. Cetak ulang kartu agar QR baru terpakai.', riwayatToken: token };
+}
+
+// ── PERBARUI SEMUA TOKEN QR RIWAYAT SEKALIGUS ────────────────────
+// Dipakai sekali saja setelah update ke token pendek (12 karakter),
+// supaya siswa yang SUDAH ADA di database (yang tokennya masih versi
+// lama 48 karakter hex) ikut dapat token baru yang pendek. Tanpa ini,
+// token lama tetap tersimpan apa adanya dan QR di kartu lama akan
+// tetap padat walau kode generatornya sudah diganti.
+// PENTING: setelah dijalankan, SEMUA kartu siswa yang sudah dicetak
+// duluan jadi tidak berlaku lagi untuk fitur riwayat (harus dicetak
+// ulang), karena token lamanya sudah diganti.
+async function regenerateAllRiwayatTokens() {
+  const { data, error } = await supabase.from('siswa').select('id');
+  if (error) return { success: false, message: error.message };
+
+  let berhasil = 0, gagal = 0;
+  for (const s of (data || [])) {
+    const token = await generateRiwayatToken();
+    const { error: eUpdate } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', s.id);
+    if (eUpdate) gagal++; else berhasil++;
+  }
+
+  return {
+    success: true,
+    message: `Selesai. ${berhasil} token diperbarui${gagal ? `, ${gagal} gagal` : ''}. Cetak ulang SEMUA kartu siswa agar QR riwayat yang baru (lebih renggang) terpakai.`,
+    berhasil, gagal
+  };
 }
 
 async function naikkanKelas({ dari, ke, luluskan }) {

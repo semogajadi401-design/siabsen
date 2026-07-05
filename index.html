@@ -905,7 +905,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="page" id="page-piket">
         <div class="card">
           <div class="card-header"><h3>Jadwal Piket Guru</h3><button class="btn btn-primary btn-sm" onclick="saveJadwalPiket()">💾 Simpan</button></div>
-          <div class="card-body" id="piketBody"><p style="color:var(--text-muted)">Memuat...</p></div>
+          <div class="card-body">
+            <div style="background:var(--primary-pale);border:1px solid var(--primary);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:.82rem;line-height:1.6">
+              ℹ️ Centang guru yang bertugas piket tiap hari. Kalau guru yang terjadwal
+              belum scan sampai batas waktu tertentu (atur di menu <b>Pengaturan → Guru Piket Pengganti</b>),
+              sistem otomatis mengizinkan guru lain scan sebagai pengganti supaya siswa tetap bisa absen.
+              Hari yang tidak dicentang sama sekali = bebas, guru manapun boleh piket.
+            </div>
+            <div id="piketBody"><p style="color:var(--text-muted)">Memuat...</p></div>
+          </div>
         </div>
       </div>
 
@@ -980,6 +988,19 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                   <div class="form-group"><label>Batas Pulang</label><input type="time" id="set_JAM_PULANG_SELESAI" class="form-control"></div>
                 </div>
                 <div class="form-group" style="margin-top:16px"><label>Toleransi Keterlambatan (menit)</label><input type="number" id="set_TOLERANSI_MENIT" class="form-control" min="0" max="60"></div>
+              </div>
+              <div>
+                <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">🧑‍🏫 Guru Piket Pengganti</h4>
+                <div class="form-group">
+                  <label>Buka slot pengganti setelah (menit dari Jam Mulai Datang)</label>
+                  <input type="number" id="set_TOLERANSI_PIKET_MENIT" class="form-control" min="0" max="120">
+                  <div style="font-size:.72rem;color:var(--text-muted);margin-top:6px;line-height:1.5">
+                    Kalau guru piket yang terjadwal hari itu belum scan sampai batas menit ini,
+                    sistem otomatis mengizinkan guru aktif lain untuk scan sebagai piket pengganti,
+                    supaya siswa tetap bisa absen. Hanya berlaku untuk hari yang jadwalnya sudah diisi
+                    di menu <b>Jadwal Piket</b>.
+                  </div>
+                </div>
               </div>
             </div>
             <div style="margin-top:24px;display:flex;gap:10px">
@@ -2647,28 +2668,38 @@ async function loadPiket() {
       });
     }
     
-    const guruOpts = guru.success ? guru.data.map(g =>
-      `<option value="${g.id}">${g.nama} (${g.jabatan})</option>`
-    ).join('') : '';
+    const daftarGuru = guru.success ? guru.data : [];
 
-    document.getElementById('piketBody').innerHTML = hariList.map(hari => {
-      const selected = jadwalMap[hari] || [];
-      return `<div class="piket-day">
-        <div class="piket-day-name">${hari}</div>
-        <select multiple class="form-control" id="piket_${hari}" 
-          style="max-width:320px;min-height:80px" 
-          title="Tahan Ctrl/Cmd untuk pilih lebih dari 1 guru">
-          ${guru.success ? guru.data.map(g =>
-            `<option value="${g.id}" ${selected.includes(g.id) ? 'selected' : ''}>
-              ${g.nama} (${g.jabatan})
-            </option>`
-          ).join('') : ''}
-        </select>
-        <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">
-          Tahan Ctrl untuk pilih lebih dari 1
-        </div>
+    // Tampilan lama pakai <select multiple> (Ctrl/Cmd+klik) yang
+    // membingungkan, apalagi di HP/tablet tempat "Ctrl+klik" nyaris
+    // mustahil dilakukan. Diganti kotak centang per guru per hari.
+    document.getElementById('piketBody').innerHTML = `
+      <div style="display:grid;gap:20px">
+        ${hariList.map(hari => {
+          const selected = jadwalMap[hari] || [];
+          return `
+          <div class="piket-day" style="border:1.5px solid var(--border);border-radius:10px;padding:14px 16px">
+            <div class="piket-day-name" style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+              📅 ${hari}
+              ${selected.length ? `<span class="badge badge-success">${selected.length} guru terjadwal</span>` : `<span class="badge badge-gray">Bebas (belum diatur)</span>`}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+              ${daftarGuru.length ? daftarGuru.map(g => `
+                <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:var(--transition)"
+                  onmouseover="this.style.borderColor='var(--primary)'"
+                  onmouseout="this.style.borderColor='var(--border)'">
+                  <input type="checkbox" class="piket-check" data-hari="${hari}" value="${g.id}"
+                    ${selected.includes(g.id) ? 'checked' : ''}
+                    style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--primary)">
+                  <span style="font-size:.85rem">
+                    <b>${g.nama}</b><br><span style="color:var(--text-muted);font-size:.78rem">${g.jabatan}</span>
+                  </span>
+                </label>
+              `).join('') : '<p style="color:var(--text-muted);font-size:.85rem">Belum ada data guru aktif.</p>'}
+            </div>
+          </div>`;
+        }).join('')}
       </div>`;
-    }).join('');
   } catch(e) { toast('Gagal memuat jadwal piket', 'error'); }
 }
 
@@ -2676,13 +2707,14 @@ async function saveJadwalPiket() {
   const hariList = APP.constants?.hariList || ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   const jadwalList = [];
   hariList.forEach(hari => {
-    const sel = document.getElementById('piket_' + hari);
-    if (!sel) return;
-    const idGuruList = Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean);
+    const idGuruList = Array.from(
+      document.querySelectorAll(`.piket-check[data-hari="${hari}"]:checked`)
+    ).map(el => el.value);
     if (idGuruList.length) jadwalList.push({ hari, idGuruList });
   });
   const r = await api('settings', 'setJadwalPiket', { jadwalList });
   toast(r.message, r.success ? 'success' : 'error');
+  if (r.success) loadPiket();
 }
 // ── HARI KERJA ───────────────────────────────────────────────────
 let hariLiburData=[];
@@ -2727,10 +2759,10 @@ async function hapusLibur(dateStr){ if(!confirm('Hapus hari libur ini?'))return;
 // ── PENGATURAN ───────────────────────────────────────────────────
 async function loadPengaturan(){
   const r=await api('settings','getJamSetting');
-  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
+  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
 }
 async function savePengaturan(){
-  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT'];
+  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT'];
   const settings={};
   keys.forEach(k=>{const el=document.getElementById('set_'+k);if(el)settings[k]=el.value;});
   const r=await api('settings','updateJamSetting',{settings});

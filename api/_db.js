@@ -14,6 +14,11 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+// ── GENERATE TOKEN QR ADMIN (acak, tidak bisa ditebak) ────
+function generateQrToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
 // ── GENERATE ID ───────────────────────────────────────────
 function generateID(prefix) {
   const now = new Date();
@@ -78,6 +83,15 @@ function hariIni() {
   const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   return days[witaNow().getDay()];
 }
+
+// ── TAMBAH MENIT KE STRING JAM "HH:MM" (untuk toleransi keterlambatan) ──
+function tambahMenit(jamStr, menit) {
+  const [h, m] = String(jamStr).split(':').map(Number);
+  const total = h * 60 + m + Number(menit || 0);
+  const hh = String(Math.floor((total % (24 * 60)) / 60)).padStart(2, '0');
+  const mm = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
 // ── CEK HARI LIBUR ────────────────────────────────────────
 async function isHariLibur(tanggal) {
   const { data } = await supabase
@@ -120,7 +134,7 @@ async function getSemesterAktif() {
 module.exports = {
   supabase, hashPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
-  jamSekarang, hariIni,
+  jamSekarang, hariIni, tambahMenit, generateQrToken,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif
 };

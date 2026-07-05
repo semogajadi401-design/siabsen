@@ -267,15 +267,34 @@ async function dashboard() {
   };
 }
 
+// Reset absensi SEKARANG juga membersihkan data yang berhubungan langsung
+// dengan periode yang direset — sebelumnya hanya tabel `absensi` yang
+// dihapus, sehingga catatan sakit/izin (keterangan_absensi) dan riwayat
+// guru piket (sesi_piket) untuk periode yang sama tetap tertinggal dan
+// bisa membuat statistik di halaman lain (evaluasi kehadiran, riwayat QR
+// siswa) tidak sinkron dengan riwayat absensi yang sudah "direset".
 async function resetAbsensi({ kelas, semua }) {
   if (semua) {
+    const { error: e0 } = await supabase.from('keterangan_absensi').delete().neq('id', 'x');
+    if (e0) return { success: false, message: 'Gagal hapus data sakit/izin: ' + e0.message };
+
+    // sesi_piket tidak punya kolom kelas (guru piket berlaku untuk semua
+    // kelas dalam satu hari), jadi hanya ikut dihapus saat reset SEMUA,
+    // bukan saat reset per-kelas.
+    const { error: e1 } = await supabase.from('sesi_piket').delete().neq('id', 'x');
+    if (e1) return { success: false, message: 'Gagal hapus riwayat sesi piket: ' + e1.message };
+
     const { error } = await supabase.from('absensi').delete().neq('id', 'x');
     if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
-    return { success: true, message: 'Seluruh riwayat absensi berhasil dihapus' };
+    return { success: true, message: 'Seluruh riwayat absensi, data sakit/izin, dan riwayat sesi piket berhasil dihapus' };
   }
   if (!kelas || !kelas.length)
     return { success: false, message: 'Pilih minimal satu kelas' };
+
+  const { error: e0 } = await supabase.from('keterangan_absensi').delete().in('kelas', kelas);
+  if (e0) return { success: false, message: 'Gagal hapus data sakit/izin: ' + e0.message };
+
   const { error } = await supabase.from('absensi').delete().in('kelas', kelas);
   if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
-  return { success: true, message: `Riwayat absensi kelas ${kelas.join(', ')} berhasil dihapus` };
+  return { success: true, message: `Riwayat absensi dan data sakit/izin kelas ${kelas.join(', ')} berhasil dihapus` };
 }

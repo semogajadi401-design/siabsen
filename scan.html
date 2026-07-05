@@ -1556,12 +1556,28 @@ async function jalankanSync(antrian) {
       } else {
         // Duplikat / sudah ada = hapus juga dari antrian
         const isDuplikat = r.message && (r.message.includes('sudah') || r.message.includes('tidak ditemukan'));
-        if (isDuplikat) await hapusDariAntrian(item.localId);
+
+        // Penolakan permanen berdasarkan aturan kalender (hari libur, hari
+        // sekolah nonaktif, tidak ada semester aktif, di luar periode
+        // semester). Data offline yang ditolak karena ini TIDAK AKAN
+        // PERNAH berhasil walau diulang berapa kali pun — jam & tanggal
+        // scan-nya sudah terkunci sejak direkam offline. Kalau tidak
+        // dihapus dari antrian, item ini akan nyangkut & terus dicoba
+        // ulang selamanya setiap kali sync jalan.
+        const isPenolakanPermanen = r.message && (
+          r.message.includes('Hari ini libur') ||
+          r.message.includes('bukan hari sekolah') ||
+          r.message.includes('Tidak ada semester aktif') ||
+          r.message.includes('Di luar periode semester')
+        );
+
+        if (isDuplikat || isPenolakanPermanen) await hapusDariAntrian(item.localId);
         gagal++;
         if (liEl) {
           liEl.className = 'sync-log-item err';
-          liEl.querySelector('.sync-log-icon').textContent = isDuplikat ? '⚠️' : '❌';
-          liEl.querySelector('.sync-log-status').textContent = r.message || 'Gagal';
+          liEl.querySelector('.sync-log-icon').textContent = isDuplikat ? '⚠️' : (isPenolakanPermanen ? '🚫' : '❌');
+          liEl.querySelector('.sync-log-status').textContent =
+            isPenolakanPermanen ? `Ditolak (tidak dihitung): ${r.message}` : (r.message || 'Gagal');
         }
       }
     } catch(e) {

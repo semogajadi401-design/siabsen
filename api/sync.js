@@ -173,6 +173,13 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   // siswa yang datang terlambat setelah jam 14:00 tapi modenya masih
   // "Datang" malah diproses sebagai absen pulang. Baris ini disamakan.
   if (mode === 'pulang') {
+    // SAMA seperti scan.js: tolak kalau jam pulang (offline, waktu HP/laptop
+    // saat scan) belum masuk JAM_PULANG_MULAI. Sebelumnya variabel
+    // jamPulangMulai di atas dihitung tapi tidak pernah dipakai di sini,
+    // jadi scan offline bisa lolos absen pulang sebelum jam resmi padahal
+    // scan online untuk kasus yang sama akan ditolak scan.js.
+    if (jam < jamPulangMulai)
+      return { success: false, tipe: 'siswa', message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
     if (!absenHariIni)
       return { success: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
     if (absenHariIni.jam_pulang) {

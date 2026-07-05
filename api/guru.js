@@ -1,10 +1,17 @@
 // api/guru.js — CRUD Data Guru
-const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors } = require('./_db');
+const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken } = require('./_db');
 
+// Semua aksi di file ini mengubah/menghapus data master guru, jadi semuanya
+// wajib login admin. Hanya dipanggil dari index.html (dashboard admin),
+// tidak dipakai scan.html, jadi aman dikunci semua.
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, adminToken, ...params } = req.body || {};
+
+  const valid = await requireAdminToken(adminToken);
+  if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+
   try {
     if (action === 'getAll')        return res.json(await getAll(params));
     if (action === 'tambah')        return res.json(await tambah(params));
@@ -13,7 +20,6 @@ module.exports = async (req, res) => {
     if (action === 'hapusPermanen') return res.json(await hapusPermanen(params));
     if (action === 'resetPassword') return res.json(await resetPassword(params));
     if (action === 'resetSemua')    return res.json(await resetSemua());
-    // ↑ TAMBAHAN: hapus semua guru non-admin
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
@@ -84,10 +90,7 @@ async function resetPassword({ id }) {
   return { success: true, message: 'Password direset', password: newPass, username: guru.username };
 }
 
-// ── RESET SEMUA GURU (kecuali akun admin di tabel admin) ─────────
-// Catatan: guru disimpan di tabel 'guru', admin di tabel 'admin' — aman dihapus semua
 async function resetSemua() {
-  // Hapus jadwal piket dulu (foreign key ke guru)
   const { error: e1 } = await supabase.from('jadwal_piket').delete().neq('id', 'x');
   if (e1) return { success: false, message: 'Gagal hapus jadwal piket: ' + e1.message };
 

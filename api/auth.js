@@ -1,4 +1,4 @@
-const { supabase, setCors } = require('./_db');
+const { supabase, setCors, generateQrToken } = require('./_db');
 const crypto = require('crypto');
 
 function hashPassword(password) {
@@ -34,10 +34,17 @@ async function login({ username, password }) {
     .single();
 
   if (adminData && adminData.password === hashed) {
+    // Pastikan admin punya qr_token unik untuk QR login yang aman.
+    // Akun lama (dibuat sebelum kolom qr_token ada) dibuatkan sekali di sini.
+    let qrToken = adminData.qr_token;
+    if (!qrToken) {
+      qrToken = generateQrToken();
+      await supabase.from('admin').update({ qr_token: qrToken }).eq('username', username);
+    }
     return {
       success: true, role: 'admin',
       nama: adminData.nama, username,
-      email: adminData.email
+      email: adminData.email, qrToken
     };
   }
 

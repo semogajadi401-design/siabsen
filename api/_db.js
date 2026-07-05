@@ -23,15 +23,15 @@ function generateQrToken() {
 // Dulu memakai generateQrToken() yang menghasilkan 48 karakter hex.
 // Digabung dengan URL (origin + "/riwayat?t=") itu membuat QR jadi
 // sangat padat (versi QR tinggi) sehingga susah dibaca kamera HP,
-// apalagi kartu dicetak kecil. Token base62 12 karakter di bawah ini
-// punya ruang kombinasi 62^12 (~3,2 x 10^21) — jauh lebih dari cukup
+// apalagi kartu dicetak kecil. Token base62 8 karakter di bawah ini
+// punya ruang kombinasi 62^8 (~2,18 x 10^14) — jauh lebih dari cukup
 // untuk jumlah siswa satu sekolah, sekaligus jauh lebih pendek supaya
 // QR yang dihasilkan lebih "renggang"/tidak padat modulnya.
 // Tambahan: fungsi ini mengecek ke tabel siswa supaya dijamin 100%
 // tidak ada dua siswa dengan token yang sama persis (bukan cuma
 // mengandalkan probabilitas kecil terjadi tabrakan).
 const RIWAYAT_TOKEN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const RIWAYAT_TOKEN_LENGTH = 12;
+const RIWAYAT_TOKEN_LENGTH = 8;
 
 function randomBase62(length) {
   const bytes = crypto.randomBytes(length);

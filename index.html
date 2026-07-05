@@ -3025,13 +3025,19 @@ async function loadKartuSiswa(){
         if (qtRiwayat && typeof QRCode !== 'undefined' && s.riwayatToken) {
           qtRiwayat.innerHTML = '';
           const riwayatUrl = window.location.origin + '/riwayat?t=' + s.riwayatToken;
+          // correctLevel L (bukan M) dipakai di sini karena token sekarang
+          // sudah pendek (12 karakter) — dengan L, QR yang dihasilkan makin
+          // renggang modulnya (lebih gampang dibaca kamera HP), sementara
+          // 7% toleransi kerusakan L tetap lebih dari cukup untuk kartu
+          // yang dicetak & dilaminating rapi (bukan dipakai di lapangan
+          // kasar seperti kartu absen harian).
           new QRCode(qtRiwayat, {
             text: riwayatUrl,
             width: 72,
             height: 72,
             colorDark: '#1a6b3a',
             colorLight: '#FFFFFF',
-            correctLevel: QRCode.CorrectLevel.M
+            correctLevel: QRCode.CorrectLevel.L
           });
         } else if (qtRiwayat) {
           // Kalau kosong: kemungkinan besar backend api/siswa.js belum

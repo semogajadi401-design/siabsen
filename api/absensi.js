@@ -1,6 +1,6 @@
 const {
   supabase, generateID, setCors, getJamSetting,
-  todayStr, jamSekarang, hariIni,
+  todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif
 } = require('./_db');
 
@@ -60,7 +60,9 @@ async function scanAbsen({ identifier, idGuru, namaGuru, mode }) {
   const jamSetting   = await getJamSetting();
   const jamMulai     = jamSetting['JAM_DATANG_MULAI']   || '06:00';
   const jamSelesaiOp = jamSetting['JAM_PULANG_SELESAI'] || '17:00';
-  const jamBatasDatang = jamSetting['JAM_DATANG_SELESAI'] || '08:00';
+  const toleransi    = Number(jamSetting['TOLERANSI_MENIT'] || 0);
+  // Batas "Hadir" = jam batas datang + toleransi keterlambatan (menit)
+  const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
 
   const jam = jamSekarang();
 
@@ -149,8 +151,10 @@ async function absensiDatang({ idSiswa, idGuru, namaGuru, metode }) {
   if (existing?.jam_datang)
     return { success: false, message: `${siswa.nama} sudah absen datang hari ini pukul ${existing.jam_datang}` };
 
-  const jamSetting   = await getJamSetting();
-  const statusDatang = jam > (jamSetting['JAM_DATANG_SELESAI'] || '08:00') ? 'Terlambat' : 'Hadir';
+  const jamSetting     = await getJamSetting();
+  const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
+  const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
+  const statusDatang   = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
 
   const id = generateID('AB');
   const { error } = await supabase.from('absensi').insert({

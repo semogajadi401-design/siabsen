@@ -2,9 +2,9 @@
 const { supabase, generateID, setCors, requireAdminToken } = require('./_db');
 
 // getAll & getAktif tetap terbuka (dipakai scan.js/absensi.js untuk validasi
-// periode semester saat scan). tambah/edit/hapus/setAktif mengubah data
-// master semester, wajib admin.
-const AKSI_TERKUNCI = new Set(['tambah', 'edit', 'hapus', 'setAktif']);
+// periode semester saat scan). tambah/edit/hapus/setAktif/resetSemua mengubah
+// data master semester, wajib admin.
+const AKSI_TERKUNCI = new Set(['tambah', 'edit', 'hapus', 'setAktif', 'resetSemua']);
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -23,6 +23,7 @@ module.exports = async (req, res) => {
     if (action === 'hapus')      return res.json(await hapus(params));
     if (action === 'setAktif')   return res.json(await setAktif(params));
     if (action === 'getAktif')   return res.json(await getAktif());
+    if (action === 'resetSemua') return res.json(await resetSemua());
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -79,4 +80,17 @@ async function getAktif() {
   const { data } = await supabase.from('semester')
     .select('*').eq('aktif', true).maybeSingle();
   return { success: true, data: data || null };
+}
+
+// ── RESET SEMUA SEMESTER ──────────────────────────────────────────
+// Menghapus seluruh data periode semester. TIDAK menghapus absensi/siswa/
+// guru — kalau semester dihapus tanpa ada semester aktif baru, scan
+// absensi (scanKartu/scanAbsen/processSingleScan) akan otomatis menolak
+// dengan pesan "Tidak ada semester aktif" sampai admin membuat semester
+// baru dan mengaktifkannya, jadi tidak akan ada data absensi "nyasar"
+// tanpa periode yang jelas.
+async function resetSemua() {
+  const { error } = await supabase.from('semester').delete().neq('id', 'x');
+  if (error) return { success: false, message: 'Gagal reset semester: ' + error.message };
+  return { success: true, message: 'Semua data semester berhasil dihapus. Buat dan aktifkan semester baru sebelum absensi bisa dipakai lagi.' };
 }

@@ -1632,10 +1632,17 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ── CONFIG API ───────────────────────────────────────────────────
 const API_BASE = window.location.origin;
 async function api(endpoint, action, params = {}) {
+  const body = { action, ...params };
+  // Sisipkan token admin otomatis kalau sedang login sebagai admin, supaya
+  // aksi tambah/ubah/hapus data master di server bisa diverifikasi. Token
+  // ini adalah qr_token admin yang sudah didapat sejak login (lihat auth.js).
+  if (APP.user && APP.user.role === 'admin' && APP.user.qrToken) {
+    body.adminToken = APP.user.qrToken;
+  }
   const res = await fetch(`${API_BASE}/api/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...params })
+    body: JSON.stringify(body)
   });
   return res.json();
 }

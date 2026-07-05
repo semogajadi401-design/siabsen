@@ -575,7 +575,6 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
       <div class="jam" id="headerJam">00:00:00</div>
       <div class="tgl" id="headerTgl"></div>
     </div>
-    <button class="btn-admin" onclick="window.location.href='/'">⚙ Admin</button>
     <div class="offline-badge" id="offlineBadge" onclick="showSyncOverlay()" title="Klik untuk kirim data offline">
       <span>📴 Offline</span>
       <span class="badge-count" id="offlineCount">0</span>
@@ -773,6 +772,27 @@ let scanStream    = null;
 let scanAnimFrame = null;
 let logData       = { hadir:[], belumHadir:[] };
 let activeTab     = 'belum';
+
+// ── KODE RAHASIA MASUK ADMIN ────────────────────────────────────────
+// Menggantikan tombol "Admin" yang dulu selalu tampil di header.
+// Sekarang admin cukup mengetik kode ini di mana saja pada halaman
+// (fokus di kolom input manual ataupun tidak fokus di mana pun) --
+// begitu ketikan terakhir persis sama dengan kode yang diatur admin di
+// menu Pengaturan Jam, otomatis diarahkan ke halaman login admin ('/').
+// Diisi dari getJamSetting saat init(). Kalau kosong (belum diatur
+// admin), fitur ini otomatis nonaktif -- tidak ada trigger sama sekali.
+let _kodeRahasiaAdmin = '';
+let _bufferKetikanAdmin = '';
+document.addEventListener('keydown', function(e) {
+  if (!_kodeRahasiaAdmin) return;
+  if (e.key && e.key.length === 1) {
+    _bufferKetikanAdmin = (_bufferKetikanAdmin + e.key).slice(-40);
+    if (_bufferKetikanAdmin.endsWith(_kodeRahasiaAdmin)) {
+      _bufferKetikanAdmin = '';
+      window.location.href = '/';
+    }
+  }
+}, true);
 const scannedHistory = {};
 const PER_COOLDOWN   = 30000;
 
@@ -816,6 +836,7 @@ async function init() {
     if (r.success) {
       const nama = r.data['NAMA_SEKOLAH'];
       const logo = r.data['LOGO_URL'];
+      _kodeRahasiaAdmin = r.data['KODE_RAHASIA_ADMIN'] || '';
       if (nama) document.getElementById('namaSekolah').textContent = nama;
       if (logo) {
         const el = document.getElementById('headerLogo');

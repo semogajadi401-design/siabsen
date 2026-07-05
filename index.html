@@ -2234,7 +2234,9 @@ function buildAdminCardHTML(settings, adminUser) {
   const tahunAjaran = settings['TAHUN_AJARAN'] || '2024/2025';
   const adminNama  = adminUser?.nama || 'Administrator';
   const adminUsername = adminUser?.username || 'admin';
-  const ADMIN_QR_ID = 'ADMIN|' + adminUsername;
+  // qrToken didapat dari response login (lihat auth.js). Tanpa token yang
+  // cocok di database, QR ini tidak akan diterima oleh endpoint scan.
+  const ADMIN_QR_ID = 'ADMIN|' + adminUsername + '|' + (adminUser?.qrToken || '');
 
   const logoHTML = logoUrl
     ? `<img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain">`
@@ -2322,7 +2324,7 @@ function buildAdminCardHTML(settings, adminUser) {
       <span style="font-size:4pt;color:rgba(255,255,255,0.3);letter-spacing:.5px;font-family:monospace">SiAbsen System</span>
       <div style="font-size:4pt;color:rgba(0,212,255,0.5);font-family:monospace">v2.0</div>
     </div>
-  </div>`, qrId: 'ADMIN|' + adminUsername };
+  </div>`, qrId: ADMIN_QR_ID };
 }
 
 async function renderAdminCardPreview() {

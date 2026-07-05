@@ -1,10 +1,21 @@
 // api/semester.js — Manajemen Semester
-const { supabase, generateID, setCors } = require('./_db');
+const { supabase, generateID, setCors, requireAdminToken } = require('./_db');
+
+// getAll & getAktif tetap terbuka (dipakai scan.js/absensi.js untuk validasi
+// periode semester saat scan). tambah/edit/hapus/setAktif mengubah data
+// master semester, wajib admin.
+const AKSI_TERKUNCI = new Set(['tambah', 'edit', 'hapus', 'setAktif']);
 
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, adminToken, ...params } = req.body || {};
+
+  if (AKSI_TERKUNCI.has(action)) {
+    const valid = await requireAdminToken(adminToken);
+    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
+
   try {
     if (action === 'getAll')     return res.json(await getAll());
     if (action === 'tambah')     return res.json(await tambah(params));

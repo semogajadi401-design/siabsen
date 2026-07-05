@@ -701,6 +701,17 @@ body{font-family:var(--font);background:var(--bg);color:#fff;min-height:100vh;ov
 
 <script>
 const API = window.location.origin;
+
+// ── ZONA WAKTU ────────────────────────────────────────────────────
+// PENTING: nilai ini WAJIB SAMA PERSIS dengan TIMEZONE_OFFSET_HOURS
+// di file api/_db.js. Kalau beda, jam yang tercatat offline (di HP/
+// tablet) akan berbeda dengan jam yang dihitung server saat sync.
+//   WIB (Jawa, Sumatera bagian selatan, dst)      = 7
+//   WITA (Bali, NTB, NTT, Kalimantan, Sulawesi)   = 8
+//   WIT  (Maluku, Papua)                          = 9
+const TIMEZONE_OFFSET_HOURS = 7;
+const TZ_OFFSET_MS = TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000;
+
 async function api(endpoint, action, params={}) {
   const r = await fetch(`${API}/api/${endpoint}`, {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -752,7 +763,7 @@ const PER_COOLDOWN   = 30000;
 
 // ── CLOCK ────────────────────────────────────────────────────────
 function updateClock() {
-  const now  = new Date(Date.now() + 8*60*60*1000);
+  const now  = new Date(Date.now() + TZ_OFFSET_MS);
   const jam  = [now.getUTCHours(),now.getUTCMinutes(),now.getUTCSeconds()]
                .map(v=>String(v).padStart(2,'0')).join(':');
   const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
@@ -819,6 +830,11 @@ async function init() {
 
   // Load log pertama kali
   if (isOnline) await loadLog();
+
+  // Update badge & tawarkan sync untuk data offline sisa dari sesi
+  // sebelumnya (mis. halaman ditutup/reload sebelum sempat sync).
+  await updateOfflineBadge();
+  if (isOnline) await checkAndSync();
 
   // Auto refresh — hanya jika online
   setInterval(() => { if (isOnline) loadLog(); }, 30000);
@@ -960,9 +976,14 @@ async function processQR(data) {
     handleScanResult(result, data, now);
 
   } catch(e) {
-    showFlash('error','❌','Koneksi gagal');
+    // JANGAN ditangani habis di sini tanpa rethrow. processQRWithOffline
+    // membungkus fungsi ini dengan try/catch supaya kalau request gagal,
+    // data tetap disimpan ke antrian offline. Kalau error "ditelan" di
+    // sini, processQRWithOffline tidak pernah tahu request-nya gagal,
+    // sehingga data TIDAK masuk ke server maupun ke antrian — hilang
+    // tanpa jejak. Reset state lokal dulu, baru lempar (rethrow) errornya.
     scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    throw e;
   }
 }
 
@@ -1081,7 +1102,7 @@ function updateLastResult(result) {
   const icon   = isPul ? '🌙' : isLate ? '⚠️' : '✅';
   const stCls  = isPul ? 'status-pulang' : isLate ? 'status-terlambat' : 'status-hadir';
   const stTxt  = isPul ? 'Pulang' : isLate ? 'Terlambat' : 'Hadir';
-  const now    = new Date(Date.now()+8*60*60*1000);
+  const now    = new Date(Date.now()+TZ_OFFSET_MS);
   const jam    = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`;
   el.innerHTML = `
     <div class="last-result-icon">${icon}</div>
@@ -1218,7 +1239,7 @@ const STORE_NAME = 'antrian';
 const GURU_OFFLINE_KEY = 'siabsen_guru_piket_offline';
 
 function simpanGuruOffline(namaGuru, idGuru, jam) {
-  const witaNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
   const tanggal = witaNow.toISOString().split('T')[0];
   const data = { namaGuru, idGuru, jam, tanggal };
   localStorage.setItem(GURU_OFFLINE_KEY, JSON.stringify(data));
@@ -1230,7 +1251,7 @@ function getGuruOffline() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     // Hanya valid untuk hari ini
-    const witaNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
     const tanggalHariIni = witaNow.toISOString().split('T')[0];
     if (data.tanggal !== tanggalHariIni) {
       localStorage.removeItem(GURU_OFFLINE_KEY);
@@ -1299,12 +1320,17 @@ async function hapusDariAntrian(localId) {
 }
 
 // ── UPDATE BADGE COUNT ────────────────────────────────────────────
+// PENTING: badge HARUS tetap tampil selama antrian belum kosong, baik
+// online maupun offline. Sebelumnya badge selalu disembunyikan saat
+// online (lihat updateOnlineStatus lama), padahal kalau toast konfirmasi
+// sync diabaikan/hilang otomatis, data yang belum terkirim jadi
+// "tersembunyi" — guru tidak tahu masih ada data offline yang menunggu.
 async function updateOfflineBadge() {
   const antrian = await getAntrian();
   const count   = antrian.length;
   document.getElementById('offlineCount').textContent = count;
   const badge = document.getElementById('offlineBadge');
-  if (!isOnline && count > 0) badge.classList.add('show');
+  if (count > 0) badge.classList.add('show');
   else badge.classList.remove('show');
 }
 
@@ -1314,7 +1340,9 @@ function updateOnlineStatus(online) {
   const bar = document.getElementById('offlineBar');
   if (online) {
     bar.classList.remove('show');
-    document.getElementById('offlineBadge').classList.remove('show');
+    // Badge TIDAK dipaksa hilang di sini — updateOfflineBadge() yang
+    // menentukan tampil/tidaknya berdasarkan isi antrian yang sebenarnya.
+    updateOfflineBadge();
     // Cek antrian saat kembali online
     checkAndSync();
   } else {
@@ -1325,6 +1353,7 @@ function updateOnlineStatus(online) {
 
 // ── CEK & TAMPILKAN NOTIF SYNC ────────────────────────────────────
 async function checkAndSync() {
+  if (!isOnline || isSyncing) return;
   const antrian = await getAntrian();
   if (antrian.length === 0) return;
   // Tampilkan toast konfirmasi dulu, bukan langsung overlay
@@ -1353,6 +1382,7 @@ function showSyncConfirm(jumlah) {
 // ── TAMPILKAN SYNC OVERLAY ────────────────────────────────────────
 async function showSyncOverlay(antrian) {
   if (isSyncing) return;
+  if (!isOnline) { toast('📴 Masih offline — data akan terkirim otomatis begitu internet aktif'); return; }
   const data = antrian || await getAntrian();
   if (data.length === 0) { toast('✅ Tidak ada data offline untuk dikirim'); return; }
 
@@ -1519,7 +1549,7 @@ async function processQRWithOffline(data) {
   }
 
   // Buat data scan offline
-  const witaNow  = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  const witaNow  = new Date(Date.now() + TZ_OFFSET_MS);
   const tanggal  = witaNow.toISOString().split('T')[0];
   const jam      = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
   const days     = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];

@@ -147,5 +147,15 @@ module.exports = {
   generatePassword, setCors, getJamSetting, todayStr,
   jamSekarang, hariIni, tambahMenit, generateQrToken,
   // ── TAMBAHAN BARU ──
-  isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif
+  isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
+  requireAdminToken
 };
+async function requireAdminToken(token) {
+  if (!token) return false;
+  const { data } = await supabase
+    .from('admin')
+    .select('username')
+    .eq('qr_token', token)
+    .maybeSingle();
+  return !!data;
+}

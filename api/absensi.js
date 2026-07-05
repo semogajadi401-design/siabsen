@@ -1,13 +1,23 @@
 const {
   supabase, generateID, setCors, getJamSetting,
   todayStr, jamSekarang, hariIni, tambahMenit,
-  isHariLibur, isHariKerja, getSemesterAktif
+  isHariLibur, isHariKerja, getSemesterAktif, requireAdminToken
 } = require('./_db');
 
+// Hanya resetAbsensi yang dikunci — itu aksi paling merusak di file ini
+// (bisa menghapus seluruh riwayat absensi). Aksi lain (scanAbsen, datang,
+// pulang, rekap*, dashboard) tetap terbuka karena dipakai alur absensi
+// harian oleh guru piket, bukan hanya admin.
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, adminToken, ...params } = req.body || {};
+
+  if (action === 'resetAbsensi') {
+    const valid = await requireAdminToken(adminToken);
+    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
+
   try {
     if (action === 'datang')            return res.json(await absensiDatang(params));
     if (action === 'pulang')            return res.json(await absensiPulang(params));

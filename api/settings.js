@@ -156,11 +156,14 @@ async function getPengaturanHari() {
     .from('pengaturan_hari_kerja').select('*');
   if (error) return { success: false, message: error.message };
 
-  // Jika tabel kosong, kembalikan default Senin-Jumat aktif
+  // Jika tabel kosong (pertama kali dipakai / belum pernah diatur admin),
+  // JANGAN aktifkan hari apa pun secara default. Admin wajib mencentang
+  // sendiri hari sekolah aktif di menu Pengaturan Semester supaya Jadwal
+  // Piket (yang mengikuti pengaturan ini) tidak salah asumsi Senin-Jumat.
   if (!data || !data.length) {
     return {
       success: true,
-      data: urutan.map(h => ({ hari: h, aktif: ['Senin','Selasa','Rabu','Kamis','Jumat'].includes(h) }))
+      data: urutan.map(h => ({ hari: h, aktif: false }))
     };
   }
 
@@ -219,7 +222,8 @@ function getConstants() {
 // (lihat schema.sql):
 //  1. jam_setting     → jam operasional, toleransi, dan profil sekolah
 //  2. pengaturan_hari_kerja → hari sekolah aktif (dikosongkan, jadi
-//     otomatis kembali ke default Senin-Jumat lewat getPengaturanHari())
+//     otomatis kembali ke default belum ada hari aktif lewat
+//     getPengaturanHari(), sampai admin mencentang ulang)
 //  3. hari_kerja      → kalender hari libur per tanggal (dikosongkan)
 // TIDAK menyentuh jadwal_piket, siswa, guru, absensi, atau semester —
 // itu domain reset masing-masing (guru.resetSemua, siswa.resetSemua,
@@ -252,6 +256,6 @@ async function resetPengaturanAplikasi() {
 
   return {
     success: true,
-    message: `Jam operasional, hari sekolah aktif (kembali ke Senin–Jumat), dan kalender hari libur berhasil direset ke default. Profil sekolah "${NAMA_SEKOLAH_SEBELUMNYA}" tetap dipertahankan.`
+    message: `Jam operasional, hari sekolah aktif (dikembalikan ke belum ada hari aktif, mohon atur ulang di Pengaturan Semester), dan kalender hari libur berhasil direset ke default. Profil sekolah "${NAMA_SEKOLAH_SEBELUMNYA}" tetap dipertahankan.`
   };
 }

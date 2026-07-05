@@ -175,8 +175,27 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   if (mode === 'pulang') {
     if (!absenHariIni)
       return { success: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
-    if (absenHariIni.jam_pulang)
+    if (absenHariIni.jam_pulang) {
+      // Kalau baris pulang yang SUDAH ADA itu justru berasal dari scan yang
+      // lebih SIANG daripada scan offline yang baru sync ini (misal: siswa
+      // scan pulang offline jam 14:05 di laptop belum sempat sync, lalu ada
+      // yang keliru/coba scan pulang lagi di HP jam 14:30 dan itu duluan
+      // masuk ke server) — koreksi ke jam yang lebih awal karena itu yang
+      // benar-benar terjadi lebih dulu.
+      if (jam < absenHariIni.jam_pulang) {
+        const { error: fixError } = await supabase.from('absensi').update({
+          jam_pulang: jam, status_pulang: 'Pulang',
+          nama_guru_piket: namaGP, id_guru_piket: idGP
+        }).eq('id', absenHariIni.id);
+        if (fixError) return { success: false, tipe: 'siswa', message: 'Gagal mengoreksi jam pulang: ' + fixError.message };
+        return {
+          success: true, tipe: 'siswa', status: 'Pulang',
+          message: `${siswa.nama} - jam pulang dikoreksi ke ${jam} (scan offline lebih awal)`,
+          siswa: { nama: siswa.nama, kelas: siswa.kelas }
+        };
+      }
       return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}` };
+    }
 
     const { error: updError } = await supabase.from('absensi').update({
       jam_pulang: jam, status_pulang: 'Pulang',
@@ -192,8 +211,33 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   }
 
   // Mode datang
-  if (absenHariIni?.jam_datang)
+  // PENTING — KOREKSI JAM SCAN OFFLINE YANG TERLAMBAT SYNC:
+  // Kalau siswa sudah absen datang duluan (misal scan offline jam 07:00 di
+  // laptop, tapi laptopnya belum sempat sinkron ke internet), lalu SEBELUM
+  // laptop itu sempat sync, siswa yang sama scan lagi di perangkat lain yang
+  // online (misal HP guru jam 08:00) — maka baris "datang" yang lebih dulu
+  // masuk ke server adalah yang jam 08:00 (Terlambat), padahal siswa itu
+  // SUDAH benar-benar hadir jam 07:00 (Tepat waktu). Begitu laptop akhirnya
+  // online dan data offline jam 07:00 itu sync, JANGAN cuma dibuang sebagai
+  // "duplikat" — itu tidak adil untuk siswa. Koreksi baris yang sudah ada
+  // ke jam yang lebih awal (dan hitung ulang status Terlambat/Hadir-nya),
+  // karena itulah yang sebenar-benarnya terjadi.
+  if (absenHariIni?.jam_datang) {
+    if (jam < absenHariIni.jam_datang) {
+      const statusKoreksi = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
+      const { error: fixError } = await supabase.from('absensi').update({
+        jam_datang: jam, status_datang: statusKoreksi,
+        id_guru_piket: idGP, nama_guru_piket: namaGP, metode: 'QR-OFFLINE'
+      }).eq('id', absenHariIni.id);
+      if (fixError) return { success: false, tipe: 'siswa', message: 'Gagal mengoreksi jam absen: ' + fixError.message };
+      return {
+        success: true, tipe: 'siswa', status: statusKoreksi,
+        message: `${siswa.nama} - jam absen dikoreksi ke ${jam} (scan offline lebih awal)`,
+        siswa: { nama: siswa.nama, kelas: siswa.kelas }
+      };
+    }
     return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang pukul ${absenHariIni.jam_datang}` };
+  }
 
   const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
   const absenId      = generateID('AB');
@@ -208,9 +252,31 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   });
 
   if (absenError) {
-    // Sama seperti di atas: 23505 = unique_violation dari
-    // UNIQUE(id_siswa, tanggal). Perlakukan sebagai duplikat.
+    // Kode 23505 = unique_violation — ini bisa kejadian kalau DUA proses
+    // sync-nya benar-benar bersamaan (race asli, bukan sekadar absenHariIni
+    // yang sempat basi karena SELECT di atas). Cek ulang baris yang barusan
+    // "menang" itu, dan tetap terapkan koreksi jam-lebih-awal yang sama
+    // seperti di atas, supaya hasil akhirnya konsisten siapa pun yang
+    // menang race-nya.
     if (absenError.code === '23505') {
+      const { data: existingRow } = await supabase
+        .from('absensi').select('*')
+        .eq('id_siswa', siswa.id).eq('tanggal', tanggal).maybeSingle();
+
+      if (existingRow && jam < existingRow.jam_datang) {
+        const statusKoreksi = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
+        const { error: fixError } = await supabase.from('absensi').update({
+          jam_datang: jam, status_datang: statusKoreksi,
+          id_guru_piket: idGP, nama_guru_piket: namaGP, metode: 'QR-OFFLINE'
+        }).eq('id', existingRow.id);
+        if (!fixError) {
+          return {
+            success: true, tipe: 'siswa', status: statusKoreksi,
+            message: `${siswa.nama} - jam absen dikoreksi ke ${jam} (scan offline lebih awal)`,
+            siswa: { nama: siswa.nama, kelas: siswa.kelas }
+          };
+        }
+      }
       return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang hari ini` };
     }
     return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + absenError.message };

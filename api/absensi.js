@@ -4,10 +4,19 @@ const {
   isHariLibur, isHariKerja, getSemesterAktif, requireAdminToken
 } = require('./_db');
 
-// Hanya resetAbsensi yang dikunci — itu aksi paling merusak di file ini
-// (bisa menghapus seluruh riwayat absensi). Aksi lain (datang, pulang,
-// rekap*, dashboard) tetap terbuka karena dipakai alur absensi harian
-// oleh guru piket, bukan hanya admin.
+// PENTING — DIPERBAIKI: 'datang' dan 'pulang' SEBELUMNYA terbuka tanpa
+// otentikasi apapun (tidak butuh adminToken, tidak butuh sesi guru piket
+// seperti scanKartu()/inputTanpaKartu() di api/scan.js). Ternyata setelah
+// ditelusuri, kedua action ini juga TIDAK PERNAH dipanggil dari halaman
+// manapun (index.html/scan.html) — kode di frontend yang tadinya
+// memanggilnya (fungsi doAbsensi()) tidak lagi terhubung ke tombol
+// manapun. Karena endpoint publik http://.../api/absensi tetap bisa
+// dipanggil langsung dari luar (curl/Postman) terlepas dari ada/tidaknya
+// tombol di halaman web, dan aksi ini bisa membuat catatan hadir palsu
+// untuk siswa manapun hanya bermodal idSiswa, keduanya sekarang WAJIB
+// login admin — sama seperti resetAbsensi. rekap*/dashboard tetap terbuka
+// karena isinya hanya laporan (baca data), dipakai alur harian guru piket
+// tanpa sesi admin.
 //
 // CATATAN: action 'scanAbsen' yang dulu ada di file ini SUDAH DIHAPUS
 // karena isinya menduplikasi scanKartu() di api/scan.js dan tidak pernah
@@ -15,12 +24,14 @@ const {
 // api('scan','scanKartu', ...)). Membiarkan dua implementasi kembar
 // berisiko: perbaikan bug di satu tempat gampang lupa diterapkan juga
 // di tempat lain. Kalau butuh endpoint scan, pakai api/scan.js.
+const AKSI_TERKUNCI = new Set(['resetAbsensi', 'datang', 'pulang']);
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   const { action, adminToken, ...params } = req.body || {};
 
-  if (action === 'resetAbsensi') {
+  if (AKSI_TERKUNCI.has(action)) {
     const valid = await requireAdminToken(adminToken);
     if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
   }

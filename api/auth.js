@@ -1,10 +1,42 @@
-const { supabase, setCors, generateQrToken } = require('./_db');
-const crypto = require('crypto');
+const { supabase, setCors, generateQrToken, hashPassword, verifyPassword } = require('./_db');
 
-function hashPassword(password) {
-  return crypto.createHash('sha256')
-    .update(password, 'utf8')
-    .digest('hex');
+// ── RATE LIMITING SEDERHANA (anti brute-force) ──────────────────────
+// PENTING: ini penyimpanan IN-MEMORY per instance serverless — bukan
+// solusi sempurna (Vercel bisa menjalankan banyak instance paralel, dan
+// counter ini hilang tiap cold start), TAPI tetap jauh lebih baik daripada
+// tidak ada pembatasan sama sekali, dan langsung aktif tanpa perlu
+// infrastruktur tambahan (Redis dll). Untuk perlindungan yang lebih kuat
+// dan konsisten lintas instance, pertimbangkan Vercel KV / Upstash Redis
+// di masa depan.
+const percobaanLogin = new Map(); // key: username, value: { count, lastAttempt }
+const BATAS_PERCOBAAN = 5;
+const JEDA_MS = 5 * 60 * 1000; // 5 menit
+
+function cekRateLimit(username) {
+  const now = Date.now();
+  const rec = percobaanLogin.get(username);
+  if (!rec) return { boleh: true };
+  if (now - rec.lastAttempt > JEDA_MS) {
+    percobaanLogin.delete(username);
+    return { boleh: true };
+  }
+  if (rec.count >= BATAS_PERCOBAAN) {
+    const sisaMenit = Math.ceil((JEDA_MS - (now - rec.lastAttempt)) / 60000);
+    return { boleh: false, sisaMenit };
+  }
+  return { boleh: true };
+}
+
+function catatPercobaanGagal(username) {
+  const now = Date.now();
+  const rec = percobaanLogin.get(username) || { count: 0, lastAttempt: now };
+  rec.count += 1;
+  rec.lastAttempt = now;
+  percobaanLogin.set(username, rec);
+}
+
+function resetPercobaan(username) {
+  percobaanLogin.delete(username);
 }
 
 module.exports = async (req, res) => {
@@ -24,7 +56,13 @@ async function login({ username, password }) {
   if (!username || !password)
     return { success: false, message: 'Username dan password wajib diisi' };
 
-  const hashed = hashPassword(password);
+  const cek = cekRateLimit(username);
+  if (!cek.boleh) {
+    return {
+      success: false,
+      message: `Terlalu banyak percobaan gagal. Coba lagi dalam ${cek.sisaMenit} menit.`
+    };
+  }
 
   // Cek admin
   const { data: adminData } = await supabase
@@ -33,19 +71,32 @@ async function login({ username, password }) {
     .eq('username', username)
     .single();
 
-  if (adminData && adminData.password === hashed) {
-    // Pastikan admin punya qr_token unik untuk QR login yang aman.
-    // Akun lama (dibuat sebelum kolom qr_token ada) dibuatkan sekali di sini.
-    let qrToken = adminData.qr_token;
-    if (!qrToken) {
-      qrToken = generateQrToken();
-      await supabase.from('admin').update({ qr_token: qrToken }).eq('username', username);
+  if (adminData) {
+    const cekPass = await verifyPassword(password, adminData.password);
+    if (cekPass.valid) {
+      resetPercobaan(username);
+
+      // Migrasi transparan: kalau password ini masih pakai hash SHA-256
+      // lama, upgrade ke bcrypt sekarang juga (password mentahnya baru
+      // saja terverifikasi cocok, jadi aman dipakai untuk re-hash).
+      if (cekPass.needsRehash) {
+        const newHash = await hashPassword(password);
+        await supabase.from('admin').update({ password: newHash }).eq('username', username);
+      }
+
+      // Pastikan admin punya qr_token unik untuk QR login yang aman.
+      // Akun lama (dibuat sebelum kolom qr_token ada) dibuatkan sekali di sini.
+      let qrToken = adminData.qr_token;
+      if (!qrToken) {
+        qrToken = generateQrToken();
+        await supabase.from('admin').update({ qr_token: qrToken }).eq('username', username);
+      }
+      return {
+        success: true, role: 'admin',
+        nama: adminData.nama, username,
+        email: adminData.email, qrToken
+      };
     }
-    return {
-      success: true, role: 'admin',
-      nama: adminData.nama, username,
-      email: adminData.email, qrToken
-    };
   }
 
   // Cek guru
@@ -56,41 +107,56 @@ async function login({ username, password }) {
     .eq('status', 'Aktif')
     .single();
 
-  if (guruData && guruData.password === hashed) {
-    return {
-      success: true, role: 'guru',
-      id: guruData.id, nama: guruData.nama,
-      jabatan: guruData.jabatan, username
-    };
+  if (guruData) {
+    const cekPass = await verifyPassword(password, guruData.password);
+    if (cekPass.valid) {
+      resetPercobaan(username);
+
+      if (cekPass.needsRehash) {
+        const newHash = await hashPassword(password);
+        await supabase.from('guru').update({ password: newHash }).eq('username', username);
+      }
+
+      return {
+        success: true, role: 'guru',
+        id: guruData.id, nama: guruData.nama,
+        jabatan: guruData.jabatan, username
+      };
+    }
   }
 
+  catatPercobaanGagal(username);
   return { success: false, message: 'Username atau password salah' };
 }
 
 async function changePassword({ username, oldPassword, newPassword }) {
-  const oldHashed = hashPassword(oldPassword);
-  const newHashed = hashPassword(newPassword);
+  if (!newPassword || String(newPassword).trim().length < 6)
+    return { success: false, message: 'Password baru minimal 6 karakter' };
 
   const { data: adm } = await supabase
     .from('admin').select('*')
-    .eq('username', username)
-    .eq('password', oldHashed).single();
+    .eq('username', username).single();
 
   if (adm) {
-    await supabase.from('admin')
-      .update({ password: newHashed }).eq('username', username);
-    return { success: true, message: 'Password berhasil diubah' };
+    const cekPass = await verifyPassword(oldPassword, adm.password);
+    if (cekPass.valid) {
+      await supabase.from('admin')
+        .update({ password: await hashPassword(newPassword) }).eq('username', username);
+      return { success: true, message: 'Password berhasil diubah' };
+    }
   }
 
   const { data: guru } = await supabase
     .from('guru').select('*')
-    .eq('username', username)
-    .eq('password', oldHashed).single();
+    .eq('username', username).single();
 
   if (guru) {
-    await supabase.from('guru')
-      .update({ password: newHashed }).eq('username', username);
-    return { success: true, message: 'Password berhasil diubah' };
+    const cekPass = await verifyPassword(oldPassword, guru.password);
+    if (cekPass.valid) {
+      await supabase.from('guru')
+        .update({ password: await hashPassword(newPassword) }).eq('username', username);
+      return { success: true, message: 'Password berhasil diubah' };
+    }
   }
 
   return { success: false, message: 'Password lama tidak sesuai' };

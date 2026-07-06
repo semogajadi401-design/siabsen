@@ -3056,6 +3056,14 @@ function renderKartuMiniPreview(){
           canvas.style.width  = '50px';
           canvas.style.height = '50px';
         }
+        // qrcode.js menukar <canvas> jadi <img> setelah selesai digambar;
+        // <img> itu juga perlu di-styling ukurannya (lihat catatan di
+        // loadKartuSiswa), kalau tidak QR tampil di ukuran asli 200px
+        // dan kepotong kotak pembungkus 50px.
+        qt.querySelectorAll('canvas, img').forEach(el => {
+          el.style.width = '50px';
+          el.style.height = '50px';
+        });
       });
     }
   }, 400);
@@ -3306,11 +3314,19 @@ async function loadKartuSiswa(){
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
           });
-          const qrCanvasAbsen = qt.querySelector('canvas');
-          if (qrCanvasAbsen) {
-            qrCanvasAbsen.style.width = '50px';
-            qrCanvasAbsen.style.height = '50px';
-          }
+          // PENTING: qrcode.js diam-diam mengganti <canvas> dengan <img>
+          // begitu selesai digambar (perilaku bawaan library, untuk
+          // kompatibilitas download/klik-kanan-simpan-gambar). Elemen
+          // <img> itu sudah ada di DOM sejak awal (cuma disembunyikan),
+          // jadi keduanya (canvas & img) harus di-set ukurannya di sini,
+          // supaya yang manapun akhirnya tampil tetap ukurannya 50px —
+          // kalau cuma canvas yang di-styling, begitu library menukarnya
+          // ke <img>, gambar tampil di ukuran asli 200px dan cuma pojok
+          // kiri-atas QR yang kelihatan (kepotong kotak pembungkus 50px).
+          qt.querySelectorAll('canvas, img').forEach(el => {
+            el.style.width = '50px';
+            el.style.height = '50px';
+          });
         }
         // QR RIWAYAT — beda dari QR di atas. Pakai riwayat_token acak
         // (bukan NISN/ID), jadi hanya yang pegang kartu fisik yang bisa buka.
@@ -3339,11 +3355,12 @@ async function loadKartuSiswa(){
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
           });
-          const qrCanvasRiwayat = qtRiwayat.querySelector('canvas');
-          if (qrCanvasRiwayat) {
-            qrCanvasRiwayat.style.width = '52px';
-            qrCanvasRiwayat.style.height = '52px';
-          }
+          // Sama seperti QR absensi: styling canvas & img sekaligus,
+          // karena qrcode.js menukar <canvas> jadi <img> tanpa CSS ukuran.
+          qtRiwayat.querySelectorAll('canvas, img').forEach(el => {
+            el.style.width = '52px';
+            el.style.height = '52px';
+          });
         } else if (qtRiwayat) {
           // Kalau kosong: kemungkinan besar backend api/siswa.js belum
           // ter-update, atau kolom riwayat_token belum dibuat di Supabase.

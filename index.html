@@ -2300,6 +2300,94 @@ function buildKartuGuruPrintHTML(guru, settings, uid) {
   </div>`;
 }
 
+// Kartu HALAMAN BELAKANG guru — beda dari kartu depan (yang QR-nya untuk
+// absen piket). QR di sini isinya token acak pendek (qr_token, lihat
+// generateGuruQrToken di api/_db.js) untuk bypass login cepat ke akun
+// guru itu sendiri, mirip cara kerja QR bypass admin. Sengaja dibuat
+// simpel/tidak padat (hanya "GURU_LOGIN|token") supaya tetap gampang
+// discan kamera HP walau kartu dicetak kecil.
+function buildKartuGuruBackHTML(guru, settings, uid) {
+  const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const schoolAddr = settings['ALAMAT_SEKOLAH'] || '-';
+  const telp       = settings['TELP_SEKOLAH'] || '-';
+  const email      = settings['EMAIL_SEKOLAH'] || '-';
+
+  return `
+    <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+
+    <!-- HEADER -->
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:7px 10px 28px;flex-shrink:0;text-align:center">
+      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.5px">Informasi Kartu Guru</div>
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.75);margin-top:2px">${schoolName}</div>
+    </div>
+
+    <!-- WAVE -->
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:-2px">
+      <svg viewBox="0 0 215 38" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,0 L215,0 L215,16 Q161,40 107,28 Q54,16 0,38 Z" fill="#fff"/>
+      </svg>
+    </div>
+
+    <!-- PEMILIK -->
+    <div style="position:relative;z-index:2;margin:-4px 10px 0;background:linear-gradient(135deg,#eef5fd,#fdf9e8);border:1.5px solid #b8cfe0;border-radius:8px;padding:7px 10px;flex-shrink:0">
+      <div style="font-size:8pt;font-weight:800;color:#0D47A1;margin-bottom:1px">${guru.nama || '-'}</div>
+      <div style="font-size:5.5pt;color:#555;line-height:1.5">
+        ${guru.nip ? `NIP: <strong>${guru.nip}</strong> &nbsp;|&nbsp; ` : ''}Jabatan: <strong>${guru.jabatan || '-'}</strong>
+      </div>
+    </div>
+
+    <!-- INFO CARDS -->
+    <div style="position:relative;z-index:2;flex:1;padding:7px 10px 0;display:flex;flex-direction:column;gap:5px">
+
+      <div style="background:#fff8f8;border-radius:6px;padding:6px 8px;border-left:2.5px solid #c62828">
+        <div style="font-size:5.5pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Jangan Hilangkan Kartu Ini!</div>
+        <div style="font-size:6pt;color:#444;line-height:1.5">Kartu ini adalah identitas resmi guru untuk absensi piket. Jika hilang, segera laporkan kepada pihak sekolah.</div>
+      </div>
+
+      <div style="background:#f8faff;border-radius:6px;padding:6px 8px;border-left:2.5px solid #1565C0">
+        <div style="font-size:5.5pt;font-weight:800;color:#0D47A1;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">📢 Kepada Penemu Kartu Ini</div>
+        <div style="font-size:6pt;color:#444;line-height:1.5">Mohon kembalikan kartu ini kepada pemiliknya atau serahkan kepada pihak sekolah. Terima kasih.</div>
+      </div>
+
+    </div>
+
+    <!-- KONTAK -->
+    <div style="position:relative;z-index:2;margin:7px 10px 0;background:linear-gradient(135deg,#0D47A1,#1976D2);border-radius:8px;padding:6px 10px;flex-shrink:0">
+      <div style="font-size:5pt;color:rgba(255,255,255,0.7);letter-spacing:.3px;margin-bottom:3px;text-transform:uppercase">Hubungi Sekolah</div>
+      <div style="font-size:6pt;color:#fff;font-weight:600;margin-bottom:1px">📍 ${schoolAddr}</div>
+      <div style="font-size:6pt;color:#fff;font-weight:600;margin-bottom:1px">📞 ${telp}</div>
+      <div style="font-size:6pt;color:#fff;font-weight:600">✉️ ${email}</div>
+    </div>
+
+    <!-- QR LOGIN — beda dari QR di kartu depan (yang untuk absen piket).
+         Isinya token acak pendek saja ("GURU_LOGIN|token"), BUKAN data
+         padat, supaya modul QR tetap renggang dan gampang discan kamera. -->
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:3px 12px 4px;flex-shrink:0">
+      <div style="font-size:5.5pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px;line-height:1.3;padding:0 4px">Arahkan barcode ini ke kamera untuk masuk ke akun anda</div>
+      <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuGuruBackQR_${uid}" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      </div>
+    </div>
+
+    <!-- TTD -->
+    <div style="position:relative;z-index:2;text-align:center;padding:3px 10px 3px;flex-shrink:0">
+      <div style="font-size:5.5pt;color:#bbb;margin-bottom:14px">Kepala Sekolah</div>
+      <div style="font-size:6pt;font-weight:700;color:#0D47A1;border-top:1px solid #1565C0;padding-top:2px;display:inline-block">${schoolName}</div>
+    </div>
+
+    <!-- WAVE BAWAH -->
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:auto">
+      <svg viewBox="0 0 215 28" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,28 L215,28 L215,14 Q161,0 107,12 Q54,24 0,6 Z" fill="#0D47A1"/>
+      </svg>
+    </div>
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1,#1976D2);padding:4px 10px 6px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+      <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolName}</span>
+    </div>
+
+  </div>`;
+}
+
 async function cetakKartuGuru(guru) {
   // Pastikan settings sudah dimuat
   if (!APP.settings) {
@@ -2310,14 +2398,19 @@ async function cetakKartuGuru(guru) {
   const settings = APP.settings || {};
   const uid = 'single_' + guru.id;
 
-  // Buat elemen kartu guru
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
-  wrap.innerHTML = buildKartuGuruPrintHTML(guru, settings, uid);
+  // Buat elemen kartu guru — DEPAN (absen piket) & BELAKANG (QR login akun),
+  // sama pola dengan kartu siswa (depan+belakang jadi satu file PDF 2 halaman).
+  const wrapFront = document.createElement('div');
+  wrapFront.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
+  wrapFront.innerHTML = buildKartuGuruPrintHTML(guru, settings, uid);
+  document.body.appendChild(wrapFront);
 
-  document.body.appendChild(wrap);
+  const wrapBack = document.createElement('div');
+  wrapBack.style.cssText = 'position:fixed;top:-9999px;left:-10500px;width:215px';
+  wrapBack.innerHTML = buildKartuGuruBackHTML(guru, settings, uid);
+  document.body.appendChild(wrapBack);
 
-  // Generate QR
+  // Generate QR (depan: absen piket, belakang: login akun)
   setTimeout(async () => {
     const qrEl = document.getElementById('kartuGuruQR_' + uid);
     if (qrEl && typeof QRCode !== 'undefined') {
@@ -2329,26 +2422,62 @@ async function cetakKartuGuru(guru) {
         correctLevel: QRCode.CorrectLevel.M
       });
     }
+    const qrBackEl = document.getElementById('kartuGuruBackQR_' + uid);
+    if (qrBackEl && typeof QRCode !== 'undefined') {
+      if (guru.qrToken) {
+        new QRCode(qrBackEl, {
+          text: 'GURU_LOGIN|' + guru.qrToken,
+          width: 72, height: 72,
+          colorDark: '#0D47A1',
+          colorLight: '#FFFFFF',
+          correctLevel: QRCode.CorrectLevel.L
+        });
+      } else {
+        qrBackEl.innerHTML = '<div style="font-size:5pt;color:#c62828;text-align:center;line-height:1.3;padding:2px">⚠ Token belum ada — reload halaman ini sekali lagi</div>';
+      }
+    }
 
-    // Download PDF
+    // Download PDF (depan + belakang dalam 1 file, belakang dirotasi 180°)
     setTimeout(async () => {
       try {
         const { jsPDF } = window.jspdf;
-        const kartu = document.getElementById('kartuGuruPrint_' + uid);
-        const canvas = await html2canvas(kartu, {
-          scale: 3, useCORS: true, backgroundColor: '#ffffff',
-          width: kartu.offsetWidth, height: kartu.scrollHeight
-        });
+        const kartuFront = document.getElementById('kartuGuruPrint_' + uid);
+        const kartuBack  = document.getElementById('kartuGuruBack_' + uid);
+        const fixedWidth = kartuFront.offsetWidth;
+
+        const cfCanvas = await captureKartu(kartuFront, fixedWidth);
+        const cbCanvas = kartuBack ? await captureKartu(kartuBack, fixedWidth) : null;
+
         const CARD_W_PT = 5.7 * 28.3465;
-        const CARD_H_PT = CARD_W_PT * (canvas.height / canvas.width);
-        const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:[CARD_W_PT, CARD_H_PT] });
-        pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,CARD_W_PT,CARD_H_PT);
+        const cfH_PT = CARD_W_PT * (cfCanvas.height / cfCanvas.width);
+        const cbH_PT = cbCanvas ? CARD_W_PT * (cbCanvas.height / cbCanvas.width) : 0;
+        const GAP_PT = 4;
+        const totalH_PT = cfH_PT + (cbCanvas ? GAP_PT + cbH_PT : 0);
+
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, totalH_PT] });
+        pdf.addImage(cfCanvas.toDataURL('image/png',1.0), 'PNG', 0, 0, CARD_W_PT, cfH_PT);
+
+        if (cbCanvas) {
+          const flipped = document.createElement('canvas');
+          flipped.width  = cbCanvas.width;
+          flipped.height = cbCanvas.height;
+          const ctx = flipped.getContext('2d');
+          ctx.save();
+          ctx.translate(flipped.width / 2, flipped.height / 2);
+          ctx.rotate(Math.PI);
+          ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
+          ctx.restore();
+          pdf.addImage(flipped.toDataURL('image/png',1.0), 'PNG',
+            0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
+        }
+
         pdf.save(`Kartu_Guru_${guru.nama.replace(/\s+/g,'_')}.pdf`);
         toast('✅ Kartu guru berhasil didownload!','success');
       } catch(e) {
         toast('❌ Gagal: ' + e.message,'error');
       } finally {
-        document.body.removeChild(wrap);
+        document.body.removeChild(wrapFront);
+        document.body.removeChild(wrapBack);
       }
     }, 800);
   }, 400);
@@ -2376,12 +2505,13 @@ async function downloadAllKartuGuruPDF() {
 
     toast(`Menyiapkan ${guruList.length} kartu guru, harap tunggu...`, 'info', 60000);
 
-    // Render semua kartu sekaligus (tersembunyi di luar layar) supaya QR
-    // sempat digambar sebelum di-capture oleh html2canvas.
+    // Render semua kartu (DEPAN + BELAKANG) sekaligus, tersembunyi di luar
+    // layar, supaya QR sempat digambar sebelum di-capture oleh html2canvas.
     hiddenWrap = document.createElement('div');
     hiddenWrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:215px';
     hiddenWrap.innerHTML = guruList.map((g, i) =>
-      `<div style="margin-bottom:20px">${buildKartuGuruPrintHTML(g, settings, 'bulk_' + i)}</div>`
+      `<div style="margin-bottom:20px">${buildKartuGuruPrintHTML(g, settings, 'bulk_' + i)}</div>
+       <div style="margin-bottom:20px">${buildKartuGuruBackHTML(g, settings, 'bulk_' + i)}</div>`
     ).join('');
     document.body.appendChild(hiddenWrap);
 
@@ -2396,51 +2526,98 @@ async function downloadAllKartuGuruPDF() {
           correctLevel: QRCode.CorrectLevel.M
         });
       }
+      const qrBackEl = document.getElementById('kartuGuruBackQR_bulk_' + i);
+      if (qrBackEl && typeof QRCode !== 'undefined' && g.qrToken) {
+        new QRCode(qrBackEl, {
+          text: 'GURU_LOGIN|' + g.qrToken, width: 72, height: 72,
+          colorDark: '#0D47A1', colorLight: '#FFFFFF',
+          correctLevel: QRCode.CorrectLevel.L
+        });
+      }
     });
     // Beri waktu QRCode.js selesai menggambar sebelum di-capture
     await new Promise(res => setTimeout(res, 400));
 
-    // Capture semua kartu — diproses 4 per batch secara paralel supaya cepat.
-    const canvases = await runInBatches(guruList, async (g, i) => {
-      const el = document.getElementById('kartuGuruPrint_bulk_' + i);
-      return captureKartu(el, el.offsetWidth);
+    // Capture semua kartu (depan+belakang) — diproses 4 per batch secara
+    // paralel supaya cepat, sama pola dengan bulk download kartu siswa.
+    const cards = await runInBatches(guruList, async (g, i) => {
+      const front = document.getElementById('kartuGuruPrint_bulk_' + i);
+      const back  = document.getElementById('kartuGuruBack_bulk_' + i);
+      const fixedWidth = front.offsetWidth;
+      const cfCanvas = await captureKartu(front, fixedWidth);
+      const cbCanvas = back ? await captureKartu(back, fixedWidth) : null;
+      return { cfCanvas, cbCanvas };
     }, 4);
 
     const { jsPDF } = window.jspdf;
 
-    // Ukuran halaman & grid — kartu guru satu sisi saja (tanpa bagian
-    // belakang) jadi bisa disusun lebih rapat, 3 kolom per halaman.
+    // Ukuran halaman & grid — sekarang menyertakan kartu belakang, disusun
+    // sebagai pasangan depan+belakang per kolom, sama pola dengan kartu
+    // siswa (bisa langsung dimasukkan ke gantungan kartu / ID card holder).
     const PAGE_W  = 21.5;
     const PAGE_H  = 33.0;
-    const MARGIN  = 0.6;
-    const COLS    = 3;
-    const GAP_COL = 0.4;
-    const GAP_ROW = 0.5;
+    const MARGIN  = 0.6;   // margin tepi
+    const COLS    = 3;     // 3 kartu per baris
+    const GAP_COL = 0.4;   // jarak antar kolom
+    const GAP_ROW = 0.5;   // jarak antar baris (antar pasang kartu)
+    const GAP_FB  = 0.15;  // jarak depan ke belakang dalam 1 kolom
 
     const CARD_W = (PAGE_W - MARGIN * 2 - GAP_COL * (COLS - 1)) / COLS;
-    const refRatio = canvases[0].height / canvases[0].width;
-    const CARD_H   = CARD_W * refRatio;
+
+    // Hitung tinggi kartu dari canvas pertama (semua kartu sama ukurannya)
+    const refRatioF = cards[0].cfCanvas.height / cards[0].cfCanvas.width;
+    const refRatioB = cards[0].cbCanvas ? cards[0].cbCanvas.height / cards[0].cbCanvas.width : refRatioF;
+    const CARD_H_F  = CARD_W * refRatioF;
+    const CARD_H_B  = CARD_W * refRatioB;
+    const PAIR_H    = CARD_H_F + GAP_FB + CARD_H_B; // tinggi 1 pasang kartu
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
 
     let col = 0;
     let y   = MARGIN;
 
-    canvases.forEach((canvas, i) => {
-      if (col === COLS) { col = 0; y += CARD_H + GAP_ROW; }
-      if (col === 0 && i > 0 && y + CARD_H > PAGE_H - MARGIN) {
+    for (let i = 0; i < cards.length; i++) {
+      const { cfCanvas, cbCanvas } = cards[i];
+
+      // Jika baris penuh (3 kolom), pindah ke baris baru
+      if (col === COLS) {
+        col = 0;
+        y  += PAIR_H + GAP_ROW;
+      }
+
+      // Jika baris baru tidak muat di halaman, tambah halaman
+      if (col === 0 && i > 0 && y + PAIR_H > PAGE_H - MARGIN) {
         pdf.addPage();
-        y = MARGIN;
+        y   = MARGIN;
         col = 0;
       }
+
       const x = MARGIN + col * (CARD_W + GAP_COL);
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, CARD_W, CARD_H);
+
+      // Kartu depan
+      pdf.addImage(cfCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, CARD_W, CARD_H_F);
+
+      // Kartu belakang — dirotasi 180°, lebar dipaksa sama dengan depan
+      if (cbCanvas) {
+        const flipped = document.createElement('canvas');
+        flipped.width  = cbCanvas.width;
+        flipped.height = cbCanvas.height;
+        const ctx = flipped.getContext('2d');
+        ctx.save();
+        ctx.translate(flipped.width / 2, flipped.height / 2);
+        ctx.rotate(Math.PI);
+        ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
+        ctx.restore();
+        pdf.addImage(flipped.toDataURL('image/jpeg', 0.92), 'JPEG',
+          x, y + CARD_H_F + GAP_FB, CARD_W, CARD_H_B);
+      }
+
       col++;
-    });
+    }
 
     const totalPages = pdf.getNumberOfPages();
     pdf.save('Kartu_Guru_Semua.pdf');
-    toast(`✅ PDF ${canvases.length} kartu guru (${totalPages} halaman) berhasil!`, 'success', 5000);
+    toast(`✅ PDF ${cards.length} kartu guru (${totalPages} halaman) berhasil!`, 'success', 5000);
   } catch (e) {
     toast('❌ Gagal: ' + e.message, 'error');
     console.error(e);
@@ -2991,15 +3168,19 @@ async function loadKartuGuruGrid() {
     guruRes.data.filter(g => g.status === 'Aktif').forEach((guru, idx) => {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'display:inline-flex;flex-direction:column;width:215px;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);background:var(--surface)';
-      // Preview area (akan dirender setelah append)
+      // Preview area DEPAN (akan dirender setelah append)
       const previewDiv = document.createElement('div');
       previewDiv.id = 'previewGuru_' + guru.id;
+      // Preview area BELAKANG — kartu belakang guru (QR login akun)
+      const previewBackDiv = document.createElement('div');
+      previewBackDiv.id = 'previewGuruBack_' + guru.id;
       // Footer dengan nama dan tombol download
       const footer = document.createElement('div');
       footer.style.cssText = 'padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface);border-top:1px solid var(--border)';
       footer.innerHTML = `<span style="font-size:.8rem;font-weight:600;color:var(--text);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${guru.nama}</span>
         <button class="btn btn-primary btn-sm" id="dlGuruBtn_${guru.id}">📥 Download</button>`;
       wrap.appendChild(previewDiv);
+      wrap.appendChild(previewBackDiv);
       wrap.appendChild(footer);
       grid.appendChild(wrap);
       // Render kartu ke previewDiv
@@ -3047,6 +3228,24 @@ async function loadKartuGuruGrid() {
           if (qrEl && typeof QRCode !== 'undefined') {
             new QRCode(qrEl, { text: guru.id, width: 60, height: 60, colorDark: '#0D47A1', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.M });
           }
+
+          // Render kartu BELAKANG (QR bypass login ke akun guru itu sendiri)
+          const uidBack = 'previewback_' + guru.id;
+          previewBackDiv.innerHTML = buildKartuGuruBackHTML(guru, settings, uidBack);
+          const qrBackEl = document.getElementById('kartuGuruBackQR_' + uidBack);
+          if (qrBackEl && typeof QRCode !== 'undefined') {
+            if (guru.qrToken) {
+              new QRCode(qrBackEl, {
+                text: 'GURU_LOGIN|' + guru.qrToken,
+                width: 72, height: 72,
+                colorDark: '#0D47A1', colorLight: '#FFFFFF',
+                correctLevel: QRCode.CorrectLevel.L
+              });
+            } else {
+              qrBackEl.innerHTML = '<div style="font-size:5pt;color:#c62828;text-align:center;line-height:1.3;padding:2px">⚠ Token belum ada — reload halaman ini sekali lagi</div>';
+            }
+          }
+
           // Tombol download
           const dlBtn = document.getElementById(`dlGuruBtn_${guru.id}`);
           if (dlBtn) dlBtn.addEventListener('click', () => cetakKartuGuru(guru));

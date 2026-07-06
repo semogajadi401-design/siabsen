@@ -98,6 +98,29 @@ async function generateRiwayatTokenBatch(count) {
   return [...tokens].map((t, i) => t + Date.now().toString(36) + i);
 }
 
+// ── GENERATE TOKEN QR LOGIN GURU (pendek, sama filosofinya dengan token
+// riwayat siswa di atas) ──────────────────────────────────────────
+// Dipakai di QR halaman BELAKANG kartu guru untuk bypass login cepat ke
+// akun guru itu sendiri (lihat api/scan.js, format QR "GURU_LOGIN|token").
+// Sengaja pakai alfabet & panjang yang sama dengan riwayat_token siswa
+// (bukan generateQrToken() yang 48 karakter hex seperti dipakai admin)
+// supaya QR tetap renggang modulnya dan gampang discan kamera HP walau
+// kartu dicetak kecil. Token dicek unik ke tabel guru sendiri (kolom
+// qr_token), terpisah dari pengecekan riwayat_token milik siswa.
+async function generateGuruQrToken() {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const token = randomBase62(RIWAYAT_TOKEN_LENGTH);
+    const { data } = await supabase
+      .from('guru')
+      .select('id')
+      .eq('qr_token', token)
+      .maybeSingle();
+    if (!data) return token; // belum dipakai guru manapun -> aman dipakai
+  }
+  // Fallback ekstrem (harusnya nyaris mustahil tercapai)
+  return randomBase62(RIWAYAT_TOKEN_LENGTH) + Date.now().toString(36);
+}
+
 // ── GENERATE ID ───────────────────────────────────────────
 function generateID(prefix) {
   const now = new Date();
@@ -235,7 +258,7 @@ module.exports = {
   supabase, hashPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
   jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
-  generateRiwayatTokenBatch,
+  generateRiwayatTokenBatch, generateGuruQrToken,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken

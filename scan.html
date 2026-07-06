@@ -1128,21 +1128,69 @@ function updateGuruStatus(guruList, status) {
 }
 
 // ── SCANNER ──────────────────────────────────────────────────────
+// PERBAIKAN KECEPATAN SCAN: sebelumnya getUserMedia dipanggil tanpa
+// batasan resolusi/frameRate/fokus sama sekali, sehingga:
+//  1. Browser sering memilih resolusi kamera yang tinggi (mis. 1920x1080
+//     atau lebih) — setiap frame jadi lebih berat diproses jsQR, membuat
+//     jeda antara "kamera baru fokus" dan "QR akhirnya kebaca" terasa lama.
+//  2. Tidak ada permintaan continuous autofocus, jadi di sebagian device
+//     Android kamera hanya fokus sekali di awal (bukan terus-menerus),
+//     membuat kartu yang baru didekatkan tetap buram sampai ada trigger
+//     re-fokus (mis. app di-background lalu dibuka lagi).
+// factor width/height/frameRate di bawah "ideal" (bukan wajib persis),
+// browser tetap boleh menyesuaikan device yang tidak mendukungnya.
 async function startScanner() {
   if (scanActive) return;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal:'environment' } }
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 960 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+        // Beberapa browser (terutama Chrome Android) mendukung constraint
+        // ini langsung di getUserMedia; kalau tidak didukung, browser akan
+        // mengabaikannya saja (bukan error) karena statusnya "ideal", bukan
+        // "exact".
+        advanced: [{ focusMode: 'continuous' }]
+      }
     });
     scanStream = stream; scanActive = true;
     const video = document.getElementById('scanVideo');
     video.srcObject = stream;
     await video.play();
+
+    // Sebagian device baru benar-benar menerapkan continuous autofocus
+    // lewat applyConstraints ke track (bukan lewat getUserMedia awal).
+    // Dibungkus try/catch karena banyak browser (terutama iOS Safari)
+    // belum mendukung focusMode sama sekali lewat Web API — kamera iOS
+    // tetap autofocus terus-menerus secara bawaan OS, jadi kegagalan di
+    // sini aman diabaikan, bukan tanda ada yang salah.
+    const [track] = stream.getVideoTracks();
+    if (track && typeof track.getCapabilities === 'function') {
+      try {
+        const caps = track.getCapabilities();
+        if (caps.focusMode && caps.focusMode.includes('continuous')) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        }
+      } catch (eFocus) {
+        // Diamkan — bukan fitur wajib, cuma optimisasi tambahan kalau device mendukung.
+      }
+    }
+
     scanLoop();
   } catch(e) {
     toast('⚠️ Kamera tidak bisa diakses: ' + e.message);
   }
 }
+
+// Canvas kerja untuk decode diskalakan lebih kecil dari resolusi asli
+// kamera — jsQR tetap bisa membaca QR dengan baik di resolusi lebih kecil
+// (selama modul QR masih beberapa piksel), tapi getImageData+decode jadi
+// jauh lebih cepat per frame. Ini artinya begitu kamera baru fokus, hasil
+// decode langsung tersedia di frame berikutnya alih-alih menunggu 1 frame
+// beresolusi penuh selesai diproses.
+const SCAN_MAKS_LEBAR = 640;
 
 function scanLoop() {
   if (!scanActive) return;
@@ -1151,12 +1199,27 @@ function scanLoop() {
   if (!video.readyState || video.readyState < 2) {
     scanAnimFrame = requestAnimationFrame(scanLoop); return;
   }
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d', {willReadFrequently:true});
-  ctx.drawImage(video, 0, 0);
-  const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-  const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const skala = vw > SCAN_MAKS_LEBAR ? SCAN_MAKS_LEBAR / vw : 1;
+  canvas.width  = Math.round(vw * skala);
+  canvas.height = Math.round(vh * skala);
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  // Matikan smoothing: untuk QR, tepi modul yang tajam (bukan di-blur demi
+  // "halus") justru lebih mudah dibaca jsQR, terutama saat gambar diskalakan.
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  // dontInvert: kartu QR yang dicetak sekolah ini selalu gelap-di-atas-
+  // terang (bukan versi warna terbalik). Default jsQR ('attemptBoth')
+  // mencoba decode NORMAL dan INVERTED setiap frame — dua kali kerja
+  // untuk kasus yang tidak pernah terjadi di sini. Membatasi ke satu
+  // mode saja mempercepat setiap iterasi decode kira-kira 2x.
+  const code = jsQR(imageData.data, imageData.width, imageData.height, {
+    inversionAttempts: 'dontInvert'
+  });
   if (code) processQRWithOffline(code.data);
   else scanAnimFrame = requestAnimationFrame(scanLoop);
 }

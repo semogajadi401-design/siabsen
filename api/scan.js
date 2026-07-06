@@ -185,7 +185,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
   const hari  = hariIni();
   // Format QR siswa: "SW_ID|NISN" — ambil bagian sebelum "|"
   const raw   = identifier.trim();
-  const id    = raw.includes('|') && !raw.startsWith('ADMIN|') && !raw.startsWith('GR')
+  const id    = raw.includes('|') && !raw.startsWith('ADMIN|') && !raw.startsWith('GURU_LOGIN|') && !raw.startsWith('GR')
     ? raw.split('|')[0]
     : raw;
 
@@ -226,6 +226,46 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
     };
   }
   // ===========================================================================
+
+  // ========== 1b. CEK GURU LOGIN — QR HALAMAN BELAKANG KARTU GURU ==========
+  // Format QR: "GURU_LOGIN|qr_token". Beda dari QR halaman depan kartu guru
+  // (yang isinya cuma guru.id, untuk absen piket) — QR ini isinya token acak
+  // pendek yang unik per guru (lihat generateGuruQrToken di _db.js), dipakai
+  // untuk bypass login cepat ke akun guru itu sendiri, sama seperti cara
+  // kerja QR bypass admin di atas. Fungsinya login, BUKAN absensi/piket.
+  if (id.startsWith('GURU_LOGIN|')) {
+    const parts = id.split('|');
+    const qrToken = parts[1];
+
+    if (!qrToken) {
+      return { success: false, tipe: 'guru_login', message: 'QR login guru tidak valid' };
+    }
+
+    const { data: guruLogin } = await supabase
+      .from('guru')
+      .select('id, nama, jabatan, username, status, qr_token')
+      .eq('qr_token', qrToken)
+      .maybeSingle();
+
+    if (!guruLogin || guruLogin.qr_token !== qrToken) {
+      return { success: false, tipe: 'guru_login', message: 'QR login guru tidak valid' };
+    }
+    if (guruLogin.status !== 'Aktif') {
+      return { success: false, tipe: 'guru_login', message: 'Akun guru tidak aktif' };
+    }
+
+    return {
+      success: true,
+      tipe: 'guru_login',
+      message: `Login sebagai ${guruLogin.nama}`,
+      guru: {
+        id: guruLogin.id, nama: guruLogin.nama,
+        jabatan: guruLogin.jabatan, username: guruLogin.username
+      }
+    };
+  }
+  // ===========================================================================
+
   // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
   const jamSetting = await getJamSetting();
   const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';

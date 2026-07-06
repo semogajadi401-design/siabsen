@@ -28,8 +28,16 @@ CREATE TABLE IF NOT EXISTS guru (
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   status TEXT DEFAULT 'Aktif',
+  qr_token TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Untuk database yang sudah ada sebelum kolom ini ditambahkan. Kolom ini
+-- dipakai untuk QR login di halaman BELAKANG kartu guru (bypass login
+-- cepat ke akun guru itu sendiri, mirip qr_token di tabel admin) —
+-- berbeda dari QR di halaman depan yang isinya guru.id untuk absen piket.
+ALTER TABLE guru ADD COLUMN IF NOT EXISTS qr_token TEXT UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_guru_qr_token ON guru(qr_token);
 
 -- ─── TABEL SISWA ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS siswa (

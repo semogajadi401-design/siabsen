@@ -1801,33 +1801,32 @@ function updateOnlineStatus(online) {
   }
 }
 
-// ── CEK & TAMPILKAN NOTIF SYNC ────────────────────────────────────
+// ── SINKRON OTOMATIS ──────────────────────────────────────────────
+// Begitu koneksi terdeteksi aktif (lihat pingServer() & updateOnlineStatus()
+// di atas) dan masih ada antrian offline, langsung jalankan sinkronisasi
+// TANPA menunggu klik konfirmasi. Overlay penuh layar (#syncOverlay) yang
+// muncul sengaja mengunci interaksi sampai proses selesai — lihat CSS
+// #syncOverlay (position:fixed, inset:0, z-index tinggi) dan tombol
+// tutup (#syncCloseBtn) yang baru muncul di akhir jalankanSync().
 async function checkAndSync() {
   if (!isOnline || isSyncing) return;
   const antrian = await getAntrian();
   if (antrian.length === 0) return;
-  // Tampilkan toast konfirmasi dulu, bukan langsung overlay
-  showSyncConfirm(antrian.length);
+  await showSyncOverlay(antrian);
 }
 
-function showSyncConfirm(jumlah) {
-  // Hapus toast konfirmasi lama jika ada
-  const oldToast = document.getElementById('syncConfirmToast');
-  if (oldToast) oldToast.remove();
-
-  const wrap = document.getElementById('toastWrap');
-  const div  = document.createElement('div');
-  div.id = 'syncConfirmToast';
-  div.style.cssText = 'background:#16A34A;border:1px solid rgba(255,255,255,0.25);border-radius:14px;padding:12px 18px;font-size:.82rem;font-weight:500;color:#fff;display:flex;align-items:center;gap:12px;pointer-events:all;box-shadow:0 10px 28px rgba(22,163,74,0.4);';
-  div.innerHTML = `
-    <span>📡 Internet aktif — <b>${jumlah}</b> data offline siap dikirim</span>
-    <button onclick="document.getElementById('syncConfirmToast').remove();showSyncOverlay();" style="background:#fff;border:none;color:#16A34A;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.78rem;white-space:nowrap;">Kirim Sekarang</button>
-    <button onclick="document.getElementById('syncConfirmToast').remove();" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;">✕</button>
-  `;
-  wrap.appendChild(div);
-  // Auto hilang setelah 15 detik jika tidak diklik
-  setTimeout(() => { if (div.parentNode) div.remove(); }, 15000);
-}
+// ── AUTO-RETRY BERKALA ────────────────────────────────────────────
+// checkAndSync() di atas hanya terpicu pada MOMEN transisi offline->online.
+// Kalau sinkronisasi sebelumnya sempat gagal separuh jalan (mis. koneksi
+// putus lagi di tengah proses), sisa antrian akan diam menunggu transisi
+// berikutnya kalau tidak ada mekanisme ini. Interval di bawah mencoba lagi
+// setiap 30 detik selama online & ada sisa antrian, supaya sisa data offline
+// tidak pernah "nyangkut" menunggu koneksi mati-hidup lagi.
+setInterval(async () => {
+  if (!isOnline || isSyncing) return;
+  const antrian = await getAntrian();
+  if (antrian.length > 0) await showSyncOverlay(antrian);
+}, 30000);
 
 // ── TAMPILKAN SYNC OVERLAY ────────────────────────────────────────
 async function showSyncOverlay(antrian) {

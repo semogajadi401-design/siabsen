@@ -749,12 +749,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         </div>
       </div>
 
-      <!-- Manual input -->
-      <div class="manual-input">
-        <input type="text" id="manualInput" placeholder="Atau ketik ID / NISN siswa..." onkeyup="if(event.key==='Enter')doManual()">
-        <button onclick="doManual()">✓ Absen</button>
-      </div>
-
       <!-- Tombol input kehadiran tanpa kartu (kartu hilang/rusak/ketinggalan) -->
       <button id="btnTanpaKartu" onclick="bukaModalTanpaKartu()"
         style="margin-top:10px;width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;background:var(--surface);color:var(--text-muted);font-size:.82rem;font-weight:700;cursor:pointer;transition:.2s;font-family:inherit"
@@ -1353,29 +1347,6 @@ async function yaKonfirmasiPiket() {
     if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
   }
   _pendingKonfirmasiPiket = null;
-}
-
-// ── MANUAL INPUT ─────────────────────────────────────────────────
-async function doManual() {
-  const raw = document.getElementById('manualInput').value.trim();
-  const id  = raw.trim();
-  if (!id) return;
-  if (!isOnline) {
-    // Offline: simpan ke antrian
-    await processQRWithOffline(id);
-    document.getElementById('manualInput').value = '';
-    return;
-  }
-  try {
-    const result = await api('scan','scanKartu',{ identifier: id, mode: scanMode });
-    handleScanResult(result, id, Date.now());
-    document.getElementById('manualInput').value = '';
-  } catch(e) {
-    _lastPingOk = false; isOnline = false;
-    updateOnlineStatus(false);
-    await processQRWithOffline(id);
-    document.getElementById('manualInput').value = '';
-  }
 }
 
 // ── INPUT TANPA KARTU (siswa kartu hilang/rusak/ketinggalan) ──────

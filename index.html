@@ -1910,17 +1910,25 @@ function populateKelasDropdowns() {
 
 // ── INIT ─────────────────────────────────────────────────────────
 window.onload = async function() {
+  // Cek session SEGERA, sebelum apapun dirender — supaya begitu splash
+  // hilang, keadaan loginPage/mainApp sudah pasti benar sejak awal dan
+  // tidak sempat "kelip" nampilin form login (mis. saat auto-login lewat
+  // scan QR kartu guru/admin, lihat scan.html -> handleScanResult).
+  const saved = loadSession();
+  if (saved) {
+    APP.user = saved;
+    document.getElementById('loginPage').style.display = 'none';
+  }
+  // Load kelas boleh jalan paralel, tidak perlu menunggu sebelum reveal
+  const kelasPromise = loadAndMergeKelas();
+
   setTimeout(() => {
     document.getElementById('splash').style.opacity = '0';
     setTimeout(async () => {
       document.getElementById('splash').style.display = 'none';
       document.getElementById('app').style.display = 'block';
-      // Load kelas dulu
-      await loadAndMergeKelas();
-      const saved = loadSession();
+      await kelasPromise;
       if (saved) {
-        APP.user = saved;
-        document.getElementById('loginPage').style.display = 'none';
         document.getElementById('mainApp').style.display = 'flex';
         setupUserUI(saved);
         setTimeout(() => initFirstPage(saved.role), 100);

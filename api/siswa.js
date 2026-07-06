@@ -50,7 +50,7 @@ async function getAll({ activeOnly, kelas }, isAdmin) {
   // Kolom yang diambil dari database dibedakan sejak awal (bukan cuma
   // disaring di response) supaya data sensitif tidak pernah ikut terbawa
   // ke memori proses untuk pemanggil yang tidak terautentikasi.
-  const kolomPublik = 'id,nisn,nama,jenis_kelamin,kelas,status,riwayat_token';
+  const kolomPublik = 'id,nisn,nama,jenis_kelamin,kelas,status';
   const kolomLengkap = '*';
 
   let q = supabase.from('siswa').select(isAdmin ? kolomLengkap : kolomPublik).order('nama');

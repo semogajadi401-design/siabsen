@@ -62,7 +62,7 @@ async function tambah({ data }) {
     id, nama: data.nama, jenis_kelamin: data.jenisKelamin,
     jabatan: data.jabatan, nip: data.nip || '', no_hp: data.noHp || '',
     email: data.email || '', alamat: data.alamat || '',
-    username, password: hashPassword(rawPassword), status: 'Aktif',
+    username, password: await hashPassword(rawPassword), status: 'Aktif',
     qr_token: await generateGuruQrToken()
   });
   if (error) return { success: false, message: error.message };
@@ -76,7 +76,7 @@ async function edit({ id, data }) {
     email: data.email || '', alamat: data.alamat || ''
   };
   if (data.password && data.password.trim().length >= 6) {
-    updates.password = hashPassword(data.password.trim());
+    updates.password = await hashPassword(data.password.trim());
   }
   const { error } = await supabase.from('guru').update(updates).eq('id', id);
   if (error) return { success: false, message: error.message };
@@ -111,7 +111,7 @@ async function resetPassword({ id }) {
   const { data: guru } = await supabase.from('guru').select('username').eq('id', id).single();
   if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
   const newPass = generatePassword();
-  await supabase.from('guru').update({ password: hashPassword(newPass) }).eq('id', id);
+  await supabase.from('guru').update({ password: await hashPassword(newPass) }).eq('id', id);
   return { success: true, message: 'Password direset', password: newPass, username: guru.username };
 }
 

@@ -1,5 +1,5 @@
 // api/guru.js — CRUD Data Guru
-const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken } = require('./_db');
+const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, generateGuruQrToken } = require('./_db');
 
 // Semua aksi di file ini mengubah/menghapus data master guru, jadi semuanya
 // wajib login admin. Hanya dipanggil dari index.html (dashboard admin),
@@ -26,17 +26,29 @@ module.exports = async (req, res) => {
 
 async function getAll({ activeOnly }) {
   let q = supabase.from('guru')
-    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,created_at')
+    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,created_at')
     .order('nama');
   if (activeOnly === true || activeOnly === 'true') q = q.eq('status', 'Aktif');
   const { data, error } = await q;
   if (error) return { success: false, message: error.message };
+
+  // Backfill qr_token untuk guru lama yang belum punya token (misal guru
+  // yang ditambahkan sebelum fitur QR login kartu belakang ada). Sama
+  // pola dengan backfill riwayat_token siswa di api/siswa.js.
+  const belumAdaToken = (data || []).filter(g => !g.qr_token);
+  for (const g of belumAdaToken) {
+    const token = await generateGuruQrToken();
+    const { error: eUpdate } = await supabase.from('guru').update({ qr_token: token }).eq('id', g.id);
+    if (!eUpdate) g.qr_token = token;
+  }
+
   return {
     success: true,
     data: (data || []).map(g => ({
       id: g.id, nama: g.nama, jenisKelamin: g.jenis_kelamin,
       jabatan: g.jabatan, nip: g.nip, noHp: g.no_hp,
-      email: g.email, alamat: g.alamat, username: g.username, status: g.status
+      email: g.email, alamat: g.alamat, username: g.username, status: g.status,
+      qrToken: g.qr_token
     }))
   };
 }
@@ -50,7 +62,8 @@ async function tambah({ data }) {
     id, nama: data.nama, jenis_kelamin: data.jenisKelamin,
     jabatan: data.jabatan, nip: data.nip || '', no_hp: data.noHp || '',
     email: data.email || '', alamat: data.alamat || '',
-    username, password: hashPassword(rawPassword), status: 'Aktif'
+    username, password: hashPassword(rawPassword), status: 'Aktif',
+    qr_token: await generateGuruQrToken()
   });
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Guru berhasil ditambahkan', username, password: rawPassword, id };

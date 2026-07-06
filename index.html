@@ -2240,70 +2240,70 @@ function buildKartuGuruPrintHTML(guru, settings, uid) {
   <div id="kartuGuruPrint_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER BIRU -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:7px 10px 28px;flex-shrink:0">
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:6px 10px 11px;flex-shrink:0">
       <div style="display:flex;align-items:center;gap:6px">
         ${logoHTML}
         <div style="flex:1;min-width:0">
-          <div style="font-size:6.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.3px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
-          <div style="font-size:5pt;color:rgba(255,255,255,0.75);margin-top:1px">Tahun Ajaran ${tahunAjaran}</div>
+          <div style="font-size:6.3pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.3px;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+          <div style="font-size:4.8pt;color:rgba(255,255,255,0.75);margin-top:1px">Tahun Ajaran ${tahunAjaran}</div>
         </div>
-        <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 5px;font-size:4.5pt;font-weight:700;color:#FFD700;white-space:nowrap;align-self:flex-start;flex-shrink:0">Kartu Guru</div>
+        <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 5px;font-size:4.3pt;font-weight:700;color:#FFD700;white-space:nowrap;align-self:flex-start;flex-shrink:0">Kartu Guru</div>
       </div>
     </div>
 
     <!-- WAVE -->
     <div style="position:relative;z-index:2;margin-top:-2px;flex-shrink:0;line-height:0">
-      <svg viewBox="0 0 215 38" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,0 L215,0 L215,16 Q161,40 107,28 Q54,16 0,38 Z" fill="#fff"/>
+      <svg viewBox="0 0 215 16" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,0 L215,0 L215,6 Q161,16 107,11 Q54,6 0,15 Z" fill="#fff"/>
       </svg>
     </div>
 
     <!-- AVATAR -->
-    <div style="position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-top:-36px;flex-shrink:0">
-      <div style="width:60px;height:60px;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.18);background:linear-gradient(135deg,#E3F2FD,#BBDEFB);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
-        <span style="font-size:28pt;line-height:1;margin-top:3px">${avatar}</span>
+    <div style="position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-top:-18px;flex-shrink:0">
+      <div style="width:44px;height:44px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.18);background:linear-gradient(135deg,#E3F2FD,#BBDEFB);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+        <span style="font-size:20pt;line-height:1;margin-top:2px">${avatar}</span>
       </div>
     </div>
 
     <!-- NAMA -->
-    <div style="position:relative;z-index:2;text-align:center;padding:5px 10px 1px;flex-shrink:0">
-      <div style="font-size:10pt;font-weight:800;color:#0D47A1;line-height:1.2;letter-spacing:.1px">${guru.nama}</div>
-      <div style="font-size:6pt;font-weight:600;color:#1565C0;margin-top:2px;letter-spacing:.5px;text-transform:uppercase">${guru.jabatan}</div>
+    <div style="position:relative;z-index:2;text-align:center;padding:4px 10px 1px;flex-shrink:0">
+      <div style="font-size:9.5pt;font-weight:800;color:#0D47A1;line-height:1.15;letter-spacing:.1px">${guru.nama}</div>
+      <div style="font-size:5.8pt;font-weight:600;color:#1565C0;margin-top:2px;letter-spacing:.4px;text-transform:uppercase">${guru.jabatan}</div>
     </div>
 
     <!-- GARIS -->
-    <div style="height:1.5px;margin:5px 18px 0;background:linear-gradient(90deg,transparent,#1565C0,transparent);flex-shrink:0"></div>
+    <div style="height:1.5px;margin:4px 18px 0;background:linear-gradient(90deg,transparent,#1565C0,transparent);flex-shrink:0"></div>
 
     <!-- DATA -->
-    <div style="position:relative;z-index:2;padding:5px 12px 4px;flex:1">
+    <div style="position:relative;z-index:2;padding:5px 12px 3px;flex:1">
       ${guru.nip ? `<div style="display:flex;align-items:baseline;margin-bottom:3px;padding-bottom:3px;border-bottom:1px solid #e8ecf0">
-        <span style="font-size:5.5pt;font-weight:700;color:#999;text-transform:uppercase;min-width:58px;flex-shrink:0">NIP</span>
-        <span style="font-size:6.5pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
-        <span style="font-size:6.5pt;font-weight:600;color:#222;flex:1">${guru.nip}</span>
+        <span style="font-size:5.3pt;font-weight:700;color:#999;text-transform:uppercase;min-width:52px;flex-shrink:0">NIP</span>
+        <span style="font-size:6pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
+        <span style="font-size:6pt;font-weight:600;color:#222;flex:1">${guru.nip}</span>
       </div>` : ''}
       <div style="display:flex;align-items:baseline;margin-bottom:0;padding-bottom:0">
-        <span style="font-size:5.5pt;font-weight:700;color:#999;text-transform:uppercase;min-width:58px;flex-shrink:0">Sekolah</span>
-        <span style="font-size:6.5pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
-        <span style="font-size:6pt;font-weight:600;color:#222;flex:1;line-height:1.3">${schoolName}</span>
+        <span style="font-size:5.3pt;font-weight:700;color:#999;text-transform:uppercase;min-width:52px;flex-shrink:0">Sekolah</span>
+        <span style="font-size:6pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
+        <span style="font-size:5.8pt;font-weight:600;color:#222;flex:1;line-height:1.25">${schoolName}</span>
       </div>
     </div>
 
     <!-- QR -->
-    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:4px 12px 5px;flex-shrink:0">
-      <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div id="kartuGuruQR_${uid}" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:3px 12px 4px;flex-shrink:0">
+      <div style="width:60px;height:60px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuGuruQR_${uid}" style="width:52px;height:52px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
-      <div style="font-size:4.5pt;color:#aaa;text-align:center;margin-top:3px;letter-spacing:.2px">Scan untuk piket • ${guru.id}</div>
+      <div style="font-size:4.3pt;color:#aaa;text-align:center;margin-top:2px;letter-spacing:.2px">Scan untuk piket • ${guru.id}</div>
     </div>
 
     <!-- WAVE BAWAH -->
-    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:3px">
-      <svg viewBox="0 0 215 28" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,28 L215,28 L215,14 Q161,0 107,12 Q54,24 0,6 Z" fill="#0D47A1"/>
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:1px">
+      <svg viewBox="0 0 215 13" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,13 L215,13 L215,6 Q161,0 107,5 Q54,11 0,3 Z" fill="#0D47A1"/>
       </svg>
     </div>
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1,#1976D2);padding:4px 10px 6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolAddr || schoolName}</span>
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1,#1976D2);padding:3px 10px 4px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:4.8pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolAddr || schoolName}</span>
     </div>
   </div>`;
 }
@@ -2324,73 +2324,45 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
     <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:7px 10px 28px;flex-shrink:0;text-align:center">
-      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.5px">Informasi Kartu Guru</div>
-      <div style="font-size:4.5pt;color:rgba(255,255,255,0.75);margin-top:2px">${schoolName}</div>
-    </div>
-
-    <!-- WAVE -->
-    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:-2px">
-      <svg viewBox="0 0 215 38" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,0 L215,0 L215,16 Q161,40 107,28 Q54,16 0,38 Z" fill="#fff"/>
-      </svg>
+    <div style="background:linear-gradient(135deg,#0D47A1,#1976D2);padding:7px 12px;text-align:center;flex-shrink:0">
+      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.4px">Informasi Kartu Guru</div>
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.8);margin-top:1px">${schoolName}</div>
     </div>
 
     <!-- PEMILIK -->
-    <div style="position:relative;z-index:2;margin:-4px 10px 0;background:linear-gradient(135deg,#eef5fd,#fdf9e8);border:1.5px solid #b8cfe0;border-radius:8px;padding:7px 10px;flex-shrink:0">
+    <div style="margin:6px 10px 0;background:linear-gradient(135deg,#eef5fd,#fdf9e8);border:1.5px solid #b8cfe0;border-radius:8px;padding:6px 9px;flex-shrink:0">
       <div style="font-size:8pt;font-weight:800;color:#0D47A1;margin-bottom:1px">${guru.nama || '-'}</div>
-      <div style="font-size:5.5pt;color:#555;line-height:1.5">
+      <div style="font-size:5.3pt;color:#555;line-height:1.35">
         ${guru.nip ? `NIP: <strong>${guru.nip}</strong> &nbsp;|&nbsp; ` : ''}Jabatan: <strong>${guru.jabatan || '-'}</strong>
       </div>
     </div>
 
-    <!-- INFO CARDS -->
-    <div style="position:relative;z-index:2;flex:1;padding:7px 10px 0;display:flex;flex-direction:column;gap:5px">
-
-      <div style="background:#fff8f8;border-radius:6px;padding:6px 8px;border-left:2.5px solid #c62828">
-        <div style="font-size:5.5pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Jangan Hilangkan Kartu Ini!</div>
-        <div style="font-size:6pt;color:#444;line-height:1.5">Kartu ini adalah identitas resmi guru untuk absensi piket. Jika hilang, segera laporkan kepada pihak sekolah.</div>
-      </div>
-
-      <div style="background:#f8faff;border-radius:6px;padding:6px 8px;border-left:2.5px solid #1565C0">
-        <div style="font-size:5.5pt;font-weight:800;color:#0D47A1;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">📢 Kepada Penemu Kartu Ini</div>
-        <div style="font-size:6pt;color:#444;line-height:1.5">Mohon kembalikan kartu ini kepada pemiliknya atau serahkan kepada pihak sekolah. Terima kasih.</div>
-      </div>
-
+    <!-- NOTICE -->
+    <div style="margin:5px 10px 0;background:#fff8f2;border-radius:6px;padding:6px 9px;border-left:2.5px solid #c62828;flex-shrink:0">
+      <div style="font-size:5.3pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Kartu Identitas Resmi</div>
+      <div style="font-size:5.6pt;color:#444;line-height:1.4">Jika kartu ini hilang atau ditemukan, segera hubungi/serahkan ke pihak sekolah.</div>
     </div>
 
     <!-- KONTAK -->
-    <div style="position:relative;z-index:2;margin:7px 10px 0;background:linear-gradient(135deg,#0D47A1,#1976D2);border-radius:8px;padding:6px 10px;flex-shrink:0">
-      <div style="font-size:5pt;color:rgba(255,255,255,0.7);letter-spacing:.3px;margin-bottom:3px;text-transform:uppercase">Hubungi Sekolah</div>
-      <div style="font-size:6pt;color:#fff;font-weight:600;margin-bottom:1px">📍 ${schoolAddr}</div>
-      <div style="font-size:6pt;color:#fff;font-weight:600;margin-bottom:1px">📞 ${telp}</div>
-      <div style="font-size:6pt;color:#fff;font-weight:600">✉️ ${email}</div>
+    <div style="margin:5px 10px 0;background:linear-gradient(135deg,#0D47A1,#1976D2);border-radius:8px;padding:5px 9px;flex-shrink:0">
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.7);letter-spacing:.3px;margin-bottom:2px;text-transform:uppercase">Hubungi Sekolah</div>
+      <div style="font-size:5.4pt;color:#fff;font-weight:600;line-height:1.4">📍 ${schoolAddr}</div>
+      <div style="font-size:5.4pt;color:#fff;font-weight:600;line-height:1.4">📞 ${telp} &nbsp;•&nbsp; ✉️ ${email}</div>
     </div>
 
     <!-- QR LOGIN — beda dari QR di kartu depan (yang untuk absen piket).
          Isinya token acak pendek saja ("GURU_LOGIN|token"), BUKAN data
          padat, supaya modul QR tetap renggang dan gampang discan kamera. -->
-    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:3px 12px 4px;flex-shrink:0">
-      <div style="font-size:5.5pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px;line-height:1.3;padding:0 4px">Arahkan barcode ini ke kamera untuk masuk ke akun anda</div>
-      <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div id="kartuGuruBackQR_${uid}" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+    <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
+      <div style="font-size:4.8pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px">Scan untuk masuk ke akun anda</div>
+      <div style="width:60px;height:60px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuGuruBackQR_${uid}" style="width:52px;height:52px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
     </div>
 
-    <!-- TTD -->
-    <div style="position:relative;z-index:2;text-align:center;padding:3px 10px 3px;flex-shrink:0">
-      <div style="font-size:5.5pt;color:#bbb;margin-bottom:14px">Kepala Sekolah</div>
-      <div style="font-size:6pt;font-weight:700;color:#0D47A1;border-top:1px solid #1565C0;padding-top:2px;display:inline-block">${schoolName}</div>
-    </div>
-
-    <!-- WAVE BAWAH -->
-    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:auto">
-      <svg viewBox="0 0 215 28" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,28 L215,28 L215,14 Q161,0 107,12 Q54,24 0,6 Z" fill="#0D47A1"/>
-      </svg>
-    </div>
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1,#1976D2);padding:4px 10px 6px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
-      <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolName}</span>
+    <!-- FOOTER -->
+    <div style="background:linear-gradient(135deg,#0D47A1,#1976D2);padding:4px 10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:4.5pt;color:rgba(255,255,255,0.85);letter-spacing:.3px;font-weight:600">${email || schoolName}</span>
     </div>
 
   </div>`;
@@ -2424,7 +2396,7 @@ async function cetakKartuGuru(guru) {
     if (qrEl && typeof QRCode !== 'undefined') {
       new QRCode(qrEl, {
         text: guru.id,
-        width: 72, height: 72,
+        width: 52, height: 52,
         colorDark: '#0D47A1',
         colorLight: '#FFFFFF',
         correctLevel: QRCode.CorrectLevel.M
@@ -2435,7 +2407,7 @@ async function cetakKartuGuru(guru) {
       if (guru.qrToken) {
         new QRCode(qrBackEl, {
           text: 'GURU_LOGIN|' + guru.qrToken,
-          width: 72, height: 72,
+          width: 52, height: 52,
           colorDark: '#0D47A1',
           colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.L
@@ -2456,14 +2428,16 @@ async function cetakKartuGuru(guru) {
         const cfCanvas = await captureKartu(kartuFront, fixedWidth);
         const cbCanvas = kartuBack ? await captureKartu(kartuBack, fixedWidth) : null;
 
-        const CARD_W_PT = 5.7 * 28.3465;
-        const cfH_PT = CARD_W_PT * (cfCanvas.height / cfCanvas.width);
-        const cbH_PT = cbCanvas ? CARD_W_PT * (cbCanvas.height / cbCanvas.width) : 0;
+        // Ukuran fisik kartu DIPAKSA tetap (85mm x 108mm) — sedikit lebih kecil
+        // dari gantungan ID card sekolah (92mm x 115mm) supaya mudah dimasukkan
+        // setelah digunting. Depan & belakang dipaksa sama persis ukurannya.
+        const CARD_W_PT = 8.5 * 28.3465;
+        const CARD_H_PT = 10.8 * 28.3465;
         const GAP_PT = 4;
-        const totalH_PT = cfH_PT + (cbCanvas ? GAP_PT + cbH_PT : 0);
+        const totalH_PT = CARD_H_PT + (cbCanvas ? GAP_PT + CARD_H_PT : 0);
 
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, totalH_PT] });
-        pdf.addImage(cfCanvas.toDataURL('image/png',1.0), 'PNG', 0, 0, CARD_W_PT, cfH_PT);
+        pdf.addImage(cfCanvas.toDataURL('image/png',1.0), 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
 
         if (cbCanvas) {
           const flipped = document.createElement('canvas');
@@ -2476,7 +2450,7 @@ async function cetakKartuGuru(guru) {
           ctx.drawImage(cbCanvas, -flipped.width / 2, -flipped.height / 2);
           ctx.restore();
           pdf.addImage(flipped.toDataURL('image/png',1.0), 'PNG',
-            0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
+            0, CARD_H_PT + GAP_PT, CARD_W_PT, CARD_H_PT);
         }
 
         pdf.save(`Kartu_Guru_${guru.nama.replace(/\s+/g,'_')}.pdf`);
@@ -2529,7 +2503,7 @@ async function downloadAllKartuGuruPDF() {
       const qrEl = document.getElementById('kartuGuruQR_bulk_' + i);
       if (qrEl && typeof QRCode !== 'undefined') {
         new QRCode(qrEl, {
-          text: g.id, width: 72, height: 72,
+          text: g.id, width: 52, height: 52,
           colorDark: '#0D47A1', colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.M
         });
@@ -2537,7 +2511,7 @@ async function downloadAllKartuGuruPDF() {
       const qrBackEl = document.getElementById('kartuGuruBackQR_bulk_' + i);
       if (qrBackEl && typeof QRCode !== 'undefined' && g.qrToken) {
         new QRCode(qrBackEl, {
-          text: 'GURU_LOGIN|' + g.qrToken, width: 72, height: 72,
+          text: 'GURU_LOGIN|' + g.qrToken, width: 52, height: 52,
           colorDark: '#0D47A1', colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.L
         });
@@ -2559,25 +2533,26 @@ async function downloadAllKartuGuruPDF() {
 
     const { jsPDF } = window.jspdf;
 
-    // Ukuran halaman & grid — sekarang menyertakan kartu belakang, disusun
-    // sebagai pasangan depan+belakang per kolom, sama pola dengan kartu
-    // siswa (bisa langsung dimasukkan ke gantungan kartu / ID card holder).
+    // Ukuran halaman & grid — kartu dipaksa berukuran fisik tetap (85mm x
+    // 108mm), sedikit lebih kecil dari gantungan ID card sekolah (92mm x
+    // 115mm) supaya mudah dimasukkan setelah digunting. Karena kartu ini
+    // cukup lebar, halaman F4 (21.5 x 33 cm) hanya muat 2 kartu per baris.
     const PAGE_W  = 21.5;
     const PAGE_H  = 33.0;
     const MARGIN  = 0.6;   // margin tepi
-    const COLS    = 3;     // 3 kartu per baris
+    const COLS    = 2;     // 2 kartu per baris (ukuran kartu diperbesar)
     const GAP_COL = 0.4;   // jarak antar kolom
     const GAP_ROW = 0.5;   // jarak antar baris (antar pasang kartu)
     const GAP_FB  = 0.15;  // jarak depan ke belakang dalam 1 kolom
 
-    const CARD_W = (PAGE_W - MARGIN * 2 - GAP_COL * (COLS - 1)) / COLS;
+    const CARD_W   = 8.5;
+    const CARD_H_F = 10.8;
+    const CARD_H_B = 10.8;
+    const PAIR_H   = CARD_H_F + GAP_FB + CARD_H_B; // tinggi 1 pasang kartu
 
-    // Hitung tinggi kartu dari canvas pertama (semua kartu sama ukurannya)
-    const refRatioF = cards[0].cfCanvas.height / cards[0].cfCanvas.width;
-    const refRatioB = cards[0].cbCanvas ? cards[0].cbCanvas.height / cards[0].cbCanvas.width : refRatioF;
-    const CARD_H_F  = CARD_W * refRatioF;
-    const CARD_H_B  = CARD_W * refRatioB;
-    const PAIR_H    = CARD_H_F + GAP_FB + CARD_H_B; // tinggi 1 pasang kartu
+    // Tengahkan grid secara horizontal di halaman
+    const gridW  = COLS * CARD_W + (COLS - 1) * GAP_COL;
+    const startX = Math.max(MARGIN, (PAGE_W - gridW) / 2);
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
 
@@ -2587,7 +2562,7 @@ async function downloadAllKartuGuruPDF() {
     for (let i = 0; i < cards.length; i++) {
       const { cfCanvas, cbCanvas } = cards[i];
 
-      // Jika baris penuh (3 kolom), pindah ke baris baru
+      // Jika baris penuh (COLS kolom), pindah ke baris baru
       if (col === COLS) {
         col = 0;
         y  += PAIR_H + GAP_ROW;
@@ -2600,7 +2575,7 @@ async function downloadAllKartuGuruPDF() {
         col = 0;
       }
 
-      const x = MARGIN + col * (CARD_W + GAP_COL);
+      const x = startX + col * (CARD_W + GAP_COL);
 
       // Kartu depan
       pdf.addImage(cfCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, CARD_W, CARD_H_F);
@@ -2659,31 +2634,31 @@ function buildAdminCardHTML(settings, adminUser) {
     <div style="position:absolute;top:-30px;left:50%;transform:translateX(-50%);width:180px;height:80px;background:radial-gradient(ellipse,rgba(0,212,255,0.35),transparent 70%);pointer-events:none;z-index:0"></div>
 
     <!-- HEADER -->
-    <div style="position:relative;z-index:2;padding:10px 12px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(0,212,255,0.2)">
-      <div style="width:28px;height:28px;border-radius:8px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.4);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${logoHTML}</div>
+    <div style="position:relative;z-index:2;padding:6px 12px 4px;display:flex;align-items:center;gap:7px;border-bottom:1px solid rgba(0,212,255,0.2)">
+      <div style="width:24px;height:24px;border-radius:7px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.4);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${logoHTML}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:5.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.4px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+        <div style="font-size:5.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.4px;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
         <div style="font-size:4.5pt;color:rgba(0,212,255,0.6);margin-top:1px">T.A. ${tahunAjaran}</div>
       </div>
       <div style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.5);border-radius:4px;padding:2px 6px;font-size:4pt;font-weight:800;color:#00d4ff;white-space:nowrap;letter-spacing:.5px;text-transform:uppercase">ADMIN</div>
     </div>
 
     <!-- HEXAGON AVATAR AREA -->
-    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:14px 12px 8px">
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px">
 
       <!-- Outer ring glow -->
-      <div style="position:relative;width:72px;height:72px;flex-shrink:0">
-        <div style="position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,#00d4ff,#0080ff,#7c3aed,#00d4ff);animation:spinRing 4s linear infinite;opacity:0.8"></div>
-        <div style="position:absolute;inset:-2px;border-radius:50%;background:#070714"></div>
-        <div style="position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(124,58,237,0.2));display:flex;align-items:center;justify-content:center;font-size:26pt">🛡️</div>
+      <div style="position:relative;width:46px;height:46px;flex-shrink:0">
+        <div style="position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,#00d4ff,#0080ff,#7c3aed,#00d4ff);animation:spinRing 4s linear infinite;opacity:0.8"></div>
+        <div style="position:absolute;inset:-1.5px;border-radius:50%;background:#070714"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(124,58,237,0.2));display:flex;align-items:center;justify-content:center;font-size:16pt">🛡️</div>
       </div>
 
       <!-- Name -->
-      <div style="margin-top:10px;text-align:center">
-        <div style="font-size:11pt;font-weight:800;color:#fff;letter-spacing:.3px;line-height:1.1">${adminNama}</div>
-        <div style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(0,128,255,0.15));border:1px solid rgba(0,212,255,0.4);border-radius:20px;padding:2px 8px">
+      <div style="margin-top:4px;text-align:center">
+        <div style="font-size:10.5pt;font-weight:800;color:#fff;letter-spacing:.3px;line-height:1.1">${adminNama}</div>
+        <div style="display:inline-flex;align-items:center;gap:3px;margin-top:3px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(0,128,255,0.15));border:1px solid rgba(0,212,255,0.4);border-radius:20px;padding:2px 7px">
           <div style="width:5px;height:5px;border-radius:50%;background:#00d4ff;box-shadow:0 0 6px #00d4ff"></div>
-          <span style="font-size:5.5pt;color:#00d4ff;font-weight:700;letter-spacing:.8px;text-transform:uppercase">Administrator</span>
+          <span style="font-size:5pt;color:#00d4ff;font-weight:700;letter-spacing:.7px;text-transform:uppercase">Administrator</span>
         </div>
       </div>
     </div>
@@ -2692,20 +2667,20 @@ function buildAdminCardHTML(settings, adminUser) {
     <div style="position:relative;z-index:2;height:1px;margin:0 14px;background:linear-gradient(90deg,transparent,#00d4ff,transparent)"></div>
 
     <!-- INFO ROW -->
-    <div style="position:relative;z-index:2;padding:8px 14px;display:flex;flex-direction:column;gap:5px">
+    <div style="position:relative;z-index:2;padding:5px 14px;display:flex;flex-direction:column;gap:3px">
       <div style="display:flex;align-items:center;gap:6px">
-        <div style="width:14px;height:14px;border-radius:4px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg viewBox="0 0 24 24" fill="currentColor" style="width:8px;height:8px;color:#00d4ff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <div style="width:13px;height:13px;border-radius:4px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:7px;height:7px;color:#00d4ff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
         </div>
-        <span style="font-size:5.5pt;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;letter-spacing:.4px;min-width:40px">Username</span>
-        <span style="font-size:6pt;color:#00d4ff;font-weight:600;font-family:monospace">${adminUsername}</span>
+        <span style="font-size:5pt;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;letter-spacing:.4px;min-width:38px">Username</span>
+        <span style="font-size:5.8pt;color:#00d4ff;font-weight:600;font-family:monospace">${adminUsername}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <div style="width:14px;height:14px;border-radius:4px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg viewBox="0 0 24 24" fill="currentColor" style="width:8px;height:8px;color:#00d4ff"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+        <div style="width:13px;height:13px;border-radius:4px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:7px;height:7px;color:#00d4ff"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
         </div>
-        <span style="font-size:5.5pt;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;letter-spacing:.4px;min-width:40px">Akses</span>
-        <span style="font-size:6pt;color:#7c3aed;font-weight:600">Full System Access</span>
+        <span style="font-size:5pt;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;letter-spacing:.4px;min-width:38px">Akses</span>
+        <span style="font-size:5.8pt;color:#7c3aed;font-weight:600">Full System Access</span>
       </div>
     </div>
 
@@ -2713,16 +2688,16 @@ function buildAdminCardHTML(settings, adminUser) {
     <div style="position:relative;z-index:2;height:1px;margin:0 14px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3),transparent)"></div>
 
     <!-- QR AREA -->
-    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:10px 12px 8px">
-      <div style="font-size:4.5pt;color:rgba(0,212,255,0.5);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">Scan untuk Akses Admin</div>
-      <div style="width:84px;height:84px;background:#fff;border-radius:10px;padding:4px;box-sizing:border-box;border:2px solid rgba(0,212,255,0.6);box-shadow:0 0 20px rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div id="kartuAdminQR" style="width:74px;height:74px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:5px 10px 4px;flex:1;justify-content:center">
+      <div style="font-size:4.5pt;color:rgba(0,212,255,0.5);letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px">Scan untuk Akses Admin</div>
+      <div style="width:56px;height:56px;background:#fff;border-radius:9px;padding:3px;box-sizing:border-box;border:2px solid rgba(0,212,255,0.6);box-shadow:0 0 20px rgba(0,212,255,0.3);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuAdminQR" style="width:50px;height:50px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
       <div style="font-size:4pt;color:rgba(0,212,255,0.4);margin-top:4px;letter-spacing:.3px;font-family:monospace">ADMIN SYSTEM ACCESS</div>
     </div>
 
     <!-- BOTTOM BAR -->
-    <div style="position:relative;z-index:2;background:linear-gradient(90deg,rgba(0,212,255,0.1),rgba(0,128,255,0.1),rgba(124,58,237,0.1));border-top:1px solid rgba(0,212,255,0.2);padding:5px 12px;display:flex;align-items:center;justify-content:space-between">
+    <div style="position:relative;z-index:2;background:linear-gradient(90deg,rgba(0,212,255,0.1),rgba(0,128,255,0.1),rgba(124,58,237,0.1));border-top:1px solid rgba(0,212,255,0.2);padding:3px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
       <div style="display:flex;gap:3px">
         <div style="width:5px;height:5px;border-radius:50%;background:#00d4ff;opacity:0.8"></div>
         <div style="width:5px;height:5px;border-radius:50%;background:#0080ff;opacity:0.6"></div>
@@ -2801,7 +2776,7 @@ async function downloadKartuAdmin() {
   if (qrEl && typeof QRCode !== 'undefined') {
     qrEl.innerHTML = '';
     new QRCode(qrEl, {
-      text: qrId, width: 74, height: 74,
+      text: qrId, width: 50, height: 50,
       colorDark: '#000000', colorLight: '#FFFFFF',
       correctLevel: QRCode.CorrectLevel.M
     });
@@ -2811,7 +2786,7 @@ async function downloadKartuAdmin() {
       const du = qrCanvas.toDataURL('image/png');
       const img = document.createElement('img');
       img.src = du;
-      img.style.cssText = 'width:74px;height:74px;display:block;flex-shrink:0';
+      img.style.cssText = 'width:50px;height:50px;display:block;flex-shrink:0';
       qrEl.innerHTML = '';
       qrEl.appendChild(img);
     }
@@ -2848,8 +2823,11 @@ async function downloadKartuAdmin() {
     // Buat PDF dari PNG
     const tmpImg = new Image();
     await new Promise((res, rej) => { tmpImg.onload = res; tmpImg.onerror = rej; tmpImg.src = pngDataUrl; });
-    const CARD_W_PT = 5.7 * 28.3465;
-    const CARD_H_PT = CARD_W_PT * (tmpImg.naturalHeight / tmpImg.naturalWidth);
+    // Ukuran fisik kartu DIPAKSA tetap (85mm x 108mm) — sedikit lebih kecil
+    // dari gantungan ID card sekolah (92mm x 115mm) supaya mudah dimasukkan
+    // setelah digunting.
+    const CARD_W_PT = 8.5 * 28.3465;
+    const CARD_H_PT = 10.8 * 28.3465;
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });
     pdf.addImage(pngDataUrl, 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
     pdf.save(`Kartu_Admin_${(user.nama || 'Administrator').replace(/\s+/g, '_')}.pdf`);
@@ -3075,8 +3053,8 @@ function renderKartuMiniPreview(){
         });
         const canvas = qt.querySelector('canvas');
         if (canvas) {
-          canvas.style.width  = '70px';
-          canvas.style.height = '70px';
+          canvas.style.width  = '50px';
+          canvas.style.height = '50px';
         }
       });
     }
@@ -3317,8 +3295,8 @@ async function loadKartuSiswa(){
           const qrText = s.id;
           new QRCode(qt, {
             text: qrText,
-            width: 72,
-            height: 72,
+            width: 50,
+            height: 50,
             colorDark: '#1a6b3a',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
@@ -3343,8 +3321,8 @@ async function loadKartuSiswa(){
           // kasar seperti kartu absen harian).
           new QRCode(qtRiwayat, {
             text: riwayatUrl,
-            width: 72,
-            height: 72,
+            width: 52,
+            height: 52,
             colorDark: '#1a6b3a',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
@@ -3423,68 +3401,68 @@ function buildKartuInnerHTML(s, settings) {
   <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER HIJAU -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:7px 10px 28px;flex-shrink:0">
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:5px 10px 10px;flex-shrink:0">
       <div style="display:flex;align-items:center;gap:6px">
         ${logoHTML}
         <div style="flex:1;min-width:0">
-          <div style="font-size:6.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.3px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
-          ${subParts.length ? `<div style="font-size:5pt;color:rgba(255,255,255,0.75);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subParts.join(' • ')}</div>` : ''}
+          <div style="font-size:6.1pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.3px;line-height:1.1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${schoolName}</div>
+          ${subParts.length ? `<div style="font-size:4.6pt;color:rgba(255,255,255,0.75);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subParts.join(' • ')}</div>` : ''}
         </div>
-        <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 5px;font-size:4.5pt;font-weight:700;color:#FFD700;white-space:nowrap;align-self:flex-start;flex-shrink:0">Kartu Pelajar</div>
+        <div style="background:rgba(255,215,0,0.25);border:1px solid rgba(255,215,0,0.65);border-radius:3px;padding:2px 5px;font-size:4.1pt;font-weight:700;color:#FFD700;white-space:nowrap;align-self:flex-start;flex-shrink:0">Kartu Pelajar</div>
       </div>
     </div>
 
     <!-- WAVE ATAS -->
     <div style="position:relative;z-index:2;margin-top:-2px;flex-shrink:0;line-height:0">
-      <svg viewBox="0 0 215 38" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,0 L215,0 L215,16 Q161,40 107,28 Q54,16 0,38 Z" fill="#fff"/>
+      <svg viewBox="0 0 215 14" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,0 L215,0 L215,5 Q161,14 107,10 Q54,5 0,13 Z" fill="#fff"/>
       </svg>
     </div>
 
     <!-- FOTO -->
-    <div style="position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-top:-36px;flex-shrink:0">
-      <div style="width:60px;height:60px;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.18);background:linear-gradient(135deg,#e8f5e9,#fff8dc);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
-        <span style="font-size:28pt;line-height:1;margin-top:3px">${avatar}</span>
+    <div style="position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-top:-15px;flex-shrink:0">
+      <div style="width:40px;height:40px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.18);background:linear-gradient(135deg,#e8f5e9,#fff8dc);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+        <span style="font-size:18pt;line-height:1;margin-top:2px">${avatar}</span>
       </div>
     </div>
 
     <!-- NAMA -->
-    <div style="position:relative;z-index:2;text-align:center;padding:5px 10px 1px;flex-shrink:0">
-      <div style="font-size:10pt;font-weight:800;color:#1a3a26;line-height:1.2;letter-spacing:.1px">${s.nama || '-'}</div>
-      <div style="font-size:6pt;font-weight:600;color:#2d9e57;margin-top:2px;letter-spacing:.5px;text-transform:uppercase">Kelas ${s.kelas || '-'} &nbsp;•&nbsp; ${tahunAjaran}</div>
+    <div style="position:relative;z-index:2;text-align:center;padding:3px 10px 1px;flex-shrink:0">
+      <div style="font-size:9pt;font-weight:800;color:#1a3a26;line-height:1.1;letter-spacing:.1px">${s.nama || '-'}</div>
+      <div style="font-size:5.6pt;font-weight:600;color:#2d9e57;margin-top:2px;letter-spacing:.3px;text-transform:uppercase">Kelas ${s.kelas || '-'} &nbsp;•&nbsp; ${tahunAjaran}</div>
     </div>
 
     <!-- GARIS EMAS -->
-    <div style="height:1.5px;margin:5px 18px 0;background:linear-gradient(90deg,transparent,#c8a000,transparent);flex-shrink:0"></div>
+    <div style="height:1.5px;margin:3px 18px 0;background:linear-gradient(90deg,transparent,#c8a000,transparent);flex-shrink:0"></div>
 
     <!-- DATA -->
-    <div style="position:relative;z-index:2;padding:5px 12px 4px;flex:1">
+    <div style="position:relative;z-index:2;padding:3px 12px 2px;flex:1">
       ${dataRows.map((r,i) => `
-        <div style="display:flex;align-items:baseline;margin-bottom:${i===dataRows.length-1?'0':'3px'};padding-bottom:${i===dataRows.length-1?'0':'3px'};border-bottom:${i===dataRows.length-1?'none':'1px solid #f0ece0'}">
-          <span style="font-size:5.5pt;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.3px;min-width:58px;flex-shrink:0">${r.label}</span>
-          <span style="font-size:6.5pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
-          <span style="font-size:6.5pt;font-weight:600;color:#222;flex:1;line-height:1.3">${r.val}</span>
+        <div style="display:flex;align-items:baseline;margin-bottom:${i===dataRows.length-1?'0':'1px'};padding-bottom:${i===dataRows.length-1?'0':'1px'};border-bottom:${i===dataRows.length-1?'none':'1px solid #f0ece0'}">
+          <span style="font-size:5pt;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.2px;min-width:48px;flex-shrink:0">${r.label}</span>
+          <span style="font-size:5.8pt;color:#ccc;margin:0 3px;flex-shrink:0">:</span>
+          <span style="font-size:5.8pt;font-weight:600;color:#222;flex:1;line-height:1.15">${r.val}</span>
         </div>`).join('')}
     </div>
 
     <!-- QR — dibuat lebih besar agar mudah scan -->
-    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:4px 12px 5px;flex-shrink:0">
-      <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #c8a000;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div class="qr-target-${s.id}" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:2px 12px 3px;flex-shrink:0">
+      <div style="width:58px;height:58px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #c8a000;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div class="qr-target-${s.id}" style="width:50px;height:50px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
-      <div style="font-size:4.5pt;color:#aaa;text-align:center;margin-top:3px;letter-spacing:.2px">Scan untuk absensi &nbsp;•&nbsp; ${s.nisn || s.id}</div>
+      <div style="font-size:4.1pt;color:#aaa;text-align:center;margin-top:2px;letter-spacing:.2px">Scan untuk absensi &nbsp;•&nbsp; ${s.nisn || s.id}</div>
     </div>
 
     <!-- WAVE BAWAH -->
-    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:3px">
-      <svg viewBox="0 0 215 28" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,28 L215,28 L215,14 Q161,0 107,12 Q54,24 0,6 Z" fill="#1a6b3a"/>
+    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:1px">
+      <svg viewBox="0 0 215 13" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
+        <path d="M0,13 L215,13 L215,6 Q161,0 107,5 Q54,11 0,3 Z" fill="#1a6b3a"/>
       </svg>
     </div>
 
     <!-- FOOTER -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a,#b8920a);padding:4px 10px 6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolAddr || schoolName}</span>
+    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a,#b8920a);padding:3px 10px 4px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:4.6pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolAddr || schoolName}</span>
     </div>
 
   </div>`;
@@ -3500,74 +3478,44 @@ function buildKartuBackHTML(s, settings) {
     <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
 
     <!-- HEADER -->
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:7px 10px 28px;flex-shrink:0;text-align:center">
-      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.5px">Informasi Kartu Pelajar</div>
-      <div style="font-size:4.5pt;color:rgba(255,255,255,0.75);margin-top:2px">${schoolName}</div>
-    </div>
-
-    <!-- WAVE -->
-    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:-2px">
-      <svg viewBox="0 0 215 38" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,0 L215,0 L215,16 Q161,40 107,28 Q54,16 0,38 Z" fill="#fff"/>
-      </svg>
+    <div style="background:linear-gradient(135deg,#1a6b3a,#2d9e57);padding:7px 12px;text-align:center;flex-shrink:0">
+      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.4px">Informasi Kartu Pelajar</div>
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.8);margin-top:1px">${schoolName}</div>
     </div>
 
     <!-- PEMILIK -->
-    <div style="position:relative;z-index:2;margin:-4px 10px 0;background:linear-gradient(135deg,#f0faf4,#fdf9e8);border:1.5px solid #b8d4c0;border-radius:8px;padding:7px 10px;flex-shrink:0">
+    <div style="margin:6px 10px 0;background:linear-gradient(135deg,#f0faf4,#fdf9e8);border:1.5px solid #b8d4c0;border-radius:8px;padding:6px 9px;flex-shrink:0">
       <div style="font-size:8pt;font-weight:800;color:#1a3a26;margin-bottom:1px">${s.nama || '-'}</div>
-      <div style="font-size:5.5pt;color:#555;line-height:1.5">
+      <div style="font-size:5.3pt;color:#555;line-height:1.35">
         NISN: <strong>${s.nisn || '-'}</strong> &nbsp;|&nbsp; Kelas: <strong>${s.kelas || '-'}</strong>
       </div>
     </div>
 
-    <!-- INFO CARDS -->
-    <div style="position:relative;z-index:2;flex:1;padding:7px 10px 0;display:flex;flex-direction:column;gap:5px">
-
-      <div style="background:#fff8f8;border-radius:6px;padding:6px 8px;border-left:2.5px solid #c62828">
-        <div style="font-size:5.5pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Jangan Hilangkan Kartu Ini!</div>
-        <div style="font-size:6pt;color:#444;line-height:1.5">Kartu ini adalah identitas resmi pelajar untuk absensi harian. Jika hilang, segera laporkan kepada pihak sekolah.</div>
-      </div>
-
-      <div style="background:#f8faf8;border-radius:6px;padding:6px 8px;border-left:2.5px solid #2d9e57">
-        <div style="font-size:5.5pt;font-weight:800;color:#1a6b3a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">📢 Kepada Penemu Kartu Ini</div>
-        <div style="font-size:6pt;color:#444;line-height:1.5">Mohon kembalikan kartu ini kepada pemiliknya atau serahkan kepada pihak sekolah. Terima kasih.</div>
-      </div>
-
+    <!-- NOTICE -->
+    <div style="margin:5px 10px 0;background:#fff8f2;border-radius:6px;padding:6px 9px;border-left:2.5px solid #c62828;flex-shrink:0">
+      <div style="font-size:5.3pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Kartu Identitas Resmi</div>
+      <div style="font-size:5.6pt;color:#444;line-height:1.4">Jika kartu ini hilang atau ditemukan, segera hubungi/serahkan ke pihak sekolah.</div>
     </div>
 
     <!-- KONTAK -->
-    <div style="position:relative;z-index:2;margin:7px 10px 0;background:linear-gradient(135deg,#1a6b3a,#2d9e57);border-radius:8px;padding:6px 10px;flex-shrink:0">
-      <div style="font-size:5pt;color:rgba(255,255,255,0.7);letter-spacing:.3px;margin-bottom:3px;text-transform:uppercase">Hubungi Sekolah</div>
-      <div style="font-size:6pt;color:#fff;font-weight:600;margin-bottom:1px">📍 ${schoolAddr}</div>
-      <div style="font-size:6pt;color:#fff;font-weight:600;margin-bottom:1px">📞 ${telp}</div>
-      <div style="font-size:6pt;color:#fff;font-weight:600">✉️ ${email}</div>
+    <div style="margin:5px 10px 0;background:linear-gradient(135deg,#1a6b3a,#2d9e57);border-radius:8px;padding:5px 9px;flex-shrink:0">
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.7);letter-spacing:.3px;margin-bottom:2px;text-transform:uppercase">Hubungi Sekolah</div>
+      <div style="font-size:5.4pt;color:#fff;font-weight:600;line-height:1.4">📍 ${schoolAddr}</div>
+      <div style="font-size:5.4pt;color:#fff;font-weight:600;line-height:1.4">📞 ${telp} &nbsp;•&nbsp; ✉️ ${email}</div>
     </div>
 
     <!-- QR RIWAYAT KEHADIRAN — beda dari QR absensi di depan. Kalau di-scan,
-         siswa/ortu bisa lihat riwayat kehadiran sendiri tanpa perlu login.
-         Ukuran dibuat sama besar dengan QR di kartu depan supaya tetap
-         mudah di-scan kamera HP walau kartu dicetak kecil. -->
-    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:3px 12px 4px;flex-shrink:0">
-      <div style="width:80px;height:80px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #b8d4c0;box-shadow:0 2px 8px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div class="qr-riwayat-${s.id}" style="width:72px;height:72px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+         siswa/ortu bisa lihat riwayat kehadiran sendiri tanpa perlu login. -->
+    <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
+      <div style="font-size:4.8pt;font-weight:700;color:#1a6b3a;text-align:center;margin-bottom:4px">📊 Scan untuk riwayat kehadiran</div>
+      <div style="width:60px;height:60px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #b8d4c0;display:flex;align-items:center;justify-content:center;line-height:0">
+        <div class="qr-riwayat-${s.id}" style="width:52px;height:52px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
-      <div style="font-size:4.5pt;color:#999;text-align:center;margin-top:3px;letter-spacing:.2px">📊 Scan untuk lihat riwayat kehadiran</div>
     </div>
 
-    <!-- TTD -->
-    <div style="position:relative;z-index:2;text-align:center;padding:3px 10px 3px;flex-shrink:0">
-      <div style="font-size:5.5pt;color:#bbb;margin-bottom:14px">Kepala Sekolah</div>
-      <div style="font-size:6pt;font-weight:700;color:#1a6b3a;border-top:1px solid #2d9e57;padding-top:2px;display:inline-block">${schoolName}</div>
-    </div>
-
-    <!-- WAVE BAWAH -->
-    <div style="position:relative;z-index:2;line-height:0;flex-shrink:0;margin-top:auto">
-      <svg viewBox="0 0 215 28" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="display:block;width:100%">
-        <path d="M0,28 L215,28 L215,14 Q161,0 107,12 Q54,24 0,6 Z" fill="#1a6b3a"/>
-      </svg>
-    </div>
-    <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a,#b8920a);padding:4px 10px 6px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
-      <span style="font-size:5pt;color:rgba(255,255,255,0.85);letter-spacing:.4px;font-weight:600">${email || schoolName}</span>
+    <!-- FOOTER -->
+    <div style="background:linear-gradient(135deg,#1a6b3a,#b8920a);padding:4px 10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:4.5pt;color:rgba(255,255,255,0.85);letter-spacing:.3px;font-weight:600">${email || schoolName}</span>
     </div>
 
   </div>`;
@@ -3622,12 +3570,13 @@ async function downloadKartu(s, cardFront, cardBack) {
     const cfCanvas = await captureKartu(cardFront, fixedWidth);
     const cbCanvas = cardBack ? await captureKartu(cardBack, fixedWidth) : null;
 
-    // Ukuran PDF dalam pt
-    const CARD_W_PT = 5.7 * 28.3465;
-    const cfH_PT    = CARD_W_PT * (cfCanvas.height / cfCanvas.width);
-    const cbH_PT    = cbCanvas ? CARD_W_PT * (cbCanvas.height / cbCanvas.width) : 0;
+    // Ukuran PDF dalam pt — DIPAKSA tetap 85mm x 108mm (sedikit lebih kecil
+    // dari gantungan ID card sekolah 92mm x 115mm supaya mudah dimasukkan
+    // setelah digunting). Depan & belakang dipaksa sama persis ukurannya.
+    const CARD_W_PT = 8.5 * 28.3465;
+    const CARD_H_PT = 10.8 * 28.3465;
     const GAP_PT    = 4;
-    const totalH_PT = cfH_PT + (cbCanvas ? GAP_PT + cbH_PT : 0);
+    const totalH_PT = CARD_H_PT + (cbCanvas ? GAP_PT + CARD_H_PT : 0);
 
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -3637,7 +3586,7 @@ async function downloadKartu(s, cardFront, cardBack) {
 
     // Kartu depan
     pdf.addImage(cfCanvas.toDataURL('image/png', 1.0), 'PNG',
-      0, 0, CARD_W_PT, cfH_PT);
+      0, 0, CARD_W_PT, CARD_H_PT);
 
     // Kartu belakang — dirotasi 180°
     if (cbCanvas) {
@@ -3652,7 +3601,7 @@ async function downloadKartu(s, cardFront, cardBack) {
       ctx.restore();
 
       pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG',
-        0, cfH_PT + GAP_PT, CARD_W_PT, cbH_PT);
+        0, CARD_H_PT + GAP_PT, CARD_W_PT, CARD_H_PT);
     }
 
     pdf.save(`Kartu_${s.nama.replace(/\s+/g, '_')}_${s.nisn || s.id}.pdf`);
@@ -3676,16 +3625,23 @@ async function downloadAllKartuPDF() {
   try {
     const { jsPDF } = window.jspdf;
 
-    // Ukuran halaman
+    // Ukuran halaman & grid — kartu dipaksa berukuran fisik tetap (85mm x
+    // 108mm), sedikit lebih kecil dari gantungan ID card sekolah (92mm x
+    // 115mm) supaya mudah dimasukkan setelah digunting. Karena kartu ini
+    // cukup lebar, halaman F4 (21.5 x 33 cm) hanya muat 2 kartu per baris.
     const PAGE_W  = 21.5;
     const PAGE_H  = 33.0;
     const MARGIN  = 0.6;   // margin tepi
-    const COLS    = 3;     // 3 kartu per baris
+    const COLS    = 2;     // 2 kartu per baris (ukuran kartu diperbesar)
     const GAP_COL = 0.4;   // jarak antar kolom
     const GAP_ROW = 0.5;   // jarak antar baris (antar pasang kartu)
     const GAP_FB  = 0.15;  // jarak depan ke belakang dalam 1 kolom
 
-    const CARD_W = (PAGE_W - MARGIN * 2 - GAP_COL * (COLS - 1)) / COLS; // ≈ 6.43cm
+    const CARD_W = 8.5;
+
+    // Tengahkan grid secara horizontal di halaman
+    const gridW  = COLS * CARD_W + (COLS - 1) * GAP_COL;
+    const startX = Math.max(MARGIN, (PAGE_W - gridW) / 2);
 
     // Capture semua kartu — diproses 4 per batch secara paralel, bukan
     // satu per satu. Ini adalah penyebab utama proses lama sebelumnya:
@@ -3706,17 +3662,16 @@ async function downloadAllKartuPDF() {
     let col = 0;
     let y   = MARGIN;
 
-    // Hitung tinggi kartu dari canvas pertama (semua kartu sama ukurannya)
-    const refRatioF = cards[0].cfCanvas.height / cards[0].cfCanvas.width;
-    const refRatioB = cards[0].cbCanvas ? cards[0].cbCanvas.height / cards[0].cbCanvas.width : refRatioF;
-    const CARD_H_F  = CARD_W * refRatioF;
-    const CARD_H_B  = CARD_W * refRatioB;
+    // Tinggi kartu DIPAKSA tetap (bukan dihitung dari rasio canvas), supaya
+    // depan & belakang selalu persis sama besar.
+    const CARD_H_F  = 10.8;
+    const CARD_H_B  = 10.8;
     const PAIR_H    = CARD_H_F + GAP_FB + CARD_H_B; // tinggi 1 pasang kartu
 
     for (let i = 0; i < cards.length; i++) {
       const { cfCanvas, cbCanvas } = cards[i];
 
-      // Jika baris penuh (3 kolom), pindah ke baris baru
+      // Jika baris penuh (COLS kolom), pindah ke baris baru
       if (col === COLS) {
         col = 0;
         y  += PAIR_H + GAP_ROW;
@@ -3729,7 +3684,7 @@ async function downloadAllKartuPDF() {
         col = 0;
       }
 
-      const x = MARGIN + col * (CARD_W + GAP_COL);
+      const x = startX + col * (CARD_W + GAP_COL);
 
       // Kartu depan — pakai JPEG (bukan PNG) untuk encoding yang jauh lebih
       // cepat dan ukuran PDF yang lebih kecil. Kartu tidak memakai

@@ -1083,7 +1083,33 @@ function handleScanResult(result, data, now) {
       return;
     }
     // ===================================================
-    
+
+    // ========== CEK GURU LOGIN (QR halaman belakang kartu guru) ==========
+    // Beda dari tipe 'guru' (absen piket) di bawah — ini QR bypass login
+    // cepat ke akun guru itu sendiri, sama pola dengan bypass admin di atas.
+    if (result.tipe === 'guru_login') {
+      showFlash('guru', '🔑', 'Login ' + result.guru.nama);
+      toast('🔐 Mengalihkan ke dashboard guru...', 2000);
+
+      const sessionData = {
+        user: {
+          id: result.guru.id,
+          nama: result.guru.nama,
+          jabatan: result.guru.jabatan,
+          username: result.guru.username,
+          role: 'guru'
+        },
+        loginTime: Date.now()
+      };
+      localStorage.setItem('siabsen_session', JSON.stringify(sessionData));
+
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+      return;
+    }
+    // ===================================================
+
     scannedHistory[data] = now;
 
     if (result.tipe === 'guru') {

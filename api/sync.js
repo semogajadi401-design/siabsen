@@ -1,7 +1,32 @@
 const {
-  supabase, generateID, setCors,
+  supabase, generateID, setCors, todayStr,
   hariIni, isHariLibur, isHariKerja, getSemesterAktif, getJamSetting, tambahMenit
 } = require('./_db');
+
+// ── BATAS TOLERANSI TANGGAL UNTUK SYNC OFFLINE ──────────────────────
+// item sync membawa `tanggal`/`jam` dari JAM PERANGKAT (HP/laptop) tempat
+// scan terjadi, BUKAN dari server — ini memang perlu supaya antrian
+// offline tetap mencatat waktu scan yang sebenarnya walau baru sinkron ke
+// server belakangan. Tapi tanpa batas apapun, guru piket yang mengubah
+// jam/tanggal perangkatnya bisa membuat siswa telat tercatat "tepat
+// waktu", atau menyisipkan absensi untuk tanggal yang sudah lewat jauh
+// atau bahkan tanggal yang belum terjadi. Batas di bawah TIDAK mencegah
+// manipulasi kecil (mis. maju/mundur beberapa menit di hari yang sama —
+// itu memang sulit dibedakan dari keterlambatan sinkron jaringan biasa),
+// tapi mencegah kasus yang jelas tidak masuk akal: tanggal di masa depan,
+// atau tanggal yang sudah terlalu lama lewat dari kapan pun antrian
+// offline realistis tertahan (device biasanya sync begitu dapat internet;
+// beberapa hari offline berturut-turut sudah kasus tidak wajar).
+const MAKS_HARI_MUNDUR_SYNC = 3;
+
+function tanggalDalamBatasWajar(tanggal) {
+  const today = todayStr();
+  if (!tanggal || tanggal > today) return false; // tolak tanggal masa depan
+  const batasAwal = new Date(today + 'T00:00:00');
+  batasAwal.setDate(batasAwal.getDate() - MAKS_HARI_MUNDUR_SYNC);
+  const batasAwalStr = batasAwal.toISOString().substring(0, 10);
+  return tanggal >= batasAwalStr;
+}
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -57,6 +82,17 @@ async function batchSync({ items }) {
 //      ke database walau scan online untuk kasus yang sama akan ditolak.
 async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru }) {
   if (!identifier) return { success: false, message: 'Identifier kosong' };
+
+  // Tolak sinkronisasi kalau tanggal dari perangkat tidak masuk akal
+  // (di masa depan, atau sudah lebih dari beberapa hari lewat dari
+  // sekarang menurut jam server) — lihat komentar tanggalDalamBatasWajar
+  // di atas.
+  if (!tanggalDalamBatasWajar(tanggal)) {
+    return {
+      success: false,
+      message: `Tanggal scan (${tanggal}) tidak valid atau di luar batas wajar sinkronisasi. Periksa jam/tanggal perangkat.`
+    };
+  }
 
   // Format QR siswa: "SW_ID|NISN" — ambil bagian sebelum "|"
   const raw = identifier.trim();

@@ -7,11 +7,47 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// ── HASH PASSWORD (SHA-256 sederhana via crypto) ──────────
+// ── HASH PASSWORD ──────────────────────────────────────────────────
+// SEBELUMNYA: SHA-256 polos tanpa salt, tanpa cost factor — kalau database
+// bocor, semua password bisa di-crack pakai rainbow table dalam hitungan
+// detik. Sekarang pakai bcrypt (cost factor 10), yang punya salt otomatis
+// per-password dan sengaja lambat dihitung supaya brute-force jauh lebih
+// mahal.
+//
+// MIGRASI: akun lama masih punya hash SHA-256 (64 karakter hex) di kolom
+// password. Supaya tidak perlu reset password semua orang sekaligus,
+// verifyPassword() di bawah mendukung KEDUA format — kalau password cocok
+// dengan hash lama, hasilnya ditandai needsRehash:true supaya pemanggil
+// (lihat auth.js) bisa langsung menimpa hash itu dengan bcrypt saat itu
+// juga. Lama-lama, begitu semua akun pernah login sekali, seluruh hash di
+// database otomatis sudah bcrypt.
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+const BCRYPT_COST = 10;
+
+function isBcryptHash(hash) {
+  return typeof hash === 'string' && /^\$2[aby]\$/.test(hash);
+}
+
+async function hashPassword(password) {
+  return bcrypt.hash(String(password), BCRYPT_COST);
+}
+
+// Cocokkan password mentah terhadap hash tersimpan. Mendeteksi otomatis
+// format hash lama (SHA-256) vs baru (bcrypt).
+async function verifyPassword(password, storedHash) {
+  if (!storedHash) return { valid: false, needsRehash: false };
+
+  if (isBcryptHash(storedHash)) {
+    const valid = await bcrypt.compare(String(password), storedHash);
+    return { valid, needsRehash: false };
+  }
+
+  // Format lama: SHA-256 tanpa salt
+  const legacyHash = crypto.createHash('sha256').update(String(password), 'utf8').digest('hex');
+  const valid = legacyHash === storedHash;
+  return { valid, needsRehash: valid };
 }
 
 // ── GENERATE TOKEN QR ADMIN (acak, tidak bisa ditebak) ────
@@ -255,7 +291,7 @@ async function getSemesterAktif() {
   return data || null;
 }
 module.exports = {
-  supabase, hashPassword, generateID, generateUsername,
+  supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
   jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
   generateRiwayatTokenBatch, generateGuruQrToken,

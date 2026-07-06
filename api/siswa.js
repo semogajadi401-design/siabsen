@@ -21,7 +21,19 @@ module.exports = async (req, res) => {
   }
 
   try {
-    if (action === 'getAll')      return res.json(await getAll(params));
+    // getAll TETAP dibiarkan bisa dipanggil tanpa login (dipakai scan.html
+    // offline untuk mengisi daftar siswa di kios scan tanpa perlu sesi
+    // admin). TAPI data yang dikembalikan sekarang tergantung status login:
+    // kalau adminToken valid -> data lengkap (untuk halaman kelola siswa di
+    // index.html); kalau tidak -> hanya kolom yang benar-benar dibutuhkan
+    // scan.html (id/nisn/nama/kelas/status), TIDAK termasuk alamat, no HP
+    // ortu, dan riwayat_token. Sebelumnya endpoint ini mengembalikan SEMUA
+    // kolom (termasuk data pribadi & token rahasia riwayat) ke siapa saja
+    // yang memanggilnya tanpa login sama sekali — celah kebocoran data.
+    if (action === 'getAll') {
+      const isAdmin = await requireAdminToken(adminToken);
+      return res.json(await getAll(params, isAdmin));
+    }
     if (action === 'tambah')      return res.json(await tambah(params));
     if (action === 'edit')        return res.json(await edit(params));
     if (action === 'hapus')       return res.json(await hapus(params));
@@ -34,8 +46,14 @@ module.exports = async (req, res) => {
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
 
-async function getAll({ activeOnly, kelas }) {
-  let q = supabase.from('siswa').select('*').order('nama');
+async function getAll({ activeOnly, kelas }, isAdmin) {
+  // Kolom yang diambil dari database dibedakan sejak awal (bukan cuma
+  // disaring di response) supaya data sensitif tidak pernah ikut terbawa
+  // ke memori proses untuk pemanggil yang tidak terautentikasi.
+  const kolomPublik = 'id,nisn,nama,jenis_kelamin,kelas,status,riwayat_token';
+  const kolomLengkap = '*';
+
+  let q = supabase.from('siswa').select(isAdmin ? kolomLengkap : kolomPublik).order('nama');
   // activeOnly bisa datang sebagai boolean true atau string "true" — handle keduanya
   if (activeOnly === true || activeOnly === 'true') q = q.eq('status', 'Aktif');
   if (kelas && kelas !== '') q = q.eq('kelas', kelas);
@@ -49,6 +67,24 @@ async function getAll({ activeOnly, kelas }) {
     const token = await generateRiwayatToken();
     const { error: eUpdate } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', s.id);
     if (!eUpdate) s.riwayat_token = token;
+  }
+
+  if (!isAdmin) {
+    // Respons minimal untuk pemanggil tanpa login (scan.html offline):
+    // cukup untuk mencari & mencocokkan siswa di kios scan, TANPA data
+    // pribadi (alamat, no HP ortu) maupun riwayat_token (token rahasia
+    // yang dipakai halaman riwayat absensi publik di api/riwayat.js).
+    //
+    // CATATAN: riwayat_token TETAP di-generate/backfill di atas kalau
+    // belum ada (perlu supaya kartu siswa baru tetap bisa dicetak dengan
+    // QR riwayat yang valid), tapi sengaja TIDAK diikutkan ke response ini.
+    return {
+      success: true,
+      data: (data || []).map(s => ({
+        id: s.id, nisn: s.nisn, nama: s.nama,
+        jenisKelamin: s.jenis_kelamin, kelas: s.kelas, status: s.status
+      }))
+    };
   }
 
   return {

@@ -101,6 +101,8 @@ module.exports = async (req, res) => {
     if (action === 'getStatus')       return res.json(await getStatus());
     if (action === 'scanKartu')       return res.json(await scanKartu(params));
     if (action === 'getLogHariIni')   return res.json(await getLogHariIni(params));
+    if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
+    if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -491,6 +493,145 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
       ? `⚠️ ${siswa.nama} TERLAMBAT - ${jam}`
       : `✅ ${siswa.nama} absen datang - ${jam}`,
     siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
+  };
+}
+
+// ── VERIFIKASI GURU PIKET (dipakai fitur "Input Tanpa Kartu") ────
+// Guru piket yang scan kartu di awal hari sudah tercatat di sesi_piket.
+// Fitur "input tanpa kartu" (untuk siswa yang kartunya hilang/rusak/
+// ketinggalan) HANYA boleh dipakai oleh guru yang memang tercatat piket
+// hari itu (baik yang terjadwal maupun pengganti) — dicek lewat username
+// akun guru (bukan ID kartu, supaya tidak perlu hafal kode yang cuma ada
+// di dalam QR).
+async function cekGuruPiketHariIni(username) {
+  if (!username) return { ok: false, message: 'Username wajib diisi' };
+
+  const { data: guru } = await supabase
+    .from('guru')
+    .select('id,nama,username,status')
+    .ilike('username', username.trim())
+    .maybeSingle();
+
+  if (!guru) return { ok: false, message: 'Username guru tidak ditemukan' };
+  if (guru.status !== 'Aktif') return { ok: false, message: 'Akun guru tidak aktif' };
+
+  const today = todayStr();
+  const { data: sesiHariIni } = await supabase
+    .from('sesi_piket')
+    .select('id_guru')
+    .eq('tanggal', today);
+
+  const idPiketHariIni = (sesiHariIni || []).map(s => s.id_guru);
+  if (!idPiketHariIni.includes(guru.id)) {
+    return { ok: false, message: `${guru.nama} belum tercatat sebagai guru piket hari ini. Scan kartu guru piket dulu.` };
+  }
+
+  return { ok: true, guru: { id: guru.id, nama: guru.nama } };
+}
+
+async function verifikasiGuruPiket({ username }) {
+  const cek = await cekGuruPiketHariIni(username);
+  if (!cek.ok) return { success: false, message: cek.message };
+  return { success: true, guru: cek.guru };
+}
+
+// ── INPUT KEHADIRAN TANPA KARTU ───────────────────────────────────
+// Untuk siswa yang kartunya hilang/rusak/ketinggalan. HANYA bisa dipakai
+// guru piket hari ini (dicek ulang di server, jangan percaya status
+// terverifikasi dari sisi client saja). Guru piket mencentang siswa yang
+// tidak bawa kartu dari daftar "belum hadir", lalu disimpan sekaligus.
+async function inputTanpaKartu({ username, siswaIds, mode }) {
+  const cek = await cekGuruPiketHariIni(username);
+  if (!cek.ok) return { success: false, message: cek.message };
+  const guru = cek.guru;
+
+  if (!Array.isArray(siswaIds) || siswaIds.length === 0) {
+    return { success: false, message: 'Pilih minimal satu siswa' };
+  }
+
+  const today = todayStr();
+  const jam   = jamSekarang();
+  const hari  = hariIni();
+
+  const cekLibur = await isHariLibur(today);
+  if (cekLibur.libur) return { success: false, message: `Hari ini libur: ${cekLibur.keterangan}` };
+
+  const hariAktif = await isHariKerja(hari);
+  if (!hariAktif) return { success: false, message: `${hari} bukan hari sekolah` };
+
+  const semester = await getSemesterAktif();
+  if (!semester) return { success: false, message: 'Tidak ada semester aktif' };
+
+  const tglMulai   = String(semester.tanggal_mulai).substring(0, 10);
+  const tglSelesai = String(semester.tanggal_selesai).substring(0, 10);
+  if (today < tglMulai || today > tglSelesai)
+    return { success: false, message: `Di luar periode semester (${semester.nama})` };
+
+  const jamSetting     = await getJamSetting();
+  const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
+  const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
+  const jamPulangMulai = jamSetting['JAM_PULANG_MULAI'] || '14:00';
+
+  if (mode === 'pulang' && jam < jamPulangMulai) {
+    return { success: false, message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
+  }
+
+  let berhasil = 0, gagal = 0;
+  const detail = [];
+
+  for (const idSiswa of siswaIds) {
+    const { data: siswa } = await supabase
+      .from('siswa').select('id,nisn,nama,kelas,status')
+      .eq('id', idSiswa).maybeSingle();
+
+    if (!siswa)                    { gagal++; detail.push({ id: idSiswa, success: false, message: 'Siswa tidak ditemukan' }); continue; }
+    if (siswa.status !== 'Aktif')  { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: 'Siswa tidak aktif' }); continue; }
+
+    const { data: absenHariIni } = await supabase
+      .from('absensi').select('*')
+      .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
+
+    if (mode === 'pulang') {
+      if (!absenHariIni)           { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: 'Belum absen datang' }); continue; }
+      if (absenHariIni.jam_pulang) { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: `Sudah absen pulang pukul ${absenHariIni.jam_pulang}` }); continue; }
+
+      const { error } = await supabase.from('absensi').update({
+        jam_pulang: jam, status_pulang: 'Pulang',
+        nama_guru_piket: guru.nama, id_guru_piket: guru.id,
+        metode: 'Manual (Tanpa Kartu)'
+      }).eq('id', absenHariIni.id);
+
+      if (error) { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: error.message }); continue; }
+      berhasil++; detail.push({ id: idSiswa, nama: siswa.nama, success: true, message: `Pulang - ${jam}` });
+      continue;
+    }
+
+    // Mode datang
+    if (absenHariIni?.jam_datang) { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: `Sudah absen datang pukul ${absenHariIni.jam_datang}` }); continue; }
+
+    const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
+    const absenId = generateID('AB');
+    const { error } = await supabase.from('absensi').insert({
+      id: absenId, id_siswa: siswa.id, nisn: siswa.nisn,
+      nama_siswa: siswa.nama, kelas: siswa.kelas,
+      tanggal: today, hari, jam_datang: jam,
+      status_datang: statusDatang,
+      id_guru_piket: guru.id, nama_guru_piket: guru.nama,
+      metode: 'Manual (Tanpa Kartu)'
+    });
+
+    if (error) {
+      if (error.code === '23505') { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: 'Sudah absen datang hari ini' }); continue; }
+      gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: error.message }); continue;
+    }
+    berhasil++; detail.push({ id: idSiswa, nama: siswa.nama, success: true, message: `${statusDatang} - ${jam}` });
+  }
+
+  return {
+    success: true,
+    guru: guru.nama,
+    berhasil, gagal, detail,
+    message: `${berhasil} siswa berhasil dicatat${gagal ? `, ${gagal} gagal` : ''}`
   };
 }
 

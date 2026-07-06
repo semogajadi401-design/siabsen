@@ -3047,7 +3047,7 @@ function renderKartuMiniPreview(){
           text: 'PREVIEW',
           width: 200,
           height: 200,
-          colorDark: '#0D47A1',
+          colorDark: '#000000',
           colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.L
         });
@@ -3293,14 +3293,24 @@ async function loadKartuSiswa(){
           // manfaat. Sekarang cukup ID-nya saja: fungsinya identik,
           // datanya jauh lebih pendek, QR jadi lebih renggang.
           const qrText = s.id;
+          // Digambar di resolusi native 4x (200px) lalu di-scale-down ke 50px
+          // lewat CSS. Kanvas QR punya tepi modul yang tegas/kotak (bukan foto),
+          // jadi men-downscale dari resolusi tinggi menghasilkan tepi yang jauh
+          // lebih tajam & kontras dibanding menggambar langsung di 50px kecil
+          // lalu diperbesar 3x oleh html2canvas saat capture ke PDF.
           new QRCode(qt, {
             text: qrText,
-            width: 50,
-            height: 50,
-            colorDark: '#1a6b3a',
+            width: 200,
+            height: 200,
+            colorDark: '#000000',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
           });
+          const qrCanvasAbsen = qt.querySelector('canvas');
+          if (qrCanvasAbsen) {
+            qrCanvasAbsen.style.width = '50px';
+            qrCanvasAbsen.style.height = '50px';
+          }
         }
         // QR RIWAYAT — beda dari QR di atas. Pakai riwayat_token acak
         // (bukan NISN/ID), jadi hanya yang pegang kartu fisik yang bisa buka.
@@ -3319,14 +3329,21 @@ async function loadKartuSiswa(){
           // toleransi kerusakan L tetap lebih dari cukup untuk kartu
           // yang dicetak & dilaminating rapi (bukan dipakai di lapangan
           // kasar seperti kartu absen harian).
+          // Sama seperti QR absensi di atas: render native 4x (208px) lalu
+          // scale-down ke 52px via CSS supaya tepi modul QR tetap tajam.
           new QRCode(qtRiwayat, {
             text: riwayatUrl,
-            width: 52,
-            height: 52,
-            colorDark: '#1a6b3a',
+            width: 208,
+            height: 208,
+            colorDark: '#000000',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
           });
+          const qrCanvasRiwayat = qtRiwayat.querySelector('canvas');
+          if (qrCanvasRiwayat) {
+            qrCanvasRiwayat.style.width = '52px';
+            qrCanvasRiwayat.style.height = '52px';
+          }
         } else if (qtRiwayat) {
           // Kalau kosong: kemungkinan besar backend api/siswa.js belum
           // ter-update, atau kolom riwayat_token belum dibuat di Supabase.

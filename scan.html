@@ -754,6 +754,57 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <input type="text" id="manualInput" placeholder="Atau ketik ID / NISN siswa..." onkeyup="if(event.key==='Enter')doManual()">
         <button onclick="doManual()">✓ Absen</button>
       </div>
+
+      <!-- Tombol input kehadiran tanpa kartu (kartu hilang/rusak/ketinggalan) -->
+      <button id="btnTanpaKartu" onclick="bukaModalTanpaKartu()"
+        style="margin-top:10px;width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;background:var(--surface);color:var(--text-muted);font-size:.82rem;font-weight:700;cursor:pointer;transition:.2s;font-family:inherit"
+        onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary-dark)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
+        📝 Input Kehadiran Tanpa Kartu
+      </button>
+    </div>
+
+    <!-- ══════ MODAL: INPUT TANPA KARTU ══════ -->
+    <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:420px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+        <!-- Header -->
+        <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="font-weight:800;font-size:.98rem">📝 Input Tanpa Kartu</div>
+          <button onclick="tutupModalTanpaKartu()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+        </div>
+
+        <!-- STEP 1: Verifikasi guru piket -->
+        <div id="tkStepVerifikasi" style="padding:22px 20px">
+          <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+            Fitur ini khusus untuk siswa yang kartunya hilang, rusak, atau ketinggalan.
+            Masukkan <strong>username akun guru piket hari ini</strong> untuk melanjutkan.
+          </div>
+          <input type="text" id="tkUsername" placeholder="Username guru piket..."
+            onkeyup="if(event.key==='Enter')verifikasiTanpaKartu()"
+            style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
+          <div id="tkVerifError" style="display:none;color:var(--danger);font-size:.78rem;margin-top:8px;padding:8px 10px;background:var(--danger-soft);border-radius:8px"></div>
+          <button onclick="verifikasiTanpaKartu()" id="tkBtnVerifikasi"
+            style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.88rem;cursor:pointer;font-family:inherit">
+            Verifikasi
+          </button>
+        </div>
+
+        <!-- STEP 2: Checklist siswa -->
+        <div id="tkStepChecklist" style="display:none;flex-direction:column;min-height:0;flex:1">
+          <div style="padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+            <div style="font-size:.82rem;color:var(--text)">
+              Diverifikasi sebagai <strong id="tkNamaGuru">-</strong> — pilih siswa yang tidak membawa kartu:
+            </div>
+          </div>
+          <div id="tkChecklistContainer" style="overflow-y:auto;flex:1;padding:6px 20px"></div>
+          <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:10px">
+            <button onclick="tutupModalTanpaKartu()" style="flex:1;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-muted);font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Batal</button>
+            <button onclick="simpanTanpaKartu()" id="tkBtnSimpan" style="flex:2;padding:12px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Simpan (<span id="tkJumlahTerpilih">0</span>)</button>
+          </div>
+        </div>
+
+      </div>
     </div>
 
   </div>
@@ -1327,6 +1378,115 @@ async function doManual() {
   }
 }
 
+// ── INPUT TANPA KARTU (siswa kartu hilang/rusak/ketinggalan) ──────
+let _tkGuruUsername = null;
+let _tkGuruNama      = null;
+let _tkBelumHadir    = [];
+let _tkSelected      = new Set();
+
+function bukaModalTanpaKartu() {
+  if (!isOnline) {
+    toast('⚠️ Fitur ini butuh koneksi internet');
+    return;
+  }
+  _tkGuruUsername = null;
+  _tkGuruNama = null;
+  _tkSelected = new Set();
+  document.getElementById('tkUsername').value = '';
+  document.getElementById('tkVerifError').style.display = 'none';
+  document.getElementById('tkStepVerifikasi').style.display = 'block';
+  document.getElementById('tkStepChecklist').style.display = 'none';
+  document.getElementById('modalTanpaKartu').style.display = 'flex';
+  setTimeout(() => document.getElementById('tkUsername').focus(), 100);
+}
+
+function tutupModalTanpaKartu() {
+  document.getElementById('modalTanpaKartu').style.display = 'none';
+}
+
+async function verifikasiTanpaKartu() {
+  const username = document.getElementById('tkUsername').value.trim();
+  const errEl = document.getElementById('tkVerifError');
+  errEl.style.display = 'none';
+  if (!username) { errEl.textContent = 'Username wajib diisi'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('tkBtnVerifikasi');
+  btn.disabled = true; btn.textContent = 'Memverifikasi...';
+  try {
+    const r = await api('scan', 'verifikasiGuruPiket', { username });
+    if (!r.success) {
+      errEl.textContent = r.message || 'Verifikasi gagal';
+      errEl.style.display = 'block';
+      return;
+    }
+    _tkGuruUsername = username;
+    _tkGuruNama = r.guru.nama;
+
+    // Ambil daftar siswa belum hadir TERBARU (semua kelas, bukan
+    // mengikuti filter kelas yang sedang aktif di halaman utama).
+    const log = await api('scan', 'getLogHariIni', {});
+    _tkBelumHadir = (log && log.success) ? (log.belumHadir || []) : [];
+
+    document.getElementById('tkNamaGuru').textContent = _tkGuruNama;
+    renderChecklistTanpaKartu();
+    document.getElementById('tkStepVerifikasi').style.display = 'none';
+    document.getElementById('tkStepChecklist').style.display = 'flex';
+  } catch (e) {
+    errEl.textContent = 'Koneksi gagal. Coba lagi.';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Verifikasi';
+  }
+}
+
+function renderChecklistTanpaKartu() {
+  const container = document.getElementById('tkChecklistContainer');
+  if (!_tkBelumHadir.length) {
+    container.innerHTML = `<div class="log-empty"><div class="log-empty-icon">🎉</div><div>Semua siswa sudah hadir!</div></div>`;
+    document.getElementById('tkJumlahTerpilih').textContent = '0';
+    return;
+  }
+  container.innerHTML = _tkBelumHadir.map(s => `
+    <label class="log-item" style="cursor:pointer;user-select:none">
+      <input type="checkbox" value="${s.id}" onchange="toggleTkSiswa('${s.id}', this.checked)"
+        style="width:19px;height:19px;flex-shrink:0;margin-right:2px;accent-color:var(--primary)">
+      <div class="log-avatar belum">${s.nama.charAt(0)}</div>
+      <div>
+        <div class="log-nama">${s.nama}</div>
+        <div class="log-kelas">${s.kelas}</div>
+      </div>
+    </label>`).join('');
+}
+
+function toggleTkSiswa(id, checked) {
+  if (checked) _tkSelected.add(id); else _tkSelected.delete(id);
+  document.getElementById('tkJumlahTerpilih').textContent = String(_tkSelected.size);
+}
+
+async function simpanTanpaKartu() {
+  if (_tkSelected.size === 0) { toast('⚠️ Pilih minimal satu siswa dulu'); return; }
+  const btn = document.getElementById('tkBtnSimpan');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    const r = await api('scan', 'inputTanpaKartu', {
+      username: _tkGuruUsername,
+      siswaIds: Array.from(_tkSelected),
+      mode: scanMode
+    });
+    if (!r.success) {
+      toast('❌ ' + (r.message || 'Gagal menyimpan'));
+      return;
+    }
+    toast(`✅ ${r.message} (dicatat oleh ${r.guru})`);
+    tutupModalTanpaKartu();
+    loadLog();
+  } catch (e) {
+    toast('❌ Koneksi gagal. Coba lagi.');
+  } finally {
+    btn.disabled = false; btn.textContent = `Simpan (${_tkSelected.size})`;
+  }
+}
+
 // ── FLASH ────────────────────────────────────────────────────────
 function showFlash(type, icon, text) {
   const el   = document.getElementById('scanFlash');
@@ -1422,7 +1582,7 @@ function renderLog() {
         <div class="log-avatar belum">${s.nama.charAt(0)}</div>
         <div>
           <div class="log-nama">${s.nama}</div>
-          <div class="log-kelas">${s.kelas} • ${s.nisn}</div>
+          <div class="log-kelas">${s.kelas}</div>
         </div>
         <div class="log-right">
           <span class="log-badge badge-belum">Belum Hadir</span>
@@ -1440,7 +1600,7 @@ function renderLog() {
           <div class="log-avatar ${avCls}">${s.nama.charAt(0)}</div>
           <div>
             <div class="log-nama">${s.nama}</div>
-            <div class="log-kelas">${s.kelas} • ${s.nisn}</div>
+            <div class="log-kelas">${s.kelas}</div>
           </div>
           <div class="log-right">
             <div class="log-jam">${s.jamDatang}</div>

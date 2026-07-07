@@ -393,6 +393,15 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
   });
 
   const namaHari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+
+  // Hari-hari piket guru ini SESUAI JADWAL ADMIN (jadwal_piket) -- bukan
+  // hasil hitung dari sesi_piket, supaya guru bisa lihat jadwal resminya
+  // apa adanya, terlepas dari riwayat scan yang sudah terjadi.
+  const urutanHari = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+  const jadwalHariGuru = urutanHari.filter(
+    h => (jadwalPerHari[h] || []).some(t => t.idGuru === idGuru)
+  );
+
   const ringkasan = { piketSendiri: 0, digantikan: 0, kosong: 0, jadiPengganti: 0 };
   const detail = [];
 
@@ -441,7 +450,7 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
   // Urutkan terbaru dulu supaya guru langsung lihat hari-hari terakhir.
   detail.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
 
-  return { success: true, ringkasan, detail, tanggalMulai, tanggalSelesai };
+  return { success: true, ringkasan, detail, tanggalMulai, tanggalSelesai, jadwalHariGuru };
 }
 
 // ── CONSTANTS ─────────────────────────────────────────────────────

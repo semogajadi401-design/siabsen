@@ -117,8 +117,15 @@ async function login({ username, password }) {
         await supabase.from('guru').update({ password: newHash }).eq('username', username);
       }
 
+      // PENTING: `role` yang dikembalikan di sini dipakai frontend
+      // (index.html) untuk menentukan menu sidebar mana yang tampil
+      // (adminNav / guruNav / kepsekNav). Sebelumnya SELALU 'guru' untuk
+      // siapapun yang login lewat tabel guru -- termasuk akun Kepala
+      // Sekolah, yang membuat kepsek dapat dashboard operasional guru
+      // piket biasa. Sekarang pakai kolom guru.role (diisi lewat menu
+      // Data Guru), bukan di-hardcode.
       return {
-        success: true, role: 'guru',
+        success: true, role: guruData.role === 'kepsek' ? 'kepsek' : 'guru',
         id: guruData.id, nama: guruData.nama,
         jabatan: guruData.jabatan, username
       };

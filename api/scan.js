@@ -1,7 +1,8 @@
 const {
   supabase, generateID, setCors,
   todayStr, jamSekarang, hariIni, tambahMenit,
-  isHariLibur, isHariKerja, getSemesterAktif, getJamSetting
+  isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
+  getJamPulangEfektif
 } = require('./_db');
 
 // ── SEBUTAN BAPAK/IBU BERDASARKAN JENIS KELAMIN GURU ─────────────
@@ -152,7 +153,10 @@ async function getStatus() {
   const jamSetting = await getJamSetting();
   const jam = jamSekarang();
   const jamMulai   = jamSetting['JAM_DATANG_MULAI']   || '06:00';
-  const jamSelesai = jamSetting['JAM_PULANG_SELESAI'] || '17:00';
+  // Jam pulang efektif HARI INI — bisa berbeda dari nilai global kalau
+  // admin sudah override-nya khusus untuk hari ini di Pengaturan Semester.
+  const jamPulangEfektif = await getJamPulangEfektif(hari, jamSetting);
+  const jamSelesai = jamPulangEfektif.jamPulangSelesai;
 
   // Ambil sesi piket hari ini
   const { data: sesiList } = await supabase
@@ -184,6 +188,12 @@ async function getStatus() {
     jam,
     jamMulai,
     jamSelesai,
+    // Dipakai scan.html untuk auto-switch mode Datang/Pulang — SEBELUMNYA
+    // scan.html hardcode '14:00' sendiri di client, tidak sinkron kalau
+    // hari ini jam pulangnya di-override. Sekarang ambil dari sini.
+    jamPulangMulai: jamPulangEfektif.jamPulangMulai,
+    jamPulangSelesai: jamPulangEfektif.jamPulangSelesai,
+    jamPulangOverride: jamPulangEfektif.override,
     hari,
     tanggal: today,
     semester: semester.nama,
@@ -292,8 +302,11 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
   // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
   const jamSetting = await getJamSetting();
   const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';
-  const jamSelesaiOp   = jamSetting['JAM_PULANG_SELESAI'] || '16:00';
-  
+  // Jam pulang efektif hari ini (override per-hari kalau ada, atau ikut
+  // nilai global) — dipakai berulang di fungsi ini, dihitung sekali saja.
+  const jamPulangHariIni = await getJamPulangEfektif(hari, jamSetting);
+  const jamSelesaiOp   = jamPulangHariIni.jamPulangSelesai;
+
   if (jam < jamMulai || jam > jamSelesaiOp) {
     return { 
       success: false, 
@@ -434,7 +447,10 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
 
   const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
   const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
-  const jamPulangMulai = jamSetting['JAM_PULANG_MULAI']   || '14:00';
+  // Pakai jam pulang efektif hari ini (override per-hari kalau admin
+  // sudah atur di Pengaturan Semester, kalau tidak ikut global) —
+  // sudah dihitung sekali di awal fungsi (jamPulangHariIni).
+  const jamPulangMulai = jamPulangHariIni.jamPulangMulai;
 
   // Nama guru piket — pakai yang terakhir scan
   const guruPiketAktif = sesiList[sesiList.length - 1];
@@ -593,7 +609,9 @@ async function inputTanpaKartu({ username, siswaIds, mode }) {
   const jamSetting     = await getJamSetting();
   const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
   const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
-  const jamPulangMulai = jamSetting['JAM_PULANG_MULAI'] || '14:00';
+  // Jam pulang efektif hari ini — override per-hari (Pengaturan Semester)
+  // kalau ada, kalau tidak ikut global (Pengaturan Jam).
+  const jamPulangMulai = (await getJamPulangEfektif(hari, jamSetting)).jamPulangMulai;
 
   if (mode === 'pulang' && jam < jamPulangMulai) {
     return { success: false, message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };

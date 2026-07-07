@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS guru (
   password TEXT NOT NULL,
   status TEXT DEFAULT 'Aktif',
   qr_token TEXT,
+  role TEXT DEFAULT 'guru',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -38,6 +39,20 @@ CREATE TABLE IF NOT EXISTS guru (
 -- berbeda dari QR di halaman depan yang isinya guru.id untuk absen piket.
 ALTER TABLE guru ADD COLUMN IF NOT EXISTS qr_token TEXT UNIQUE;
 CREATE INDEX IF NOT EXISTS idx_guru_qr_token ON guru(qr_token);
+
+-- ── ROLE AKUN (guru biasa vs kepala sekolah) ─────────────────────
+-- PENTING: ini adalah ROLE AKUN, terpisah sepenuhnya dari kolom `jabatan`
+-- (yang cuma label tampilan bebas seperti "Kepala Sekolah", "Guru BK",
+-- dsb — lihat jabatanList di api/settings.js). Sebelum kolom ini ada,
+-- akun Kepala Sekolah TIDAK BISA dibedakan dari guru biasa oleh sistem:
+-- dashboard-nya sama, bisa muncul di jadwal piket, dan bisa tercatat
+-- sebagai guru piket pengganti otomatis lewat scan kartu. Kolom ini
+-- dipakai backend (api/scan.js, api/sync.js) untuk MENOLAK akun kepsek
+-- dari jalur piket, dan oleh frontend (index.html) untuk menampilkan
+-- menu khusus pengawasan (read-only) alih-alih menu operasional guru.
+-- Nilai yang valid hanya 'guru' atau 'kepsek'.
+ALTER TABLE guru ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'guru';
+UPDATE guru SET role = 'guru' WHERE role IS NULL;
 
 -- ─── TABEL SISWA ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS siswa (

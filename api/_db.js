@@ -364,10 +364,17 @@ module.exports = {
 };
 async function requireAdminToken(token) {
   if (!token) return false;
+  // Sengaja TIDAK pakai .maybeSingle() di sini: kalau suatu saat ada lebih
+  // dari 1 baris admin yang qr_token-nya kebetulan sama (data lama/dobel,
+  // migrasi, dll), .maybeSingle() akan mengembalikan ERROR (bukan data)
+  // untuk kasus itu -- dan kode sebelumnya HANYA membaca `data` (mengabaikan
+  // `error`), jadi token yang sebenarnya valid bisa dianggap tidak valid
+  // ("Sesi admin tidak valid") padahal cocok. .limit(1) + cek panjang array
+  // tidak punya masalah ini.
   const { data } = await supabase
     .from('admin')
     .select('username')
-    .eq('qr_token', token)
-    .maybeSingle();
-  return !!data;
+    .eq('qr_token', String(token).trim())
+    .limit(1);
+  return !!(data && data.length > 0);
 }

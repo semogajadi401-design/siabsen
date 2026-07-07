@@ -650,6 +650,20 @@ async function inputTanpaKartu({ username, siswaIds, mode }) {
     // Mode datang
     if (absenHariIni?.jam_datang) { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: `Sudah absen datang pukul ${absenHariIni.jam_datang}` }); continue; }
 
+    // Jaga-jaga kondisi balapan (race condition): siswa yang barusan
+    // diinput Sakit/Izin oleh guru piket/admin lain persis saat checklist
+    // "Tanpa Kartu" ini sedang diisi -- frontend sudah menyaring daftar
+    // checklist dari belumHadir (lihat getLogHariIni), tapi tetap dicek
+    // ulang di server supaya tidak ada siswa sakit/izin yang kecatat
+    // "Hadir" gara-gara data checklist di HP guru sempat basi beberapa detik.
+    const { data: ketHariIni } = await supabase
+      .from('keterangan_absensi').select('status')
+      .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
+    if (ketHariIni) {
+      gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: `Sudah diinput ${ketHariIni.status} hari ini` });
+      continue;
+    }
+
     const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
     const absenId = generateID('AB');
     const { error } = await supabase.from('absensi').insert({
@@ -677,6 +691,19 @@ async function inputTanpaKartu({ username, siswaIds, mode }) {
 }
 
 // ── GET LOG ABSENSI HARI INI ──────────────────────────────────────
+// PENTING — DIPERBAIKI: sebelumnya fungsi ini SAMA SEKALI tidak
+// membaca tabel keterangan_absensi (tempat guru piket/admin input
+// sakit/izin lewat menu "Kehadiran Hari Ini", api/kehadiran.js).
+// Akibatnya siswa yang sudah diinput Sakit/Izin tetap muncul di
+// tab "Belum Hadir" halaman scan, dan bisa ikut tercentang di modal
+// "Tanpa Kartu" (yang mengambil sumber data dari sini juga) seolah-
+// olah dia belum ada keterangan apapun. Sekarang dipisah jadi 3
+// kelompok, konsisten dengan pola yang sudah dipakai getSiswaKehadiran
+// (api/kehadiran.js) dan dashboard() (api/absensi.js):
+//   1. hadir      -> sudah ada jam_datang di tabel absensi
+//   2. izinSakit  -> belum absen, TAPI sudah ada baris di
+//                    keterangan_absensi hari ini (Sakit/Izin/dst)
+//   3. belumHadir -> belum absen DAN belum ada keterangan apapun
 async function getLogHariIni({ kelas }) {
   const today = todayStr();
 
@@ -692,19 +719,36 @@ async function getLogHariIni({ kelas }) {
   if (kelas) qAbsen = qAbsen.eq('kelas', kelas);
   const { data: absenData } = await qAbsen;
 
+  // Ambil keterangan sakit/izin hari ini (sudah diinput guru piket/admin)
+  let qKet = supabase.from('keterangan_absensi').select('*').eq('tanggal', today);
+  if (kelas) qKet = qKet.eq('kelas', kelas);
+  const { data: ketData } = await qKet;
+
   const absenMap = {};
   (absenData || []).forEach(a => { absenMap[a.id_siswa] = a; });
 
-  const hadir     = [];
+  const ketMap = {};
+  (ketData || []).forEach(k => { ketMap[k.id_siswa] = k; });
+
+  const hadir      = [];
+  const izinSakit  = [];
   const belumHadir = [];
 
   (siswaSemua || []).forEach(s => {
     const absen = absenMap[s.id];
+    const ket   = ketMap[s.id];
+
     if (absen && absen.jam_datang) {
       hadir.push({
         id: s.id, nisn: s.nisn, nama: s.nama, kelas: s.kelas,
         jamDatang: absen.jam_datang, statusDatang: absen.status_datang,
         jamPulang: absen.jam_pulang || null
+      });
+    } else if (ket) {
+      izinSakit.push({
+        id: s.id, nisn: s.nisn, nama: s.nama, kelas: s.kelas,
+        status: ket.status, keterangan: ket.keterangan || null,
+        diinputOleh: ket.diinput_oleh || null
       });
     } else {
       belumHadir.push({
@@ -717,8 +761,9 @@ async function getLogHariIni({ kelas }) {
     success: true,
     totalSiswa: (siswaSemua || []).length,
     totalHadir: hadir.length,
+    totalIzinSakit: izinSakit.length,
     totalBelum: belumHadir.length,
-    hadir, belumHadir
+    hadir, izinSakit, belumHadir
   };
 }
 

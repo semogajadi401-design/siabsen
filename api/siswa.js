@@ -62,11 +62,22 @@ async function getAll({ activeOnly, kelas }, isAdmin) {
 
   // Backfill riwayat_token untuk siswa lama yang belum punya token
   // (misal siswa yang ditambahkan sebelum fitur QR riwayat ada).
+  // PERBAIKAN: sebelumnya loop ini memanggil generateRiwayatToken() SATU
+  // PER SATU secara berurutan (2 round-trip DB per siswa) -- di sekolah
+  // dengan banyak siswa lama belum bertoken, ini bisa membuat getAll()
+  // (dipanggil scan.html DAN index.html/menu Data Siswa/Kartu Identitas)
+  // sangat lambat, bahkan berisiko timeout total di tengah request kalau
+  // datanya besar. generateRiwayatTokenBatch() di bawah ini SUDAH ADA
+  // sejak awal justru untuk kasus ini (lihat komentarnya di _db.js) tapi
+  // belum pernah dipakai di sini -- sekarang dipakai: 1 query cek tabrakan
+  // untuk SEMUA token sekaligus, lalu semua UPDATE dijalankan PARALEL.
   const belumAdaToken = (data || []).filter(s => !s.riwayat_token);
-  for (const s of belumAdaToken) {
-    const token = await generateRiwayatToken();
-    const { error: eUpdate } = await supabase.from('siswa').update({ riwayat_token: token }).eq('id', s.id);
-    if (!eUpdate) s.riwayat_token = token;
+  if (belumAdaToken.length > 0) {
+    const tokens = await generateRiwayatTokenBatch(belumAdaToken.length);
+    await Promise.all(belumAdaToken.map((s, i) =>
+      supabase.from('siswa').update({ riwayat_token: tokens[i] }).eq('id', s.id)
+        .then(({ error }) => { if (!error) s.riwayat_token = tokens[i]; })
+    ));
   }
 
   if (!isAdmin) {

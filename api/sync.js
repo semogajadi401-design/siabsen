@@ -103,10 +103,23 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   // ── CEK GURU ────────────────────────────────────────────────────
   if (id.startsWith('GR')) {
     const { data: guru } = await supabase
-      .from('guru').select('id,nama,jabatan,status').eq('id', id).maybeSingle();
+      .from('guru').select('id,nama,jabatan,status,role').eq('id', id).maybeSingle();
 
     if (!guru)           return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
+
+    // Samakan dengan cekIzinPiket() di api/scan.js: akun Kepala Sekolah
+    // WAJIB ditolak dari jalur piket juga di jalur offline (scan yang
+    // sempat tersimpan lokal di scan.html lalu disinkronkan belakangan),
+    // supaya perilaku online & offline konsisten -- kalau ini tidak
+    // ditambahkan, kepsek masih bisa "kescan" jadi piket selama
+    // perangkat sedang offline saat itu.
+    if (guru.role === 'kepsek') {
+      return {
+        success: false, tipe: 'guru',
+        message: 'Akun Kepala Sekolah tidak diperbolehkan tercatat sebagai guru piket'
+      };
+    }
 
     const { data: sudahScan } = await supabase
       .from('sesi_piket').select('id')

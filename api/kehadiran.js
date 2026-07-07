@@ -14,21 +14,28 @@ const {
 // (kalender hari libur per tanggal, tabel hari_kerja). Kalau butuh
 // pengaturan hari sekolah aktif, pakai api/settings.js.
 //
-// PENTING — SEBELUMNYA FILE INI TIDAK PUNYA PENGECEKAN LOGIN ADMIN SAMA
-// SEKALI, beda dari semua file admin lain (guru.js, siswa.js, semester.js,
-// settings.js, absensi.js) yang selalu cek requireAdminToken di awal.
-// Semua action di sini (getSiswaKehadiran, inputKeterangan, hapusKeterangan,
-// rekapKeteranganRange) hanya dipanggil dari index.html (dashboard admin),
-// TIDAK PERNAH dari scan.html, jadi aman dikunci semua — dan memang
-// harus dikunci karena isinya termasuk data sensitif (alasan sakit/izin
-// siswa) serta aksi hapus/ubah data.
+// PENTING — DIPERBAIKI: sebelumnya SEMUA action di file ini dikunci
+// requireAdminToken, termasuk yang cuma baca laporan (getStatusHariIni,
+// getSiswaKehadiran, rekapKeteranganRange). Itu cocok selama halaman yang
+// memakainya (Kehadiran Hari Ini, Evaluasi Kehadiran) cuma dibuka oleh
+// admin -- tapi begitu akun Kepala Sekolah (role terpisah, lihat
+// api/guru.js & schema.sql) perlu buka menu Rekap/Evaluasi Kehadiran
+// sebagai pengawas, requestnya GAGAL karena kepsek tidak dan tidak
+// seharusnya punya adminToken. Disamakan dengan pola api/absensi.js &
+// api/settings.js: hanya action yang MENGUBAH/MENGHAPUS data
+// (inputKeterangan, hapusKeterangan) yang dikunci; action baca (laporan)
+// tetap terbuka.
+const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan']);
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   const { action, adminToken, ...params } = req.body || {};
 
-  const valid = await requireAdminToken(adminToken);
-  if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  if (AKSI_TERKUNCI.has(action)) {
+    const valid = await requireAdminToken(adminToken);
+    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
 
   try {
     if (action === 'getStatusHariIni')     return res.json(await getStatusHariIni());

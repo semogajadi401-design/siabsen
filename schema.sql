@@ -125,10 +125,23 @@ CREATE TABLE IF NOT EXISTS semester (
 );
 
 -- ─── TABEL PENGATURAN HARI KERJA ────────────────────────────
+-- jam_pulang_mulai / jam_pulang_selesai: override jam pulang KHUSUS hari
+-- itu (mis. Jumat pulang lebih awal). NULL/kosong = ikuti nilai global
+-- di jam_setting (JAM_PULANG_MULAI/JAM_PULANG_SELESAI, menu Pengaturan
+-- Jam). Diedit dari menu Pengaturan Semester, dibaca oleh
+-- getJamPulangEfektif() di api/_db.js supaya seluruh sistem (scan
+-- barcode, validasi absen pulang, dsb.) konsisten pakai sumber yang sama.
 CREATE TABLE IF NOT EXISTS pengaturan_hari_kerja (
   hari TEXT PRIMARY KEY,
-  aktif BOOLEAN DEFAULT true
+  aktif BOOLEAN DEFAULT true,
+  jam_pulang_mulai TEXT,
+  jam_pulang_selesai TEXT
 );
+
+-- Kalau tabel sudah ada dari sebelumnya (setup lama), tambahkan kolom
+-- yang belum ada tanpa mengubah data yang sudah tersimpan.
+ALTER TABLE pengaturan_hari_kerja ADD COLUMN IF NOT EXISTS jam_pulang_mulai TEXT;
+ALTER TABLE pengaturan_hari_kerja ADD COLUMN IF NOT EXISTS jam_pulang_selesai TEXT;
 
 -- ─── TABEL KETERANGAN ABSENSI (sakit/izin, dst) ─────────────
 CREATE TABLE IF NOT EXISTS keterangan_absensi (

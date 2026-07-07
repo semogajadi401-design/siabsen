@@ -1315,7 +1315,11 @@ function handleScanResult(result, data, now) {
           nama: result.guru.nama,
           jabatan: result.guru.jabatan,
           username: result.guru.username,
-          role: 'guru'
+          // role asli dari database (guru/kepsek) -- lihat api/scan.js.
+          // Sebelumnya di-hardcode 'guru' di sini, sehingga akun Kepala
+          // Sekolah yang bypass login lewat QR kartu ini tetap masuk ke
+          // dashboard guru piket biasa alih-alih menu pengawasan kepsek.
+          role: result.guru.role || 'guru'
         },
         loginTime: Date.now()
       };

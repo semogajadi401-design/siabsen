@@ -1986,7 +1986,16 @@ window.onload = async function() {
     setTimeout(async () => {
       document.getElementById('splash').style.display = 'none';
       document.getElementById('app').style.display = 'block';
-      await kelasPromise;
+      // SEBELUMNYA ada `await kelasPromise;` di sini — itu justru
+      // bertentangan dengan niat komentar di atas ("tidak perlu menunggu
+      // sebelum reveal"). Akibatnya, kalau loadAndMergeKelas() lambat
+      // (koneksi HP kurang stabil, misal pas scan di gerbang sekolah) atau
+      // gagal dengan cara tak terduga, dashboard guru/kepsek TIDAK PERNAH
+      // ditampilkan — yang kelihatan cuma layar putih kosong setelah splash.
+      // Login manual (doLogin) tidak pernah menunggu kelasPromise sama
+      // sekali, makanya bug ini cuma muncul lewat auto-login QR. Sekarang
+      // dashboard langsung tampil, data kelas menyusul di background.
+      kelasPromise.then(() => { if (saved) populateKelasDropdowns(); }).catch(() => {});
       if (saved) {
         document.getElementById('mainApp').style.display = 'flex';
         setupUserUI(saved);

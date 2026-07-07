@@ -41,11 +41,26 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   background:var(--surface);
   padding:10px 22px;
   display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;row-gap:6px;
   border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:50;
-  height:58px;
+  min-height:58px;
 }
 .header-left{display:flex;align-items:center;gap:10px}
+.header-jaminfo{
+  flex:1 1 340px;
+  text-align:center;
+  font-size:.78rem;font-weight:600;color:var(--text-muted);
+  line-height:1.35;padding:0 16px;
+}
+.header-jaminfo b{font-size:1.08rem;font-weight:800;color:var(--primary-dark);font-variant-numeric:tabular-nums}
+@media(max-width:900px){
+  .header-jaminfo{order:3;flex-basis:100%;text-align:center;padding:2px 0 0}
+}
+@media(max-width:520px){
+  .header-jaminfo{font-size:.7rem}
+  .header-jaminfo b{font-size:.92rem}
+}
 .header-logo{
   width:36px;height:36px;border-radius:10px;
   background:linear-gradient(135deg,#22C55E,#16A34A);
@@ -649,6 +664,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <p id="headerSub">Sistem Informasi Absensi Sekolah</p>
     </div>
   </div>
+  <div class="header-jaminfo" id="jamInfoBar">&nbsp;</div>
   <div style="display:flex;align-items:center;gap:12px">
     <div class="header-time">
       <div class="jam" id="headerJam">00:00:00</div>
@@ -971,6 +987,24 @@ function updateClock() {
 }
 setInterval(updateClock,1000); updateClock();
 
+// ── JAM INFO BAR (Datang/Pulang) ───────────────────────────────────
+// Ditampilkan di tengah header. jamMulai & jamPulangMulai datang dari
+// getStatus() di api/scan.js: jamMulai ikut Pengaturan Jam (global),
+// jamPulangMulai sudah lewat getJamPulangEfektif() -- pakai override
+// per-hari kalau admin mengatur jam pulang khusus hari itu di menu
+// Pengaturan Semester, atau fallback ke jam pulang global kalau hari
+// itu tidak di-override.
+function updateJamInfoBar(r) {
+  const el = document.getElementById('jamInfoBar');
+  if (!el) return;
+  if (r && r.success && r.bisaAbsen) {
+    el.innerHTML = `Hari <b>${r.hari}</b> &mdash; Absen Datang mulai pukul : <b>${r.jamMulai}</b>. `
+                 + `Absen Jam Pulang mulai pukul <b>${r.jamPulangMulai}</b>`;
+  } else if (r && r.keterangan) {
+    el.innerHTML = r.keterangan;
+  }
+}
+
 // ── TOAST ────────────────────────────────────────────────────────
 function toast(msg, dur=3000) {
   const t = document.createElement('div');
@@ -1082,11 +1116,15 @@ async function checkStatus() {
       liburBanner.style.display = 'block';
       mainContent.style.display = 'none';
       document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
+      updateJamInfoBar(r);
       return;
     }
 
     liburBanner.style.display = 'none';
     mainContent.style.display = 'grid';
+
+    // Update teks jam datang/pulang di header
+    updateJamInfoBar(r);
 
     // Update status guru
     updateGuruStatus(r.guruPiket || [], r);

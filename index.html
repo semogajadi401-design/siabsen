@@ -4872,24 +4872,37 @@ async function loadHariKerjaSettings() {
   const container = document.getElementById('hariKerjaList');
   if (!result.success || !container) return;
   container.innerHTML = result.data.map(h => `
-    <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:var(--transition)" 
-      onmouseover="this.style.borderColor='var(--primary)'" 
-      onmouseout="this.style.borderColor='var(--border)'">
-      <input type="checkbox" id="hk_${h.hari}" value="${h.hari}" ${h.aktif ? 'checked' : ''}
-        style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
-      <span style="font-weight:600;font-size:.9rem">${h.hari}</span>
-      ${h.aktif ? '<span class="badge badge-success" style="margin-left:auto">Aktif</span>' : '<span class="badge badge-gray" style="margin-left:auto">Libur</span>'}
-    </label>
+    <div style="border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;transition:var(--transition)">
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer">
+        <input type="checkbox" id="hk_${h.hari}" value="${h.hari}" ${h.aktif ? 'checked' : ''}
+          onchange="document.getElementById('hkJam_${h.hari}').style.display=this.checked?'flex':'none'"
+          style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+        <span style="font-weight:600;font-size:.9rem">${h.hari}</span>
+        ${h.aktif ? '<span class="badge badge-success" style="margin-left:auto">Aktif</span>' : '<span class="badge badge-gray" style="margin-left:auto">Libur</span>'}
+      </label>
+      <div id="hkJam_${h.hari}" style="display:${h.aktif ? 'flex' : 'none'};gap:10px;margin:10px 0 2px 30px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">🌙 Jam pulang khusus hari ini:</span>
+        <input type="time" id="hkPulangMulai_${h.hari}" class="form-control" value="${h.jamPulangMulai || ''}" style="width:auto;padding:5px 8px;font-size:.82rem">
+        <span style="font-size:.78rem;color:var(--text-muted)">s/d</span>
+        <input type="time" id="hkPulangSelesai_${h.hari}" class="form-control" value="${h.jamPulangSelesai || ''}" style="width:auto;padding:5px 8px;font-size:.82rem">
+        <span style="font-size:.72rem;color:var(--text-muted);font-style:italic">kosongkan = ikut Pengaturan Jam</span>
+      </div>
+    </div>
   `).join('');
 }
 
 async function saveHariKerja() {
   const hariList = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'].map(h => ({
     hari: h,
-    aktif: document.getElementById('hk_' + h)?.checked || false
+    aktif: document.getElementById('hk_' + h)?.checked || false,
+    // Kosong = ikut Pengaturan Jam (nilai global) — lihat getJamPulangEfektif
+    // di api/_db.js. Cuma relevan kalau hari itu dicentang aktif.
+    jamPulangMulai: document.getElementById('hkPulangMulai_' + h)?.value || '',
+    jamPulangSelesai: document.getElementById('hkPulangSelesai_' + h)?.value || ''
   }));
   const result = await api('settings', 'updatePengaturanHari', { hariList });
   toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) loadHariKerjaSettings();
 }
 
 function resetFormSemester() {

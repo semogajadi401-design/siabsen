@@ -164,14 +164,24 @@ async function getPengaturanHari() {
   if (!data || !data.length) {
     return {
       success: true,
-      data: urutan.map(h => ({ hari: h, aktif: false }))
+      data: urutan.map(h => ({ hari: h, aktif: false, jamPulangMulai: '', jamPulangSelesai: '' }))
     };
   }
 
   const sorted = [...data].sort(
     (a, b) => urutan.indexOf(a.hari) - urutan.indexOf(b.hari)
   );
-  return { success: true, data: sorted };
+  return {
+    success: true,
+    data: sorted.map(h => ({
+      hari: h.hari,
+      aktif: h.aktif,
+      // Kosong ("") berarti ikut nilai global di Pengaturan Jam — lihat
+      // getJamPulangEfektif() di api/_db.js.
+      jamPulangMulai: h.jam_pulang_mulai || '',
+      jamPulangSelesai: h.jam_pulang_selesai || ''
+    }))
+  };
 }
 
 async function updatePengaturanHari({ hariList }) {
@@ -187,7 +197,17 @@ async function updatePengaturanHari({ hariList }) {
   // membaca tabel yang ternyata masih kosong, jadi semua centang balik
   // ke tidak aktif lagi. Sekarang upsert dilakukan sekaligus (batch)
   // dan error-nya benar-benar dicek & dilaporkan ke user.
-  const rows = hariList.map(item => ({ hari: item.hari, aktif: item.aktif }));
+  //
+  // jamPulangMulai/jamPulangSelesai: opsional, override jam pulang KHUSUS
+  // hari itu (mis. Jumat pulang lebih awal). Dikosongkan/kirim '' berarti
+  // ikut nilai global di Pengaturan Jam — disimpan sebagai NULL supaya
+  // getJamPulangEfektif() di api/_db.js jatuh ke fallback global.
+  const rows = hariList.map(item => ({
+    hari: item.hari,
+    aktif: item.aktif,
+    jam_pulang_mulai: item.jamPulangMulai ? item.jamPulangMulai : null,
+    jam_pulang_selesai: item.jamPulangSelesai ? item.jamPulangSelesai : null
+  }));
   const { error } = await supabase
     .from('pengaturan_hari_kerja')
     .upsert(rows, { onConflict: 'hari' });

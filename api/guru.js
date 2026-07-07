@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
 
 async function getAll({ activeOnly }) {
   let q = supabase.from('guru')
-    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,created_at')
+    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,role,created_at')
     .order('nama');
   if (activeOnly === true || activeOnly === 'true') q = q.eq('status', 'Aktif');
   const { data, error } = await q;
@@ -48,7 +48,7 @@ async function getAll({ activeOnly }) {
       id: g.id, nama: g.nama, jenisKelamin: g.jenis_kelamin,
       jabatan: g.jabatan, nip: g.nip, noHp: g.no_hp,
       email: g.email, alamat: g.alamat, username: g.username, status: g.status,
-      qrToken: g.qr_token
+      qrToken: g.qr_token, role: g.role || 'guru'
     }))
   };
 }
@@ -58,12 +58,16 @@ async function tambah({ data }) {
   const username = await generateUsername(data.nama);
   const rawPassword = (data.password && data.password.trim().length >= 6)
     ? data.password.trim() : generatePassword();
+  // Whitelist nilai role secara ketat -- JANGAN percaya begitu saja nilai
+  // dari frontend, supaya tidak ada jalan (sengaja/tidak sengaja) untuk
+  // menyimpan role selain 'guru'/'kepsek' ke database.
+  const role = data.role === 'kepsek' ? 'kepsek' : 'guru';
   const { error } = await supabase.from('guru').insert({
     id, nama: data.nama, jenis_kelamin: data.jenisKelamin,
     jabatan: data.jabatan, nip: data.nip || '', no_hp: data.noHp || '',
     email: data.email || '', alamat: data.alamat || '',
     username, password: await hashPassword(rawPassword), status: 'Aktif',
-    qr_token: await generateGuruQrToken()
+    qr_token: await generateGuruQrToken(), role
   });
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Guru berhasil ditambahkan', username, password: rawPassword, id };
@@ -73,7 +77,10 @@ async function edit({ id, data }) {
   const updates = {
     nama: data.nama, jenis_kelamin: data.jenisKelamin,
     jabatan: data.jabatan, nip: data.nip || '', no_hp: data.noHp || '',
-    email: data.email || '', alamat: data.alamat || ''
+    email: data.email || '', alamat: data.alamat || '',
+    // Sama seperti tambah(): whitelist ketat, jangan simpan nilai role
+    // apapun selain 'guru'/'kepsek'.
+    role: data.role === 'kepsek' ? 'kepsek' : 'guru'
   };
   if (data.password && data.password.trim().length >= 6) {
     updates.password = await hashPassword(data.password.trim());

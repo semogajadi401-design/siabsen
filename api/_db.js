@@ -290,6 +290,32 @@ async function getSemesterAktif() {
     .maybeSingle();
   return data || null;
 }
+// ── JAM PULANG EFEKTIF (per hari, dengan fallback ke global) ─────
+// Sekolah tidak selalu pulang jam yang sama tiap hari (mis. Jumat lebih
+// awal). Admin bisa override JAM_PULANG_MULAI/SELESAI khusus untuk hari
+// tertentu lewat menu Pengaturan Semester (tabel pengaturan_hari_kerja,
+// kolom jam_pulang_mulai/jam_pulang_selesai). Kalau untuk hari itu
+// override-nya kosong/NULL, otomatis pakai nilai global dari menu
+// Pengaturan Jam (jam_setting). SEMUA tempat yang butuh jam pulang hari
+// ini (getStatus, scanKartu, sync offline, scan.html) WAJIB lewat fungsi
+// ini supaya tidak ada yang "ketinggalan" baca jam global secara terpisah.
+async function getJamPulangEfektif(namaHari, jamSetting) {
+  const globalMulai   = (jamSetting && jamSetting['JAM_PULANG_MULAI'])   || '14:00';
+  const globalSelesai = (jamSetting && jamSetting['JAM_PULANG_SELESAI']) || '16:00';
+
+  const { data } = await supabase
+    .from('pengaturan_hari_kerja')
+    .select('jam_pulang_mulai, jam_pulang_selesai')
+    .eq('hari', namaHari)
+    .maybeSingle();
+
+  return {
+    jamPulangMulai:   (data && data.jam_pulang_mulai)   ? data.jam_pulang_mulai   : globalMulai,
+    jamPulangSelesai: (data && data.jam_pulang_selesai) ? data.jam_pulang_selesai : globalSelesai,
+    override: !!(data && (data.jam_pulang_mulai || data.jam_pulang_selesai))
+  };
+}
+
 module.exports = {
   supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
@@ -297,7 +323,7 @@ module.exports = {
   generateRiwayatTokenBatch, generateGuruQrToken,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
-  requireAdminToken
+  requireAdminToken, getJamPulangEfektif
 };
 async function requireAdminToken(token) {
   if (!token) return false;

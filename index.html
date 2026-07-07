@@ -772,6 +772,19 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-item color-teal active" onclick="showPage('absensi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Absensi Siswa</span></div>
       <div class="nav-item color-teal" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
     </div>
+    <!-- KEPSEK NAV — khusus akun Kepala Sekolah (guru.role === 'kepsek').
+         Sengaja HANYA berisi menu pengawasan/read-only: tidak ada Absensi
+         Siswa (aksi input), tidak ada Data Master (guru/siswa/kelas/jadwal
+         piket bisa diubah), tidak ada Pengaturan/Reset. Kepsek = "mata yang
+         melihat semuanya, tapi tangan yang tidak menyentuh operasional". -->
+    <div id="kepsekNav" class="sidebar-nav" style="display:none">
+      <div class="nav-section-label lbl-blue">Pengawasan</div>
+      <div class="nav-item color-blue active" onclick="showPage('dashboard')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg><span>Ringkasan Sekolah</span></div>
+      <div class="nav-section-label lbl-amber">Laporan</div>
+      <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
+      <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
+      <div class="nav-item color-amber" onclick="showPage('kepsekPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Kepatuhan Piket Guru</span></div>
+    </div>
     <div class="sidebar-footer">
       <div class="user-badge">
         <div class="user-avatar" id="userAvatar">A</div>
@@ -855,8 +868,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <input type="text" placeholder="Cari guru..." oninput="filterTable('guruTable',this.value)" class="form-control">
             </div>
             <div class="table-responsive"><table id="guruTable">
-              <thead><tr><th>No</th><th>Nama</th><th>JK</th><th>Jabatan</th><th>Username</th><th>Status</th><th>Aksi</th></tr></thead>
-              <tbody id="guruTableBody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+              <thead><tr><th>No</th><th>Nama</th><th>JK</th><th>Jabatan</th><th>Peran</th><th>Username</th><th>Status</th><th>Aksi</th></tr></thead>
+              <tbody id="guruTableBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
         </div>
@@ -1376,6 +1389,37 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         </div>
       </div>
       
+      <!-- KEPATUHAN PIKET GURU (khusus akun Kepala Sekolah) -->
+      <div class="page" id="page-kepsekPiket">
+        <div class="card">
+          <div class="card-header"><h3>👑 Kepatuhan Piket Guru</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input type="month" id="kepsekPiketBulan" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="loadKepsekPiket()">
+              <button class="btn btn-outline btn-sm" onclick="loadKepsekPiket()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div style="background:var(--primary-pale);border:1px solid var(--primary);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:.82rem;line-height:1.6">
+              ℹ️ Laporan disiplin piket per guru terjadwal untuk bulan yang dipilih.
+              <b>Hadir Tepat</b> = piket sendiri sesuai jadwal. <b>Digantikan</b> = ada guru lain
+              yang piket menggantikannya. <b>Kosong</b> = tidak ada siapapun piket hari itu (perlu
+              ditindaklanjuti). <b>Jadi Pengganti</b> = dia menutup jadwal guru lain di luar
+              jadwalnya sendiri.
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr><th>Nama Guru</th><th>Hadir Tepat</th><th>Digantikan</th><th>Kosong</th><th>Jadi Pengganti</th></tr>
+                </thead>
+                <tbody id="kepsekPiketBody">
+                  <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- PENGATURAN SEMESTER -->
       <div class="page" id="page-semester">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
@@ -1443,6 +1487,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <div class="form-group"><label>Nama Lengkap *</label><input type="text" id="guruNama" class="form-control"></div>
         <div class="form-group"><label>Jenis Kelamin *</label><select id="guruJK" class="form-control"><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
         <div class="form-group"><label>Jabatan *</label><select id="guruJabatan" class="form-control"></select></div>
+        <div class="form-group">
+          <label>Peran Akun *
+            <span title="Menentukan menu yang tampil setelah login, TERPISAH dari Jabatan di atas. 'Kepala Sekolah' hanya dapat menu pengawasan (read-only) dan TIDAK BISA jadi guru piket, baik terjadwal maupun sebagai pengganti otomatis." style="cursor:help;color:var(--text-muted)">ⓘ</span>
+          </label>
+          <select id="guruRole" class="form-control">
+            <option value="guru">Guru (menu operasional: absensi piket)</option>
+            <option value="kepsek">Kepala Sekolah (menu pengawasan, read-only)</option>
+          </select>
+        </div>
         <div class="form-group"><label>NIP</label><input type="text" id="guruNIP" class="form-control"></div>
         <div class="form-group"><label>No. HP</label><input type="text" id="guruHP" class="form-control"></div>
         <div class="form-group"><label>Email</label><input type="email" id="guruEmail" class="form-control"></div>
@@ -1996,10 +2049,11 @@ document.addEventListener('DOMContentLoaded', () => {
 function showLoginError(msg){ const el=document.getElementById('loginError'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none',4000); }
 function setupUserUI(user) {
   document.getElementById('userName').textContent = user.nama;
-  document.getElementById('userRole').textContent = user.role==='admin'?'Administrator':user.jabatan||'Guru';
+  document.getElementById('userRole').textContent = user.role==='admin'?'Administrator':(user.role==='kepsek'?'Kepala Sekolah':(user.jabatan||'Guru'));
   document.getElementById('userAvatar').textContent = user.nama.charAt(0).toUpperCase();
   document.getElementById('adminNav').style.display = user.role==='admin'?'block':'none';
   document.getElementById('guruNav').style.display = user.role==='guru'?'block':'none';
+  document.getElementById('kepsekNav').style.display = user.role==='kepsek'?'block':'none';
   
   // ========== TAMBAHKAN KODE INI ==========
   if (user.role === 'admin') {
@@ -2026,14 +2080,14 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,absensi:()=>{loadLogAbsensi();}};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,absensi:()=>{loadLogAbsensi();},kepsekPiket:loadKepsekPiket};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
 function initFirstPage(role) {
-  if(role==='admin'){ showPage('dashboard'); }
+  if(role==='admin' || role==='kepsek'){ showPage('dashboard'); }
   else { showPage('absensi'); loadLogAbsensi(); }
 }
 function toggleSidebar(force) {
@@ -2131,20 +2185,21 @@ async function loadGuru() {
   try {
     const result = await api('guru','getAll',{activeOnly:false});
     const tbody=document.getElementById('guruTableBody');
-    if(!result.success||result.data.length===0){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">${result.success?'Belum ada data guru':result.message}</td></tr>`; return; }
+    if(!result.success||result.data.length===0){ tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">${result.success?'Belum ada data guru':result.message}</td></tr>`; return; }
     window._guruData = result.data;
     // Tombol "Nonaktifkan" (soft-delete, status -> Nonaktif) hanya tampil untuk
     // guru yang masih Aktif, supaya alur guru sama seperti siswa: nonaktifkan
     // dulu (data & histori piket tetap aman), baru hapus permanen kalau memang
     // yakin. Sebelumnya guru cuma bisa dihapus permanen dari UI meski backend
     // sudah punya endpoint nonaktifkan (guru.hapus) — sekarang dipakai.
-    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${g.nama}</div><div style="font-size:.76rem;color:var(--text-muted)">${g.nip||'-'}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${g.jabatan}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${g.username}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
+    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${g.nama}</div><div style="font-size:.76rem;color:var(--text-muted)">${g.nip||'-'}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${g.jabatan}</td><td>${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${g.username}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
   } catch(e){ toast('Gagal memuat data guru','error'); }
 }
 function openModalGuru(){
   ['guruId','guruNama','guruNIP','guruHP','guruEmail','guruAlamat','guruPassword'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('guruJK').value='Laki-laki';
   document.getElementById('guruJabatan').selectedIndex=0;
+  document.getElementById('guruRole').value='guru';
   document.getElementById('guruCredInfo').style.display='none';
   document.getElementById('modalGuruTitle').textContent='Tambah Guru';
   openModal('modalGuru');
@@ -2154,6 +2209,7 @@ function editGuru(guru){
   document.getElementById('guruNama').value=guru.nama;
   document.getElementById('guruJK').value=guru.jenisKelamin;
   document.getElementById('guruJabatan').value=guru.jabatan;
+  document.getElementById('guruRole').value=guru.role==='kepsek'?'kepsek':'guru';
   document.getElementById('guruNIP').value=guru.nip||'';
   document.getElementById('guruHP').value=guru.noHp||'';
   document.getElementById('guruEmail').value=guru.email||'';
@@ -2167,7 +2223,7 @@ async function submitGuru(){
   const id=document.getElementById('guruId').value;
   const pw=document.getElementById('guruPassword').value.trim();
   if(pw&&pw.length<6){toast('Password minimal 6 karakter','error');return;}
-  const data={nama:document.getElementById('guruNama').value.trim(),jenisKelamin:document.getElementById('guruJK').value,jabatan:document.getElementById('guruJabatan').value,nip:document.getElementById('guruNIP').value,noHp:document.getElementById('guruHP').value,email:document.getElementById('guruEmail').value,alamat:document.getElementById('guruAlamat').value,password:pw};
+  const data={nama:document.getElementById('guruNama').value.trim(),jenisKelamin:document.getElementById('guruJK').value,jabatan:document.getElementById('guruJabatan').value,role:document.getElementById('guruRole').value,nip:document.getElementById('guruNIP').value,noHp:document.getElementById('guruHP').value,email:document.getElementById('guruEmail').value,alamat:document.getElementById('guruAlamat').value,password:pw};
   if(!data.nama){toast('Nama wajib diisi','error');return;}
   try{
     let result;
@@ -2846,6 +2902,35 @@ async function downloadKartuAdmin() {
 // sama persis dengan yang sedang ditampilkan ke user.
 let piketHariAktifList = [];
 
+// ── LAPORAN KEPATUHAN PIKET GURU (menu kepsek) ───────────────────
+async function loadKepsekPiket() {
+  const tbody = document.getElementById('kepsekPiketBody');
+  const inputBulan = document.getElementById('kepsekPiketBulan');
+  // Default ke bulan berjalan (waktu WITA, konsisten dengan bagian lain)
+  if (!inputBulan.value) {
+    const now = new Date(Date.now()+8*60*60*1000);
+    inputBulan.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+  const [tahun, bulan] = inputBulan.value.split('-').map(Number);
+  const tanggalMulai = `${tahun}-${String(bulan).padStart(2,'0')}-01`;
+  const akhirBulan = new Date(Date.UTC(tahun, bulan, 0)).getUTCDate();
+  const tanggalSelesai = `${tahun}-${String(bulan).padStart(2,'0')}-${String(akhirBulan).padStart(2,'0')}`;
+
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>';
+  try {
+    const r = await api('settings', 'getLaporanKepatuhanPiket', { tanggalMulai, tanggalSelesai });
+    if (!r.success) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">${r.message||'Gagal memuat laporan'}</td></tr>`; return; }
+    if (!r.data.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada jadwal piket / data piket bulan ini</td></tr>'; return; }
+    tbody.innerHTML = r.data.map(g => `<tr>
+        <td style="font-weight:600">${g.namaGuru}</td>
+        <td><span class="badge badge-success">${g.hadirTepat}</span></td>
+        <td>${g.digantikan ? `<span class="badge badge-warning">${g.digantikan}</span>` : 0}</td>
+        <td>${g.tanpaPiketSamaSekali ? `<span class="badge badge-danger">${g.tanpaPiketSamaSekali}</span>` : 0}</td>
+        <td>${g.jadiPengganti ? `<span class="badge badge-primary">${g.jadiPengganti}</span>` : 0}</td>
+      </tr>`).join('');
+  } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Gagal memuat laporan</td></tr>'; }
+}
+
 async function loadPiket() {
   try {
     const pengaturanHari = await api('settings', 'getPengaturanHari');
@@ -2878,7 +2963,12 @@ async function loadPiket() {
       });
     }
     
-    const daftarGuru = guru.success ? guru.data : [];
+    // Akun Kepala Sekolah TIDAK ditampilkan sebagai kandidat piket sama
+    // sekali -- server (cekIzinPiket di api/scan.js & api/sync.js) sudah
+    // menolaknya secara mutlak (termasuk sebagai pengganti otomatis), ini
+    // cuma lapis UI supaya admin tidak bingung kenapa centang kepsek
+    // "tidak ada efeknya".
+    const daftarGuru = (guru.success ? guru.data : []).filter(g => g.role !== 'kepsek');
 
     // Tampilan lama pakai <select multiple> (Ctrl/Cmd+klik) yang
     // membingungkan, apalagi di HP/tablet tempat "Ctrl+klik" nyaris

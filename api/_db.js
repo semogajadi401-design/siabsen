@@ -353,6 +353,24 @@ async function getJamPulangEfektif(namaHari, jamSetting) {
   };
 }
 
+// ── CEK APAKAH GURU BENAR-BENAR PIKET HARI INI (via sesi_piket) ──────
+// PENTING: sengaja cek ke sesi_piket (guru yang benar-benar SCAN kartu
+// piket), BUKAN ke jadwal_piket (jadwal terjadwal admin). Ini menyamakan
+// prinsip "kebenaran ikut sesi_piket" yang sudah dipakai di
+// getRiwayatPiketGuru & laporan kepatuhan piket (lihat api/settings.js).
+// Efeknya: guru pengganti yang scan tetap dianggap piket hari itu, dan
+// guru yang terjadwal di admin tapi TIDAK scan dianggap TIDAK piket.
+async function isGuruPiketHariIni(idGuru) {
+  if (!idGuru) return false;
+  const { data } = await supabase
+    .from('sesi_piket')
+    .select('id')
+    .eq('tanggal', todayStr())
+    .eq('id_guru', idGuru)
+    .maybeSingle();
+  return !!data;
+}
+
 module.exports = {
   supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
@@ -360,7 +378,7 @@ module.exports = {
   generateRiwayatTokenBatch, generateGuruQrToken, generateGuruQrTokenBatch,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
-  requireAdminToken, getJamPulangEfektif
+  requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni
 };
 async function requireAdminToken(token) {
   if (!token) return false;

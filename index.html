@@ -1161,6 +1161,12 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div class="scan-cooldown-bar" id="scanCooldownBar">
                 <div class="scan-cooldown-fill" id="scanCooldownFill"></div>
               </div>
+              <!-- Tips silau: muncul otomatis kalau QR belum kebaca ±1.5 detik.
+                   Kasus paling umum: gantungan ID card yang mengkilat
+                   memantulkan cahaya di atas kode QR-nya. -->
+              <div id="absenTipsSilau" style="display:none;margin:8px auto 0;max-width:340px;background:#fff8e1;border:1px solid #f0c14b;border-radius:10px;padding:10px 14px;font-size:.82rem;color:#7a5c00;text-align:center;line-height:1.5">
+                💡 QR belum kebaca? Coba <b>miringkan kartu sedikit</b> supaya pantulan cahaya di plastik gantungan tidak menutupi kode QR-nya.
+              </div>
               <div id="noKameraMsg" style="text-align:center;padding:24px;background:var(--bg);border-radius:14px;border:2px dashed var(--border)">
                 <div style="font-size:2.5rem;margin-bottom:8px">📷</div>
                 <p style="font-weight:700;color:var(--text);margin-bottom:6px">Scan QR Kartu Siswa</p>
@@ -2344,10 +2350,12 @@ function buildKartuGuruPrintHTML(guru, settings, uid) {
       </div>
     </div>
 
-    <!-- QR -->
+    <!-- QR — diperbesar (dari 60px jadi 86px), sama seperti kartu siswa,
+         supaya modul QR fisiknya lebih besar & gampang dikunci kamera
+         meski gantungan ID card mengkilat/reflektif. -->
     <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:3px 12px 4px;flex-shrink:0">
-      <div style="width:60px;height:60px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div id="kartuGuruQR_${uid}" style="width:52px;height:52px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      <div style="width:86px;height:86px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuGuruQR_${uid}" style="width:78px;height:78px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
       <div style="font-size:4.3pt;color:#aaa;text-align:center;margin-top:2px;letter-spacing:.2px">Scan untuk piket • ${guru.id}</div>
     </div>
@@ -2411,8 +2419,8 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
          padat, supaya modul QR tetap renggang dan gampang discan kamera. -->
     <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
       <div style="font-size:4.8pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px">Scan untuk masuk ke akun anda</div>
-      <div style="width:60px;height:60px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #1565C0;display:flex;align-items:center;justify-content:center;line-height:0">
-        <div id="kartuGuruBackQR_${uid}" style="width:52px;height:52px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #1565C0;display:flex;align-items:center;justify-content:center;line-height:0">
+        <div id="kartuGuruBackQR_${uid}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
     </div>
 
@@ -2450,12 +2458,21 @@ async function cetakKartuGuru(guru) {
   setTimeout(async () => {
     const qrEl = document.getElementById('kartuGuruQR_' + uid);
     if (qrEl && typeof QRCode !== 'undefined') {
+      // Native 4x (312px) lalu di-scale-down ke 78px via CSS di atas, sama
+      // seperti kartu siswa -- tepi modul QR tetap tajam setelah discale.
+      // correctLevel diturunkan dari M ke L: datanya cuma guru.id (pendek),
+      // modul QR jadi lebih renggang/kasar (bukan halus/padat), jauh lebih
+      // gampang dikunci kamera HP terutama kalau gantungan ID card-nya
+      // mengkilat/reflektif.
       new QRCode(qrEl, {
         text: guru.id,
-        width: 52, height: 52,
+        width: 312, height: 312,
         colorDark: '#0D47A1',
         colorLight: '#FFFFFF',
-        correctLevel: QRCode.CorrectLevel.M
+        correctLevel: QRCode.CorrectLevel.L
+      });
+      qrEl.querySelectorAll('canvas, img').forEach(el => {
+        el.style.width = '78px'; el.style.height = '78px';
       });
     }
     const qrBackEl = document.getElementById('kartuGuruBackQR_' + uid);
@@ -2463,10 +2480,13 @@ async function cetakKartuGuru(guru) {
       if (guru.qrToken) {
         new QRCode(qrBackEl, {
           text: 'GURU_LOGIN|' + guru.qrToken,
-          width: 52, height: 52,
+          width: 264, height: 264,
           colorDark: '#0D47A1',
           colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.L
+        });
+        qrBackEl.querySelectorAll('canvas, img').forEach(el => {
+          el.style.width = '66px'; el.style.height = '66px';
         });
       } else {
         qrBackEl.innerHTML = '<div style="font-size:5pt;color:#c62828;text-align:center;line-height:1.3;padding:2px">⚠ Token belum ada — reload halaman ini sekali lagi</div>';
@@ -3391,15 +3411,19 @@ async function loadKartuSiswa(){
           // manfaat. Sekarang cukup ID-nya saja: fungsinya identik,
           // datanya jauh lebih pendek, QR jadi lebih renggang.
           const qrText = s.id;
-          // Digambar di resolusi native 4x (200px) lalu di-scale-down ke 50px
+          // Digambar di resolusi native 4x (312px) lalu di-scale-down ke 78px
           // lewat CSS. Kanvas QR punya tepi modul yang tegas/kotak (bukan foto),
           // jadi men-downscale dari resolusi tinggi menghasilkan tepi yang jauh
-          // lebih tajam & kontras dibanding menggambar langsung di 50px kecil
+          // lebih tajam & kontras dibanding menggambar langsung di ukuran kecil
           // lalu diperbesar 3x oleh html2canvas saat capture ke PDF.
+          // Ukuran bingkai diperbesar (dari 50px jadi 78px) supaya modul QR
+          // fisik di kartu cetak lebih besar & gampang dikunci kamera,
+          // terutama kalau kartu dipasang di gantungan ID card yang
+          // mengkilat/reflektif.
           new QRCode(qt, {
             text: qrText,
-            width: 200,
-            height: 200,
+            width: 312,
+            height: 312,
             colorDark: '#000000',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
@@ -3409,13 +3433,13 @@ async function loadKartuSiswa(){
           // kompatibilitas download/klik-kanan-simpan-gambar). Elemen
           // <img> itu sudah ada di DOM sejak awal (cuma disembunyikan),
           // jadi keduanya (canvas & img) harus di-set ukurannya di sini,
-          // supaya yang manapun akhirnya tampil tetap ukurannya 50px —
+          // supaya yang manapun akhirnya tampil tetap ukurannya 78px —
           // kalau cuma canvas yang di-styling, begitu library menukarnya
-          // ke <img>, gambar tampil di ukuran asli 200px dan cuma pojok
-          // kiri-atas QR yang kelihatan (kepotong kotak pembungkus 50px).
+          // ke <img>, gambar tampil di ukuran asli 312px dan cuma pojok
+          // kiri-atas QR yang kelihatan (kepotong kotak pembungkus 78px).
           qt.querySelectorAll('canvas, img').forEach(el => {
-            el.style.width = '50px';
-            el.style.height = '50px';
+            el.style.width = '78px';
+            el.style.height = '78px';
           });
         }
         // QR RIWAYAT — beda dari QR di atas. Pakai riwayat_token acak
@@ -3435,12 +3459,12 @@ async function loadKartuSiswa(){
           // toleransi kerusakan L tetap lebih dari cukup untuk kartu
           // yang dicetak & dilaminating rapi (bukan dipakai di lapangan
           // kasar seperti kartu absen harian).
-          // Sama seperti QR absensi di atas: render native 4x (208px) lalu
-          // scale-down ke 52px via CSS supaya tepi modul QR tetap tajam.
+          // Sama seperti QR absensi di atas: render native 4x (264px) lalu
+          // scale-down ke 66px via CSS supaya tepi modul QR tetap tajam.
           new QRCode(qtRiwayat, {
             text: riwayatUrl,
-            width: 208,
-            height: 208,
+            width: 264,
+            height: 264,
             colorDark: '#000000',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.L
@@ -3448,8 +3472,8 @@ async function loadKartuSiswa(){
           // Sama seperti QR absensi: styling canvas & img sekaligus,
           // karena qrcode.js menukar <canvas> jadi <img> tanpa CSS ukuran.
           qtRiwayat.querySelectorAll('canvas, img').forEach(el => {
-            el.style.width = '52px';
-            el.style.height = '52px';
+            el.style.width = '66px';
+            el.style.height = '66px';
           });
         } else if (qtRiwayat) {
           // Kalau kosong: kemungkinan besar backend api/siswa.js belum
@@ -3569,10 +3593,12 @@ function buildKartuInnerHTML(s, settings) {
         </div>`).join('')}
     </div>
 
-    <!-- QR — dibuat lebih besar agar mudah scan -->
+    <!-- QR — diperbesar signifikan (dari 58px jadi 86px) supaya modul QR
+         fisik di kartu lebih besar dan lebih gampang dikunci kamera, apalagi
+         kalau gantungan ID card-nya mengkilat/reflektif. -->
     <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:2px 12px 3px;flex-shrink:0">
-      <div style="width:58px;height:58px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #c8a000;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
-        <div class="qr-target-${s.id}" style="width:50px;height:50px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      <div style="width:86px;height:86px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #c8a000;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;line-height:0">
+        <div class="qr-target-${s.id}" style="width:78px;height:78px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
       <div style="font-size:4.1pt;color:#aaa;text-align:center;margin-top:2px;letter-spacing:.2px">Scan untuk absensi &nbsp;•&nbsp; ${s.nisn || s.id}</div>
     </div>
@@ -3632,8 +3658,8 @@ function buildKartuBackHTML(s, settings) {
          siswa/ortu bisa lihat riwayat kehadiran sendiri tanpa perlu login. -->
     <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
       <div style="font-size:4.8pt;font-weight:700;color:#1a6b3a;text-align:center;margin-bottom:4px">📊 Scan untuk riwayat kehadiran</div>
-      <div style="width:60px;height:60px;background:#fff;border-radius:8px;padding:3px;box-sizing:border-box;border:2px solid #b8d4c0;display:flex;align-items:center;justify-content:center;line-height:0">
-        <div class="qr-riwayat-${s.id}" style="width:52px;height:52px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+      <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #b8d4c0;display:flex;align-items:center;justify-content:center;line-height:0">
+        <div class="qr-riwayat-${s.id}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
     </div>
 
@@ -3853,6 +3879,8 @@ async function startScanner(){
   if(typeof jsQR==='undefined'){
     toast('Library jsQR belum siap, tunggu 2 detik lalu coba lagi','warning',4000); return;
   }
+  _absenScanGagal=0;
+  const tipAwal=document.getElementById('absenTipsSilau'); if(tipAwal)tipAwal.style.display='none';
   const btn=document.getElementById('btnToggleKamera');
   if(btn){btn.textContent='⏳ Membuka...';btn.disabled=true;}
   try{
@@ -3883,6 +3911,9 @@ function stopScanner(){
 }
 function toggleKamera(){ if(APP.scanActive)stopScanner(); else startScanner(); }
 
+let _absenScanGagal = 0;
+const ABSEN_HINT_SETELAH = 45; // ± 1.5 detik sebelum kasih tips silau
+
 function scanQRLoop(){
   if(!APP.scanActive)return;
   const video=document.getElementById('scanVideo');
@@ -3892,9 +3923,43 @@ function scanQRLoop(){
   // willReadFrequently = performa lebih baik
   const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(video,0,0);
   const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-  const code=jsQR(imageData.data,imageData.width,imageData.height);
-  if(code){processQRResult(code.data);}
-  else{APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);}
+  let code=jsQR(imageData.data,imageData.width,imageData.height);
+
+  // ── FALLBACK UNTUK SILAU (gantungan ID card mengkilat) ───────────
+  // Sama seperti di scan.html: kalau decode normal gagal, coba sekali lagi
+  // dengan kontras yang "diregangkan" -- membantu jsQR mengenali modul QR
+  // di area yang kena pantulan cahaya/silau. Cuma jalan saat decode normal
+  // gagal, jadi tidak memperlambat kasus scan yang biasanya berhasil.
+  if(!code){
+    code = jsQR(perkuatKontrasAbsensi(imageData), imageData.width, imageData.height) || null;
+  }
+
+  if(code){
+    _absenScanGagal=0;
+    const tip=document.getElementById('absenTipsSilau'); if(tip)tip.style.display='none';
+    processQRResult(code.data);
+  } else {
+    _absenScanGagal++;
+    if(_absenScanGagal===ABSEN_HINT_SETELAH){
+      const tip=document.getElementById('absenTipsSilau'); if(tip)tip.style.display='block';
+    }
+    APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);
+  }
+}
+
+// Contrast stretching ringan (sama seperti perkuatKontras di scan.html) --
+// pixel abu-abu "tanggung" ditarik lebih dekat ke hitam/putih penuh,
+// supaya modul QR yang pudar/silau lebih gampang dikenali jsQR.
+function perkuatKontrasAbsensi(imageData){
+  const src=imageData.data;
+  const out=new Uint8ClampedArray(src.length);
+  const FAKTOR=1.6;
+  for(let i=0;i<src.length;i+=4){
+    const abu=(src[i]+src[i+1]+src[i+2])/3;
+    const baru=Math.min(255,Math.max(0,(abu-128)*FAKTOR+128));
+    out[i]=out[i+1]=out[i+2]=baru; out[i+3]=255;
+  }
+  return out;
 }
 
 async function scanFromFile(event){

@@ -34,6 +34,7 @@ module.exports = async (req, res) => {
     if (action === 'updatePengaturanHari') return res.json(await updatePengaturanHari(params));
     if (action === 'resetPengaturanAplikasi') return res.json(await resetPengaturanAplikasi());
     if (action === 'getLaporanKepatuhanPiket') return res.json(await getLaporanKepatuhanPiket(params));
+    if (action === 'getRiwayatPiketGuru') return res.json(await getRiwayatPiketGuru(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -331,6 +332,109 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
 
   const data = Object.values(rekap).sort((a, b) => a.namaGuru.localeCompare(b.namaGuru));
   return { success: true, data, tanggalMulai, tanggalSelesai };
+}
+
+// ── RIWAYAT PIKET SAYA (menu akun guru sendiri) ──────────────────
+// Beda dari getLaporanKepatuhanPiket() di atas (yang rekap SEMUA guru
+// terjadwal, dipakai kepsek): ini rekap satu guru saja (idGuru dari akun
+// yang sedang login), dengan RINCIAN PER TANGGAL supaya guru bisa lihat
+// persis hari mana dia piket sendiri, hari mana digantikan (dan oleh
+// siapa), hari mana kosong, dan hari mana DIA yang jadi penolong
+// menggantikan guru lain di luar jadwalnya sendiri.
+//
+// PENTING soal "siapa guru piket yang benar": sistem ini sengaja dibuat
+// fleksibel (lihat cekIzinPiket di api/scan.js) -- kalau guru yang
+// TERJADWAL tidak scan, guru lain boleh scan menggantikan setelah lewat
+// TOLERANSI_PIKET_MENIT. Jadi "kebenaran lapangan" selalu mengikuti data
+// sesi_piket (siapa yang benar-benar scan kartu), BUKAN semata jadwal_piket
+// (siapa yang seharusnya piket). Fungsi ini membandingkan keduanya per
+// hari, persis prinsip yang sama dipakai getLaporanKepatuhanPiket, hanya
+// difokuskan ke satu guru dan dilengkapi rincian harian.
+//
+// Sengaja TERBUKA (tidak masuk AKSI_TERKUNCI) karena ini laporan baca
+// milik guru sendiri, dipanggil dari akun guru yang tidak punya
+// adminToken sama sekali -- sama seperti pola getGuruPiket/
+// getLaporanKepatuhanPiket di atas. idGuru diambil dari sesi login
+// guru di frontend (APP.user.id), bukan input bebas dari form.
+async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
+  if (!idGuru)
+    return { success: false, message: 'ID guru wajib diisi' };
+  if (!tanggalMulai || !tanggalSelesai)
+    return { success: false, message: 'Rentang tanggal (tanggalMulai, tanggalSelesai) wajib diisi' };
+
+  const { data: jadwalList, error: eJadwal } = await supabase
+    .from('jadwal_piket').select('hari,id_guru,nama_guru');
+  if (eJadwal) return { success: false, message: eJadwal.message };
+
+  const { data: sesiList, error: eSesi } = await supabase
+    .from('sesi_piket').select('tanggal,id_guru,nama_guru,jam_scan')
+    .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
+  if (eSesi) return { success: false, message: eSesi.message };
+
+  // Map: nama hari -> daftar guru terjadwal hari itu
+  const jadwalPerHari = {};
+  (jadwalList || []).forEach(j => {
+    if (!jadwalPerHari[j.hari]) jadwalPerHari[j.hari] = [];
+    jadwalPerHari[j.hari].push({ idGuru: j.id_guru, namaGuru: j.nama_guru });
+  });
+
+  // Map: tanggal -> daftar sesi_piket yang tercatat hari itu
+  const sesiPerTanggal = {};
+  (sesiList || []).forEach(s => {
+    if (!sesiPerTanggal[s.tanggal]) sesiPerTanggal[s.tanggal] = [];
+    sesiPerTanggal[s.tanggal].push(s);
+  });
+
+  const namaHari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const ringkasan = { piketSendiri: 0, digantikan: 0, kosong: 0, jadiPengganti: 0 };
+  const detail = [];
+
+  const cursor = new Date(tanggalMulai + 'T00:00:00Z');
+  const akhir  = new Date(tanggalSelesai + 'T00:00:00Z');
+  while (cursor <= akhir) {
+    const tglStr = cursor.toISOString().split('T')[0];
+    const hari   = namaHari[cursor.getUTCDay()];
+    const terjadwalHariIni = jadwalPerHari[hari] || [];
+    const sesiHariIni      = sesiPerTanggal[tglStr] || [];
+    const akuTerjadwal     = terjadwalHariIni.some(t => t.idGuru === idGuru);
+    const sesiKu           = sesiHariIni.find(s => s.id_guru === idGuru);
+
+    if (akuTerjadwal) {
+      if (sesiKu) {
+        ringkasan.piketSendiri++;
+        detail.push({ tanggal: tglStr, hari, status: 'sendiri', jamScan: sesiKu.jam_scan });
+      } else if (sesiHariIni.length) {
+        ringkasan.digantikan++;
+        detail.push({
+          tanggal: tglStr, hari, status: 'digantikan',
+          penggantiNama: sesiHariIni.map(s => s.nama_guru).join(', '),
+          jamScan: sesiHariIni[0].jam_scan
+        });
+      } else {
+        ringkasan.kosong++;
+        detail.push({ tanggal: tglStr, hari, status: 'kosong' });
+      }
+    } else if (sesiKu) {
+      // Aku bukan yang terjadwal hari ini, tapi tetap scan piket -->
+      // aku yang menutup kekosongan (guru pengganti di luar jadwal sendiri).
+      ringkasan.jadiPengganti++;
+      detail.push({
+        tanggal: tglStr, hari, status: 'pengganti',
+        jamScan: sesiKu.jam_scan,
+        digantikanUntuk: terjadwalHariIni.map(t => t.namaGuru).join(', ') || null
+      });
+    }
+    // Hari di mana guru ini tidak terjadwal dan tidak scan sama sekali
+    // sengaja TIDAK dimasukkan ke detail -- tidak relevan untuk riwayat
+    // piket pribadinya.
+
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  // Urutkan terbaru dulu supaya guru langsung lihat hari-hari terakhir.
+  detail.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+
+  return { success: true, ringkasan, detail, tanggalMulai, tanggalSelesai };
 }
 
 // ── CONSTANTS ─────────────────────────────────────────────────────

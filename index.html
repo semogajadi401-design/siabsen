@@ -3311,18 +3311,47 @@ async function loadHalamanKartu() {
   switchKartuTab('admin');
 }
 
+// Guard supaya kalau tab "Guru" diklik berkali-kali dengan cepat (atau
+// dipanggil ulang sebelum request sebelumnya selesai), hasil yang akhirnya
+// dirender adalah pemanggilan TERAKHIR/TERBARU -- bukan hasil "balapan"
+// dua request paralel yang tidak menentu mana yang sampai duluan. Tanpa
+// ini, kalau request A (lama) selesai belakangan setelah request B (baru)
+// sudah menampilkan data benar, grid bisa balik lagi jadi kosong/error
+// karena overwrite oleh respons A yang sudah basi.
+let _kartuGuruLoadSeq = 0;
+
 async function loadKartuGuruGrid() {
   const grid = document.getElementById('kartuGuruGrid');
   if (!grid) return;
+  const seq = ++_kartuGuruLoadSeq;
   grid.innerHTML = '<p style="color:var(--text-muted)">Memuat data guru...</p>';
+
+  // Ambil data guru, dengan 1x percobaan ulang otomatis kalau gagal --
+  // banyak kegagalan di sini sifatnya sesaat/transient (koneksi lambat,
+  // cold start server, dll), jadi jangan langsung tampilkan error ke user
+  // kalau percobaan kedua ternyata berhasil normal.
+  async function ambilGuruDenganRetry() {
+    let r = await api('guru', 'getAll');
+    if (!r.success) {
+      await new Promise(res => setTimeout(res, 700));
+      r = await api('guru', 'getAll');
+    }
+    return r;
+  }
+
   try {
     const [guruRes, settingsRes] = await Promise.all([
-      api('guru', 'getAll'),
+      ambilGuruDenganRetry(),
       api('settings', 'getJamSetting')
     ]);
+    // Kalau sudah ada pemanggilan loadKartuGuruGrid() yang LEBIH BARU
+    // sejak request ini dikirim, buang hasil ini -- biarkan pemanggilan
+    // terbaru yang menentukan isi grid.
+    if (seq !== _kartuGuruLoadSeq) return;
+
     if (settingsRes.success) APP.settings = settingsRes.data;
     if (!guruRes.success || !guruRes.data.length) {
-      grid.innerHTML = '<p style="color:var(--text-muted)">Tidak ada guru aktif.</p>';
+      grid.innerHTML = `<p style="color:${guruRes.success ? 'var(--text-muted)' : 'var(--danger)'}">${guruRes.success ? 'Tidak ada guru aktif.' : '❌ ' + (guruRes.message || 'Gagal memuat data guru.')}</p>`;
       return;
     }
     grid.innerHTML = '';
@@ -3346,6 +3375,7 @@ async function loadKartuGuruGrid() {
       grid.appendChild(wrap);
       // Render kartu ke previewDiv
       setTimeout(async () => {
+        if (seq !== _kartuGuruLoadSeq) return; // load lain sudah menggantikan ini
         try {
           const settings = APP.settings || {};
           const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
@@ -3416,6 +3446,7 @@ async function loadKartuGuruGrid() {
       }, idx * 100);
     });
   } catch(e) {
+    if (seq !== _kartuGuruLoadSeq) return;
     grid.innerHTML = `<p style="color:var(--danger)">Gagal memuat: ${e.message}</p>`;
   }
 }

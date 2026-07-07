@@ -1,7 +1,7 @@
 // api/kehadiran.js — Kehadiran hari ini, input sakit/izin
 const {
   supabase, generateID, setCors, todayStr, hariIni,
-  isHariLibur, isHariKerja, requireAdminToken
+  isHariLibur, isHariKerja, requireAdminToken, isGuruPiketHariIni
 } = require('./_db');
 
 // CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
@@ -30,11 +30,22 @@ const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan']);
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, adminToken, ...params } = req.body || {};
+  const { action, adminToken, idGuru, ...params } = req.body || {};
 
   if (AKSI_TERKUNCI.has(action)) {
-    const valid = await requireAdminToken(adminToken);
-    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+    // Dua jalur yang diizinkan:
+    //   1. Admin dengan adminToken valid (seperti sebelumnya, tidak berubah).
+    //   2. Guru yang BENAR-BENAR piket hari ini, dibuktikan lewat sesi_piket
+    //      (bukan jadwal_piket admin) -- lihat isGuruPiketHariIni() di _db.js.
+    // Kalau tidak ada guru yang scan piket sama sekali hari itu, jalur guru
+    // otomatis tidak ada yang lolos -- harus admin yang turun tangan.
+    const adminValid = await requireAdminToken(adminToken);
+    if (!adminValid) {
+      const guruValid = await isGuruPiketHariIni(idGuru);
+      if (!guruValid) {
+        return res.status(401).json({ success: false, message: 'Sesi tidak valid. Hanya admin atau guru piket hari ini yang bisa mengubah keterangan.' });
+      }
+    }
   }
 
   try {
@@ -43,6 +54,10 @@ module.exports = async (req, res) => {
     if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
     if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
+    // Dipakai frontend (guruNav) untuk tahu apakah menu "Kehadiran Hari Ini"
+    // perlu ditampilkan: true hanya kalau guru ini ada di sesi_piket hari
+    // ini (benar-benar scan kartu piket), terlepas dari jadwal_piket admin.
+    if (action === 'cekPiketSaya')         return res.json({ success: true, piketHariIni: await isGuruPiketHariIni(idGuru) });
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });

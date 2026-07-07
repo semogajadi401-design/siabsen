@@ -1091,9 +1091,14 @@ async function checkStatus() {
     // Update status guru
     updateGuruStatus(r.guruPiket || [], r);
 
-    // Auto set mode berdasarkan jam
+    // Auto set mode berdasarkan jam. SEBELUMNYA nilai "14:00" ditulis
+    // langsung di sini (hardcode) — tidak ikut berubah kalau admin
+    // override jam pulang khusus hari itu di menu Pengaturan Semester.
+    // Sekarang pakai jamPulangMulai dari server (getStatus di api/scan.js,
+    // sudah lewat getJamPulangEfektif -- override per-hari kalau ada,
+    // atau ikut nilai global di Pengaturan Jam).
     const jam = r.jam || '';
-    const jamPulang = '14:00';
+    const jamPulang = r.jamPulangMulai || '14:00';
     if (jam >= jamPulang) setMode('pulang');
 
   } catch(e) {

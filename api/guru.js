@@ -1,5 +1,5 @@
 // api/guru.js — CRUD Data Guru
-const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, generateGuruQrToken } = require('./_db');
+const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, generateGuruQrToken, generateGuruQrTokenBatch } = require('./_db');
 
 // Semua aksi di file ini mengubah/menghapus data master guru, jadi semuanya
 // wajib login admin. Hanya dipanggil dari index.html (dashboard admin),
@@ -35,11 +35,20 @@ async function getAll({ activeOnly }) {
   // Backfill qr_token untuk guru lama yang belum punya token (misal guru
   // yang ditambahkan sebelum fitur QR login kartu belakang ada). Sama
   // pola dengan backfill riwayat_token siswa di api/siswa.js.
+  // PERBAIKAN: sebelumnya ini loop sekuensial (await 1-per-1, 2 round-trip
+  // DB per guru) — sangat lambat kalau banyak guru belum bertoken, dan
+  // bisa membuat request timeout total di server tanpa data apapun
+  // kembali ke client (makanya menu Data Guru/Kartu Identitas kadang
+  // terasa lama, atau kadang gagal muat). Sekarang: 1 query untuk generate
+  // semua token sekaligus (cek tabrakan hanya 1x ke DB), lalu semua UPDATE
+  // dijalankan PARALEL (Promise.all), bukan berantai.
   const belumAdaToken = (data || []).filter(g => !g.qr_token);
-  for (const g of belumAdaToken) {
-    const token = await generateGuruQrToken();
-    const { error: eUpdate } = await supabase.from('guru').update({ qr_token: token }).eq('id', g.id);
-    if (!eUpdate) g.qr_token = token;
+  if (belumAdaToken.length > 0) {
+    const tokens = await generateGuruQrTokenBatch(belumAdaToken.length);
+    await Promise.all(belumAdaToken.map((g, i) =>
+      supabase.from('guru').update({ qr_token: tokens[i] }).eq('id', g.id)
+        .then(({ error }) => { if (!error) g.qr_token = tokens[i]; })
+    ));
   }
 
   return {

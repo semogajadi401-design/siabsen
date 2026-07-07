@@ -2593,8 +2593,25 @@ async function downloadAllKartuGuruPDF() {
         });
       }
     });
-    // Beri waktu QRCode.js selesai menggambar sebelum di-capture
-    await new Promise(res => setTimeout(res, 400));
+    // Tunggu SETIAP gambar QR (img hasil qrcodejs) benar-benar selesai
+    // di-decode/dilukis sebelum di-capture. Sebelumnya di sini cuma pakai
+    // setTimeout tetap (400ms) untuk SEMUA guru sekaligus — kalau guru
+    // banyak atau CPU sedang berat (misal lagi capture batch lain), 400ms
+    // itu bisa keburu habis sebelum sebagian <img> QR selesai di-render,
+    // sehingga QR ter-screenshot dalam kondisi belum penuh/rusak. Polling
+    // per elemen ini membuatnya andal berapapun jumlah gurunya.
+    await Promise.all(guruList.map((g, i) => new Promise(resolve => {
+      const deadline = Date.now() + 3000; // batas aman, jangan sampai nge-hang
+      const check = () => {
+        const imgFront = document.querySelector('#kartuGuruQR_bulk_' + i + ' img');
+        const imgBack  = document.querySelector('#kartuGuruBackQR_bulk_' + i + ' img');
+        const frontOk  = !imgFront || (imgFront.complete && imgFront.naturalWidth > 0);
+        const backOk   = !imgBack  || (imgBack.complete && imgBack.naturalWidth > 0);
+        if ((frontOk && backOk) || Date.now() > deadline) resolve();
+        else setTimeout(check, 30);
+      };
+      check();
+    })));
 
     // Capture semua kartu (depan+belakang) — diproses 4 per batch secara
     // paralel supaya cepat, sama pola dengan bulk download kartu siswa.

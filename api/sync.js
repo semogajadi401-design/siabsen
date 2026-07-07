@@ -1,6 +1,7 @@
 const {
   supabase, generateID, setCors, todayStr,
-  hariIni, isHariLibur, isHariKerja, getSemesterAktif, getJamSetting, tambahMenit
+  hariIni, isHariLibur, isHariKerja, getSemesterAktif, getJamSetting, tambahMenit,
+  getJamPulangEfektif
 } = require('./_db');
 
 // ── BATAS TOLERANSI TANGGAL UNTUK SYNC OFFLINE ──────────────────────
@@ -212,7 +213,10 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   const jamSetting     = await getJamSetting();
   const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
   const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
-  const jamPulangMulai = jamSetting['JAM_PULANG_MULAI'] || '14:00';
+  // Jam pulang efektif untuk HARI SCAN ITU TERJADI (variabel `hari` di
+  // atas, dari tanggal offline-nya) — override per-hari kalau admin
+  // sudah atur di Pengaturan Semester, kalau tidak ikut global.
+  const jamPulangMulai = (await getJamPulangEfektif(hari, jamSetting)).jamPulangMulai;
 
   // ── MODE PULANG — HANYA JIKA EKSPLISIT DIPILIH SAAT SCAN ─────────
   // Sebelumnya ada `|| jam >= jamPulangMulai` yang otomatis mengganti

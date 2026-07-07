@@ -304,21 +304,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 /* Stats */
 .stats-row{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex-shrink:0;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex-shrink:0;
 }
 .stat-box{
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:18px;padding:14px 10px;text-align:center;
+  border-radius:18px;padding:12px 6px;text-align:center;
   box-shadow:var(--shadow-soft);
   transition:transform .2s,box-shadow .2s;
 }
 .stat-box:hover{transform:translateY(-3px);box-shadow:var(--shadow-card)}
 .stat-box.green{border-color:rgba(34,197,94,0.3);background:var(--accent-soft)}
 .stat-box.orange{border-color:rgba(245,158,11,0.3);background:var(--warning-soft)}
+.stat-box.blue{border-color:rgba(59,130,246,0.3);background:#DBEAFE}
 .stat-box.red{border-color:rgba(139,92,246,0.3);background:var(--purple-soft)}
 .stat-box.green .stat-num{color:#15803D}
 .stat-box.orange .stat-num{color:#B45309}
+.stat-box.blue .stat-num{color:#1D4ED8}
 .stat-box.red .stat-num{color:#6D28D9}
 .stat-num{font-size:1.45rem;font-weight:800;line-height:1}
 .stat-label{font-size:.62rem;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
@@ -389,6 +391,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 .log-avatar.hadir{background:#22C55E;color:#fff}
 .log-avatar.terlambat{background:#F59E0B;color:#fff}
+.log-avatar.izin{background:#3B82F6;color:#fff}
 .log-avatar.belum{background:var(--accent-soft);color:var(--primary-dark)}
 .log-nama{font-weight:700;font-size:.86rem;color:var(--text);line-height:1.2}
 .log-kelas{font-size:.72rem;color:var(--text-muted);margin-top:2px}
@@ -403,6 +406,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .badge-terlambat{background:var(--warning-soft);color:#B45309}
 .badge-pulang{background:var(--purple-soft);color:#6D28D9}
 .badge-belum{background:var(--accent-soft);color:var(--primary-dark)}
+.badge-izin{background:#DBEAFE;color:#1D4ED8}
 
 .log-empty{
   padding:40px 20px;text-align:center;
@@ -835,6 +839,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div class="stat-num" id="statHadir">0</div>
         <div class="stat-label">✅ Hadir</div>
       </div>
+      <div class="stat-box blue">
+        <div class="stat-num" id="statIzinSakit">0</div>
+        <div class="stat-label">🤒 Izin/Sakit</div>
+      </div>
       <div class="stat-box orange">
         <div class="stat-num" id="statBelum">0</div>
         <div class="stat-label">⏳ Belum</div>
@@ -856,6 +864,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <!-- Tabs -->
     <div class="log-tabs">
       <button class="log-tab active" id="tabBelum" onclick="switchTab('belum')">⏳ Belum Hadir (<span id="tabBelumCount">0</span>)</button>
+      <button class="log-tab" id="tabIzin" onclick="switchTab('izin')">🤒 Izin/Sakit (<span id="tabIzinCount">0</span>)</button>
       <button class="log-tab" id="tabHadir" onclick="switchTab('hadir')">✅ Sudah Hadir (<span id="tabHadirCount">0</span>)</button>
     </div>
 
@@ -930,7 +939,7 @@ let scanCooldown  = false;
 let scanActive    = false;
 let scanStream    = null;
 let scanAnimFrame = null;
-let logData       = { hadir:[], belumHadir:[] };
+let logData       = { hadir:[], izinSakit:[], belumHadir:[] };
 let activeTab     = 'belum';
 
 // ── KODE RAHASIA MASUK ADMIN ────────────────────────────────────────
@@ -1708,9 +1717,11 @@ async function loadLog() {
     if (!r.success) return;
     logData = r;
     document.getElementById('statHadir').textContent = r.totalHadir;
+    document.getElementById('statIzinSakit').textContent = r.totalIzinSakit;
     document.getElementById('statBelum').textContent = r.totalBelum;
     document.getElementById('statTotal').textContent = r.totalSiswa;
     document.getElementById('tabBelumCount').textContent = r.totalBelum;
+    document.getElementById('tabIzinCount').textContent = r.totalIzinSakit;
     document.getElementById('tabHadirCount').textContent = r.totalHadir;
     renderLog();
   } catch(e) {}
@@ -1720,6 +1731,7 @@ async function loadLog() {
 function switchTab(tab) {
   activeTab = tab;
   document.getElementById('tabBelum').classList.toggle('active', tab==='belum');
+  document.getElementById('tabIzin').classList.toggle('active', tab==='izin');
   document.getElementById('tabHadir').classList.toggle('active', tab==='hadir');
   renderLog();
 }
@@ -1727,12 +1739,18 @@ function switchTab(tab) {
 // ── RENDER LOG ───────────────────────────────────────────────────
 function renderLog() {
   const container = document.getElementById('logContainer');
-  const list = activeTab === 'belum' ? logData.belumHadir : logData.hadir;
+  const list = activeTab === 'belum' ? logData.belumHadir
+             : activeTab === 'izin'  ? logData.izinSakit
+             : logData.hadir;
 
   if (!list || !list.length) {
+    const emptyIcon = activeTab==='belum' ? '🎉' : activeTab==='izin' ? '🤒' : '📋';
+    const emptyTxt  = activeTab==='belum' ? 'Semua siswa sudah hadir!'
+                     : activeTab==='izin' ? 'Belum ada siswa izin/sakit'
+                     : 'Belum ada siswa yang hadir';
     container.innerHTML = `<div class="log-empty">
-      <div class="log-empty-icon">${activeTab==='belum'?'🎉':'📋'}</div>
-      <div>${activeTab==='belum'?'Semua siswa sudah hadir!':'Belum ada siswa yang hadir'}</div>
+      <div class="log-empty-icon">${emptyIcon}</div>
+      <div>${emptyTxt}</div>
     </div>`;
     return;
   }
@@ -1747,6 +1765,18 @@ function renderLog() {
         </div>
         <div class="log-right">
           <span class="log-badge badge-belum">Belum Hadir</span>
+        </div>
+      </div>`).join('');
+  } else if (activeTab === 'izin') {
+    container.innerHTML = list.map(s => `
+      <div class="log-item">
+        <div class="log-avatar izin">${s.nama.charAt(0)}</div>
+        <div>
+          <div class="log-nama">${s.nama}</div>
+          <div class="log-kelas">${s.kelas}${s.keterangan ? ' • ' + s.keterangan : ''}</div>
+        </div>
+        <div class="log-right">
+          <span class="log-badge badge-izin">${s.status || 'Izin'}</span>
         </div>
       </div>`).join('');
   } else {

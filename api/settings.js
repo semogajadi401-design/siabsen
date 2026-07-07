@@ -366,6 +366,13 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
     .from('jadwal_piket').select('hari,id_guru,nama_guru');
   if (eJadwal) return { success: false, message: eJadwal.message };
 
+  // Jangan tampilkan status "Kosong" untuk hari yang belum terjadi --
+  // konsisten dengan pengaman yang sama di getRiwayat() pada api/riwayat.js.
+  // Tanpa ini, tanggal-tanggal di masa depan (yang tentu saja belum ada
+  // guru yang scan) akan ikut ter-loop dan salah disimpulkan "kosong".
+  const todayWita = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().substring(0, 10);
+  if (tanggalSelesai > todayWita) tanggalSelesai = todayWita;
+
   const { data: sesiList, error: eSesi } = await supabase
     .from('sesi_piket').select('tanggal,id_guru,nama_guru,jam_scan')
     .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);

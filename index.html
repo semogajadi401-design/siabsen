@@ -2576,20 +2576,36 @@ async function downloadAllKartuGuruPDF() {
     // Tunggu satu tick render sebelum generate QR
     await new Promise(res => setTimeout(res, 50));
     guruList.forEach((g, i) => {
+      // PENTING: kontainer QR depan (#kartuGuruQR_bulk_i) berukuran 78x78px,
+      // tapi sebelumnya QR di sini digenerate cuma 52x52 — lebih kecil dari
+      // bingkainya, jadi nongkrong di pojok kiri-atas tanpa mengisi penuh
+      // bingkai (persis keluhan "tidak penuh di bingkai"). Sekarang
+      // digenerate native 4x (312px) lalu di-scale-down via CSS ke 78px,
+      // sama seperti pola yang sudah benar di cetakKartuGuru (single
+      // download) — hasilnya pas mengisi bingkai & tepi modul tetap tajam.
       const qrEl = document.getElementById('kartuGuruQR_bulk_' + i);
       if (qrEl && typeof QRCode !== 'undefined') {
         new QRCode(qrEl, {
-          text: g.id, width: 52, height: 52,
+          text: g.id, width: 312, height: 312,
           colorDark: '#0D47A1', colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.M
         });
+        qrEl.querySelectorAll('canvas, img').forEach(el => {
+          el.style.width = '78px'; el.style.height = '78px';
+        });
       }
+      // Sama halnya untuk QR belakang: kontainer 66x66px, sebelumnya
+      // digenerate 52x52 (tidak penuh). Sekarang native 4x (264px) lalu
+      // di-scale-down ke 66px.
       const qrBackEl = document.getElementById('kartuGuruBackQR_bulk_' + i);
       if (qrBackEl && typeof QRCode !== 'undefined' && g.qrToken) {
         new QRCode(qrBackEl, {
-          text: 'GURU_LOGIN|' + g.qrToken, width: 52, height: 52,
+          text: 'GURU_LOGIN|' + g.qrToken, width: 264, height: 264,
           colorDark: '#0D47A1', colorLight: '#FFFFFF',
           correctLevel: QRCode.CorrectLevel.L
+        });
+        qrBackEl.querySelectorAll('canvas, img').forEach(el => {
+          el.style.width = '66px'; el.style.height = '66px';
         });
       }
     });

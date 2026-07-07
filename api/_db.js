@@ -157,6 +157,43 @@ async function generateGuruQrToken() {
   return randomBase62(RIWAYAT_TOKEN_LENGTH) + Date.now().toString(36);
 }
 
+// ── GENERATE BANYAK QR_TOKEN GURU SEKALIGUS (backfill saat getAll) ──
+// SEBELUMNYA guru.getAll() memanggil generateGuruQrToken() SATU PER SATU
+// di dalam for-loop untuk tiap guru yang belum punya qr_token — itu 2
+// round-trip Supabase (SELECT cek unik + UPDATE) PER GURU, dijalankan
+// berurutan (await di dalam loop). Kalau ada banyak guru lama yang belum
+// punya token, menu "Data Guru" / "Kartu Identitas" jadi terasa SANGAT
+// lambat setiap kali dibuka, dan kalau responsnya sampai melewati batas
+// waktu function serverless, request bisa gagal total di tengah jalan.
+// Sama seperti generateRiwayatTokenBatch() untuk siswa: cukup 1 query
+// SELECT total untuk cek tabrakan, lalu semua UPDATE dijalankan PARALEL
+// (Promise.all), bukan berantai.
+async function generateGuruQrTokenBatch(count) {
+  let tokens = new Set();
+  while (tokens.size < count) tokens.add(randomBase62(RIWAYAT_TOKEN_LENGTH));
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const arr = [...tokens];
+    const { data: dipakai } = await supabase
+      .from('guru')
+      .select('qr_token')
+      .in('qr_token', arr);
+
+    const setDipakai = new Set((dipakai || []).map(d => d.qr_token));
+    if (setDipakai.size === 0) return arr; // tidak ada yang bentrok -> aman semua
+
+    for (const t of arr) {
+      if (setDipakai.has(t)) {
+        tokens.delete(t);
+        let baru;
+        do { baru = randomBase62(RIWAYAT_TOKEN_LENGTH); } while (tokens.has(baru));
+        tokens.add(baru);
+      }
+    }
+  }
+  return [...tokens].map((t, i) => t + Date.now().toString(36) + i);
+}
+
 // ── GENERATE ID ───────────────────────────────────────────
 function generateID(prefix) {
   const now = new Date();
@@ -320,7 +357,7 @@ module.exports = {
   supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
   jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
-  generateRiwayatTokenBatch, generateGuruQrToken,
+  generateRiwayatTokenBatch, generateGuruQrToken, generateGuruQrTokenBatch,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken, getJamPulangEfektif

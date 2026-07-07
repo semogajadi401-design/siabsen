@@ -8,9 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/src/dom-to-image-more.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
 <style>
 :root {
   --primary:#1565C0;--primary-dark:#0D47A1;--primary-light:#1976D2;--primary-pale:#E3F2FD;
@@ -253,37 +251,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 @keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
 @keyframes toastOut{to{opacity:0;transform:translateX(30px)}}
 
-/* SCANNER */
-.scanner-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:340px;margin:0 auto}
-#scanVideo{width:100%;height:100%;object-fit:cover}
-.scan-overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
-.scan-frame{width:65%;aspect-ratio:1/1;border:3px solid var(--accent);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,0.45);position:relative}
-.scan-line{position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanAnim 2s linear infinite}
-@keyframes scanAnim{0%{top:0}100%{top:calc(100% - 3px)}}
-.scan-corner{position:absolute;width:22px;height:22px;border-color:var(--accent);border-style:solid}
-.scan-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
-.scan-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
-.scan-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
-.scan-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
-.scan-result-flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;border-radius:16px;opacity:0;transition:opacity .3s}
-.scan-result-flash.show{opacity:1}
-.scan-result-flash.success{background:rgba(46,125,50,0.9);color:#fff}
-.scan-result-flash.error{background:rgba(198,40,40,0.9);color:#fff}
-
-/* SCAN COOLDOWN INDICATOR */
-.scan-cooldown-bar{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;display:none}
-.scan-cooldown-bar.active{display:block}
-.scan-cooldown-fill{height:100%;background:var(--accent);border-radius:2px;width:100%;transition:width linear}
-
 /* ABSEN */
 .absen-mode-toggle{display:flex;background:var(--bg);border-radius:12px;padding:4px;gap:4px;margin-bottom:20px}
 .mode-btn{flex:1;padding:10px;border-radius:8px;font-size:.88rem;font-weight:600;color:var(--text-muted);background:transparent;transition:var(--transition)}
 .mode-btn.active{background:var(--surface);color:var(--primary);box-shadow:var(--shadow)}
-.absen-result{border-radius:14px;padding:18px 20px;margin-top:16px;display:none;transition:all .3s ease}
-.absen-result.show{display:block;animation:fadeIn .3s ease}
-.absen-result.success{background:var(--success-light);border:2px solid rgba(46,125,50,0.35)}
-.absen-result.error{background:var(--danger-light);border:2px solid rgba(198,40,40,0.35)}
-.absen-result.warning{background:var(--warning-light);border:2px solid rgba(245,127,23,0.35)}
 
 /* ══ KARTU SISWA — WAVE MODERN PORTRAIT ══ */
 .student-card-print, .student-card-back {
@@ -551,7 +522,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   thead th{padding:10px 8px}
   tbody td{padding:9px 8px}
   .absen-mode-toggle{gap:6px}
-  .scanner-wrap{max-width:100%}
   .btn{font-size:.83rem;padding:10px 16px}
   .btn-sm{padding:7px 12px;font-size:.78rem}
   .kartu-item-wrap{width:100%}
@@ -769,8 +739,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <!-- GURU NAV -->
     <div id="guruNav" class="sidebar-nav" style="display:none">
       <div class="nav-section-label lbl-teal">Menu Guru</div>
-      <div class="nav-item color-teal active" onclick="showPage('absensi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg><span>Absensi Siswa</span></div>
-      <div class="nav-item color-teal" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
+      <div class="nav-item color-teal active" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
+      <div class="nav-item color-teal" onclick="showPage('riwayatPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Riwayat Piket Saya</span></div>
     </div>
     <!-- KEPSEK NAV — khusus akun Kepala Sekolah (guru.role === 'kepsek').
          Sengaja HANYA berisi menu pengawasan/read-only: tidak ada Absensi
@@ -1133,76 +1103,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
 
       <!-- ABSENSI GURU -->
-      <div class="page" id="page-absensi">
-        <div class="card">
-          <div class="card-header"><h3>Absensi Siswa</h3><div class="date-badge" id="absenTanggal"></div></div>
-          <div class="card-body">
-            <div class="absen-mode-toggle">
-              <button class="mode-btn active" id="btnModeDatang" onclick="setAbsenMode('datang')">☀️ Absen Datang</button>
-              <button class="mode-btn" id="btnModePulang" onclick="setAbsenMode('pulang')">🌙 Absen Pulang</button>
-            </div>
-            <div id="scanSection" style="margin-bottom:16px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                <p style="font-size:.85rem;color:var(--text-muted);margin:0">📷 Scan QR Code kartu siswa</p>
-                <button id="btnToggleKamera" class="btn btn-outline btn-sm" onclick="toggleKamera()">📷 Aktifkan Kamera</button>
-              </div>
-              <!-- Live Camera Scanner -->
-              <div class="scanner-wrap" id="scannerWrap" style="display:none">
-                <video id="scanVideo" autoplay playsinline muted></video>
-                <div class="scan-overlay"><div class="scan-frame">
-                  <div class="scan-line"></div>
-                  <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
-                  <div class="scan-corner bl"></div><div class="scan-corner br"></div>
-                </div></div>
-                <div class="scan-result-flash" id="scanFlash"></div>
-                <canvas id="scanCanvas" style="display:none"></canvas>
-              </div>
-              <!-- Cooldown bar -->
-              <div class="scan-cooldown-bar" id="scanCooldownBar">
-                <div class="scan-cooldown-fill" id="scanCooldownFill"></div>
-              </div>
-              <!-- Tips silau: muncul otomatis kalau QR belum kebaca ±1.5 detik.
-                   Kasus paling umum: gantungan ID card yang mengkilat
-                   memantulkan cahaya di atas kode QR-nya. -->
-              <div id="absenTipsSilau" style="display:none;margin:8px auto 0;max-width:340px;background:#fff8e1;border:1px solid #f0c14b;border-radius:10px;padding:10px 14px;font-size:.82rem;color:#7a5c00;text-align:center;line-height:1.5">
-                💡 QR belum kebaca? Coba <b>miringkan kartu sedikit</b> supaya pantulan cahaya di plastik gantungan tidak menutupi kode QR-nya.
-              </div>
-              <div id="noKameraMsg" style="text-align:center;padding:24px;background:var(--bg);border-radius:14px;border:2px dashed var(--border)">
-                <div style="font-size:2.5rem;margin-bottom:8px">📷</div>
-                <p style="font-weight:700;color:var(--text);margin-bottom:6px">Scan QR Kartu Siswa</p>
-                <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:14px">Aktifkan kamera untuk scan real-time, atau foto QR dari kamera HP</p>
-                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-                  <button class="btn btn-primary btn-sm" onclick="startScanner()">📷 Aktifkan Kamera</button>
-                  <label class="btn btn-outline btn-sm" style="cursor:pointer">
-                    📁 Upload Foto QR
-                    <input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanFromFile(event)">
-                  </label>
-                </div>
-              </div>
-            </div>
-            <!-- MANUAL INPUT -->
-            <div style="margin-top:16px">
-              <div style="display:flex;gap:10px;align-items:flex-end">
-                <div class="form-group" style="flex:1;margin:0">
-                  <label>ID Siswa / NISN</label>
-                  <input type="text" id="manualId" class="form-control" placeholder="Masukkan ID atau NISN siswa" onkeyup="if(event.key==='Enter')doManualAbsen()">
-                </div>
-                <button class="btn btn-primary" onclick="doManualAbsen()">✓ Absen</button>
-              </div>
-            </div>
-            <div class="absen-result" id="absenResult"></div>
-            <!-- LOG -->
-            <div style="margin-top:24px">
-              <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">📋 Log Absensi Hari Ini</h4>
-              <div class="table-responsive"><table>
-                <thead><tr><th>Nama</th><th>Kelas</th><th>Jam</th><th>Status</th></tr></thead>
-                <tbody id="logAbsensiBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data</td></tr></tbody>
-              </table></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- REKAP GURU -->
       <div class="page" id="page-rekapGuru">
         <div class="card">
@@ -1216,6 +1116,56 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <thead><tr><th>No</th><th>Nama</th><th>Kelas</th><th>Datang</th><th>Status</th><th>Pulang</th></tr></thead>
               <tbody id="rekapGuruBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih tanggal</td></tr></tbody>
             </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIWAYAT PIKET SAYA (khusus akun Guru) -->
+      <div class="page" id="page-riwayatPiket">
+        <div class="card">
+          <div class="card-header"><h3>🛡️ Riwayat Piket Saya</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input type="month" id="riwayatPiketBulan" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="loadRiwayatPiketSaya()">
+              <button class="btn btn-outline btn-sm" onclick="loadRiwayatPiketSaya()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div style="background:var(--primary-pale);border:1px solid var(--primary);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:.82rem;line-height:1.6">
+              ℹ️ Guru piket yang tercatat sistem adalah guru yang benar-benar
+              <b>scan kartu</b> saat piket, bukan sekadar yang terjadwal — karena
+              jadwal piket di sini fleksibel: kalau guru terjadwal berhalangan,
+              guru lain boleh menggantikan dengan scan kartunya sendiri.
+              Ringkasan di bawah membandingkan jadwalmu dengan apa yang
+              sebenarnya terjadi di lapangan.
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+              <div style="background:var(--success-light);border-radius:12px;padding:14px 16px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Piket Sendiri</div>
+                <div style="font-size:1.6rem;font-weight:800;color:var(--success)" id="rpSendiri">0</div>
+              </div>
+              <div style="background:var(--warning-light);border-radius:12px;padding:14px 16px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Digantikan</div>
+                <div style="font-size:1.6rem;font-weight:800;color:var(--warning)" id="rpDigantikan">0</div>
+              </div>
+              <div style="background:var(--danger-light);border-radius:12px;padding:14px 16px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Kosong</div>
+                <div style="font-size:1.6rem;font-weight:800;color:var(--danger)" id="rpKosong">0</div>
+              </div>
+              <div style="background:var(--primary-pale);border-radius:12px;padding:14px 16px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Jadi Pengganti</div>
+                <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="rpPengganti">0</div>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr><th>Tanggal</th><th>Hari</th><th>Status</th><th>Keterangan</th></tr>
+                </thead>
+                <tbody id="riwayatPiketBody">
+                  <tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -1806,8 +1756,6 @@ async function api(endpoint, action, params = {}) {
 // ── STATE ────────────────────────────────────────────────────────
 const APP = {
   user: null, settings: null, constants: null,
-  scanActive: false, scanStream: null, scanAnimFrame: null,
-  scanMode: 'datang', scanFailCount: 0, absenResultTimer: null,
   // Kelas dinamis (dari DB + manual)
   kelasList: []
 };
@@ -2026,11 +1974,6 @@ window.onload = async function() {
   const rb = document.getElementById('rekapBulan'); if(rb) rb.value = now.getMonth()+1;
   const ry = document.getElementById('rekapTahun'); if(ry) ry.value = now.getFullYear();
 
-  const nowWITA = new Date(Date.now()+8*60*60*1000);
-  const ab = document.getElementById('absenTanggal');
-  if(ab){ const days=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'],months=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
-    ab.textContent=`${days[nowWITA.getDay()]}, ${nowWITA.getDate()} ${months[nowWITA.getMonth()]} ${nowWITA.getFullYear()}`; }
-
   const months=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const cm = document.getElementById('calMonth');
   months.forEach((m,i) => cm.innerHTML += `<option value="${i+1}">${m}</option>`);
@@ -2080,7 +2023,7 @@ function setupUserUI(user) {
   // ========================================
 }
 function doLogout() {
-  APP.user=null; clearSession(); stopScanner();
+  APP.user=null; clearSession();
   document.getElementById('mainApp').style.display='none';
   document.getElementById('loginPage').style.display='flex';
   document.getElementById('loginUsername').value='';
@@ -2095,15 +2038,15 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',absensi:'Absensi Siswa',rekapGuru:'Rekap Harian',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,absensi:()=>{loadLogAbsensi();},kepsekPiket:loadKepsekPiket};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
 function initFirstPage(role) {
   if(role==='admin' || role==='kepsek'){ showPage('dashboard'); }
-  else { showPage('absensi'); loadLogAbsensi(); }
+  else { showPage('rekapGuru'); }
 }
 function toggleSidebar(force) {
   const s=document.getElementById('sidebar'),o=document.getElementById('sidebarOverlay');
@@ -3958,412 +3901,59 @@ async function downloadAllKartuPDF() {
   }
 }
 
-// ── ABSENSI ──────────────────────────────────────────────────────
-let absenMode='datang';
-function setAbsenMode(mode){ absenMode=mode; document.getElementById('btnModeDatang').classList.toggle('active',mode==='datang'); document.getElementById('btnModePulang').classList.toggle('active',mode==='pulang'); document.getElementById('absenResult').className='absen-result'; APP.scanFailCount=0; }
+// ── RIWAYAT PIKET SAYA (menu akun guru) ──────────────────────────
+const STATUS_PIKET_LABEL = {
+  sendiri:    { badge: 'badge-success', label: '✅ Piket Sendiri' },
+  digantikan: { badge: 'badge-warning', label: '🔁 Digantikan'    },
+  kosong:     { badge: 'badge-danger',  label: '⚠️ Kosong'        },
+  pengganti:  { badge: 'badge-primary', label: '🤝 Jadi Pengganti'}
+};
 
-async function startScanner(){
-  if(APP.scanActive)return;
-  if(typeof jsQR==='undefined'){
-    toast('Library jsQR belum siap, tunggu 2 detik lalu coba lagi','warning',4000); return;
+async function loadRiwayatPiketSaya() {
+  const tbody = document.getElementById('riwayatPiketBody');
+  const inputBulan = document.getElementById('riwayatPiketBulan');
+  // Default ke bulan berjalan (waktu WITA, konsisten dengan bagian lain)
+  if (!inputBulan.value) {
+    const now = new Date(Date.now()+8*60*60*1000);
+    inputBulan.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   }
-  _absenScanGagal=0;
-  const tipAwal=document.getElementById('absenTipsSilau'); if(tipAwal)tipAwal.style.display='none';
-  const btn=document.getElementById('btnToggleKamera');
-  if(btn){btn.textContent='⏳ Membuka...';btn.disabled=true;}
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
-    APP.scanStream=stream; APP.scanActive=true;
-    const video=document.getElementById('scanVideo');
-    video.srcObject=stream;
-    await video.play();
-    document.getElementById('scannerWrap').style.display='block';
-    document.getElementById('noKameraMsg').style.display='none';
-    if(btn){btn.textContent='🔴 Matikan Kamera';btn.style.cssText='background:var(--success);color:#fff;border-color:var(--success)';btn.disabled=false;}
-    scanQRLoop();
-    toast('✅ Kamera aktif!','success',2000);
-  }catch(e){
-    if(btn){btn.textContent='📷 Aktifkan Kamera';btn.disabled=false;btn.style.cssText='';}
-    toast('Kamera tidak bisa diakses: '+e.message,'warning');
-  }
-}
+  const [tahun, bulan] = inputBulan.value.split('-').map(Number);
+  const tanggalMulai = `${tahun}-${String(bulan).padStart(2,'0')}-01`;
+  const akhirBulan = new Date(Date.UTC(tahun, bulan, 0)).getUTCDate();
+  const tanggalSelesai = `${tahun}-${String(bulan).padStart(2,'0')}-${String(akhirBulan).padStart(2,'0')}`;
 
-function stopScanner(){
-  APP.scanActive=false;
-  if(APP.scanStream){APP.scanStream.getTracks().forEach(t=>t.stop());APP.scanStream=null;}
-  if(APP.scanAnimFrame){cancelAnimationFrame(APP.scanAnimFrame);APP.scanAnimFrame=null;}
-  const btn=document.getElementById('btnToggleKamera');
-  if(btn){btn.textContent='📷 Aktifkan Kamera';btn.style.cssText='';btn.disabled=false;}
-  const sw=document.getElementById('scannerWrap'); if(sw)sw.style.display='none';
-  const nm=document.getElementById('noKameraMsg'); if(nm)nm.style.display='block';
-}
-function toggleKamera(){ if(APP.scanActive)stopScanner(); else startScanner(); }
-
-let _absenScanGagal = 0;
-const ABSEN_HINT_SETELAH = 45; // ± 1.5 detik sebelum kasih tips silau
-
-function scanQRLoop(){
-  if(!APP.scanActive)return;
-  const video=document.getElementById('scanVideo');
-  const canvas=document.getElementById('scanCanvas');
-  if(!video||!video.readyState||video.readyState<2){APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);return;}
-  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-  // willReadFrequently = performa lebih baik
-  const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(video,0,0);
-  const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-  let code=jsQR(imageData.data,imageData.width,imageData.height);
-
-  // ── FALLBACK UNTUK SILAU (gantungan ID card mengkilat) ───────────
-  // Sama seperti di scan.html: kalau decode normal gagal, coba sekali lagi
-  // dengan kontras yang "diregangkan" -- membantu jsQR mengenali modul QR
-  // di area yang kena pantulan cahaya/silau. Cuma jalan saat decode normal
-  // gagal, jadi tidak memperlambat kasus scan yang biasanya berhasil.
-  if(!code){
-    code = jsQR(perkuatKontrasAbsensi(imageData), imageData.width, imageData.height) || null;
-  }
-
-  if(code){
-    _absenScanGagal=0;
-    const tip=document.getElementById('absenTipsSilau'); if(tip)tip.style.display='none';
-    processQRResult(code.data);
-  } else {
-    _absenScanGagal++;
-    if(_absenScanGagal===ABSEN_HINT_SETELAH){
-      const tip=document.getElementById('absenTipsSilau'); if(tip)tip.style.display='block';
-    }
-    APP.scanAnimFrame=requestAnimationFrame(scanQRLoop);
-  }
-}
-
-// Contrast stretching ringan (sama seperti perkuatKontras di scan.html) --
-// pixel abu-abu "tanggung" ditarik lebih dekat ke hitam/putih penuh,
-// supaya modul QR yang pudar/silau lebih gampang dikenali jsQR.
-function perkuatKontrasAbsensi(imageData){
-  const src=imageData.data;
-  const out=new Uint8ClampedArray(src.length);
-  const FAKTOR=1.6;
-  for(let i=0;i<src.length;i+=4){
-    const abu=(src[i]+src[i+1]+src[i+2])/3;
-    const baru=Math.min(255,Math.max(0,(abu-128)*FAKTOR+128));
-    out[i]=out[i+1]=out[i+2]=baru; out[i+3]=255;
-  }
-  return out;
-}
-
-async function scanFromFile(event){
-  const file=event.target.files[0]; if(!file)return;
-  if(typeof jsQR==='undefined'){
-    toast('Library jsQR belum siap, coba lagi dalam 2 detik','warning',4000);
-    event.target.value=''; return;
-  }
-  toast('🔍 Membaca QR code...','info',2000);
-  try{
-    const img=await createImageBitmap(file);
-    const canvas=document.createElement('canvas');
-    canvas.width=img.width; canvas.height=img.height;
-    canvas.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0);
-    const imageData=canvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,canvas.width,canvas.height);
-    const code=jsQR(imageData.data,imageData.width,imageData.height);
-    if(code){
-      toast('✅ QR terbaca','info',2000);
-      await processQRResult(code.data);
-    }else{
-      toast('❌ QR tidak terbaca. Coba foto lebih dekat dan terang.','warning',4000);
-    }
-  }catch(e){
-    toast('❌ Gagal baca foto: '+e.message,'error',4000);
-  }
-  event.target.value='';
-}
-
-// ── SCAN COOLDOWN — cegah double scan ───────────────────────────
-// Cooldown 5 detik setelah berhasil scan, 2 detik setelah gagal
-// ── SCAN COOLDOWN — cegah double scan ───────────────────────────
-let scanCooldown = false;
-let lastScannedData = '';
-let lastScannedTime = 0;
-const scannedHistory = {};       // kunci per-siswa 30 detik
-const PER_SISWA_COOLDOWN = 30000;
-
-function startCooldownBar(ms) {
-  const bar  = document.getElementById('scanCooldownBar');
-  const fill = document.getElementById('scanCooldownFill');
-  if (!bar || !fill) return;
-  if (ms <= 0) { bar.classList.remove('active'); return; }
-  bar.classList.add('active');
-  fill.style.transition = 'none';
-  fill.style.width = '100%';
-  fill.getBoundingClientRect();
-  fill.style.transition = `width ${ms}ms linear`;
-  fill.style.width = '0%';
-  setTimeout(() => {
-    bar.classList.remove('active');
-    fill.style.width = '100%';
-    fill.style.transition = 'none';
-  }, ms);
-}
-
-async function processQRResult(data) {
-  const now = Date.now();
-
-  // Siswa/guru yang SAMA → dikunci diam-diam 30 detik
-  if (scannedHistory[data] && now - scannedHistory[data] < PER_SISWA_COOLDOWN) {
-    APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
-    return;
-  }
-
-  // Cooldown global aktif → tunggu dulu
-  if (scanCooldown) return;
-  scanCooldown = true;
-
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>';
   try {
-    const parts      = data.split('|');
-    const identifier = parts[0].trim();
+    const r = await api('settings', 'getRiwayatPiketGuru', { idGuru: APP.user.id, tanggalMulai, tanggalSelesai });
+    if (!r.success) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">${r.message||'Gagal memuat riwayat'}</td></tr>`; return; }
 
-    if (!identifier) {
-      showScanFlash('error', '❌ QR Tidak Valid');
-      scanCooldown = false;
-      APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
+    document.getElementById('rpSendiri').textContent   = r.ringkasan.piketSendiri;
+    document.getElementById('rpDigantikan').textContent= r.ringkasan.digantikan;
+    document.getElementById('rpKosong').textContent    = r.ringkasan.kosong;
+    document.getElementById('rpPengganti').textContent = r.ringkasan.jadiPengganti;
+
+    if (!r.detail.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada jadwal atau sesi piket bulan ini</td></tr>';
       return;
     }
 
-    // Gunakan API baru scan/scanKartu
-    const result = await api('scan', 'scanKartu', {
-      identifier,
-      mode: absenMode
-    });
-
-    if (result.success) {
-      scannedHistory[data] = now;
-      lastScannedData = data;
-      lastScannedTime = now;
-
-      if (result.tipe === 'guru') {
-        // Guru scan kartu piket
-        showAbsenResult(result, {});
-        showScanFlash('success', '👤 ' + (result.guru?.nama || 'Guru'));
-        toast(result.message, 'success', 4000);
-        playBeep('success');
-      } else {
-        // Siswa scan kartu absensi
-        showAbsenResult(result, result.siswa || {});
-        const isLate = result.status === 'Terlambat';
-        showScanFlash('success', isLate ? '⚠️ TERLAMBAT' : '✅ BERHASIL');
-        toast(result.message, 'success', 4000);
-        loadLogAbsensi();
-        playBeep(isLate ? 'warning' : 'success');
-      }
-
-      startCooldownBar(3000);
-      setTimeout(() => {
-        scanCooldown = false;
-        lastScannedData = '';
-        if (APP.scanActive) APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
-      }, 3000);
-
-    } else {
-      showScanFlash('error', '❌ ' + result.message);
-      showAbsenResult(result, {});
-      toast('❌ ' + result.message, 'error', 4000);
-      playBeep('error');
-      scanCooldown = false;
-      APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
-    }
-
+    tbody.innerHTML = r.detail.map(d => {
+      const st = STATUS_PIKET_LABEL[d.status] || { badge: 'badge-gray', label: d.status };
+      let ket = '-';
+      if (d.status === 'digantikan')      ket = `Digantikan oleh ${d.penggantiNama || '-'}${d.jamScan ? ' (jam ' + d.jamScan + ')' : ''}`;
+      else if (d.status === 'sendiri')    ket = `Scan piket jam ${d.jamScan || '-'}`;
+      else if (d.status === 'kosong')     ket = 'Tidak ada guru yang scan piket hari itu';
+      else if (d.status === 'pengganti')  ket = `Menggantikan ${d.digantikanUntuk || 'guru lain'}${d.jamScan ? ' (jam ' + d.jamScan + ')' : ''}`;
+      return `<tr>
+        <td>${d.tanggal}</td>
+        <td>${d.hari}</td>
+        <td><span class="badge ${st.badge}">${st.label}</span></td>
+        <td style="font-size:.82rem">${ket}</td>
+      </tr>`;
+    }).join('');
   } catch(e) {
-    showScanFlash('error', '❌ Koneksi gagal');
-    toast('❌ Koneksi gagal', 'error', 4000);
-    scanCooldown = false;
-    APP.scanAnimFrame = requestAnimationFrame(scanQRLoop);
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Gagal memuat riwayat</td></tr>';
   }
-}
-  
-function showScanFlash(type,msg){
-  const flash=document.getElementById('scanFlash'); if(!flash)return;
-  flash.className='scan-result-flash show '+type; flash.textContent=msg;
-  setTimeout(()=>{flash.className='scan-result-flash';},1500);
-}
-
-async function doManualAbsen() {
-  const raw = document.getElementById('manualId').value.trim();
-  if (!raw) { toast('Masukkan ID atau NISN siswa', 'warning'); return; }
-
-  // Bersihkan pipe jika ada (format QR: id|nisn)
-  const identifier = raw.split('|')[0].trim();
-
-  try {
-    const result = await api('scan', 'scanKartu', {
-      identifier,
-      mode: absenMode
-    });
-
-    if (result.success) {
-      if (result.tipe === 'guru') {
-        showAbsenResult(result, {});
-        toast(result.message, 'success', 4000);
-        playBeep('success');
-      } else {
-        showAbsenResult(result, result.siswa || {});
-        const isLate = result.status === 'Terlambat';
-        toast(result.message, 'success', 4000);
-        loadLogAbsensi();
-        playBeep(isLate ? 'warning' : 'success');
-      }
-    } else {
-      showAbsenResult(result, {});
-      toast('❌ ' + result.message, 'error', 4000);
-      playBeep('error');
-    }
-
-    document.getElementById('manualId').value = '';
-  } catch(e) {
-    toast('❌ Terjadi kesalahan: ' + e.message, 'error');
-  }
-}
-
-async function doAbsensi(siswa){
-  const guru=APP.user;
-  try{
-    let result;
-    if(absenMode==='datang'){
-      result=await api('absensi','datang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});
-    }else{
-      result=await api('absensi','pulang',{idSiswa:siswa.id,idGuru:guru.id||'',namaGuru:guru.nama,metode:APP.scanActive?'QR':'Manual'});
-    }
-    showAbsenResult(result,siswa);
-    if(result.success){
-      toast(result.message,'success',5000);
-      showScanFlash('success',result.status==='Terlambat'?'⚠️ TERLAMBAT':'✅ BERHASIL');
-      loadLogAbsensi();
-    }else{
-      toast('❌ '+result.message,'error',5000);
-      showScanFlash('error','❌ Gagal');
-    }
-  }catch(e){
-    toast('❌ Koneksi gagal: '+e.message,'error',5000);
-    showAbsenResult({success:false,message:'Koneksi gagal: '+e.message},siswa);
-  }
-}
-
-function showAbsenResult(result, siswa) {
-  const el = document.getElementById('absenResult');
-
-  // Tangani jika QR guru discan di halaman absensi guru
-  if (result.tipe === 'guru') {
-    el.className = 'absen-result show success';
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:16px">
-        <div style="font-size:3rem">👤</div>
-        <div>
-          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75;margin-bottom:2px">GURU PIKET TERCATAT</div>
-          <div style="font-size:1.3rem;font-weight:800;color:var(--text)">${result.guru?.nama || '-'}</div>
-          <div style="font-size:.85rem;color:var(--text-muted);margin-top:3px">${result.guru?.jabatan || ''}</div>
-          <div style="margin-top:8px">
-            <span style="background:rgba(0,0,0,0.08);padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">
-              🕐 ${result.guru?.jam || '-'}
-            </span>
-          </div>
-        </div>
-      </div>`;
-    clearTimeout(APP.absenResultTimer);
-    APP.absenResultTimer = setTimeout(() => {
-      el.className = 'absen-result';
-      el.innerHTML = '';
-    }, 7000);
-    return;
-  }
-
-  if (result.success) {
-    const isLate   = result.status === 'Terlambat';
-    const isPulang = result.status === 'Pulang';
-    const icon       = isPulang ? '🌙' : isLate ? '⚠️' : '✅';
-    const statusText = isPulang ? 'ABSEN PULANG' : isLate ? 'TERLAMBAT' : 'ABSEN DATANG';
-    const colorClass = isPulang ? 'success' : isLate ? 'warning' : 'success';
-    const now = new Date();
-    const jam = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-
-    el.className = `absen-result show ${colorClass}`;
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:16px">
-        <div style="font-size:3rem;flex-shrink:0">${icon}</div>
-        <div style="flex:1">
-          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75;margin-bottom:2px">
-            ${statusText} BERHASIL
-          </div>
-          <div style="font-size:1.3rem;font-weight:800;color:var(--text)">${siswa?.nama || '-'}</div>
-          <div style="font-size:.85rem;color:var(--text-muted);margin-top:3px">
-            Kelas <strong>${siswa?.kelas || '-'}</strong> &nbsp;•&nbsp; NISN: ${siswa?.nisn || '-'}
-          </div>
-          <div style="margin-top:8px">
-            <span style="background:rgba(0,0,0,0.08);padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">
-              🕐 ${jam}
-            </span>
-          </div>
-        </div>
-      </div>`;
-
-  } else {
-    el.className = 'absen-result show error';
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:16px">
-        <div style="font-size:3rem">❌</div>
-        <div>
-          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.75">GAGAL</div>
-          <div style="font-size:1rem;font-weight:700;color:var(--text)">${result.message}</div>
-        </div>
-      </div>`;
-  }
-
-  clearTimeout(APP.absenResultTimer);
-  APP.absenResultTimer = setTimeout(() => {
-    el.className = 'absen-result';
-    el.innerHTML = '';
-  }, 7000);
-}
-
-function playBeep(type) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === 'success' || type === 'warning') {
-      // ── SUKSES & TERLAMBAT: bunyi TING keras dan jernih ──
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.9, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.6);
-
-    } else {
-      // ── GAGAL: dua bunyi pendek keras turun ──
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(400, ctx.currentTime);
-      osc.frequency.setValueAtTime(250, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.8, ctx.currentTime);
-      gain.gain.setValueAtTime(0.8, ctx.currentTime + 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.28);
-    }
-
-    setTimeout(() => ctx.close(), 1000);
-  } catch(e) {}
-}
-
-async function loadLogAbsensi(){
-  const today=new Date(Date.now()+8*60*60*1000).toISOString().split('T')[0];
-  try{
-    const result=await api('absensi','rekapHarian',{tanggal:today});
-    const tbody=document.getElementById('logAbsensiBody');
-    if(!result.success||!result.data.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada absensi hari ini</td></tr>';return;}
-    const sorted=result.data.sort((a,b)=>(b.jamDatang||'').localeCompare(a.jamDatang||''));
-    tbody.innerHTML=sorted.map(d=>`<tr><td><div style="font-weight:600">${d.nama}</div></td><td><span class="badge badge-primary">${d.kelas}</span></td><td>${d.jamDatang||'-'}</td><td><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td></tr>`).join('');
-  }catch(e){}
 }
 
 // ── GANTI PASSWORD ───────────────────────────────────────────────

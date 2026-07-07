@@ -2299,7 +2299,7 @@ function buildKartuGuruPrintHTML(guru, settings, uid) {
     : `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">🏫</div>`;
 
   return `
-  <div id="kartuGuruPrint_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+  <div id="kartuGuruPrint_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
 
     <!-- HEADER BIRU -->
     <div style="position:relative;z-index:2;background:linear-gradient(135deg,#0D47A1 0%,#1565C0 55%,#1976D2 100%);padding:6px 10px 11px;flex-shrink:0">
@@ -2385,7 +2385,7 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
   const email      = settings['EMAIL_SEKOLAH'] || '-';
 
   return `
-    <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+    <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
 
     <!-- HEADER -->
     <div style="background:linear-gradient(135deg,#0D47A1,#1976D2);padding:7px 12px;text-align:center;flex-shrink:0">
@@ -3546,7 +3546,7 @@ function buildKartuInnerHTML(s, settings) {
   ];
 
   return `
-  <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+  <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
 
     <!-- HEADER HIJAU -->
     <div style="position:relative;z-index:2;background:linear-gradient(135deg,#1a6b3a 0%,#2d9e57 55%,#b8920a 100%);padding:5px 10px 10px;flex-shrink:0">
@@ -3625,7 +3625,7 @@ function buildKartuBackHTML(s, settings) {
   const email      = settings?.['EMAIL_SEKOLAH'] || '-';
 
   return `
-    <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0">
+    <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
 
     <!-- HEADER -->
     <div style="background:linear-gradient(135deg,#1a6b3a,#2d9e57);padding:7px 12px;text-align:center;flex-shrink:0">

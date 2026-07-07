@@ -29,7 +29,24 @@ function sebutanGuru(nama, jenisKelamin) {
 //    Begitu SATU guru (siapapun) sudah terkonfirmasi/tercatat piket hari
 //    itu, slot langsung terkunci — guru lain yang scan setelahnya ditolak,
 //    tidak ditawari konfirmasi lagi.
-async function cekIzinPiket({ guruId, hari, today, jam }) {
+async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
+  // ── BLOKIR AKUN KEPSEK DARI JALUR PIKET, TANPA KECUALI ───────────
+  // Ini WAJIB dicek di sini (server), bukan cuma disembunyikan di UI
+  // (lihat loadPiket() di index.html) -- karena jalur "guru pengganti
+  // otomatis" di bawah jalan lewat scan kartu fisik langsung ke endpoint
+  // ini, tidak lewat menu manapun. Kalau cuma disembunyikan di dropdown
+  // jadwal piket, kepsek tetap bisa "kescan" jadi piket kalau kartunya
+  // dipakai scan saat belum ada guru piket lain yang tercatat hari itu.
+  // Kepsek posisinya pengawas piket (lihat getLaporanKepatuhanPiket di
+  // api/settings.js), bukan operator piket, jadi ditolak di titik paling
+  // awal ini, sebelum cek jadwal apapun.
+  if (guruRole === 'kepsek') {
+    return {
+      boleh: false,
+      message: 'Akun Kepala Sekolah tidak diperbolehkan tercatat sebagai guru piket (baik terjadwal maupun pengganti). Kepsek berperan sebagai pengawas piket, bukan pelaksana.'
+    };
+  }
+
   const { data: jadwalHariIni } = await supabase
     .from('jadwal_piket')
     .select('id_guru,nama_guru')
@@ -245,7 +262,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
 
     const { data: guruLogin } = await supabase
       .from('guru')
-      .select('id, nama, jabatan, username, status, qr_token')
+      .select('id, nama, jabatan, username, status, qr_token, role')
       .eq('qr_token', qrToken)
       .maybeSingle();
 
@@ -262,7 +279,11 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
       message: `Login sebagai ${guruLogin.nama}`,
       guru: {
         id: guruLogin.id, nama: guruLogin.nama,
-        jabatan: guruLogin.jabatan, username: guruLogin.username
+        jabatan: guruLogin.jabatan, username: guruLogin.username,
+        // role menentukan sidebar mana yang dibuka scan.html setelah
+        // redirect ke index.html (lihat handleScanResult di scan.html):
+        // 'kepsek' -> kepsekNav (read-only), selain itu -> guruNav.
+        role: guruLogin.role === 'kepsek' ? 'kepsek' : 'guru'
       }
     };
   }
@@ -284,7 +305,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
   if (id.startsWith('GR')) {
     const { data: guru } = await supabase
       .from('guru')
-      .select('id,nama,jabatan,status')
+      .select('id,nama,jabatan,status,role')
       .eq('id', id)
       .maybeSingle();
 
@@ -292,8 +313,10 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
 
     // Cek jadwal piket: hanya guru terjadwal yang boleh langsung, guru
-    // lain ditawari konfirmasi jadi pengganti (lihat cekIzinPiket di atas)
-    const izin = await cekIzinPiket({ guruId: guru.id, hari, today, jam });
+    // lain ditawari konfirmasi jadi pengganti (lihat cekIzinPiket di atas).
+    // guruRole dikirim supaya akun Kepala Sekolah SELALU ditolak di sini,
+    // termasuk sebagai pengganti otomatis.
+    const izin = await cekIzinPiket({ guruId: guru.id, guruRole: guru.role, hari, today, jam });
     let pengganti = false;
 
     if (!izin.boleh) {

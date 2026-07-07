@@ -887,7 +887,7 @@ let _lastPingOk  = navigator.onLine;
 async function pingServer() {
   try {
     const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), 4000);
+    const tid  = setTimeout(() => ctrl.abort(), 2000);
     await fetch(`${API}/api/scan`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -992,19 +992,34 @@ function setMode(mode) {
 
 // ── INIT ─────────────────────────────────────────────────────────
 async function init() {
-  // Load settings
-  try {
-    const r = await api('settings','getJamSetting');
-    if (r.success) {
-      const nama = r.data['NAMA_SEKOLAH'];
-      const logo = r.data['LOGO_URL'];
-      _kodeRahasiaAdmin = r.data['KODE_RAHASIA_ADMIN'] || '';
-      if (nama) document.getElementById('namaSekolah').textContent = nama;
-      if (logo) {
-        const el = document.getElementById('headerLogo');
-        el.innerHTML = `<img src="${logo}" alt="Logo">`;
+  // PERBAIKAN KECEPATAN MUAT: sebelumnya startScanner() (minta akses
+  // kamera ke browser) dipanggil PALING TERAKHIR, setelah 3 request
+  // jaringan selesai satu-satu berantai (getJamSetting -> siswa getAll
+  // -> pingServer yang timeout-nya bisa sampai 4 detik -> getStatus).
+  // Kamera sama sekali tidak butuh data-data itu, jadi sekarang diminta
+  // SEGERA di awal, paralel dengan proses lain, supaya user langsung
+  // lihat preview kamera tanpa menunggu jaringan.
+  startScanner();
+
+  // Load settings + siswa (buat dropdown kelas) — jalan paralel, tidak
+  // lagi berantai satu-satu, dan tidak menahan proses lain.
+  (async () => {
+    try {
+      const r = await api('settings','getJamSetting');
+      if (r.success) {
+        const nama = r.data['NAMA_SEKOLAH'];
+        const logo = r.data['LOGO_URL'];
+        _kodeRahasiaAdmin = r.data['KODE_RAHASIA_ADMIN'] || '';
+        if (nama) document.getElementById('namaSekolah').textContent = nama;
+        if (logo) {
+          const el = document.getElementById('headerLogo');
+          el.innerHTML = `<img src="${logo}" alt="Logo">`;
+        }
       }
-      // Populate kelas
+    } catch(e) {}
+  })();
+  (async () => {
+    try {
       const rSiswa = await api('siswa','getAll',{activeOnly:true,kelas:''});
       if (rSiswa.success) {
         const kelasSet = new Set();
@@ -1014,17 +1029,14 @@ async function init() {
           sel.innerHTML += `<option value="${k}">${k}</option>`;
         });
       }
-    }
-  } catch(e) {}
+    } catch(e) {}
+  })();
 
   // Ping server dulu untuk cek koneksi nyata sebelum checkStatus
   await pingServer();
 
   // Cek status hari ini
   await checkStatus();
-
-  // Mulai kamera
-  startScanner();
 
   // Load log pertama kali
   if (isOnline) await loadLog();

@@ -1505,6 +1505,7 @@ async function processQR(data) {
     const identifier = data.trim();
     if (!identifier) {
       showFlash('error','❌','QR tidak valid');
+      speak('QR tidak valid');
       scanCooldown = false;
       scanAnimFrame = requestAnimationFrame(scanLoop);
       return;
@@ -1531,6 +1532,7 @@ function handleScanResult(result, data, now) {
     if (result.tipe === 'admin') {
       showFlash('guru', '👑', 'Admin Login');
       toast('🔐 Mengalihkan ke dashboard admin...', 2000);
+      speak('Menampilkan akun ' + result.admin.nama);
 
       // Simpan session ke localStorage agar index.html langsung masuk dashboard
       const sessionData = {
@@ -1556,6 +1558,7 @@ function handleScanResult(result, data, now) {
     if (result.tipe === 'guru_login') {
       showFlash('guru', '🔑', 'Login ' + result.guru.nama);
       toast('🔐 Mengalihkan ke dashboard guru...', 2000);
+      speak('Menampilkan akun ' + result.guru.nama);
 
       const sessionData = {
         user: {
@@ -1585,6 +1588,7 @@ function handleScanResult(result, data, now) {
     if (result.tipe === 'guru') {
       showFlash('guru','👤', result.guru.nama);
       toast('✅ ' + result.message);
+      speak('Menampilkan akun ' + result.guru.nama);
       // Simpan lokal agar dikenali saat offline
       simpanGuruOffline(result.guru.nama, result.guru.id || '', result.guru.jam);
       checkStatus();
@@ -1597,6 +1601,15 @@ function handleScanResult(result, data, now) {
         result.siswa.nama + '\n' + result.siswa.kelas
       );
       toast(result.message);
+      // Umumkan lewat suara: nama siswa + status absennya, supaya
+      // guru piket tetap dengar hasilnya walau lagi tidak lihat layar.
+      speak(
+        isPulang
+          ? `${result.siswa.nama} berhasil absen pulang`
+          : isLate
+            ? `${result.siswa.nama} absen datang, terlambat`
+            : `${result.siswa.nama} berhasil absen datang`
+      );
       updateLastResult(result);
       loadLog();
     }
@@ -1610,10 +1623,12 @@ function handleScanResult(result, data, now) {
   } else if (result.perluKonfirmasi) {
     // Guru bukan piket terjadwal -> tampilkan dialog konfirmasi, JANGAN
     // dianggap error dan JANGAN lanjut scan loop dulu (tunggu jawaban user).
+    speak(result.message);
     tampilkanKonfirmasiPiket(result, data);
   } else {
     showFlash('error','❌', result.message);
     toast('❌ ' + result.message);
+    speak(result.message);
     updateLastResultError(result.message);
     scanCooldown = false;
     scanAnimFrame = requestAnimationFrame(scanLoop);
@@ -2095,6 +2110,43 @@ function playBeep(type) {
   } catch(e) {}
 }
 
+// ── SUARA HASIL ABSEN (TEXT-TO-SPEECH) ────────────────────────────
+// Mengucapkan nama siswa + status absennya lewat suara, supaya guru
+// piket tidak perlu terus menatap layar tiap ada siswa yang scan kartu
+// (berguna terutama saat antrean panjang pagi hari). Pakai Web Speech
+// API bawaan browser (SpeechSynthesis) -- tidak perlu file audio
+// tambahan ataupun koneksi internet untuk bicara (voice-nya sudah ada
+// di OS/browser perangkat).
+// CATATAN: beberapa browser (terutama Chrome di HP) baru mengizinkan
+// speechSynthesis bicara setelah ada interaksi pengguna di halaman ini
+// (klik/tap apa saja). Karena kios scan ini normalnya sudah disentuh
+// user untuk mulai (izinkan kamera, dsb), ini biasanya bukan masalah,
+// tapi kalau ternyata di perangkat tertentu suara tidak keluar sama
+// sekali, minta guru piket tap layar sekali dulu sebelum mulai scan.
+function speak(text) {
+  try {
+    if (!('speechSynthesis' in window)) return; // browser tidak dukung, diamkan saja (fitur lain tetap jalan)
+    if (!text) return;
+    // Buang emoji sebelum diucapkan -- banyak pesan di sini (toast/flash)
+    // sudah diawali emoji (✅❌⚠️🌙 dst) untuk tampilan visual, tapi kalau
+    // ikut dikirim ke SpeechSynthesis beberapa browser/voice malah
+    // membacakan NAMA emoji-nya secara harfiah ("centang berat", dst),
+    // yang mengganggu di kios ramai. Fungsi ini dipakai SEMUA pemanggil
+    // speak() di file ini, jadi cukup dibersihkan sekali di sini.
+    const bersih = text
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{FE0F}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!bersih) return;
+    window.speechSynthesis.cancel(); // hentikan ucapan sebelumnya kalau masih jalan (scan beruntun cepat)
+    const utter = new SpeechSynthesisUtterance(bersih);
+    utter.lang = 'id-ID';
+    utter.rate = 1;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
+  } catch(e) {}
+}
+
 // ══════════════════════════════════════════════════════════════════
 // ── OFFLINE SYSTEM ────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════
@@ -2470,6 +2522,7 @@ async function processQRWithOffline(data) {
   const identifier = data.trim();
   if (!identifier) {
     showFlash('error','❌','QR tidak valid');
+    speak('QR tidak valid');
     scanCooldown = false;
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
@@ -2479,6 +2532,7 @@ async function processQRWithOffline(data) {
   if (identifier.startsWith('ADMIN|')) {
     showFlash('error','⚠️','Login admin butuh internet');
     toast('⚠️ Scan kartu admin membutuhkan koneksi internet');
+    speak('Scan admin membutuhkan koneksi internet');
     scanCooldown = false;
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
@@ -2497,6 +2551,7 @@ async function processQRWithOffline(data) {
     if (guruSudahAda) {
       showFlash('error','⚠️', 'Guru sudah scan hari ini');
       toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
+      speak(`${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini`);
       scanCooldown = false;
       scanAnimFrame = requestAnimationFrame(scanLoop);
       return;
@@ -2509,11 +2564,17 @@ async function processQRWithOffline(data) {
       scannedHistory[data] = now;
       showFlash('guru','👤','Guru Tercatat Offline');
       toast(`📴 Guru piket tersimpan offline — akan dikirim saat internet aktif`);
+      // Nama asli guru belum diketahui offline (baru diketahui setelah
+      // sinkronisasi ke server), jadi diucapkan generik dulu -- beda
+      // dengan versi online ("Menampilkan akun {nama}") yang sudah tahu
+      // namanya langsung dari hasil verifikasi server.
+      speak('Guru piket tercatat offline, menunggu sinkronisasi');
       updateOfflineBadge();
     } catch(e) {
       hapusGuruOffline(); // rollback kalau gagal simpan
       showFlash('error','❌','Gagal simpan lokal');
       toast('❌ Gagal menyimpan data offline: ' + e.message);
+      speak('Gagal menyimpan data offline');
     }
     startCooldown(2500);
     setTimeout(() => {
@@ -2528,6 +2589,7 @@ async function processQRWithOffline(data) {
   if (!guruAktif) {
     showFlash('error','⛔','Guru belum scan');
     toast('⛔ Guru piket belum scan kartu. Minta guru piket scan kartunya dulu.');
+    speak('Guru piket belum scan kartu');
     scannedHistory[data] = now;  // ← catat agar tidak spam
     startCooldown(2500);
     setTimeout(() => {
@@ -2544,10 +2606,16 @@ async function processQRWithOffline(data) {
     scannedHistory[data] = now;
     showFlash('warning','📴', 'Disimpan Offline');
     toast(`📴 Tersimpan offline — akan dikirim saat internet aktif`);
+    // Sama seperti guru offline di atas: nama & validitas siswa belum
+    // bisa dipastikan tanpa cek ke server (baru dicek saat sinkronisasi),
+    // jadi diucapkan generik, BUKAN "{nama} berhasil absen ..." seperti
+    // jalur online yang datanya sudah pasti benar dari server.
+    speak('Tersimpan offline, menunggu sinkronisasi');
     updateOfflineBadge();
   } catch(e) {
     showFlash('error','❌','Gagal simpan lokal');
     toast('❌ Gagal menyimpan data offline: ' + e.message);
+    speak('Gagal menyimpan data offline');
   }
 
   startCooldown(2500);

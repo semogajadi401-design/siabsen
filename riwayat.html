@@ -203,6 +203,17 @@ function esc(str) {
 }
 
 const API_BASE = window.location.origin;
+// Batas waktu tunggu fetch. PENTING: navigator.onLine cuma mendeteksi
+// kartu jaringan mati total (mode pesawat/WiFi off) -- kalau HP
+// tersambung ke WiFi/data seluler tapi TIDAK ada akses internet
+// sungguhan (WiFi sekolah tanpa kuota, sinyal sangat lemah, dll),
+// navigator.onLine tetap melaporkan `true`. Tanpa timeout, fetch() bisa
+// menggantung sangat lama di kondisi begini, dan siswa cuma melihat
+// spinner "Memuat riwayat..." tanpa pesan jelas. Timeout ini memastikan
+// state error (lengkap dengan tombol kembali ke scan) selalu muncul
+// dalam waktu wajar, apapun penyebab gagalnya.
+const API_TIMEOUT_MS = 8000;
+
 async function api(action, params = {}) {
   // Cek koneksi dulu supaya pesan error langsung jelas, tanpa nunggu
   // fetch timeout kalau browser sudah tahu sedang offline.
@@ -211,16 +222,26 @@ async function api(action, params = {}) {
   }
 
   let res;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     res = await fetch(`${API_BASE}/api/riwayat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, ...params })
+      body: JSON.stringify({ action, ...params }),
+      signal: controller.signal
     });
   } catch (e) {
     // fetch() melempar error kalau jaringan putus/tidak ada koneksi
-    // sama sekali (bukan cuma status HTTP non-2xx).
+    // sama sekali (bukan cuma status HTTP non-2xx), ATAU kalau request
+    // dibatalkan oleh timeout di atas (e.name === 'AbortError') --
+    // biasanya tersambung ke jaringan tapi tanpa akses internet nyata.
+    if (e.name === 'AbortError') {
+      return { success: false, message: 'Koneksi terlalu lambat atau tidak ada akses internet. Pastikan HP terhubung ke internet, lalu coba scan ulang.' };
+    }
     return { success: false, message: 'Gagal terhubung ke server. Pastikan HP terhubung ke internet, lalu coba scan ulang.' };
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {

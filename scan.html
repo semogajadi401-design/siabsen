@@ -181,25 +181,56 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 /* Kartu scanner (kontainer transparan, tanpa border box) */
 .scanner-card{display:flex;flex-direction:column;gap:10px;background:transparent}
 
-.scanner-header{
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  padding:0;border-bottom:none;
-}
+/* Baris: switch mode (kiri) + kamera bulat (kanan) */
+.scanner-body{display:flex;align-items:center;justify-content:center;gap:22px}
+
 .scanner-mode{font-size:.76rem;font-weight:700;color:var(--text-muted)}
 .scanner-mode.datang{color:var(--primary-dark)}
 .scanner-mode.pulang{color:#7C3AED}
-.mode-toggle{
-  display:flex;gap:4px;background:#F1F5F9;
-  border-radius:11px;padding:3px;
+
+/* ── SWITCH ON/OFF DATANG-PULANG (vertikal, di samping kiri kamera) ── */
+.mode-switch-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
+.mode-switch{
+  position:relative;width:92px;height:184px;
+  background:#F1F5F9;border-radius:28px;padding:6px;
+  display:flex;flex-direction:column;gap:4px;
+  box-shadow:inset 0 2px 6px rgba(15,23,42,0.08);
 }
-.mode-btn{
-  padding:5px 12px;border-radius:8px;
-  font-size:.72rem;font-weight:700;
-  color:var(--text-muted);
-  background:transparent;cursor:pointer;
-  border:none;font-family:inherit;transition:all 0.2s;
+.mode-switch-knob{
+  position:absolute;left:6px;top:6px;
+  width:calc(100% - 12px);height:calc(50% - 8px);
+  border-radius:22px;background:linear-gradient(160deg,#22C55E,#16A34A);
+  box-shadow:0 6px 16px -4px rgba(22,163,74,0.45),0 0 0 1px rgba(34,197,94,0.25);
+  transition:transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s;
+  z-index:0;pointer-events:none;
 }
-.mode-btn.active{background:#fff;color:var(--text);box-shadow:var(--shadow-soft)}
+.mode-switch[data-mode="pulang"] .mode-switch-knob{
+  transform:translateY(calc(100% + 4px));
+}
+.mode-switch-opt{
+  position:relative;z-index:1;flex:1;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  border:none;background:transparent;cursor:pointer;font-family:inherit;
+  border-radius:22px;color:var(--text-muted);font-weight:700;
+  transition:color .25s;
+}
+.mode-switch-icon{font-size:1.5rem;line-height:1}
+.mode-switch-txt{font-size:.82rem;letter-spacing:.2px}
+.mode-switch-opt.datang.active{color:#fff}
+.mode-switch-opt.pulang.active{color:#fff}
+
+@media(max-width:520px){
+  .scanner-body{flex-direction:column;gap:10px}
+  .mode-switch{width:184px;height:64px;flex-direction:row}
+  .mode-switch-knob{
+    left:6px;top:6px;width:calc(50% - 8px);height:calc(100% - 12px);
+    transform:none;
+  }
+  .mode-switch[data-mode="pulang"] .mode-switch-knob{
+    transform:translateX(calc(100% + 4px));
+  }
+  .mode-switch-opt{flex-direction:row;gap:6px}
+}
 
 /* ── KAMERA BULAT DENGAN FRAME SCANNER AI ── */
 .scanner-visual{
@@ -744,33 +775,45 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
     <!-- Scanner -->
     <div class="scanner-card">
-      <div class="scanner-header">
-        <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
-        <div class="mode-toggle">
-          <button class="mode-btn active" id="btnDatang" onclick="setMode('datang')">Datang</button>
-          <button class="mode-btn" id="btnPulang" onclick="setMode('pulang')">Pulang</button>
-        </div>
-      </div>
+      <div class="scanner-body">
 
-      <div class="scanner-visual">
-        <div class="ring-outer"></div>
-        <div class="ring-dashed"></div>
-        <div class="ring-glow"></div>
-        <div class="ring-arc"></div>
-        <div class="ring-particles">
-          <span class="particle p1"></span>
-          <span class="particle p2"></span>
-          <span class="particle p3"></span>
-        </div>
-        <div class="scanner-wrap">
-          <div class="scanner-placeholder">📷</div>
-          <video id="scanVideo" autoplay playsinline muted></video>
-          <div class="scan-flash" id="scanFlash">
-            <div class="scan-flash-icon" id="flashIcon"></div>
-            <div class="scan-flash-text" id="flashText"></div>
+        <!-- Switch ON/OFF Datang (atas) / Pulang (bawah) -->
+        <div class="mode-switch-wrap">
+          <div class="mode-switch" id="modeSwitch" data-mode="datang">
+            <div class="mode-switch-knob"></div>
+            <button type="button" class="mode-switch-opt datang active" id="btnDatang" onclick="setMode('datang')">
+              <span class="mode-switch-icon">☀️</span>
+              <span class="mode-switch-txt">Datang</span>
+            </button>
+            <button type="button" class="mode-switch-opt pulang" id="btnPulang" onclick="setMode('pulang')">
+              <span class="mode-switch-icon">🌙</span>
+              <span class="mode-switch-txt">Pulang</span>
+            </button>
           </div>
-          <canvas id="scanCanvas" style="display:none"></canvas>
+          <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
         </div>
+
+        <div class="scanner-visual">
+          <div class="ring-outer"></div>
+          <div class="ring-dashed"></div>
+          <div class="ring-glow"></div>
+          <div class="ring-arc"></div>
+          <div class="ring-particles">
+            <span class="particle p1"></span>
+            <span class="particle p2"></span>
+            <span class="particle p3"></span>
+          </div>
+          <div class="scanner-wrap">
+            <div class="scanner-placeholder">📷</div>
+            <video id="scanVideo" autoplay playsinline muted></video>
+            <div class="scan-flash" id="scanFlash">
+              <div class="scan-flash-icon" id="flashIcon"></div>
+              <div class="scan-flash-text" id="flashText"></div>
+            </div>
+            <canvas id="scanCanvas" style="display:none"></canvas>
+          </div>
+        </div>
+
       </div>
 
       <!-- Tips silau: muncul otomatis kalau QR belum kebaca ±1.5 detik.
@@ -1058,6 +1101,8 @@ function setMode(mode) {
   scanMode = mode;
   document.getElementById('btnDatang').classList.toggle('active', mode==='datang');
   document.getElementById('btnPulang').classList.toggle('active', mode==='pulang');
+  const sw = document.getElementById('modeSwitch');
+  if (sw) sw.setAttribute('data-mode', mode);
   const lbl = document.getElementById('modeLabel');
   lbl.textContent = mode==='datang' ? '☀️ Mode Datang' : '🌙 Mode Pulang';
   lbl.className   = 'scanner-mode ' + mode;

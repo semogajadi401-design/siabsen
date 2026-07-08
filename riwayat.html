@@ -189,6 +189,19 @@ body{
 </div>
 
 <script>
+// ── ESCAPE HTML (perbaikan keamanan XSS) ──────────────────────────
+// Halaman ini diakses publik lewat QR di kartu siswa, jadi WAJIB
+// membungkus data bebas-teks (nama, dll) dengan esc() sebelum innerHTML.
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const API_BASE = window.location.origin;
 async function api(action, params = {}) {
   const res = await fetch(`${API_BASE}/api/riwayat`, {
@@ -290,7 +303,7 @@ async function loadRiwayat() {
 function render(r) {
   const info = STATE.info;
   const semesterOpts = info.semesters.map(s =>
-    `<option value="${s.id}" ${s.id === STATE.semesterId ? 'selected' : ''}>${s.nama}${s.tahunAjaran ? ' - ' + s.tahunAjaran : ''}</option>`
+    `<option value="${s.id}" ${s.id === STATE.semesterId ? 'selected' : ''}>${esc(s.nama)}${s.tahunAjaran ? ' - ' + s.tahunAjaran : ''}</option>`
   ).join('');
 
   const currentSm = info.semesters.find(s => s.id === STATE.semesterId);
@@ -330,7 +343,7 @@ function render(r) {
       <div class="header">
         <div class="who">
           <span class="tag">🎓 Riwayat Kehadiran</span>
-          <h1>${info.siswa.nama}</h1>
+          <h1>${esc(info.siswa.nama)}</h1>
           <div class="sub">Kelas ${info.siswa.kelas} &nbsp;•&nbsp; NISN ${info.siswa.nisn}</div>
         </div>
         <div class="persen-chip">

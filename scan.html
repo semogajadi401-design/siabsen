@@ -110,7 +110,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 /* ── MAIN LAYOUT ── */
 .main{
   display:grid;
-  grid-template-columns:0.88fr 1.12fr;
+  grid-template-columns:236px 1fr;
   gap:20px;
   padding:16px 22px;
   max-width:1280px;
@@ -122,7 +122,37 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .main{grid-template-columns:1fr;gap:16px;padding:14px;height:auto;min-height:calc(100vh - 58px)}
 }
 
-/* ── PANEL KIRI — SCAN ── */
+/* ── SIDEBAR KIRI — kontrol (judul, status guru piket, switch mode) ── */
+.side-rail{
+  display:flex;flex-direction:column;gap:16px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;padding:18px 16px;
+  box-shadow:var(--shadow-soft);
+  min-height:0;overflow-y:auto;
+}
+.side-rail::-webkit-scrollbar{width:4px}
+.side-rail::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+@media(max-width:900px){
+  .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
+  .side-rail .scan-title{flex:1 1 100%}
+  .side-rail .guru-status{flex:1 1 auto}
+}
+
+/* ── KOLOM KANAN — kamera + statistik/daftar ── */
+.content-col{display:flex;flex-direction:column;gap:14px;min-height:0}
+
+/* Panggung kamera (kartu berdiri sendiri) */
+.scanner-stage{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;padding:20px 22px;
+  box-shadow:var(--shadow-soft);
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  flex-shrink:0;
+}
+
+/* PANEL KIRI — SCAN (dipertahankan untuk kompatibilitas, tidak lagi dipakai sebagai container utama) */
 .scan-panel{display:flex;flex-direction:column;gap:10px;min-height:0;justify-content:center;overflow-y:auto}
 
 /* Judul halaman scan */
@@ -178,20 +208,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   margin-top:8px;padding-top:8px;border-top:1px dashed rgba(34,197,94,0.3);
 }
 
-/* Kartu scanner (kontainer transparan, tanpa border box) */
-.scanner-card{display:flex;flex-direction:column;gap:10px;background:transparent}
-
-/* Baris: switch mode (kiri) + kamera bulat (kanan) */
-.scanner-body{display:flex;align-items:center;justify-content:center;gap:22px}
-
 .scanner-mode{font-size:.76rem;font-weight:700;color:var(--text-muted)}
 .scanner-mode.datang{color:var(--primary-dark)}
 .scanner-mode.pulang{color:#7C3AED}
 
-/* ── SWITCH ON/OFF DATANG-PULANG (vertikal, di samping kiri kamera) ── */
+/* ── SWITCH ON/OFF DATANG-PULANG (vertikal, di dalam sidebar kiri) ── */
 .mode-switch-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
 .mode-switch{
-  position:relative;width:92px;height:184px;
+  position:relative;width:100%;max-width:172px;height:168px;
   background:#F1F5F9;border-radius:28px;padding:6px;
   display:flex;flex-direction:column;gap:4px;
   box-shadow:inset 0 2px 6px rgba(15,23,42,0.08);
@@ -219,9 +243,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .mode-switch-opt.datang.active{color:#fff}
 .mode-switch-opt.pulang.active{color:#fff}
 
+@media(max-width:900px){
+  .mode-switch-wrap{max-width:184px}
+}
 @media(max-width:520px){
-  .scanner-body{flex-direction:column;gap:10px}
-  .mode-switch{width:184px;height:64px;flex-direction:row}
+  .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
   .mode-switch-knob{
     left:6px;top:6px;width:calc(50% - 8px);height:calc(100% - 12px);
     transform:none;
@@ -357,8 +383,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 .manual-input button:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(34,197,94,0.4)}
 
-/* ── PANEL KANAN — LOG ── */
-.log-panel{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0}
+/* ── PANEL LOG (statistik + daftar), sekarang di bawah kamera dalam kolom kanan ── */
+.log-panel{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
 
 /* Stats */
 .stats-row{
@@ -750,14 +776,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <!-- MAIN -->
 <div class="main" id="mainContent">
 
-  <!-- PANEL KIRI -->
-  <div class="scan-panel">
+  <!-- SIDEBAR KIRI: kontrol -->
+  <div class="side-rail">
 
     <!-- Judul -->
     <div class="scan-title">
       <div class="scan-title-icon">📷</div>
       <div>
-        <h2>Scan Kartu Absensi</h2>
+        <h2>Scan Absensi</h2>
         <p>Arahkan kartu ke kamera</p>
       </div>
     </div>
@@ -773,47 +799,49 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
-    <!-- Scanner -->
-    <div class="scanner-card">
-      <div class="scanner-body">
+    <!-- Switch ON/OFF Datang (atas) / Pulang (bawah) -->
+    <div class="mode-switch-wrap">
+      <div class="mode-switch" id="modeSwitch" data-mode="datang">
+        <div class="mode-switch-knob"></div>
+        <button type="button" class="mode-switch-opt datang active" id="btnDatang" onclick="setMode('datang')">
+          <span class="mode-switch-icon">☀️</span>
+          <span class="mode-switch-txt">Datang</span>
+        </button>
+        <button type="button" class="mode-switch-opt pulang" id="btnPulang" onclick="setMode('pulang')">
+          <span class="mode-switch-icon">🌙</span>
+          <span class="mode-switch-txt">Pulang</span>
+        </button>
+      </div>
+      <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
+    </div>
 
-        <!-- Switch ON/OFF Datang (atas) / Pulang (bawah) -->
-        <div class="mode-switch-wrap">
-          <div class="mode-switch" id="modeSwitch" data-mode="datang">
-            <div class="mode-switch-knob"></div>
-            <button type="button" class="mode-switch-opt datang active" id="btnDatang" onclick="setMode('datang')">
-              <span class="mode-switch-icon">☀️</span>
-              <span class="mode-switch-txt">Datang</span>
-            </button>
-            <button type="button" class="mode-switch-opt pulang" id="btnPulang" onclick="setMode('pulang')">
-              <span class="mode-switch-icon">🌙</span>
-              <span class="mode-switch-txt">Pulang</span>
-            </button>
-          </div>
-          <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
+  </div>
+
+  <!-- KOLOM KANAN: kamera + statistik/daftar -->
+  <div class="content-col">
+
+    <!-- Panggung kamera -->
+    <div class="scanner-stage">
+
+      <div class="scanner-visual">
+        <div class="ring-outer"></div>
+        <div class="ring-dashed"></div>
+        <div class="ring-glow"></div>
+        <div class="ring-arc"></div>
+        <div class="ring-particles">
+          <span class="particle p1"></span>
+          <span class="particle p2"></span>
+          <span class="particle p3"></span>
         </div>
-
-        <div class="scanner-visual">
-          <div class="ring-outer"></div>
-          <div class="ring-dashed"></div>
-          <div class="ring-glow"></div>
-          <div class="ring-arc"></div>
-          <div class="ring-particles">
-            <span class="particle p1"></span>
-            <span class="particle p2"></span>
-            <span class="particle p3"></span>
+        <div class="scanner-wrap">
+          <div class="scanner-placeholder">📷</div>
+          <video id="scanVideo" autoplay playsinline muted></video>
+          <div class="scan-flash" id="scanFlash">
+            <div class="scan-flash-icon" id="flashIcon"></div>
+            <div class="scan-flash-text" id="flashText"></div>
           </div>
-          <div class="scanner-wrap">
-            <div class="scanner-placeholder">📷</div>
-            <video id="scanVideo" autoplay playsinline muted></video>
-            <div class="scan-flash" id="scanFlash">
-              <div class="scan-flash-icon" id="flashIcon"></div>
-              <div class="scan-flash-text" id="flashText"></div>
-            </div>
-            <canvas id="scanCanvas" style="display:none"></canvas>
-          </div>
+          <canvas id="scanCanvas" style="display:none"></canvas>
         </div>
-
       </div>
 
       <!-- Tips silau: muncul otomatis kalau QR belum kebaca ±1.5 detik.
@@ -901,10 +929,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
-  </div>
-
-  <!-- PANEL KANAN -->
-  <div class="log-panel">
+    <!-- Statistik + daftar siswa -->
+    <div class="log-panel">
 
     <!-- Stats -->
     <div class="stats-row">
@@ -949,6 +975,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
+  </div>
   </div>
 </div>
 

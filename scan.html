@@ -813,11 +813,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div id="tkStepVerifikasi" style="padding:22px 20px">
           <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
             Fitur ini khusus untuk siswa yang kartunya hilang, rusak, atau ketinggalan.
-            Masukkan <strong>username akun guru piket hari ini</strong> untuk melanjutkan.
+            Masukkan <strong>username dan password akun guru piket hari ini</strong> untuk melanjutkan.
           </div>
-          <input type="text" id="tkUsername" placeholder="Username guru piket..."
-            onkeyup="if(event.key==='Enter')verifikasiTanpaKartu()"
+          <input type="text" id="tkUsername" placeholder="Username guru piket..." autocomplete="username"
+            onkeyup="if(event.key==='Enter')document.getElementById('tkPassword').focus()"
             style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
+          <input type="password" id="tkPassword" placeholder="Password guru piket..." autocomplete="current-password"
+            onkeyup="if(event.key==='Enter')verifikasiTanpaKartu()"
+            style="width:100%;margin-top:10px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
           <div id="tkVerifError" style="display:none;color:var(--danger);font-size:.78rem;margin-top:8px;padding:8px 10px;background:var(--danger-soft);border-radius:8px"></div>
           <button onclick="verifikasiTanpaKartu()" id="tkBtnVerifikasi"
             style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.88rem;cursor:pointer;font-family:inherit">
@@ -1580,6 +1583,7 @@ async function yaKonfirmasiPiket() {
 
 // ── INPUT TANPA KARTU (siswa kartu hilang/rusak/ketinggalan) ──────
 let _tkGuruUsername = null;
+let _tkGuruPassword = null;
 let _tkGuruNama      = null;
 let _tkBelumHadir    = [];
 let _tkSelected      = new Set();
@@ -1613,11 +1617,13 @@ function bukaModalTanpaKartu() {
     return;
   }
 
-  // Mode online — alur biasa: verifikasi username guru piket dulu.
+  // Mode online — alur biasa: verifikasi username & password guru piket dulu.
   _tkOfflineMode = false;
   _tkGuruUsername = null;
+  _tkGuruPassword = null;
   _tkGuruNama = null;
   document.getElementById('tkUsername').value = '';
+  document.getElementById('tkPassword').value = '';
   document.getElementById('tkVerifError').style.display = 'none';
   document.getElementById('tkStepVerifikasi').style.display = 'block';
   document.getElementById('tkStepChecklist').style.display = 'none';
@@ -1665,20 +1671,23 @@ function tutupModalTanpaKartu() {
 
 async function verifikasiTanpaKartu() {
   const username = document.getElementById('tkUsername').value.trim();
+  const password = document.getElementById('tkPassword').value;
   const errEl = document.getElementById('tkVerifError');
   errEl.style.display = 'none';
   if (!username) { errEl.textContent = 'Username wajib diisi'; errEl.style.display = 'block'; return; }
+  if (!password) { errEl.textContent = 'Password wajib diisi'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('tkBtnVerifikasi');
   btn.disabled = true; btn.textContent = 'Memverifikasi...';
   try {
-    const r = await api('scan', 'verifikasiGuruPiket', { username });
+    const r = await api('scan', 'verifikasiGuruPiket', { username, password });
     if (!r.success) {
       errEl.textContent = r.message || 'Verifikasi gagal';
       errEl.style.display = 'block';
       return;
     }
     _tkGuruUsername = username;
+    _tkGuruPassword = password;
     _tkGuruNama = r.guru.nama;
 
     // Ambil daftar siswa belum hadir TERBARU (semua kelas, bukan
@@ -1746,6 +1755,7 @@ async function simpanTanpaKartu() {
   try {
     const r = await api('scan', 'inputTanpaKartu', {
       username: _tkGuruUsername,
+      password: _tkGuruPassword,
       siswaIds: Array.from(_tkSelected),
       mode: scanMode
     });
@@ -1760,6 +1770,9 @@ async function simpanTanpaKartu() {
     toast('❌ Koneksi gagal. Coba lagi.');
   } finally {
     btn.disabled = false; btn.textContent = `Simpan (${_tkSelected.size})`;
+    // Jangan simpan password guru di memori lebih lama dari yang perlu.
+    _tkGuruPassword = null;
+    document.getElementById('tkPassword').value = '';
   }
 }
 

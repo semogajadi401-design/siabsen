@@ -457,6 +457,33 @@ async function isGuruPiketHariIni(idGuru) {
   return !!data;
 }
 
+// ── RESOLVE IDENTITAS GURU DARI guruToken (qr_token) ─────────────────
+// PENTING (perbaikan keamanan): sebelumnya endpoint seperti
+// kehadiran.inputKeterangan/hapusKeterangan dan settings.getRiwayatPiketGuru
+// mempercayai `idGuru` yang dikirim MENTAH oleh klien. Masalahnya, id guru
+// itu BUKAN rahasia -- bisa dibaca siapa saja lewat settings.getGuruPiket
+// (endpoint publik, "siapa piket hari ini"). Akibatnya siapa pun yang tahu
+// idGuru itu bisa mengaku sebagai guru tersebut tanpa login sama sekali.
+//
+// Perbaikannya: identitas guru sekarang HARUS dibuktikan lewat `guruToken`,
+// yaitu qr_token milik guru yang hanya didapat setelah login berhasil
+// (lihat auth.js -- disisipkan otomatis oleh helper api() di frontend,
+// sama seperti pola adminToken yang sudah ada). qr_token ini sama dengan
+// yang dipakai untuk QR "GURU_LOGIN|..." (bypass login lewat kartu), jadi
+// tidak menambah rahasia baru -- kalau qr_token ini bocor, akun guru itu
+// memang sudah bisa di-login penuh lewat QR juga.
+async function resolveGuruIdFromToken(token) {
+  if (!token) return null;
+  const { data } = await supabase
+    .from('guru')
+    .select('id,status')
+    .eq('qr_token', String(token).trim())
+    .limit(1);
+  const guru = data && data[0];
+  if (!guru || guru.status !== 'Aktif') return null;
+  return guru.id;
+}
+
 module.exports = {
   supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
@@ -465,7 +492,7 @@ module.exports = {
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni,
-  cekIzinPiket
+  cekIzinPiket, resolveGuruIdFromToken
 };
 async function requireAdminToken(token) {
   if (!token) return false;

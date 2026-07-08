@@ -204,12 +204,34 @@ function esc(str) {
 
 const API_BASE = window.location.origin;
 async function api(action, params = {}) {
-  const res = await fetch(`${API_BASE}/api/riwayat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...params })
-  });
-  return res.json();
+  // Cek koneksi dulu supaya pesan error langsung jelas, tanpa nunggu
+  // fetch timeout kalau browser sudah tahu sedang offline.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { success: false, message: 'Tidak ada koneksi internet. Riwayat kehadiran butuh koneksi internet untuk dimuat — coba lagi kalau sinyal/WiFi sudah tersedia.' };
+  }
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api/riwayat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...params })
+    });
+  } catch (e) {
+    // fetch() melempar error kalau jaringan putus/tidak ada koneksi
+    // sama sekali (bukan cuma status HTTP non-2xx).
+    return { success: false, message: 'Gagal terhubung ke server. Pastikan HP terhubung ke internet, lalu coba scan ulang.' };
+  }
+
+  if (!res.ok) {
+    return { success: false, message: `Server merespons dengan error (status ${res.status}). Coba lagi beberapa saat lagi.` };
+  }
+
+  try {
+    return await res.json();
+  } catch (e) {
+    return { success: false, message: 'Respons server tidak valid. Coba scan ulang.' };
+  }
 }
 
 // Tombol besar "Tutup dan kembali ke halaman scan" — dipakai di semua
@@ -253,18 +275,24 @@ function renderError(msg) {
 async function init() {
   if (!TOKEN) { renderError('Kode QR tidak ditemukan di tautan ini.'); return; }
 
-  const info = await api('getInfo', { token: TOKEN });
-  if (!info.success) { renderError(info.message || 'Terjadi kesalahan.'); return; }
-  if (!info.semesters.length) {
-    renderError('Belum ada riwayat kehadiran yang bisa ditampilkan untuk siswa ini.');
-    return;
+  try {
+    const info = await api('getInfo', { token: TOKEN });
+    if (!info.success) { renderError(info.message || 'Terjadi kesalahan.'); return; }
+    if (!info.semesters.length) {
+      renderError('Belum ada riwayat kehadiran yang bisa ditampilkan untuk siswa ini.');
+      return;
+    }
+
+    STATE.info = info;
+    const aktif = info.semesters.find(s => s.aktif) || info.semesters[0];
+    STATE.semesterId = aktif.id;
+
+    await loadRiwayat();
+  } catch (e) {
+    // Jaring pengaman terakhir supaya tidak pernah macet selamanya di
+    // state loading kalau ada error tak terduga.
+    renderError('Terjadi kesalahan saat memuat riwayat. Coba scan ulang.');
   }
-
-  STATE.info = info;
-  const aktif = info.semesters.find(s => s.aktif) || info.semesters[0];
-  STATE.semesterId = aktif.id;
-
-  await loadRiwayat();
 }
 
 function bulanOptionsForSemester(sm) {
@@ -290,14 +318,18 @@ function bulanOptionsForSemester(sm) {
 }
 
 async function loadRiwayat() {
-  const result = await api('getRiwayat', {
-    token: TOKEN,
-    semesterId: STATE.semesterId,
-    bulan: STATE.bulan,
-    status: STATE.status
-  });
-  if (!result.success) { renderError(result.message || 'Terjadi kesalahan.'); return; }
-  render(result);
+  try {
+    const result = await api('getRiwayat', {
+      token: TOKEN,
+      semesterId: STATE.semesterId,
+      bulan: STATE.bulan,
+      status: STATE.status
+    });
+    if (!result.success) { renderError(result.message || 'Terjadi kesalahan.'); return; }
+    render(result);
+  } catch (e) {
+    renderError('Terjadi kesalahan saat memuat riwayat. Coba scan ulang.');
+  }
 }
 
 function render(r) {

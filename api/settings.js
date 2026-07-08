@@ -1,5 +1,5 @@
 // api/settings.js — Jam setting, jadwal piket, hari kerja
-const { supabase, generateID, setCors, getJamSetting, hariIni, requireAdminToken } = require('./_db');
+const { supabase, generateID, setCors, getJamSetting, hariIni, requireAdminToken, resolveGuruIdFromToken } = require('./_db');
 
 // Semua aksi "get*" tetap terbuka karena dipakai scan.html secara offline
 // (getJamSetting untuk cek jam operasional) dan halaman lain tanpa sesi
@@ -13,11 +13,26 @@ const AKSI_TERKUNCI = new Set([
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, adminToken, ...params } = req.body || {};
+  const { action, adminToken, guruToken, ...params } = req.body || {};
 
   if (AKSI_TERKUNCI.has(action)) {
     const valid = await requireAdminToken(adminToken);
     if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
+
+  // PENTING (perbaikan keamanan): getRiwayatPiketGuru cuma dipakai frontend
+  // untuk guru melihat riwayat piket DIRINYA SENDIRI (index.html selalu
+  // mengirim APP.user.id). Sebelumnya idGuru itu dipercaya mentah dari
+  // klien -- padahal id guru bisa dibaca siapa saja lewat data lain,
+  // jadi siapa pun bisa lihat riwayat piket guru manapun. Sekarang idGuru
+  // WAJIB dibuktikan lewat guruToken (qr_token rahasia dari sesi login),
+  // bukan sekadar diklaim lewat parameter.
+  if (action === 'getRiwayatPiketGuru') {
+    const guruId = await resolveGuruIdFromToken(guruToken);
+    if (!guruId) {
+      return res.status(401).json({ success: false, message: 'Sesi guru tidak valid. Silakan login ulang.' });
+    }
+    params.idGuru = guruId;
   }
 
   try {
@@ -229,8 +244,15 @@ async function getGuruPiket() {
     .from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari);
   return {
     success: true,
+    // PENTING (perbaikan keamanan): endpoint ini publik (tanpa login) dan
+    // tidak dipakai halaman manapun untuk butuh idGuru -- cuma nama/jabatan
+    // yang ditampilkan. idGuru MENTAH sengaja TIDAK diikutsertakan lagi di
+    // sini karena kalau bocor bisa dipakai untuk mengaku sebagai guru itu
+    // di endpoint lain. Identitas guru yang sebenarnya sekarang selalu
+    // dibuktikan lewat guruToken (qr_token), bukan idGuru -- lihat _db.js
+    // resolveGuruIdFromToken() dan komentar di api/kehadiran.js.
     data: (data || []).map(p => ({
-      idGuru: p.id_guru, namaGuru: p.nama_guru, jabatan: p.jabatan
+      namaGuru: p.nama_guru, jabatan: p.jabatan
     })),
     hari
   };

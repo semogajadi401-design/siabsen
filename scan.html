@@ -2426,7 +2426,25 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ── OVERRIDE processQR: tangkap offline ──────────────────────────
 const _origProcessQR = processQR;
 async function processQRWithOffline(data) {
-  if (isKartuRiwayatUrl(data)) { bukaKartuRiwayat(data); return; }
+  if (isKartuRiwayatUrl(data)) {
+    // PENTING: pakai validasi kewajaran token yang sama seperti di
+    // processQR() (lihat ekstrakTokenRiwayat/tokenRiwayatMasukAkal di atas).
+    // Sebelumnya baris ini langsung memanggil bukaKartuRiwayat(data) tanpa
+    // validasi apapun -- karena scanLoop() memanggil processQRWithOffline
+    // (bukan processQR) untuk SETIAP frame hasil scan, jalur validasi token
+    // yang ada di processQR() tidak pernah tereksekusi untuk kartu riwayat.
+    // Akibatnya, hasil decode jsQR yang salah baca tapi kebetulan konsisten
+    // di 2 frame berturut-turut (paling sering terjadi di webcam laptop yang
+    // fixed-focus/resolusi rendah) tetap diredirect ke /riwayat?t=TOKEN_SALAH
+    // dan berakhir dengan "Kode QR tidak valid atau sudah tidak berlaku".
+    const token = ekstrakTokenRiwayat(data);
+    if (!tokenRiwayatMasukAkal(token)) {
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+    bukaKartuRiwayat(data);
+    return;
+  }
   if (isOnline) {
     // Online: coba kirim ke server dulu
     try {

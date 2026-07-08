@@ -1,7 +1,7 @@
 const {
   supabase, generateID, setCors, todayStr,
   hariIni, isHariLibur, isHariKerja, getSemesterAktif, getJamSetting, tambahMenit,
-  getJamPulangEfektif
+  getJamPulangEfektif, cekIzinPiket
 } = require('./_db');
 
 // ── BATAS TOLERANSI TANGGAL UNTUK SYNC OFFLINE ──────────────────────
@@ -81,16 +81,26 @@ async function batchSync({ items }) {
 //   3. Tidak ada pengecekan hari libur & periode semester aktif, sehingga
 //      scan yang terjadi offline saat libur/luar semester tetap bisa masuk
 //      ke database walau scan online untuk kasus yang sama akan ditolak.
-async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru }) {
-  if (!identifier) return { success: false, message: 'Identifier kosong' };
+async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru, metode }) {
+  // metodeFinal: item "scan QR" tidak mengirim field metode sama sekali
+  // (default 'QR-OFFLINE' seperti sebelumnya), tapi item dari fitur "Input
+  // Tanpa Kartu" offline (lihat simpanTanpaKartuOffline() di scan.html)
+  // mengirim metode:'Manual (Tanpa Kartu)' supaya laporan tetap bisa
+  // membedakan cara absen dicatat, sama seperti jalur online (inputTanpaKartu
+  // di api/scan.js).
+  const metodeFinal = metode || 'QR-OFFLINE';
+
+  if (!identifier) return { success: false, permanent: true, message: 'Identifier kosong' };
 
   // Tolak sinkronisasi kalau tanggal dari perangkat tidak masuk akal
   // (di masa depan, atau sudah lebih dari beberapa hari lewat dari
   // sekarang menurut jam server) — lihat komentar tanggalDalamBatasWajar
-  // di atas.
+  // di atas. Ini juga tidak akan pernah berhasil kalau diulang — jam dan
+  // tanggal yang tercatat di item ini sudah terkunci sejak direkam offline.
   if (!tanggalDalamBatasWajar(tanggal)) {
     return {
       success: false,
+      permanent: true,
       message: `Tanggal scan (${tanggal}) tidak valid atau di luar batas wajar sinkronisasi. Periksa jam/tanggal perangkat.`
     };
   }
@@ -106,20 +116,30 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     const { data: guru } = await supabase
       .from('guru').select('id,nama,jabatan,status,role').eq('id', id).maybeSingle();
 
-    if (!guru)           return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
-    if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
+    if (!guru) return { success: false, permanent: true, message: 'Guru tidak ditemukan', tipe: 'guru' };
+    if (guru.status !== 'Aktif') return { success: false, permanent: true, message: 'Akun guru tidak aktif', tipe: 'guru' };
 
-    // Samakan dengan cekIzinPiket() di api/scan.js: akun Kepala Sekolah
-    // WAJIB ditolak dari jalur piket juga di jalur offline (scan yang
-    // sempat tersimpan lokal di scan.html lalu disinkronkan belakangan),
-    // supaya perilaku online & offline konsisten -- kalau ini tidak
-    // ditambahkan, kepsek masih bisa "kescan" jadi piket selama
-    // perangkat sedang offline saat itu.
-    if (guru.role === 'kepsek') {
-      return {
-        success: false, tipe: 'guru',
-        message: 'Akun Kepala Sekolah tidak diperbolehkan tercatat sebagai guru piket'
-      };
+    // PENTING: sekarang memanggil cekIzinPiket() yang SAMA PERSIS dipakai
+    // scanKartu() di api/scan.js (dipindah ke _db.js) -- bukan cuma cek
+    // kepsek seperti sebelumnya. Ini menutup celah guru yang TIDAK
+    // terjadwal bisa lolos jadi piket kalau perangkatnya offline (lihat
+    // catatan panjang di cekIzinPiket()/_db.js). Pakai `hari`/`tanggal`/`jam`
+    // yang TERCATAT SAAT SCAN TERJADI (dari perangkat offline), bukan jam
+    // server sekarang, supaya keputusan boleh/tidaknya konsisten dengan
+    // kondisi jadwal yang berlaku persis saat scan itu terjadi.
+    const izin = await cekIzinPiket({ guruId: guru.id, guruRole: guru.role, hari, today: tanggal, jam });
+
+    if (!izin.boleh) {
+      // Kasus "perluKonfirmasi" (guru pengganti yang butuh klik "Ya/Tidak")
+      // SENGAJA TIDAK diotomatis-terima di jalur sync. Konfirmasi itu
+      // memang ada untuk mencegah salah scan/dua device offline yang
+      // sama-sama merekam guru pengganti berbeda lolos berdua. Guru yang
+      // benar-benar ingin jadi pengganti harus scan ulang saat online
+      // supaya bisa menekan tombol konfirmasinya secara real-time.
+      const pesan = izin.perluKonfirmasi
+        ? `${izin.message} (Konfirmasi ini tidak bisa dilakukan lewat sinkronisasi offline — scan ulang kartu guru saat sudah online.)`
+        : izin.message;
+      return { success: false, permanent: true, tipe: 'guru', message: pesan };
     }
 
     const { data: sudahScan } = await supabase
@@ -127,7 +147,7 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       .eq('tanggal', tanggal).eq('id_guru', guru.id).maybeSingle();
 
     if (sudahScan) return {
-      success: false, tipe: 'guru',
+      success: false, permanent: true, tipe: 'guru',
       message: `${guru.nama} sudah tercatat sebagai guru piket`
     };
 
@@ -141,17 +161,31 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       // Kode 23505 = unique_violation. Ini bisa terjadi kalau 2 perangkat
       // offline sama-sama menyimpan scan guru yang sama dan melakukan
       // sync nyaris bersamaan — constraint UNIQUE(tanggal, id_guru) di
-      // database yang mencegahnya. Perlakukan sebagai duplikat (pesan
-      // mengandung kata "sudah"), BUKAN kegagalan, supaya item ini
-      // otomatis dihapus dari antrian offline oleh scan.html.
+      // database yang mencegahnya. Perlakukan sebagai duplikat permanen,
+      // BUKAN kegagalan sementara, supaya item ini otomatis dihapus dari
+      // antrian offline oleh scan.html.
       if (sesiError.code === '23505') {
         return {
-          success: false, tipe: 'guru',
+          success: false, permanent: true, tipe: 'guru',
           message: `${guru.nama} sudah tercatat sebagai guru piket`
         };
       }
-      return { success: false, tipe: 'guru', message: 'Gagal simpan sesi piket: ' + sesiError.message };
+      // Error database lain (koneksi/transien) — BUKAN permanen, item
+      // harus dicoba lagi nanti, bukan dibuang dari antrian.
+      return { success: false, permanent: false, tipe: 'guru', message: 'Gagal simpan sesi piket: ' + sesiError.message };
     }
+
+    // ── BACKFILL nama_guru_piket KOSONG (samakan dengan scanKartu()) ──
+    // Baris absensi yang sempat kosong id_guru_piket/nama_guru_piket-nya
+    // (misal siswa keburu absen sebelum guru piket sempat tercatat, lihat
+    // pengecekan sesiList di bawah untuk siswa) diisi begitu guru piket
+    // ini berhasil sync. Sebelumnya langkah ini HANYA ada di jalur online
+    // (scan.js), tidak direplikasi di sini.
+    await supabase
+      .from('absensi')
+      .update({ nama_guru_piket: guru.nama, id_guru_piket: guru.id })
+      .eq('tanggal', tanggal)
+      .or('nama_guru_piket.is.null,nama_guru_piket.eq.');
 
     return {
       success: true, tipe: 'guru',
@@ -166,20 +200,20 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   // lolos masuk ke tabel absensi hanya karena perangkat sedang offline.
   const cekLibur = await isHariLibur(tanggal);
   if (cekLibur.libur)
-    return { success: false, tipe: 'siswa', message: `Hari ini libur: ${cekLibur.keterangan}` };
+    return { success: false, permanent: true, tipe: 'siswa', message: `Hari ini libur: ${cekLibur.keterangan}` };
 
   const hariAktif = await isHariKerja(hari);
   if (!hariAktif)
-    return { success: false, tipe: 'siswa', message: `${hari} bukan hari sekolah` };
+    return { success: false, permanent: true, tipe: 'siswa', message: `${hari} bukan hari sekolah` };
 
   const semester = await getSemesterAktif();
   if (!semester)
-    return { success: false, tipe: 'siswa', message: 'Tidak ada semester aktif' };
+    return { success: false, permanent: true, tipe: 'siswa', message: 'Tidak ada semester aktif' };
 
   const tglMulai   = String(semester.tanggal_mulai).substring(0, 10);
   const tglSelesai = String(semester.tanggal_selesai).substring(0, 10);
   if (tanggal < tglMulai || tanggal > tglSelesai)
-    return { success: false, tipe: 'siswa', message: `Di luar periode semester (${semester.nama})` };
+    return { success: false, permanent: true, tipe: 'siswa', message: `Di luar periode semester (${semester.nama})` };
 
   // ── CEK SISWA ───────────────────────────────────────────────────
   const { data: siswaById } = await supabase
@@ -190,12 +224,32 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     .eq('nisn', id).maybeSingle();
 
   const siswa = siswaById || siswaByNisn;
-  if (!siswa) return { success: false, tipe: 'siswa', message: 'Siswa tidak ditemukan' };
-  if (siswa.status !== 'Aktif') return { success: false, tipe: 'siswa', message: 'Siswa tidak aktif' };
+  if (!siswa) return { success: false, permanent: true, tipe: 'siswa', message: 'Siswa tidak ditemukan' };
+  if (siswa.status !== 'Aktif') return { success: false, permanent: true, tipe: 'siswa', message: 'Siswa tidak aktif' };
 
   // Ambil guru piket dari sesi hari itu
   const { data: sesiList } = await supabase
     .from('sesi_piket').select('*').eq('tanggal', tanggal).order('jam_scan');
+
+  // ── WAJIB ADA GURU PIKET (celah baru yang ditutup) ───────────────
+  // Sebelumnya kalau sesiList kosong (misal item guru piket-nya sendiri
+  // gagal sync, mis. kena aturan cekIzinPiket di atas), kode tetap lanjut
+  // INSERT absensi dengan id_guru_piket/nama_guru_piket KOSONG -- padahal
+  // scanKartu() (jalur online) menolak KERAS kalau sesi_piket kosong untuk
+  // hari itu ("Guru piket belum scan kartu."). Sekarang disamakan: DITOLAK
+  // di sini juga. `namaGuru`/`idGuru` dari item offline biasanya kosong
+  // (scan.html tidak pernah mengirimnya untuk item siswa -- lihat
+  // processQRWithOffline()), jadi guruAktif dari sesiList adalah
+  // satu-satunya sumber. permanent:false SENGAJA (bukan ditolak selamanya)
+  // karena guru piket lain mungkin baru berhasil sync belakangan (dari
+  // device lain) -- begitu itu terjadi, item siswa ini harus otomatis
+  // ikut lolos di percobaan retry berikutnya, bukan dibuang permanen.
+  if ((!sesiList || sesiList.length === 0) && !namaGuru && !idGuru) {
+    return {
+      success: false, permanent: false, tipe: 'siswa',
+      message: 'Guru piket belum tercatat untuk tanggal ini. Akan dicoba lagi otomatis setelah ada guru piket yang berhasil sinkron.'
+    };
+  }
 
   const guruAktif  = sesiList && sesiList.length > 0 ? sesiList[sesiList.length - 1] : null;
   const namaGP     = namaGuru || guruAktif?.nama_guru || null;
@@ -232,9 +286,14 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     // jadi scan offline bisa lolos absen pulang sebelum jam resmi padahal
     // scan online untuk kasus yang sama akan ditolak scan.js.
     if (jam < jamPulangMulai)
-      return { success: false, tipe: 'siswa', message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
+      // Deterministik dari jam yang sudah tercatat saat scan (tidak
+      // berubah lagi kalau diulang) -> permanen.
+      return { success: false, permanent: true, tipe: 'siswa', message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
     if (!absenHariIni)
-      return { success: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
+      // TIDAK permanen: kemungkinan item "datang" siswa ini masih tertahan
+      // di antrian device lain / belum ke-sync, jadi begitu itu berhasil,
+      // item "pulang" ini harus otomatis ikut lolos di percobaan berikutnya.
+      return { success: false, permanent: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
     if (absenHariIni.jam_pulang) {
       // Kalau baris pulang yang SUDAH ADA itu justru berasal dari scan yang
       // lebih SIANG daripada scan offline yang baru sync ini (misal: siswa
@@ -247,21 +306,21 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
           jam_pulang: jam, status_pulang: 'Pulang',
           nama_guru_piket: namaGP, id_guru_piket: idGP
         }).eq('id', absenHariIni.id);
-        if (fixError) return { success: false, tipe: 'siswa', message: 'Gagal mengoreksi jam pulang: ' + fixError.message };
+        if (fixError) return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal mengoreksi jam pulang: ' + fixError.message };
         return {
           success: true, tipe: 'siswa', status: 'Pulang',
           message: `${siswa.nama} - jam pulang dikoreksi ke ${jam} (scan offline lebih awal)`,
           siswa: { nama: siswa.nama, kelas: siswa.kelas }
         };
       }
-      return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}` };
+      return { success: false, permanent: true, tipe: 'siswa', message: `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}` };
     }
 
     const { error: updError } = await supabase.from('absensi').update({
       jam_pulang: jam, status_pulang: 'Pulang',
       nama_guru_piket: namaGP, id_guru_piket: idGP
     }).eq('id', absenHariIni.id);
-    if (updError) return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + updError.message };
+    if (updError) return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal simpan: ' + updError.message };
 
     return {
       success: true, tipe: 'siswa', status: 'Pulang',
@@ -287,16 +346,16 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       const statusKoreksi = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
       const { error: fixError } = await supabase.from('absensi').update({
         jam_datang: jam, status_datang: statusKoreksi,
-        id_guru_piket: idGP, nama_guru_piket: namaGP, metode: 'QR-OFFLINE'
+        id_guru_piket: idGP, nama_guru_piket: namaGP, metode: metodeFinal
       }).eq('id', absenHariIni.id);
-      if (fixError) return { success: false, tipe: 'siswa', message: 'Gagal mengoreksi jam absen: ' + fixError.message };
+      if (fixError) return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal mengoreksi jam absen: ' + fixError.message };
       return {
         success: true, tipe: 'siswa', status: statusKoreksi,
         message: `${siswa.nama} - jam absen dikoreksi ke ${jam} (scan offline lebih awal)`,
         siswa: { nama: siswa.nama, kelas: siswa.kelas }
       };
     }
-    return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang pukul ${absenHariIni.jam_datang}` };
+    return { success: false, permanent: true, tipe: 'siswa', message: `${siswa.nama} sudah absen datang pukul ${absenHariIni.jam_datang}` };
   }
 
   const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
@@ -308,7 +367,7 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     tanggal, hari, jam_datang: jam,
     status_datang: statusDatang,
     id_guru_piket: idGP, nama_guru_piket: namaGP,
-    metode: 'QR-OFFLINE'
+    metode: metodeFinal
   });
 
   if (absenError) {
@@ -327,7 +386,7 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
         const statusKoreksi = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
         const { error: fixError } = await supabase.from('absensi').update({
           jam_datang: jam, status_datang: statusKoreksi,
-          id_guru_piket: idGP, nama_guru_piket: namaGP, metode: 'QR-OFFLINE'
+          id_guru_piket: idGP, nama_guru_piket: namaGP, metode: metodeFinal
         }).eq('id', existingRow.id);
         if (!fixError) {
           return {
@@ -337,9 +396,9 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
           };
         }
       }
-      return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang hari ini` };
+      return { success: false, permanent: true, tipe: 'siswa', message: `${siswa.nama} sudah absen datang hari ini` };
     }
-    return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + absenError.message };
+    return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal simpan: ' + absenError.message };
   }
 
   return {

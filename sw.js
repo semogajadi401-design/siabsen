@@ -1,5 +1,5 @@
 // sw.js — Service Worker SIABSEN Offline
-const CACHE_NAME = 'siabsen-v2';
+const CACHE_NAME = 'siabsen-v3';
 
 const CACHE_URLS = [
   '/scan.html',
@@ -30,6 +30,12 @@ self.addEventListener('fetch', event => {
 
   // Biarkan request API & ping lewat langsung — jangan diintersep
   if (url.pathname.startsWith('/api/')) return;
+
+  // Biarkan halaman riwayat lewat langsung — JANGAN pernah di-cache.
+  // Halaman ini isinya spesifik per-token/siswa dan selalu butuh data
+  // live dari server; kalau di-cache, siswa lain (atau scan berikutnya)
+  // bisa melihat riwayat basi/salah saat sinyal jelek.
+  if (url.pathname.startsWith('/riwayat')) return;
 
   // Biarkan request non-GET lewat langsung
   if (event.request.method !== 'GET') return;

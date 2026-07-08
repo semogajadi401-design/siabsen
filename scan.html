@@ -2123,6 +2123,56 @@ function playBeep(type) {
 // user untuk mulai (izinkan kamera, dsb), ini biasanya bukan masalah,
 // tapi kalau ternyata di perangkat tertentu suara tidak keluar sama
 // sekali, minta guru piket tap layar sekali dulu sebelum mulai scan.
+//
+// PEMILIHAN VOICE INDONESIA: hanya set `utter.lang = 'id-ID'` TIDAK
+// cukup -- kalau tidak diberi tahu voice mana yang dipakai, browser
+// sering memilih voice default-nya sendiri (banyak yang default-nya
+// voice bahasa Inggris), sehingga teks Indonesia tetap "dibaca" tapi
+// pakai lafal/aksen Inggris. Makanya di sini voice Indonesia dicari
+// & dipilih secara eksplisit dari daftar voice yang tersedia di
+// perangkat (lihat muatSuaraIndonesia()).
+let suaraIndonesia = null;      // SpeechSynthesisVoice terpilih utk bahasa Indonesia
+let suaraIndonesiaDicek = false; // sudah pernah coba deteksi voice atau belum
+let _peringatanVoiceSudah = false; // supaya toast peringatan cuma muncul sekali
+
+function muatSuaraIndonesia() {
+  if (!('speechSynthesis' in window)) return;
+  const semuaVoice = window.speechSynthesis.getVoices();
+  if (!semuaVoice || !semuaVoice.length) return; // daftar voice belum siap, coba lagi nanti (voiceschanged)
+
+  // Cari semua voice berbahasa Indonesia (lang diawali "id", mis. "id-ID")
+  const kandidat = semuaVoice.filter(v => v.lang && v.lang.toLowerCase().startsWith('id'));
+
+  if (kandidat.length) {
+    // Utamakan voice lokal/offline (localService) karena biasanya lebih
+    // stabil & tidak butuh internet; kalau tidak ada, pakai apa pun yang
+    // berbahasa Indonesia (mis. voice jaringan Google).
+    kandidat.sort((a, b) => (b.localService === true) - (a.localService === true));
+    suaraIndonesia = kandidat[0];
+  } else {
+    suaraIndonesia = null;
+  }
+  suaraIndonesiaDicek = true;
+
+  if (!suaraIndonesia && !_peringatanVoiceSudah) {
+    _peringatanVoiceSudah = true;
+    console.warn(
+      'Tidak ditemukan voice Bahasa Indonesia (id-ID) di perangkat ini. ' +
+      'Suara TTS akan memakai voice default (kemungkinan beraksen asing). ' +
+      'Solusi: install/aktifkan paket suara Bahasa Indonesia di pengaturan ' +
+      'Text-to-Speech perangkat (mis. Android: Setelan > Aksesibilitas > ' +
+      'Text-to-speech output > mesin Google > unduh data suara "Bahasa Indonesia").'
+    );
+  }
+}
+
+if ('speechSynthesis' in window) {
+  muatSuaraIndonesia(); // coba langsung (di sebagian browser voice sudah siap sejak awal)
+  // Di banyak browser (terutama Chrome), daftar voice baru terisi secara
+  // async setelah event ini terpicu, jadi perlu didengarkan juga.
+  window.speechSynthesis.onvoiceschanged = muatSuaraIndonesia;
+}
+
 function speak(text) {
   try {
     if (!('speechSynthesis' in window)) return; // browser tidak dukung, diamkan saja (fitur lain tetap jalan)
@@ -2138,9 +2188,11 @@ function speak(text) {
       .replace(/\s+/g, ' ')
       .trim();
     if (!bersih) return;
+    if (!suaraIndonesiaDicek) muatSuaraIndonesia(); // jaga-jaga kalau belum sempat ke-load saat halaman dibuka
     window.speechSynthesis.cancel(); // hentikan ucapan sebelumnya kalau masih jalan (scan beruntun cepat)
     const utter = new SpeechSynthesisUtterance(bersih);
     utter.lang = 'id-ID';
+    if (suaraIndonesia) utter.voice = suaraIndonesia; // paksa pakai voice Indonesia, bukan default browser
     utter.rate = 1;
     utter.pitch = 1;
     window.speechSynthesis.speak(utter);

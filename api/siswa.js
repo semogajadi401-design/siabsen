@@ -47,10 +47,27 @@ module.exports = async (req, res) => {
 };
 
 async function getAll({ activeOnly, kelas }, isAdmin) {
-  // Kolom yang diambil dari database dibedakan sejak awal (bukan cuma
-  // disaring di response) supaya data sensitif tidak pernah ikut terbawa
-  // ke memori proses untuk pemanggil yang tidak terautentikasi.
-  const kolomPublik = 'id,nisn,nama,jenis_kelamin,kelas,status';
+  // Kolom yang diambil dari database dibedakan sejak awal supaya data
+  // PRIBADI (alamat, no HP ortu, dll) tidak pernah ikut terbawa ke memori
+  // proses untuk pemanggil yang tidak terautentikasi.
+  //
+  // PERBAIKAN BUG: riwayat_token TETAP disertakan di kolomPublik (bukan
+  // data pribadi -- cuma token acak), justru supaya logika backfill di
+  // bawah bisa membaca nilainya yang SEBENARNYA. Sebelumnya kolom ini
+  // TIDAK ada di kolomPublik, jadi untuk pemanggil non-admin (mis.
+  // scan.html, yang memanggil getAll TANPA adminToken setiap kali
+  // halaman scan dibuka) setiap `s.riwayat_token` selalu undefined --
+  // BUKAN karena tokennya kosong di database, tapi karena kolomnya
+  // memang tidak ikut ter-select. Filter backfill `!s.riwayat_token` di
+  // bawah jadi mengira SEMUA siswa belum punya token, lalu men-generate
+  // & MENIMPA riwayat_token semua siswa dengan nilai acak baru setiap
+  // kali scan.html dibuka -- membuat QR riwayat yang sudah tercetak di
+  // kartu fisik langsung basi (persis gejala "hanya sekali tampil lalu
+  // selalu 'Kode QR tidak valid'" yang dilaporkan). Token tetap TIDAK
+  // ikut dikirim ke response untuk non-admin -- lihat pemetaan field
+  // eksplisit di bagian akhir fungsi ini, riwayatToken sengaja tidak
+  // disertakan di sana kalau !isAdmin.
+  const kolomPublik = 'id,nisn,nama,jenis_kelamin,kelas,status,riwayat_token';
   const kolomLengkap = '*';
 
   let q = supabase.from('siswa').select(isAdmin ? kolomLengkap : kolomPublik).order('nama');

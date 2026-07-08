@@ -315,7 +315,27 @@ async function resetAbsensi({ kelas, semua }) {
 
     const { error } = await supabase.from('absensi').delete().neq('id', 'x');
     if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
-    return { success: true, message: 'Seluruh riwayat absensi, data sakit/izin, dan riwayat sesi piket berhasil dihapus' };
+
+    // Catat waktu reset ini di jam_setting (kunci RESET_ABSENSI_TERAKHIR).
+    // PENTING — celah yang ditutup: perangkat scan (HP/laptop guru piket)
+    // yang sedang offline saat reset ini dijalankan menyimpan antrian
+    // scan-nya sendiri secara lokal (IndexedDB, lihat scan.html) dan baru
+    // mengirimkannya ke server belakangan lewat api/sync.js begitu online
+    // lagi. Tanpa penanda ini, item antrian lama tsb bisa lolos masuk lagi
+    // ke tabel `absensi`/`sesi_piket` yang baru saja "dibersihkan", padahal
+    // dari sudut pandang admin data itu sudah sengaja dihapus. Kegagalan
+    // upsert ini SENGAJA tidak membatalkan reset (reset absensi sendiri
+    // sudah berhasil) — hanya dicatat sebagai peringatan di pesan balik,
+    // supaya admin tahu proteksi tambahan ini mungkin belum aktif.
+    const { error: eTs } = await supabase
+      .from('jam_setting')
+      .upsert({ kunci: 'RESET_ABSENSI_TERAKHIR', nilai: new Date().toISOString() }, { onConflict: 'kunci' });
+
+    return {
+      success: true,
+      message: 'Seluruh riwayat absensi, data sakit/izin, dan riwayat sesi piket berhasil dihapus'
+        + (eTs ? ' (peringatan: gagal mencatat waktu reset untuk proteksi sinkronisasi offline — ' + eTs.message + ')' : '')
+    };
   }
   if (!kelas || !kelas.length)
     return { success: false, message: 'Pilih minimal satu kelas' };

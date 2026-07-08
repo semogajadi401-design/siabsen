@@ -1556,6 +1556,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div style="margin-top:16px;padding:12px;background:var(--danger-light);border-radius:8px;font-size:.82rem;color:var(--danger)">
         ⚠️ Data yang sudah dihapus tidak dapat dikembalikan.
       </div>
+      <div id="resetAbsensiPeringatanOffline" style="display:none;margin-top:10px;padding:12px;background:var(--danger-light);border-radius:8px;font-size:.82rem;color:var(--danger)">
+        ⚠️ Pastikan semua perangkat scan (HP/laptop guru piket) dalam keadaan <strong>online</strong> dan antriannya sudah kosong sebelum melanjutkan. Sistem akan otomatis menolak scan lama yang baru sinkron setelah reset ini, tapi tetap disarankan menyinkronkan semua perangkat terlebih dulu.
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalResetAbsensi')">Batal</button>
@@ -1625,6 +1628,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         seluruh data siswa, seluruh data guru &amp; jadwal piket, seluruh data semester, serta mengembalikan jam operasional,
         hari sekolah aktif, dan kalender hari libur ke pengaturan default. Akun admin dan profil sekolah tetap aman.
         <br><br><strong style="color:var(--danger)">Tindakan ini tidak bisa dibatalkan.</strong>
+        <br><br>⚠️ Pastikan semua perangkat scan (HP/laptop guru piket) dalam keadaan <strong>online</strong> dan antriannya sudah kosong (badge offline tidak muncul) sebelum melanjutkan. Sistem akan otomatis menolak scan lama yang baru sinkron setelah reset ini, tapi tetap disarankan menyinkronkan semua perangkat terlebih dulu.
       </p>
       <div style="margin-top:16px">
         <label style="font-size:.85rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:8px">Ketik <strong style="color:var(--danger)">RESET TOTAL</strong> untuk konfirmasi:</label>
@@ -4114,6 +4118,12 @@ function toggleResetSemua(cb) {
     const check = item.querySelector('input[type=checkbox]');
     if (check) { check.checked = cb.checked; item.classList.toggle('checked', cb.checked); }
   });
+  // Peringatan perangkat offline hanya relevan kalau SEMUA kelas dihapus
+  // (itu satu-satunya kasus yang menulis RESET_ABSENSI_TERAKHIR di server —
+  // lihat resetAbsensi({semua:true}) di api/absensi.js), bukan saat reset
+  // per-kelas.
+  const peringatan = document.getElementById('resetAbsensiPeringatanOffline');
+  if (peringatan) peringatan.style.display = cb.checked ? 'block' : 'none';
 }
 
 async function eksekusiResetAbsensi() {

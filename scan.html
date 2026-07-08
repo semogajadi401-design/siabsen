@@ -7,6 +7,20 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
 <script>
+// ── ESCAPE HTML (perbaikan keamanan XSS) ──────────────────────────
+// Halaman ini paling terekspos publik (dibuka lewat kiosk atau siapa saja
+// yang scan QR/kartu), jadi WAJIB membungkus setiap data bebas-teks
+// (nama siswa/guru, keterangan, dll) dengan esc() sebelum masuk innerHTML.
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Register Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -1189,7 +1203,7 @@ function updateGuruStatus(guruList, status) {
       const namaTerjadwal = jadwal.map(j => j.nama_guru).join(', ');
       content.innerHTML = `<div class="no-guru-text">
         <span>⏳</span>
-        <span>Menunggu <b>${namaTerjadwal}</b> (piket terjadwal hari ini). Guru lain yang scan akan diminta konfirmasi jadi pengganti.</span>
+        <span>Menunggu <b>${esc(namaTerjadwal)}</b> (piket terjadwal hari ini). Guru lain yang scan akan diminta konfirmasi jadi pengganti.</span>
       </div>`;
     }
     return;
@@ -1203,10 +1217,10 @@ function updateGuruStatus(guruList, status) {
       const pengganti = idTerjadwal.length > 0 && !idTerjadwal.includes(g.id_guru);
       return `
       <div class="guru-item">
-        <div class="guru-avatar">${g.nama_guru.charAt(0)}</div>
+        <div class="guru-avatar">${esc(g.nama_guru.charAt(0))}</div>
         <div>
-          <div class="guru-nama">${g.nama_guru}${pengganti ? ' <span style="font-size:.7em;opacity:.8">(Pengganti)</span>' : ''}</div>
-          <div class="guru-jam">${g.jabatan} • Scan ${g.jam_scan}</div>
+          <div class="guru-nama">${esc(g.nama_guru)}${pengganti ? ' <span style="font-size:.7em;opacity:.8">(Pengganti)</span>' : ''}</div>
+          <div class="guru-jam">${esc(g.jabatan)} • Scan ${g.jam_scan}</div>
         </div>
       </div>
     `;
@@ -1709,9 +1723,9 @@ function renderChecklistTanpaKartu() {
     <label class="log-item" style="cursor:pointer;user-select:none">
       <input type="checkbox" value="${s.id}" onchange="toggleTkSiswa('${s.id}', this.checked)"
         style="width:19px;height:19px;flex-shrink:0;margin-right:2px;accent-color:var(--primary)">
-      <div class="log-avatar belum">${s.nama.charAt(0)}</div>
+      <div class="log-avatar belum">${esc(s.nama.charAt(0))}</div>
       <div>
-        <div class="log-nama">${s.nama}</div>
+        <div class="log-nama">${esc(s.nama)}</div>
         <div class="log-kelas">${s.kelas}</div>
       </div>
     </label>`).join('');
@@ -1830,7 +1844,7 @@ function updateLastResult(result) {
   el.innerHTML = `
     <div class="last-result-icon">${icon}</div>
     <div class="last-result-info">
-      <div class="last-result-nama">${s.nama}</div>
+      <div class="last-result-nama">${esc(s.nama)}</div>
       <div class="last-result-detail">Kelas ${s.kelas} • NISN: ${s.nisn} • ${jam}</div>
     </div>
     <span class="last-result-status ${stCls}">${stTxt}</span>`;
@@ -1910,9 +1924,9 @@ function renderLog() {
   if (activeTab === 'belum') {
     container.innerHTML = list.map(s => `
       <div class="log-item">
-        <div class="log-avatar belum">${s.nama.charAt(0)}</div>
+        <div class="log-avatar belum">${esc(s.nama.charAt(0))}</div>
         <div>
-          <div class="log-nama">${s.nama}</div>
+          <div class="log-nama">${esc(s.nama)}</div>
           <div class="log-kelas">${s.kelas}</div>
         </div>
         <div class="log-right">
@@ -1922,10 +1936,10 @@ function renderLog() {
   } else if (activeTab === 'izin') {
     container.innerHTML = list.map(s => `
       <div class="log-item">
-        <div class="log-avatar izin">${s.nama.charAt(0)}</div>
+        <div class="log-avatar izin">${esc(s.nama.charAt(0))}</div>
         <div>
-          <div class="log-nama">${s.nama}</div>
-          <div class="log-kelas">${s.kelas}${s.keterangan ? ' • ' + s.keterangan : ''}</div>
+          <div class="log-nama">${esc(s.nama)}</div>
+          <div class="log-kelas">${s.kelas}${esc(s.keterangan ? ' • ' + s.keterangan : '')}</div>
         </div>
         <div class="log-right">
           <span class="log-badge badge-izin">${s.status || 'Izin'}</span>
@@ -1940,9 +1954,9 @@ function renderLog() {
       const bdgTxt = isPul ? `Pulang ${s.jamPulang}` : isLate ? 'Terlambat' : 'Hadir';
       return `
         <div class="log-item">
-          <div class="log-avatar ${avCls}">${s.nama.charAt(0)}</div>
+          <div class="log-avatar ${avCls}">${esc(s.nama.charAt(0))}</div>
           <div>
-            <div class="log-nama">${s.nama}</div>
+            <div class="log-nama">${esc(s.nama)}</div>
             <div class="log-kelas">${s.kelas}</div>
           </div>
           <div class="log-right">
@@ -2202,7 +2216,7 @@ async function showSyncOverlay(antrian) {
     div.innerHTML = `
       <div class="sync-log-icon">⏳</div>
       <div class="sync-log-text">
-        <div class="sync-log-nama">${item.namaCache || item.identifier}</div>
+        <div class="sync-log-nama">${esc(item.namaCache || item.identifier)}</div>
         <div class="sync-log-status">${item.tanggal} • ${item.jam} • ${item.mode === 'pulang' ? 'Pulang' : 'Datang'}</div>
       </div>`;
     logEl.appendChild(div);

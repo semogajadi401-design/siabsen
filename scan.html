@@ -1304,6 +1304,28 @@ const SCAN_MAKS_LEBAR = 640;
 let _scanGagalBerturut = 0;
 const SCAN_HINT_SETELAH = 45; // ± 1.5 detik di 30fps sebelum kasih tips
 
+// ── KONFIRMASI HASIL DECODE (anti salah-baca kamera kualitas rendah) ──
+// Webcam laptop (fixed-focus, resolusi rendah, sering agak buram) kadang
+// membuat jsQR "berhasil" decode tapi hasilnya SALAH di beberapa karakter
+// -- lolos dari validasi checksum internal jsQR namun teksnya rusak.
+// Ini paling terasa untuk QR riwayat (isinya URL + token acak): karena
+// isKartuRiwayatUrl() cuma mengecek bentuknya seperti URL berisi
+// "/riwayat" (tanpa validasi token), hasil decode yang rusak tetap lolos
+// dan browser langsung redirect ke tautan yang token-nya sudah tidak
+// cocok -> muncul "Kode QR tidak valid atau sudah tidak berlaku" padahal
+// kartunya valid. Di HP kejadian ini jarang (kamera lebih tajam & auto-
+// fokus dekat), makanya sebagian besar tetap berhasil; di laptop hampir
+// selalu kena karena kualitas gambarnya memang lebih rendah.
+//
+// Perbaikannya: JANGAN langsung proses hasil decode dari 1 frame saja.
+// Tunggu sampai frame BERIKUTNYA memberi hasil yang PERSIS SAMA baru
+// diproses. Kemungkinan jsQR salah baca dengan cara yang identik dua
+// frame berturut-turut sangat kecil, sementara delay yang ditambahkan
+// cuma sepersekian detik (tidak terasa oleh pengguna).
+let _qrKandidat = null;
+let _qrKandidatCount = 0;
+const QR_KONFIRMASI_MINIMAL = 2;
+
 function scanLoop() {
   if (!scanActive) return;
   const video  = document.getElementById('scanVideo');
@@ -1353,9 +1375,34 @@ function scanLoop() {
   if (code) {
     _scanGagalBerturut = 0;
     sembunyikanTipsSilau();
-    processQRWithOffline(code.data);
+
+    // Baru diproses kalau frame SEBELUMNYA juga membaca teks yang PERSIS
+    // sama. Kalau beda (atau ini bacaan pertama), simpan dulu sebagai
+    // kandidat dan tunggu satu frame lagi untuk konfirmasi -- ini yang
+    // menyaring hasil decode "ngaco" akibat kamera buram/kualitas rendah
+    // (lihat catatan di deklarasi _qrKandidat di atas).
+    if (code.data === _qrKandidat) {
+      _qrKandidatCount++;
+    } else {
+      _qrKandidat = code.data;
+      _qrKandidatCount = 1;
+    }
+
+    if (_qrKandidatCount >= QR_KONFIRMASI_MINIMAL) {
+      _qrKandidat = null;
+      _qrKandidatCount = 0;
+      processQRWithOffline(code.data);
+      return;
+    }
+
+    scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }
+
+  // Decode gagal di frame ini -> reset kandidat konfirmasi supaya tidak
+  // "menyambung" dua bacaan identik dari dua kartu/momen yang berbeda.
+  _qrKandidat = null;
+  _qrKandidatCount = 0;
 
   _scanGagalBerturut++;
   if (_scanGagalBerturut === SCAN_HINT_SETELAH) tampilkanTipsSilau();
@@ -1402,6 +1449,30 @@ function isKartuRiwayatUrl(data) {
   return typeof data === 'string' && /^https?:\/\//i.test(data.trim()) && data.includes('/riwayat');
 }
 
+// Token riwayat digenerate di api/_db.js (generateRiwayatToken) dari
+// alfabet base62 (huruf besar+kecil+angka), panjang 8 karakter. Dicek
+// longgar 6-16 karakter di sini (bukan persis 8) supaya tidak gampang
+// rapuh kalau panjang token diubah di masa depan -- yang penting cukup
+// untuk menyaring token yang jelas-jelas rusak/terpotong akibat salah
+// baca kamera, BUKAN untuk validasi ketat (validasi sebenarnya tetap di
+// server). Kalau bentuknya tidak masuk akal, JANGAN redirect -- anggap
+// saja decode-nya gagal dan lanjut scan, daripada nyasar ke halaman
+// error yang membingungkan pengguna.
+function ekstrakTokenRiwayat(url) {
+  try {
+    const u = new URL(url.trim());
+    const dariQuery = u.searchParams.get('t') || u.searchParams.get('token');
+    if (dariQuery) return dariQuery;
+    const m = u.pathname.match(/\/riwayat\/([^/?#]+)/i);
+    return m ? m[1] : '';
+  } catch (e) {
+    return '';
+  }
+}
+function tokenRiwayatMasukAkal(token) {
+  return typeof token === 'string' && /^[A-Za-z0-9]{6,16}$/.test(token);
+}
+
 function bukaKartuRiwayat(data) {
   showFlash('guru', '📖', 'Membuka riwayat...');
   toast('📖 Ini QR riwayat kehadiran — membuka halamannya...');
@@ -1410,7 +1481,19 @@ function bukaKartuRiwayat(data) {
 }
 
 async function processQR(data) {
-  if (isKartuRiwayatUrl(data)) { bukaKartuRiwayat(data); return; }
+  if (isKartuRiwayatUrl(data)) {
+    // Lapisan pengaman tambahan: kalaupun 2 frame berturut sepakat tapi
+    // token hasil decode-nya jelas tidak masuk akal (kependekan/berisi
+    // karakter aneh akibat salah baca kamera), jangan redirect ke
+    // halaman yang pasti error -- anggap belum berhasil, lanjut scan.
+    const token = ekstrakTokenRiwayat(data);
+    if (!tokenRiwayatMasukAkal(token)) {
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+    bukaKartuRiwayat(data);
+    return;
+  }
   const now = Date.now();
   if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
     scanAnimFrame = requestAnimationFrame(scanLoop); return;

@@ -287,8 +287,16 @@ async function dashboard() {
       sakitIzinHariIni,
       alphaHariIni,
       jamSetting,
+      // PENTING (perbaikan keamanan): dashboard() PUBLIK (tanpa login,
+      // dipakai alur harian sebelum guru piket login) -- idGuru MENTAH
+      // sengaja tidak diikutsertakan lagi (frontend cuma pakai
+      // namaGuru/jabatan). Sama seperti perbaikan di settings.getGuruPiket:
+      // kalau idGuru bocor lewat sini, orang bisa memakainya untuk
+      // berpura-pura jadi guru itu di endpoint lain. Identitas guru yang
+      // sesungguhnya selalu dibuktikan lewat guruToken, bukan idGuru --
+      // lihat resolveGuruIdFromToken() di _db.js.
       piketHariIni: (piket.data || []).map(p => ({
-        idGuru: p.id_guru, namaGuru: p.nama_guru, jabatan: p.jabatan
+        namaGuru: p.nama_guru, jabatan: p.jabatan
       })),
       hariIni: hari,
       absenTerkini

@@ -2,113 +2,12 @@ const {
   supabase, generateID, setCors,
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
-  getJamPulangEfektif
+  getJamPulangEfektif, cekIzinPiket
 } = require('./_db');
-
-// ── SEBUTAN BAPAK/IBU BERDASARKAN JENIS KELAMIN GURU ─────────────
-function sebutanGuru(nama, jenisKelamin) {
-  return `${jenisKelamin === 'Perempuan' ? 'Ibu' : 'Bapak'} ${nama}`;
-}
-
-// ── CEK APAKAH GURU BOLEH SCAN SEBAGAI PIKET ─────────────────────
-// Aturan disiplin jadwal piket:
-//  - Kalau hari ini TIDAK ada jadwal piket yang diatur admin sama sekali
-//    (jadwal_piket kosong untuk hari itu) -> tidak ada pembatasan, guru
-//    aktif manapun boleh scan (supaya sekolah yang belum sempat mengisi
-//    jadwal tidak macet total).
-//  - Kalau ADA jadwal untuk hari ini dan guru yang scan bukan yang
-//    terjadwal -> selama belum ada SIAPAPUN yang tercatat sebagai piket
-//    hari itu (baik guru terjadwal maupun pengganti), guru ini ditawari
-//    konfirmasi jadi pengganti — TIDAK menunggu batas toleransi lagi.
-//    Alasan: yang lebih dulu tahu guru piket asli izin biasanya justru
-//    guru yang ada di lokasi, bukan admin di depan komputer, jadi tidak
-//    perlu dipaksa menunggu.
-//    Pesan konfirmasi beda tergantung sudah lewat batas toleransi atau
-//    belum (murni soal kata-kata, bukan soal boleh/tidaknya):
-//      - Sebelum toleransi lewat : "...Apakah Anda akan menggantikan...?" (Ya/Batal)
-//      - Sudah lewat toleransi   : "Anda akan menjadi guru piket menggantikan...' (Ya/Tidak)
-//    Begitu SATU guru (siapapun) sudah terkonfirmasi/tercatat piket hari
-//    itu, slot langsung terkunci — guru lain yang scan setelahnya ditolak,
-//    tidak ditawari konfirmasi lagi.
-async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
-  // ── BLOKIR AKUN KEPSEK DARI JALUR PIKET, TANPA KECUALI ───────────
-  // Ini WAJIB dicek di sini (server), bukan cuma disembunyikan di UI
-  // (lihat loadPiket() di index.html) -- karena jalur "guru pengganti
-  // otomatis" di bawah jalan lewat scan kartu fisik langsung ke endpoint
-  // ini, tidak lewat menu manapun. Kalau cuma disembunyikan di dropdown
-  // jadwal piket, kepsek tetap bisa "kescan" jadi piket kalau kartunya
-  // dipakai scan saat belum ada guru piket lain yang tercatat hari itu.
-  // Kepsek posisinya pengawas piket (lihat getLaporanKepatuhanPiket di
-  // api/settings.js), bukan operator piket, jadi ditolak di titik paling
-  // awal ini, sebelum cek jadwal apapun.
-  if (guruRole === 'kepsek') {
-    return {
-      boleh: false,
-      message: 'Akun Kepala Sekolah tidak diperbolehkan tercatat sebagai guru piket (baik terjadwal maupun pengganti). Kepsek berperan sebagai pengawas piket, bukan pelaksana.'
-    };
-  }
-
-  const { data: jadwalHariIni } = await supabase
-    .from('jadwal_piket')
-    .select('id_guru,nama_guru')
-    .eq('hari', hari);
-
-  const idTerjadwal = (jadwalHariIni || []).map(j => j.id_guru);
-
-  // Tidak ada jadwal diatur untuk hari ini sama sekali -> bebas (opsi 1)
-  if (idTerjadwal.length === 0) {
-    return { boleh: true };
-  }
-
-  // Guru ini memang terjadwal hari ini -> selalu boleh
-  if (idTerjadwal.includes(guruId)) {
-    return { boleh: true };
-  }
-
-  // Guru ini TIDAK terjadwal -> cek apakah SUDAH ADA guru piket tercatat
-  // hari ini (siapapun). Kalau sudah ada, slot terkunci, tidak ada
-  // konfirmasi lagi untuk guru lain.
-  const { data: sesiHariIni } = await supabase
-    .from('sesi_piket')
-    .select('id_guru')
-    .eq('tanggal', today);
-
-  if (sesiHariIni && sesiHariIni.length > 0) {
-    return {
-      boleh: false,
-      message: 'Guru piket hari ini sudah tercatat. Slot pengganti tidak dibuka lagi.'
-    };
-  }
-
-  // Belum ada siapapun yang tercatat piket hari ini -> tawarkan konfirmasi
-  // jadi pengganti. Ambil jenis kelamin guru terjadwal untuk sebutan
-  // Bapak/Ibu di pesan konfirmasi.
-  const { data: dataGuruTerjadwal } = await supabase
-    .from('guru')
-    .select('id,nama,jenis_kelamin')
-    .in('id', idTerjadwal);
-
-  const teksNama = (dataGuruTerjadwal && dataGuruTerjadwal.length
-    ? dataGuruTerjadwal
-    : jadwalHariIni.map(j => ({ nama: j.nama_guru, jenis_kelamin: null }))
-  ).map(g => sebutanGuru(g.nama, g.jenis_kelamin)).join(' / ');
-
-  const jamSetting = await getJamSetting();
-  const jamMulai    = jamSetting['JAM_DATANG_MULAI'] || '06:30';
-  const toleransi   = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
-  const batasJam    = tambahMenit(jamMulai, toleransi);
-  const sebelumToleransi = jam < batasJam;
-
-  return {
-    boleh: false,
-    perluKonfirmasi: true,
-    sebelumToleransi,
-    teksNama,
-    message: sebelumToleransi
-      ? `Anda bukan guru piket hari ini. Apakah Anda akan menggantikan ${teksNama} untuk piket hari ini?`
-      : `Anda akan menjadi guru piket menggantikan ${teksNama} hari ini. Tekan Ya jika benar.`
-  };
-}
+// CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
+// api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
+// SAMA PERSIS, bukan menduplikasi/menyederhanakan aturannya sendiri —
+// lihat komentar lengkap di _db.js.
 
 module.exports = async (req, res) => {
   setCors(res);

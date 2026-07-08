@@ -1474,6 +1474,22 @@ function tokenRiwayatMasukAkal(token) {
 }
 
 function bukaKartuRiwayat(data) {
+  // PENTING (guard offline): sebelumnya fungsi ini SELALU redirect ke
+  // /riwayat tanpa cek koneksi sama sekali. Kalau HP sedang offline,
+  // siswa dipindah ke halaman yang butuh data live dari server -- dan
+  // di sana request bisa menggantung lama tanpa pesan jelas (spinner
+  // "Memuat riwayat..." macet). Cegah dari sini: kalau offline, JANGAN
+  // pindah halaman sama sekali, cukup kasih pesan jelas dan lanjutkan
+  // scan seperti biasa (tombol "kembali ke scan" jadi tidak perlu,
+  // karena memang tidak pernah beranjak dari halaman scan).
+  if (!isOnline) {
+    showFlash('warning', '📴', 'Offline — riwayat tidak bisa dibuka');
+    toast('📴 Fitur riwayat kehadiran butuh koneksi internet. Coba lagi kalau sinyal/WiFi sudah tersedia.', 4000);
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+
   showFlash('guru', '📖', 'Membuka riwayat...');
   toast('📖 Ini QR riwayat kehadiran — membuka halamannya...');
   scanCooldown = false;

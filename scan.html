@@ -40,21 +40,21 @@ if ('serviceWorker' in navigator) {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --primary:#10976B;--primary-dark:#0B7A55;--success:#10976B;--warning:#F4A93B;
+  --primary:#10976B;--primary-dark:#0B7A55;--success:#10976B;--warning:#C9A227;
   --danger:#E5574F;--purple:#FF6B4A;
-  --bg:#F7F5EF;--surface:#fff;--border:#E9E4D8;
+  --bg:#F7F8EE;--surface:#fff;--border:#E6E7D4;
   --text:#1C2620;--text-muted:#7A8279;
-  --accent-soft:#E3F6EE;--warning-soft:#FBEFD7;--purple-soft:#FFE9E2;--danger-soft:#FBE3DE;
+  --accent-soft:#E3F6EE;--warning-soft:#F3F3D8;--purple-soft:#FFE9E2;--danger-soft:#FBE3DE;
   --shadow-soft:0 4px 16px rgba(28,38,32,0.06);
   --shadow-card:0 14px 34px -12px rgba(28,38,32,0.14);
   --font:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
   --font-display:'Poppins','Segoe UI',system-ui,-apple-system,sans-serif;
-  --gold:#F4A93B;--gold-soft:#FBEFD7;
+  --gold:#C9BB3F;--gold-soft:#F1F3D8;
 }
 html{height:100%}
 body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden;
   background:
-    radial-gradient(circle at 12% -8%, #FFF3DD 0%, transparent 42%),
+    radial-gradient(circle at 12% -8%, #F6F7DC 0%, transparent 42%),
     radial-gradient(circle at 102% 4%, #E3F6EE 0%, transparent 38%),
     var(--bg);
 }
@@ -109,7 +109,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .btn-admin:hover{background:var(--border);color:var(--text)}
 .btn-fullscreen{
   width:34px;height:34px;border-radius:10px;flex-shrink:0;
-  background:#F1ECDD;border:1px solid var(--border);
+  background:#EEF0D6;border:1px solid var(--border);
   color:var(--text-muted);font-size:1rem;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   transition:all .2s;
@@ -148,7 +148,6 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 @media(max-width:900px){
   .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
   .side-rail .scan-title{flex:1 1 100%}
-  .side-rail .guru-status{flex:1 1 auto}
 }
 
 /* ── KOLOM KANAN — kamera & statistik/daftar berdampingan, tidak perlu scroll ── */
@@ -189,6 +188,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   border:1px solid var(--border);
   border-radius:16px;padding:10px 14px;
   box-shadow:var(--shadow-soft);
+  width:100%;max-width:420px;margin:0 auto;
 }
 .guru-status.no-guru{border-color:rgba(244,169,59,0.35);background:var(--warning-soft)}
 .guru-status.ada-guru{border-color:rgba(16,151,107,0.3);background:var(--accent-soft)}
@@ -209,7 +209,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .guru-jam{font-size:.68rem;color:var(--text-muted);margin-top:1px}
 .no-guru-text{
   display:flex;align-items:center;gap:10px;
-  color:#92680F;font-size:.8rem;font-weight:600;
+  color:#726B1A;font-size:.8rem;font-weight:600;
 }
 .no-guru-text span{font-size:1.25rem}
 
@@ -230,38 +230,67 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .scanner-mode.datang{color:var(--primary-dark)}
 .scanner-mode.pulang{color:#E0552F}
 
-/* ── SWITCH ON/OFF DATANG-PULANG (vertikal, di dalam sidebar kiri) ── */
+/* ── SWITCH ON/OFF DATANG-PULANG — gaya tombol 3D (dalam sidebar kiri) ── */
 .mode-switch-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
 .mode-switch{
   position:relative;width:100%;max-width:172px;height:168px;
-  background:#F1ECDD;border-radius:28px;padding:6px;
+  background:linear-gradient(160deg,#F6F7E6,#E3E5C6);
+  border-radius:28px;padding:7px;
   display:flex;flex-direction:column;gap:4px;
-  box-shadow:inset 0 2px 6px rgba(28,38,32,0.08);
+  box-shadow:
+    inset 0 3px 8px rgba(28,38,32,0.14),
+    inset 0 -2px 5px rgba(255,255,255,0.7),
+    0 1px 0 rgba(255,255,255,0.9);
+  border:1px solid rgba(28,38,32,0.06);
+}
+/* "cekungan" tempat tombol duduk, menegaskan efek 3D masuk ke dalam */
+.mode-switch::before{
+  content:'';position:absolute;inset:7px;border-radius:22px;
+  box-shadow:inset 0 2px 5px rgba(28,38,32,0.10);
+  pointer-events:none;z-index:0;
 }
 .mode-switch-knob{
-  position:absolute;left:6px;top:6px;
-  width:calc(100% - 12px);height:calc(50% - 8px);
-  border-radius:22px;background:linear-gradient(160deg,var(--gold),#D98F1F);
-  box-shadow:0 6px 16px -4px rgba(244,169,59,0.45),0 0 0 1px rgba(244,169,59,0.25);
+  position:absolute;left:7px;top:7px;
+  width:calc(100% - 14px);height:calc(50% - 9px);
+  border-radius:22px;
+  background:linear-gradient(160deg,#E3D876 0%,var(--gold) 48%,#7FA653 100%);
+  box-shadow:
+    0 10px 20px -6px rgba(201,187,63,0.55),
+    0 3px 6px rgba(28,38,32,0.18),
+    inset 0 2px 2px rgba(255,255,255,0.6),
+    inset 0 -5px 7px rgba(28,38,32,0.2),
+    0 0 0 1px rgba(201,187,63,0.35);
   transition:transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s,background .3s;
   z-index:0;pointer-events:none;
 }
+.mode-switch-knob::before{
+  content:'';position:absolute;top:3px;left:10%;right:10%;height:40%;
+  border-radius:50%/60%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0));
+  pointer-events:none;
+}
 .mode-switch[data-mode="pulang"] .mode-switch-knob{
   transform:translateY(calc(100% + 4px));
-  background:linear-gradient(160deg,var(--purple),#E0552F);
-  box-shadow:0 6px 16px -4px rgba(255,107,74,0.45),0 0 0 1px rgba(255,107,74,0.25);
+  background:linear-gradient(160deg,#FF9C81 0%,var(--purple) 48%,#E0552F 100%);
+  box-shadow:
+    0 10px 20px -6px rgba(255,107,74,0.55),
+    0 3px 6px rgba(28,38,32,0.18),
+    inset 0 2px 2px rgba(255,255,255,0.55),
+    inset 0 -5px 7px rgba(28,38,32,0.2),
+    0 0 0 1px rgba(255,107,74,0.35);
 }
 .mode-switch-opt{
   position:relative;z-index:1;flex:1;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   border:none;background:transparent;cursor:pointer;font-family:inherit;
   border-radius:22px;color:var(--text-muted);font-weight:700;
-  transition:color .25s;
+  transition:color .25s,transform .15s;
 }
-.mode-switch-icon{font-size:1.5rem;line-height:1}
+.mode-switch-opt:active{transform:scale(.95)}
+.mode-switch-icon{font-size:1.5rem;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.12))}
 .mode-switch-txt{font-size:.82rem;letter-spacing:.2px}
-.mode-switch-opt.datang.active{color:#fff}
-.mode-switch-opt.pulang.active{color:#fff}
+.mode-switch-opt.datang.active{color:#fff;text-shadow:0 1px 2px rgba(28,38,32,0.25)}
+.mode-switch-opt.pulang.active{color:#fff;text-shadow:0 1px 2px rgba(28,38,32,0.25)}
 
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
@@ -329,7 +358,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
 .scanner-wrap{
   position:absolute;inset:0;border-radius:50%;
-  overflow:hidden;background:linear-gradient(160deg,#F3FBF7,#FFFBF0);
+  overflow:hidden;background:linear-gradient(160deg,#F3FBF7,#F7FAE0);
   border:4px solid #fff;
   box-shadow:0 14px 32px -12px rgba(28,38,32,0.18),0 0 0 1px rgba(16,151,107,0.08);
   z-index:1;
@@ -373,7 +402,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .last-result-detail{font-size:.7rem;color:var(--text-muted);margin-top:2px}
 .last-result-status{font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:20px;flex-shrink:0}
 .status-hadir{background:#E3F6EE;color:#0B7A55}
-.status-terlambat{background:var(--warning-soft);color:#92680F}
+.status-terlambat{background:var(--warning-soft);color:#726B1A}
 .status-pulang{background:var(--purple-soft);color:#B23A1F}
 .status-error{background:var(--danger-soft);color:#9A2E27}
 .status-guru{background:#DBEAFE;color:#1D4ED8}
@@ -423,7 +452,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .stat-box.blue{border-color:rgba(59,130,246,0.3);background:#DBEAFE}
 .stat-box.red{border-color:rgba(255,107,74,0.3);background:var(--purple-soft)}
 .stat-box.green .stat-num{color:#0B7A55}
-.stat-box.orange .stat-num{color:#92680F}
+.stat-box.orange .stat-num{color:#726B1A}
 .stat-box.blue .stat-num{color:#1D4ED8}
 .stat-box.red .stat-num{color:#B23A1F}
 .stat-num{font-family:var(--font-display);font-size:1.45rem;font-weight:800;line-height:1}
@@ -453,7 +482,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 /* Log tabs */
 .log-tabs{
   display:flex;gap:4px;
-  background:#F1ECDD;
+  background:#EEF0D6;
   border-radius:11px;padding:4px;flex-shrink:0;
 }
 .log-tab{
@@ -507,7 +536,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   display:inline-block;
 }
 .badge-hadir{background:#E3F6EE;color:#0B7A55}
-.badge-terlambat{background:var(--warning-soft);color:#92680F}
+.badge-terlambat{background:var(--warning-soft);color:#726B1A}
 .badge-pulang{background:var(--purple-soft);color:#B23A1F}
 .badge-belum{background:var(--accent-soft);color:var(--primary-dark)}
 .badge-izin{background:#DBEAFE;color:#1D4ED8}
@@ -526,7 +555,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   border-radius:18px;text-align:center;
 }
 .libur-banner-icon{font-size:3rem;margin-bottom:8px}
-.libur-banner-title{font-size:1.1rem;font-weight:800;color:#92680F}
+.libur-banner-title{font-size:1.1rem;font-weight:800;color:#726B1A}
 .libur-banner-sub{font-size:.85rem;color:var(--text-muted);margin-top:6px}
 
 /* ── COOLDOWN BAR ── */
@@ -635,7 +664,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
 /* progress bar */
 .sync-progress-wrap{
-  background:#F1ECDD;
+  background:#EEF0D6;
   border-radius:100px;height:6px;margin-bottom:10px;overflow:hidden;
 }
 .sync-progress-fill{
@@ -809,17 +838,6 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       </div>
     </div>
 
-    <!-- Status Guru Piket -->
-    <div class="guru-status no-guru" id="guruStatusBox">
-      <div class="guru-label">👤 Guru Piket Hari Ini</div>
-      <div id="guruStatusContent">
-        <div class="no-guru-text">
-          <span>⚠️</span>
-          <span>Guru Piket belum ada. Scan kehadiran Siswa <b class="blink-text">Belum bisa di proses</b>.</span>
-        </div>
-      </div>
-    </div>
-
     <!-- Switch ON/OFF Datang (atas) / Pulang (bawah) -->
     <div class="mode-switch-wrap">
       <div class="mode-switch" id="modeSwitch" data-mode="datang">
@@ -843,6 +861,17 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
     <!-- Panggung kamera -->
     <div class="scanner-stage">
+
+      <!-- Status Guru Piket — diletakkan di atas gambar kamera -->
+      <div class="guru-status no-guru" id="guruStatusBox">
+        <div class="guru-label">👤 Guru Piket Hari Ini</div>
+        <div id="guruStatusContent">
+          <div class="no-guru-text">
+            <span>⚠️</span>
+            <span>Guru Piket belum ada. Scan kehadiran Siswa <b class="blink-text">Belum bisa di proses</b>.</span>
+          </div>
+        </div>
+      </div>
 
       <div class="scanner-visual">
         <div class="ring-outer"></div>
@@ -868,7 +897,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       <!-- Tips silau: muncul otomatis kalau QR belum kebaca ±1.5 detik.
            Kasus paling umum: gantungan ID card yang mengkilat memantulkan
            cahaya di atas kode QR-nya. -->
-      <div id="scanTipsSilau" style="display:none;margin:10px auto 0;max-width:320px;background:#fff8e1;border:1px solid #f0c14b;border-radius:10px;padding:10px 14px;font-size:.82rem;color:#7a5c00;text-align:center;line-height:1.5">
+      <div id="scanTipsSilau" style="display:none;margin:10px auto 0;max-width:320px;background:#F6F6DC;border:1px solid #C9BB3F;border-radius:10px;padding:10px 14px;font-size:.82rem;color:#5C5A17;text-align:center;line-height:1.5">
         💡 QR belum kebaca? Coba <b>miringkan kartu sedikit</b> supaya pantulan cahaya di plastik gantungan tidak menutupi kode QR-nya.
       </div>
 

@@ -81,7 +81,7 @@ async function batchSync({ items }) {
 //   3. Tidak ada pengecekan hari libur & periode semester aktif, sehingga
 //      scan yang terjadi offline saat libur/luar semester tetap bisa masuk
 //      ke database walau scan online untuk kasus yang sama akan ditolak.
-async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru, metode }) {
+async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru, metode, waktuSimpan }) {
   // metodeFinal: item "scan QR" tidak mengirim field metode sama sekali
   // (default 'QR-OFFLINE' seperti sebelumnya), tapi item dari fitur "Input
   // Tanpa Kartu" offline (lihat simpanTanpaKartuOffline() di scan.html)
@@ -103,6 +103,41 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       permanent: true,
       message: `Tanggal scan (${tanggal}) tidak valid atau di luar batas wajar sinkronisasi. Periksa jam/tanggal perangkat.`
     };
+  }
+
+  // ── AMBIL JAM SETTING SEKALI DI AWAL (dipakai lagi di bawah untuk
+  // toleransi jam datang/pulang) ────────────────────────────────────
+  const jamSetting = await getJamSetting();
+
+  // ── TOLAK ITEM YANG DIREKAM SEBELUM RESET ABSENSI TERAKHIR ───────
+  // Celah yang ditutup: kalau admin menjalankan "Reset Absensi (Hapus
+  // Semua)" atau "Reset Total" sementara ada perangkat scan yang sedang
+  // offline (atau baru online lagi setelahnya membawa antrian lama),
+  // item-item lama di antrian itu tetap membawa `waktuSimpan` dari SAAT
+  // ITEM DIREKAM DI PERANGKAT (device time, lihat simpanKeAntrian() di
+  // scan.html) — kalau waktu itu lebih lama dari RESET_ABSENSI_TERAKHIR
+  // (dicatat server saat reset terjadi, lihat resetAbsensi() di
+  // api/absensi.js), berarti scan ini terjadi SEBELUM data terkait
+  // sengaja dihapus admin, dan TIDAK boleh "menghidupkannya kembali".
+  // Ini melengkapi (bukan menggantikan) tanggalDalamBatasWajar() di atas:
+  // batas 3-hari itu menolak tanggal yang jelas tidak wajar secara umum,
+  // sedangkan cek ini presisi terhadap kejadian reset yang sebenarnya,
+  // termasuk kasus reset terjadi kurang dari 3 hari lalu.
+  // - Kalau RESET_ABSENSI_TERAKHIR kosong (belum pernah direset sejak
+  //   instalasi) atau item tidak membawa waktuSimpan (versi lama
+  //   scan.html sebelum field ini ditambahkan), pengecekan ini dilewati
+  //   supaya tidak menolak data yang sah tanpa alasan.
+  const resetTerakhir = jamSetting['RESET_ABSENSI_TERAKHIR'];
+  if (resetTerakhir && waktuSimpan) {
+    const waktuSimpanMs   = new Date(waktuSimpan).getTime();
+    const resetTerakhirMs = new Date(resetTerakhir).getTime();
+    if (!Number.isNaN(waktuSimpanMs) && !Number.isNaN(resetTerakhirMs) && waktuSimpanMs < resetTerakhirMs) {
+      return {
+        success: false,
+        permanent: true,
+        message: 'Scan ini direkam sebelum riwayat absensi terakhir kali direset oleh admin, sehingga tidak disinkronkan.'
+      };
+    }
   }
 
   // Format QR siswa: "SW_ID|NISN" — ambil bagian sebelum "|"
@@ -260,11 +295,11 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     .from('absensi').select('*')
     .eq('id_siswa', siswa.id).eq('tanggal', tanggal).maybeSingle();
 
-  // ── AMBIL JAM SETTING DARI DATABASE (bukan hardcode) ─────────────
+  // ── PAKAI JAM SETTING DARI DATABASE (bukan hardcode) ─────────────
   // Sebelumnya nilai '08:00' dan '14:00' ditulis langsung di kode, jadi
   // tidak ikut berubah kalau admin mengubah pengaturan jam di menu
   // Pengaturan > Jam Operasional. Sekarang disamakan dengan scan.js.
-  const jamSetting     = await getJamSetting();
+  // (jamSetting sudah diambil sekali di awal fungsi, dipakai ulang di sini)
   const toleransi      = Number(jamSetting['TOLERANSI_MENIT'] || 0);
   const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
   // Jam pulang efektif untuk HARI SCAN ITU TERJADI (variabel `hari` di

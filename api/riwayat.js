@@ -23,12 +23,21 @@ module.exports = async (req, res) => {
 
 async function findSiswaByToken(token) {
   if (!token || !String(token).trim()) return null;
+  // PERBAIKAN: dulu pakai .maybeSingle(), yang mengembalikan ERROR (bukan
+  // data) kalau ternyata ada LEBIH DARI SATU baris siswa dengan
+  // riwayat_token yang sama (misal karena race saat backfill token, atau
+  // constraint UNIQUE di kolom ini ternyata belum benar-benar terpasang
+  // di database). Kode sebelumnya hanya membaca `data` dan mengabaikan
+  // `error`, jadi token yang sebenarnya valid & cocok bisa dianggap
+  // "tidak valid" padahal siswanya ada. Pola .limit(1) + ambil elemen
+  // pertama array ini sama seperti requireAdminToken() dan
+  // resolveGuruIdFromToken() di api/_db.js, dan tidak punya masalah ini.
   const { data } = await supabase
     .from('siswa')
     .select('id,nisn,nama,kelas,jenis_kelamin,status,riwayat_token')
     .eq('riwayat_token', String(token).trim())
-    .maybeSingle();
-  return data || null;
+    .limit(1);
+  return (data && data[0]) || null;
 }
 
 // ── INFO SISWA + DAFTAR SEMESTER YANG BISA DIPILIH ───────────────

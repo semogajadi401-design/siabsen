@@ -838,7 +838,12 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <!-- DATA GURU -->
       <div class="page" id="page-guru">
         <div class="card">
-          <div class="card-header"><h3>Data Guru</h3><button class="btn btn-primary btn-sm" onclick="openModalGuru()">+ Tambah Guru</button></div>
+          <div class="card-header"><h3>Data Guru</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-accent btn-sm" onclick="openModalImportGuru()">📥 Import</button>
+              <button class="btn btn-primary btn-sm" onclick="openModalGuru()">+ Tambah Guru</button>
+            </div>
+          </div>
           <div class="card-body">
             <div class="search-box" style="margin-bottom:16px;max-width:300px">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -1745,6 +1750,44 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalImport')">Tutup</button>
       <button class="btn btn-primary" id="btnDoImport" onclick="doImport()" style="display:none">📥 Import Sekarang</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Import Guru -->
+<div class="modal-backdrop" id="modalImportGuru">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>📥 Import Data Guru dari Excel/CSV</h3><button class="modal-close" onclick="closeModal('modalImportGuru')">✕</button></div>
+    <div class="modal-body">
+      <div style="background:var(--primary-pale);border-radius:12px;padding:16px;margin-bottom:20px;border-left:4px solid var(--primary)">
+        <p style="font-weight:700;color:var(--primary);margin-bottom:8px">📋 Langkah 1: Download Template</p>
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px">Download template Excel, isi data guru sesuai format, lalu upload kembali. Username & password akun otomatis dibuatkan sistem (kecuali kolom Password diisi).</p>
+        <button class="btn btn-primary btn-sm" onclick="downloadTemplateExcelGuru()">⬇️ Download Template Excel (.xlsx)</button>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:16px">
+        <p style="font-weight:700;color:var(--text);margin-bottom:8px">📂 Langkah 2: Upload File Excel/CSV</p>
+        <label style="display:block;border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:var(--transition)" id="dropZoneGuru">
+          <div style="font-size:2rem;margin-bottom:6px">📄</div>
+          <div style="font-weight:600;color:var(--text)">Klik atau drag file di sini</div>
+          <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px">Format: .xlsx, .xls, .csv</div>
+          <input type="file" accept=".xlsx,.xls,.csv" style="display:none" id="importFileGuru" onchange="handleImportFileGuru(event)">
+        </label>
+      </div>
+      <div id="importPreviewGuru" style="display:none">
+        <p style="font-weight:700;color:var(--text);margin-bottom:10px">👁️ Preview Data (maks 5 baris pertama):</p>
+        <div class="table-responsive" style="margin-bottom:12px">
+          <table id="importPreviewTableGuru">
+            <thead><tr id="importPreviewHeadGuru"></tr></thead>
+            <tbody id="importPreviewBodyGuru"></tbody>
+          </table>
+        </div>
+        <div id="importSummaryGuru" style="padding:10px 14px;background:var(--success-light);border-radius:8px;font-size:.85rem;font-weight:600;color:var(--success)"></div>
+      </div>
+      <div id="importResultGuru" style="display:none;margin-top:14px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalImportGuru')">Tutup</button>
+      <button class="btn btn-primary" id="btnDoImportGuru" onclick="doImportGuru()" style="display:none">📥 Import Sekarang</button>
     </div>
   </div>
 </div>
@@ -4385,7 +4428,148 @@ async function doImport() {
   if (btn) { btn.disabled = false; btn.textContent = '📥 Import Sekarang'; }
 }
 
-// Load SheetJS
+// ── IMPORT GURU ───────────────────────────────────────────────────
+// Pola sama persis dengan Import Siswa di atas: download template ->
+// upload Excel/CSV -> preview -> kirim ke backend (batch, bukan satu-
+// satu). Bedanya: tidak ada NISN/kelas, tapi NIP/Jabatan/Peran, dan
+// username+password akun dibuatkan otomatis oleh server lalu ditampilkan
+// di hasil import supaya admin bisa membagikannya ke guru.
+let importDataGuru = [];
+
+function openModalImportGuru() {
+  importDataGuru = [];
+  document.getElementById('importPreviewGuru').style.display = 'none';
+  document.getElementById('importResultGuru').style.display = 'none';
+  document.getElementById('btnDoImportGuru').style.display = 'none';
+  const fi = document.getElementById('importFileGuru');
+  if (fi) fi.value = '';
+  const dz = document.getElementById('dropZoneGuru');
+  if (dz) { dz.style.borderColor = 'var(--border)'; const d = dz.querySelector('div'); if (d) d.textContent = 'Klik atau drag file di sini'; }
+  openModal('modalImportGuru');
+}
+
+function downloadTemplateExcelGuru() {
+  if (typeof XLSX === 'undefined') { toast('Sedang memuat library, coba lagi dalam 2 detik...', 'warning'); return; }
+  var headers = ['Nama Lengkap','Jenis Kelamin','Jabatan','NIP','No HP','Email','Alamat','Peran (guru/kepsek)'];
+  var data = [headers,
+    ['Ahmad Fauzi, S.Pd','Laki-laki','Guru Mapel','198501012010011001','081234567890','ahmad@sekolah.sch.id','Jl. Pendidikan No.1','guru'],
+    ['Siti Rahmah, S.Pd','Perempuan','Wali Kelas','198607142011012002','081234567891','siti@sekolah.sch.id','Jl. Mawar No.5','guru']
+  ];
+  var ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:22},{wch:14},{wch:16},{wch:20},{wch:16},{wch:22},{wch:28},{wch:16}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data Guru');
+  XLSX.writeFile(wb, 'Template_Import_Guru.xlsx');
+  toast('Template Excel berhasil didownload!', 'success');
+}
+
+function handleImportFileGuru(event) {
+  var file = event.target.files[0]; if (!file) return;
+  var dz = document.getElementById('dropZoneGuru');
+  if (dz) dz.style.borderColor = 'var(--primary)';
+  if (file.name.toLowerCase().endsWith('.csv')) {
+    var reader = new FileReader();
+    reader.onload = function(e) { parseCSVGuru(e.target.result); if (dz) { var d = dz.querySelector('div'); if (d) d.textContent = '✅ ' + file.name; } };
+    reader.readAsText(file, 'UTF-8');
+  } else if (file.name.toLowerCase().match(/\.xlsx?$/)) {
+    if (typeof XLSX !== 'undefined') {
+      var reader2 = new FileReader();
+      reader2.onload = function(e) { var wb = XLSX.read(e.target.result, { type: 'array' }); var ws = wb.Sheets[wb.SheetNames[0]]; var rows = XLSX.utils.sheet_to_json(ws, { defval: '' }); parseExcelRowsGuru(rows); if (dz) { var d = dz.querySelector('div'); if (d) d.textContent = '✅ ' + file.name; } };
+      reader2.readAsArrayBuffer(file);
+    } else { toast('XLSX belum siap, coba upload ulang dalam 2 detik', 'warning'); }
+  }
+}
+
+var COL_MAP_GURU = {
+  nama: ['nama', 'namalengkap', 'nama_lengkap', 'namaguru'],
+  jenisKelamin: ['jeniskelamin', 'jenis_kelamin', 'jk', 'gender'],
+  jabatan: ['jabatan'], nip: ['nip'],
+  noHp: ['nohp', 'no_hp', 'hp', 'telepon', 'notelepon'],
+  email: ['email'], alamat: ['alamat', 'address'],
+  role: ['peran', 'peranguru/kepsek', 'peranguru/kepsek', 'role', 'peranguru', 'peran(guru/kepsek)']
+};
+
+function parseCSVGuru(text) {
+  text = text.replace(/^\uFEFF/, '');
+  var lines = text.split('\n').filter(function(l) { return l.trim(); });
+  if (lines.length < 2) { toast('File kosong atau format salah', 'error'); return; }
+  var headers = lines[0].split(',').map(function(h) { return h.trim().toLowerCase().replace(/\s/g, ''); });
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var vals = lines[i].split(',').map(function(v) { return v.trim().replace(/^"|"$/g, ''); });
+    if (vals.length < 1 || !vals[0]) continue;
+    var row = {}; headers.forEach(function(h, idx) { row[h] = vals[idx] || ''; }); rows.push(row);
+  }
+  parseExcelRowsGuru(rows);
+}
+
+function parseExcelRowsGuru(rows) {
+  if (!rows.length) { toast('Data kosong', 'error'); return; }
+  var firstRow = rows[0]; var origKeys = Object.keys(firstRow);
+  var firstKeys = origKeys.map(function(k) { return k.toLowerCase().replace(/[\s()\/]/g, ''); });
+  var keyMap = {};
+  Object.keys(COL_MAP_GURU).forEach(function(field) {
+    var candidates = COL_MAP_GURU[field].map(function(c){ return c.replace(/[\s()\/]/g, ''); });
+    for (var ci = 0; ci < candidates.length; ci++) { var idx = firstKeys.indexOf(candidates[ci]); if (idx >= 0) { keyMap[field] = origKeys[idx]; break; } }
+  });
+  importDataGuru = rows.map(function(row) {
+    return {
+      nama: ((row[keyMap.nama]||'')+'').trim(),
+      jenisKelamin: row[keyMap.jenisKelamin]||'Laki-laki',
+      jabatan: ((row[keyMap.jabatan]||'')+'').trim(),
+      nip: ((row[keyMap.nip]||'')+'').trim(),
+      noHp: ((row[keyMap.noHp]||'')+'').trim(),
+      email: ((row[keyMap.email]||'')+'').trim(),
+      alamat: ((row[keyMap.alamat]||'')+'').trim(),
+      role: (((row[keyMap.role]||'')+'').trim().toLowerCase() === 'kepsek') ? 'kepsek' : 'guru'
+    };
+  }).filter(function(r) { return r.nama; });
+
+  var preview = document.getElementById('importPreviewGuru'); if (!preview) return;
+  preview.style.display = 'block';
+  document.getElementById('importPreviewHeadGuru').innerHTML = '<th>Nama</th><th>Jabatan</th><th>NIP</th><th>JK</th><th>Peran</th>';
+  document.getElementById('importPreviewBodyGuru').innerHTML = importDataGuru.slice(0, 5).map(function(r) {
+    return '<tr><td>' + r.nama + '</td><td>' + (r.jabatan||'-') + '</td><td><code>' + (r.nip||'-') + '</code></td><td>' + r.jenisKelamin + '</td><td><span class="badge badge-primary">' + r.role + '</span></td></tr>';
+  }).join('');
+  var sum = document.getElementById('importSummaryGuru');
+  if (sum) sum.textContent = '✅ ' + importDataGuru.length + ' data siap diimport' + (importDataGuru.length > 5 ? ' (menampilkan 5 dari ' + importDataGuru.length + ')' : '');
+  var btn = document.getElementById('btnDoImportGuru'); if (btn) btn.style.display = 'inline-flex';
+  var res = document.getElementById('importResultGuru'); if (res) res.style.display = 'none';
+}
+
+async function doImportGuru() {
+  if (!importDataGuru.length) { toast('Tidak ada data untuk diimport', 'warning'); return; }
+  var btn = document.getElementById('btnDoImportGuru');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Mengimport...'; }
+  try {
+    var result = await api('guru', 'importGuru', { dataList: importDataGuru });
+    var resEl = document.getElementById('importResultGuru');
+    if (resEl) {
+      resEl.style.display = 'block';
+      if (result.success) {
+        var errHtml = '';
+        if (result.errors && result.errors.length) {
+          errHtml = '<details style="margin-top:8px"><summary style="font-size:.82rem;cursor:pointer;color:var(--warning)">⚠️ ' + result.gagal + ' data gagal</summary><ul style="margin-top:6px;font-size:.8rem;color:var(--text-muted)">' + result.errors.map(function(e) { return '<li>' + e + '</li>'; }).join('') + '</ul></details>';
+        }
+        var akunHtml = '';
+        if (result.akun && result.akun.length) {
+          akunHtml = '<details style="margin-top:8px" open><summary style="font-size:.82rem;cursor:pointer;color:var(--primary);font-weight:700">🔑 Username & Password akun baru (' + result.akun.length + ')</summary>'
+            + '<div class="table-responsive" style="margin-top:8px"><table><thead><tr><th>Nama</th><th>Username</th><th>Password</th></tr></thead><tbody>'
+            + result.akun.map(function(a){ return '<tr><td>' + a.nama + '</td><td><code>' + a.username + '</code></td><td><code>' + a.password + '</code></td></tr>'; }).join('')
+            + '</tbody></table></div><p style="font-size:.78rem;color:var(--text-muted);margin-top:6px">💾 Catat/screenshot data ini sekarang — password tidak bisa dilihat lagi setelah modal ditutup.</p></details>';
+        }
+        resEl.innerHTML = '<div style="padding:14px;background:var(--success-light);border-radius:10px;border-left:4px solid var(--success)"><p style="font-weight:700;color:var(--success);margin-bottom:6px">✅ ' + result.message + '</p>' + errHtml + akunHtml + '</div>';
+        toast(result.message, 'success', 5000);
+        importDataGuru = []; if (btn) btn.style.display = 'none';
+        loadGuru();
+      } else {
+        resEl.innerHTML = '<div style="padding:14px;background:var(--danger-light);border-radius:10px"><p style="color:var(--danger);font-weight:700">❌ ' + result.message + '</p></div>';
+        toast(result.message, 'error');
+      }
+    }
+  } catch(e) { toast('Terjadi kesalahan: ' + e.message, 'error'); }
+  if (btn) { btn.disabled = false; btn.textContent = '📥 Import Sekarang'; }
+}
 (function() {
   if (typeof XLSX === 'undefined') {
     var s = document.createElement('script');

@@ -1,4 +1,4 @@
-const { supabase, setCors, generateQrToken, hashPassword, verifyPassword } = require('./_db');
+const { supabase, setCors, generateQrToken, generateGuruQrToken, hashPassword, verifyPassword } = require('./_db');
 
 // ── RATE LIMITING SEDERHANA (anti brute-force) ──────────────────────
 // PENTING: ini penyimpanan IN-MEMORY per instance serverless — bukan
@@ -124,10 +124,26 @@ async function login({ username, password }) {
       // Sekolah, yang membuat kepsek dapat dashboard operasional guru
       // piket biasa. Sekarang pakai kolom guru.role (diisi lewat menu
       // Data Guru), bukan di-hardcode.
+
+      // PENTING (perbaikan keamanan): pastikan guru punya qr_token unik --
+      // dipakai frontend sebagai `guruToken` di setiap request yang
+      // mengubah data atau membaca data pribadi guru (lihat helper api()
+      // di index.html serta resolveGuruIdFromToken() di _db.js). Tanpa
+      // token rahasia ini, server sebelumnya cuma bisa mempercayai idGuru
+      // mentah dari klien -- yang TIDAK rahasia, sehingga siapa pun bisa
+      // mengaku sebagai guru mana pun. Akun lama (dibuat sebelum kolom
+      // qr_token dipakai untuk ini) dibuatkan token sekali di sini, sama
+      // seperti pola yang sudah ada untuk admin di atas.
+      let qrToken = guruData.qr_token;
+      if (!qrToken) {
+        qrToken = await generateGuruQrToken();
+        await supabase.from('guru').update({ qr_token: qrToken }).eq('id', guruData.id);
+      }
+
       return {
         success: true, role: guruData.role === 'kepsek' ? 'kepsek' : 'guru',
         id: guruData.id, nama: guruData.nama,
-        jabatan: guruData.jabatan, username
+        jabatan: guruData.jabatan, username, qrToken
       };
     }
   }

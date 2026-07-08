@@ -353,6 +353,92 @@ async function getJamPulangEfektif(namaHari, jamSetting) {
   };
 }
 
+// ── SEBUTAN BAPAK/IBU BERDASARKAN JENIS KELAMIN GURU ─────────────
+// Dipindah ke sini dari api/scan.js supaya bisa dipakai bareng oleh
+// cekIzinPiket() di bawah, yang sekarang juga dipanggil dari api/sync.js
+// (jalur offline) -- lihat catatan di cekIzinPiket().
+function sebutanGuru(nama, jenisKelamin) {
+  return `${jenisKelamin === 'Perempuan' ? 'Ibu' : 'Bapak'} ${nama}`;
+}
+
+// ── CEK APAKAH GURU BOLEH SCAN SEBAGAI PIKET ─────────────────────
+// PENTING: fungsi ini DIPINDAH ke _db.js (sebelumnya cuma ada di
+// api/scan.js) supaya bisa dipakai ULANG PERSIS SAMA oleh api/sync.js saat
+// memproses antrian scan offline. Sebelumnya jalur offline (processSingleScan
+// di sync.js) hanya menolak akun Kepala Sekolah dan tidak pernah mengecek
+// jadwal_piket / slot yang sudah terkunci sama sekali -- artinya guru yang
+// TIDAK terjadwal bisa lolos jadi guru piket kalau perangkatnya sempat
+// offline, sesuatu yang jalur online tidak akan pernah izinkan. Sekarang
+// kedua jalur memanggil fungsi yang SAMA, jadi tidak mungkin lagi drift.
+//
+// CATATAN UNTUK PEMANGGIL DARI JALUR OFFLINE (api/sync.js): hasil
+// `perluKonfirmasi: true` TIDAK BOLEH otomatis diterima saat sync -- guru
+// pengganti WAJIB scan ulang saat online supaya benar-benar mengonfirmasi
+// (lihat komentar di processSingleScan()). Ini sengaja supaya dua device
+// offline yang merekam guru pengganti berbeda tidak bisa dua-duanya lolos
+// begitu saja saat sync.
+async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
+  if (guruRole === 'kepsek') {
+    return {
+      boleh: false,
+      message: 'Akun Kepala Sekolah tidak diperbolehkan tercatat sebagai guru piket (baik terjadwal maupun pengganti). Kepsek berperan sebagai pengawas piket, bukan pelaksana.'
+    };
+  }
+
+  const { data: jadwalHariIni } = await supabase
+    .from('jadwal_piket')
+    .select('id_guru,nama_guru')
+    .eq('hari', hari);
+
+  const idTerjadwal = (jadwalHariIni || []).map(j => j.id_guru);
+
+  if (idTerjadwal.length === 0) {
+    return { boleh: true };
+  }
+
+  if (idTerjadwal.includes(guruId)) {
+    return { boleh: true };
+  }
+
+  const { data: sesiHariIni } = await supabase
+    .from('sesi_piket')
+    .select('id_guru')
+    .eq('tanggal', today);
+
+  if (sesiHariIni && sesiHariIni.length > 0) {
+    return {
+      boleh: false,
+      message: 'Guru piket hari ini sudah tercatat. Slot pengganti tidak dibuka lagi.'
+    };
+  }
+
+  const { data: dataGuruTerjadwal } = await supabase
+    .from('guru')
+    .select('id,nama,jenis_kelamin')
+    .in('id', idTerjadwal);
+
+  const teksNama = (dataGuruTerjadwal && dataGuruTerjadwal.length
+    ? dataGuruTerjadwal
+    : jadwalHariIni.map(j => ({ nama: j.nama_guru, jenis_kelamin: null }))
+  ).map(g => sebutanGuru(g.nama, g.jenis_kelamin)).join(' / ');
+
+  const jamSetting = await getJamSetting();
+  const jamMulai    = jamSetting['JAM_DATANG_MULAI'] || '06:30';
+  const toleransi   = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
+  const batasJam    = tambahMenit(jamMulai, toleransi);
+  const sebelumToleransi = jam < batasJam;
+
+  return {
+    boleh: false,
+    perluKonfirmasi: true,
+    sebelumToleransi,
+    teksNama,
+    message: sebelumToleransi
+      ? `Anda bukan guru piket hari ini. Apakah Anda akan menggantikan ${teksNama} untuk piket hari ini?`
+      : `Anda akan menjadi guru piket menggantikan ${teksNama} hari ini. Tekan Ya jika benar.`
+  };
+}
+
 // ── CEK APAKAH GURU BENAR-BENAR PIKET HARI INI (via sesi_piket) ──────
 // PENTING: sengaja cek ke sesi_piket (guru yang benar-benar SCAN kartu
 // piket), BUKAN ke jadwal_piket (jadwal terjadwal admin). Ini menyamakan
@@ -378,7 +464,8 @@ module.exports = {
   generateRiwayatTokenBatch, generateGuruQrToken, generateGuruQrTokenBatch,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
-  requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni
+  requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni,
+  cekIzinPiket
 };
 async function requireAdminToken(token) {
   if (!token) return false;

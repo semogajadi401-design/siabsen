@@ -2,7 +2,7 @@ const {
   supabase, generateID, setCors,
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
-  getJamPulangEfektif, cekIzinPiket
+  getJamPulangEfektif, cekIzinPiket, verifyPassword
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -438,20 +438,35 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
 // Guru piket yang scan kartu di awal hari sudah tercatat di sesi_piket.
 // Fitur "input tanpa kartu" (untuk siswa yang kartunya hilang/rusak/
 // ketinggalan) HANYA boleh dipakai oleh guru yang memang tercatat piket
-// hari itu (baik yang terjadwal maupun pengganti) — dicek lewat username
-// akun guru (bukan ID kartu, supaya tidak perlu hafal kode yang cuma ada
-// di dalam QR).
-async function cekGuruPiketHariIni(username) {
+// hari itu (baik yang terjadwal maupun pengganti).
+//
+// PENTING — DIPERBAIKI (celah keamanan): sebelumnya fungsi ini HANYA
+// mencocokkan `username` yang diketik bebas di scan.html, TANPA password
+// sama sekali. Username BUKAN rahasia (gampang diketahui/ditebak siapa
+// saja di lingkungan sekolah), jadi siapa pun yang tahu username seorang
+// guru piket bisa membuat catatan hadir palsu untuk siswa manapun lewat
+// endpoint publik ini (baik lewat UI maupun langsung lewat API), tanpa
+// perlu tahu password guru tersebut sama sekali. Ini sama persis dengan
+// pola celah yang sudah pernah ditemukan & diperbaiki di api/absensi.js
+// (lihat komentar action 'datang'/'pulang' di sana). Sekarang password
+// guru WAJIB diverifikasi juga (bcrypt, lewat verifyPassword() yang sama
+// dipakai auth.js), sehingga identitas guru benar-benar dibuktikan --
+// bukan cuma diklaim.
+async function cekGuruPiketHariIni(username, password) {
   if (!username) return { ok: false, message: 'Username wajib diisi' };
+  if (!password) return { ok: false, message: 'Password wajib diisi' };
 
   const { data: guru } = await supabase
     .from('guru')
-    .select('id,nama,username,status')
+    .select('id,nama,username,status,password')
     .ilike('username', username.trim())
     .maybeSingle();
 
-  if (!guru) return { ok: false, message: 'Username guru tidak ditemukan' };
+  if (!guru) return { ok: false, message: 'Username atau password salah' };
   if (guru.status !== 'Aktif') return { ok: false, message: 'Akun guru tidak aktif' };
+
+  const cekPass = await verifyPassword(password, guru.password);
+  if (!cekPass.valid) return { ok: false, message: 'Username atau password salah' };
 
   const today = todayStr();
   const { data: sesiHariIni } = await supabase
@@ -467,8 +482,8 @@ async function cekGuruPiketHariIni(username) {
   return { ok: true, guru: { id: guru.id, nama: guru.nama } };
 }
 
-async function verifikasiGuruPiket({ username }) {
-  const cek = await cekGuruPiketHariIni(username);
+async function verifikasiGuruPiket({ username, password }) {
+  const cek = await cekGuruPiketHariIni(username, password);
   if (!cek.ok) return { success: false, message: cek.message };
   return { success: true, guru: cek.guru };
 }
@@ -478,8 +493,8 @@ async function verifikasiGuruPiket({ username }) {
 // guru piket hari ini (dicek ulang di server, jangan percaya status
 // terverifikasi dari sisi client saja). Guru piket mencentang siswa yang
 // tidak bawa kartu dari daftar "belum hadir", lalu disimpan sekaligus.
-async function inputTanpaKartu({ username, siswaIds, mode }) {
-  const cek = await cekGuruPiketHariIni(username);
+async function inputTanpaKartu({ username, password, siswaIds, mode }) {
+  const cek = await cekGuruPiketHariIni(username, password);
   if (!cek.ok) return { success: false, message: cek.message };
   const guru = cek.guru;
 

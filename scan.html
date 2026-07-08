@@ -1077,6 +1077,22 @@ async function init() {
 
   // Ping server dulu untuk cek koneksi nyata sebelum checkStatus
   await pingServer();
+  // PENTING: updateOnlineStatus() normalnya hanya terpanggil saat ada
+  // TRANSISI online<->offline (lihat pingServer()), jadi kalau halaman ini
+  // pertama kali dibuka SAAT SUDAH OFFLINE, tidak ada transisi yang
+  // terjadi dan offlineBar/badge tombol "Tanpa Kartu" tidak akan
+  // menunjukkan status offline sampai transisi pertama kali terjadi.
+  // Sinkronkan tampilannya secara langsung di sini (TANPA memanggil
+  // updateOnlineStatus() penuh, supaya efek sampingnya seperti
+  // checkAndSync() tidak terpicu dua kali dengan urutan yang belum tentu
+  // aman sebelum checkStatus()/loadLog() di bawah selesai).
+  document.getElementById('offlineBar').classList.toggle('show', !isOnline);
+  const btnTKAwal = document.getElementById('btnTanpaKartu');
+  if (btnTKAwal) {
+    btnTKAwal.innerHTML = isOnline
+      ? '📝 Input Kehadiran Tanpa Kartu'
+      : '📝 Input Kehadiran Tanpa Kartu <span style="opacity:.7">📴 offline</span>';
+  }
 
   // Cek status hari ini
   await checkStatus();
@@ -1553,21 +1569,80 @@ let _tkGuruUsername = null;
 let _tkGuruNama      = null;
 let _tkBelumHadir    = [];
 let _tkSelected      = new Set();
+// _tkOfflineMode: true kalau modal ini dibuka dalam kondisi offline --
+// menentukan simpanTanpaKartu() memanggil server langsung (online) atau
+// masuk ke antrian offline (lihat simpanTanpaKartuOffline()).
+let _tkOfflineMode   = false;
 
+// PENTING (poin 4 offline): sebelumnya tombol ini langsung menolak dibuka
+// sama sekali saat offline ("Fitur ini butuh koneksi internet"). Itu tidak
+// menjawab kasus paling sering terjadi: siswa lupa bawa kartu JUSTRU saat
+// jaringan sekolah sedang bermasalah (jam masuk, banyak device connect
+// bareng). Sekarang: kalau offline, dibuka dengan sumber data LOKAL --
+// roster & status hadir dari cache (lihat getLogCache()/loadLog()), dan
+// guru piket dari status offline yang sudah tersimpan (getGuruOffline()),
+// BUKAN verifikasi username online. Hasilnya dimasukkan ke antrian
+// IndexedDB yang sama dipakai scan QR, jadi otomatis dapat semua jaminan
+// retry/dedup yang sudah ada tanpa mekanisme offline terpisah.
 function bukaModalTanpaKartu() {
+  _tkSelected = new Set();
+  document.getElementById('modalTanpaKartu').style.display = 'flex';
+
   if (!isOnline) {
-    toast('⚠️ Fitur ini butuh koneksi internet');
+    const guruOffline = getGuruOffline();
+    if (!guruOffline) {
+      document.getElementById('modalTanpaKartu').style.display = 'none';
+      toast('⛔ Scan dulu kartu guru piket (offline) sebelum pakai fitur ini');
+      return;
+    }
+    bukaModalTanpaKartuOffline(guruOffline);
     return;
   }
+
+  // Mode online — alur biasa: verifikasi username guru piket dulu.
+  _tkOfflineMode = false;
   _tkGuruUsername = null;
   _tkGuruNama = null;
-  _tkSelected = new Set();
   document.getElementById('tkUsername').value = '';
   document.getElementById('tkVerifError').style.display = 'none';
   document.getElementById('tkStepVerifikasi').style.display = 'block';
   document.getElementById('tkStepChecklist').style.display = 'none';
-  document.getElementById('modalTanpaKartu').style.display = 'flex';
   setTimeout(() => document.getElementById('tkUsername').focus(), 100);
+}
+
+// ── BUKA MODAL LANGSUNG KE CHECKLIST, PAKAI DATA OFFLINE ──────────
+async function bukaModalTanpaKartuOffline(guruOffline) {
+  _tkOfflineMode  = true;
+  _tkGuruUsername = null; // tidak dipakai/tidak relevan di mode offline
+  _tkGuruNama     = guruOffline.namaGuru || '(guru piket)';
+
+  document.getElementById('tkStepVerifikasi').style.display = 'none';
+  document.getElementById('tkStepChecklist').style.display = 'flex';
+  document.getElementById('tkNamaGuru').textContent = `${_tkGuruNama} 📴 (offline)`;
+
+  await buildChecklistFromCache();
+}
+
+// ── BANGUN CHECKLIST DARI SNAPSHOT LOKAL (mode offline) ───────────
+async function buildChecklistFromCache() {
+  const cache = getLogCache();
+  if (!cache) {
+    _tkBelumHadir = [];
+    document.getElementById('tkChecklistContainer').innerHTML =
+      `<div class="log-empty"><div class="log-empty-icon">📴</div><div>Belum ada data siswa tersimpan lokal. Buka halaman ini sekali saat online supaya datanya tersimpan.</div></div>`;
+    document.getElementById('tkJumlahTerpilih').textContent = '0';
+    return;
+  }
+
+  // Kurangi dengan siswa yang SUDAH ADA di antrian offline sesi ini (baik
+  // dari scan QR maupun input tanpa-kartu sebelumnya) supaya guru piket
+  // tidak bisa memilih siswa yang sama 2x dalam satu sesi offline.
+  const antrian = await getAntrian();
+  const idDalamAntrian = new Set(
+    antrian.filter(it => it.tipe !== 'guru').map(it => it.identifier)
+  );
+  _tkBelumHadir = (cache.belumHadir || []).filter(s => !idDalamAntrian.has(s.id));
+  renderChecklistTanpaKartu();
 }
 
 function tutupModalTanpaKartu() {
@@ -1596,6 +1671,20 @@ async function verifikasiTanpaKartu() {
     // mengikuti filter kelas yang sedang aktif di halaman utama).
     const log = await api('scan', 'getLogHariIni', {});
     _tkBelumHadir = (log && log.success) ? (log.belumHadir || []) : [];
+
+    // Segarkan juga snapshot lokal di sini -- panggilan ini sudah tanpa
+    // filter kelas (roster lengkap), jadi kesempatan bagus untuk
+    // memastikan cache offline selalu punya data terbaru.
+    if (log && log.success) {
+      try {
+        const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
+        localStorage.setItem(LOG_CACHE_KEY, JSON.stringify({
+          tanggal: witaNow.toISOString().split('T')[0],
+          belumHadir: log.belumHadir || [],
+          waktuSimpan: Date.now()
+        }));
+      } catch(e) {}
+    }
 
     document.getElementById('tkNamaGuru').textContent = _tkGuruNama;
     renderChecklistTanpaKartu();
@@ -1635,6 +1724,9 @@ function toggleTkSiswa(id, checked) {
 
 async function simpanTanpaKartu() {
   if (_tkSelected.size === 0) { toast('⚠️ Pilih minimal satu siswa dulu'); return; }
+
+  if (_tkOfflineMode) { await simpanTanpaKartuOffline(); return; }
+
   const btn = document.getElementById('tkBtnSimpan');
   btn.disabled = true; btn.textContent = 'Menyimpan...';
   try {
@@ -1655,6 +1747,51 @@ async function simpanTanpaKartu() {
   } finally {
     btn.disabled = false; btn.textContent = `Simpan (${_tkSelected.size})`;
   }
+}
+
+// ── SIMPAN "TANPA KARTU" KE ANTRIAN OFFLINE ───────────────────────
+// Setiap siswa terpilih dimasukkan sebagai item antrian yang bentuknya
+// SAMA PERSIS dengan item hasil scan QR siswa (tipe:'siswa') -- cuma
+// method-nya ditandai 'Manual (Tanpa Kartu)' untuk keperluan audit/laporan
+// (lihat metodeFinal di api/sync.js). Dengan begitu tidak perlu jalur sync
+// baru sama sekali: retry otomatis, dedup lewat constraint unique
+// (id_siswa+tanggal), overlay sync -- semuanya otomatis berlaku karena
+// mesinnya sama dengan antrian QR yang sudah teruji.
+async function simpanTanpaKartuOffline() {
+  const guruOffline = getGuruOffline();
+  if (!guruOffline) {
+    toast('⛔ Data guru piket offline hilang — scan ulang kartu guru piket');
+    tutupModalTanpaKartu();
+    return;
+  }
+
+  const btn = document.getElementById('tkBtnSimpan');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+
+  const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
+  const tanggal = witaNow.toISOString().split('T')[0];
+  const jam     = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
+  const days    = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const hari    = days[witaNow.getUTCDay()];
+
+  let disimpan = 0;
+  for (const id of _tkSelected) {
+    const siswa = _tkBelumHadir.find(s => s.id === id);
+    const scanData = {
+      identifier: id, mode: scanMode, tanggal, jam, hari,
+      namaCache: siswa ? siswa.nama : id,
+      tipe: 'siswa', metode: 'Manual (Tanpa Kartu)'
+    };
+    try {
+      await simpanKeAntrian(scanData);
+      disimpan++;
+    } catch(e) {}
+  }
+
+  updateOfflineBadge();
+  toast(`📴 ${disimpan} siswa tersimpan offline (tanpa kartu) — akan dikirim saat internet aktif`);
+  tutupModalTanpaKartu();
+  btn.disabled = false; btn.textContent = `Simpan (${_tkSelected.size})`;
 }
 
 // ── FLASH ────────────────────────────────────────────────────────
@@ -1724,6 +1861,21 @@ async function loadLog() {
     document.getElementById('tabIzinCount').textContent = r.totalIzinSakit;
     document.getElementById('tabHadirCount').textContent = r.totalHadir;
     renderLog();
+
+    // Simpan snapshot lokal daftar "belum hadir" -- HANYA saat tidak
+    // sedang difilter per kelas (kelas === ''), supaya cache-nya selalu
+    // roster LENGKAP semua kelas, bukan cuma sebagian. Ini yang dipakai
+    // fitur "Input Tanpa Kartu" saat offline (lihat buildChecklistFromCache()).
+    if (!kelas) {
+      try {
+        const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
+        localStorage.setItem(LOG_CACHE_KEY, JSON.stringify({
+          tanggal: witaNow.toISOString().split('T')[0],
+          belumHadir: r.belumHadir || [],
+          waktuSimpan: Date.now()
+        }));
+      } catch(e) {}
+    }
   } catch(e) {}
 }
 
@@ -1845,6 +1997,14 @@ const STORE_NAME = 'antrian';
 // ── STATUS GURU PIKET OFFLINE (disimpan di localStorage) ─────────
 const GURU_OFFLINE_KEY = 'siabsen_guru_piket_offline';
 
+// ── SNAPSHOT LOKAL DAFTAR SISWA BELUM HADIR (untuk "Tanpa Kartu" offline) ──
+// Dipakai HANYA sebagai sumber checklist saat fitur "Input Tanpa Kartu"
+// dibuka dalam kondisi offline -- lihat buildChecklistFromCache() dan
+// loadLog(). Cache ini otomatis diperbarui setiap kali loadLog() berhasil
+// online TANPA filter kelas (supaya selalu berisi roster lengkap semua
+// kelas), jadi "potret terakhir yang diketahui" perangkat ini.
+const LOG_CACHE_KEY = 'siabsen_log_cache_v1';
+
 function simpanGuruOffline(namaGuru, idGuru, jam) {
   const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
   const tanggal = witaNow.toISOString().split('T')[0];
@@ -1872,6 +2032,24 @@ function getGuruOffline() {
 
 function hapusGuruOffline() {
   localStorage.removeItem(GURU_OFFLINE_KEY);
+}
+
+// ── AMBIL SNAPSHOT LOG LOKAL (untuk checklist "Tanpa Kartu" offline) ──
+// Hanya dianggap valid untuk HARI INI -- kalau snapshot berasal dari
+// tanggal yang berbeda (mis. HP tidak dibuka semalaman), dianggap basi dan
+// tidak dipakai, supaya tidak menampilkan status kehadiran hari kemarin.
+function getLogCache() {
+  try {
+    const raw = localStorage.getItem(LOG_CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
+    const tanggalHariIni = witaNow.toISOString().split('T')[0];
+    if (data.tanggal !== tanggalHariIni) return null;
+    return data;
+  } catch(e) {
+    return null;
+  }
 }
 
 // ── BUKA IndexedDB ───────────────────────────────────────────────
@@ -1955,6 +2133,15 @@ function updateOnlineStatus(online) {
   } else {
     bar.classList.add('show');
     updateOfflineBadge();
+  }
+  // Tandai tombol "Tanpa Kartu" saat offline supaya guru piket sadar
+  // datanya diambil dari cache lokal terakhir, bukan real-time — lihat
+  // bukaModalTanpaKartuOffline().
+  const btnTK = document.getElementById('btnTanpaKartu');
+  if (btnTK) {
+    btnTK.innerHTML = online
+      ? '📝 Input Kehadiran Tanpa Kartu'
+      : '📝 Input Kehadiran Tanpa Kartu <span style="opacity:.7">📴 offline</span>';
   }
 }
 
@@ -2061,30 +2248,28 @@ async function jalankanSync(antrian) {
           liEl.querySelector('.sync-log-status').textContent = r.message || 'Berhasil';
         }
       } else {
-        // Duplikat / sudah ada = hapus juga dari antrian
-        const isDuplikat = r.message && (r.message.includes('sudah') || r.message.includes('tidak ditemukan'));
+        // PENTING: dulu di sini dipakai heuristik menebak dari potongan
+        // teks pesan (message.includes('sudah'), dst) untuk memutuskan
+        // apakah item ini "penolakan permanen" (harus dihapus dari
+        // antrian) atau sekadar gagal sementara (harus dicoba lagi). Cara
+        // itu rapuh -- setiap kali backend menambah pesan error baru,
+        // daftar kata kunci di sini harus ikut diupdate manual, dan kalau
+        // lupa, item bisa nyangkut selamanya ATAU malah terhapus padahal
+        // seharusnya dicoba lagi. Sekarang backend (processSingleScan di
+        // api/sync.js) yang secara eksplisit menandai `r.permanent` --
+        // client tinggal percaya flag itu, tidak perlu menebak dari teks
+        // pesan sama sekali.
+        const isPermanen = r.permanent === true;
+        // Cosmetic saja (ikon), bukan penentu hapus/tidaknya antrian.
+        const isDuplikat = r.message && r.message.includes('sudah');
 
-        // Penolakan permanen berdasarkan aturan kalender (hari libur, hari
-        // sekolah nonaktif, tidak ada semester aktif, di luar periode
-        // semester). Data offline yang ditolak karena ini TIDAK AKAN
-        // PERNAH berhasil walau diulang berapa kali pun — jam & tanggal
-        // scan-nya sudah terkunci sejak direkam offline. Kalau tidak
-        // dihapus dari antrian, item ini akan nyangkut & terus dicoba
-        // ulang selamanya setiap kali sync jalan.
-        const isPenolakanPermanen = r.message && (
-          r.message.includes('Hari ini libur') ||
-          r.message.includes('bukan hari sekolah') ||
-          r.message.includes('Tidak ada semester aktif') ||
-          r.message.includes('Di luar periode semester')
-        );
-
-        if (isDuplikat || isPenolakanPermanen) await hapusDariAntrian(item.localId);
+        if (isPermanen) await hapusDariAntrian(item.localId);
         gagal++;
         if (liEl) {
           liEl.className = 'sync-log-item err';
-          liEl.querySelector('.sync-log-icon').textContent = isDuplikat ? '⚠️' : (isPenolakanPermanen ? '🚫' : '❌');
+          liEl.querySelector('.sync-log-icon').textContent = isDuplikat ? '⚠️' : (isPermanen ? '🚫' : '❌');
           liEl.querySelector('.sync-log-status').textContent =
-            isPenolakanPermanen ? `Ditolak (tidak dihitung): ${r.message}` : (r.message || 'Gagal');
+            isPermanen ? `Ditolak (tidak dihitung): ${r.message}` : (r.message || 'Gagal');
         }
       }
     } catch(e) {

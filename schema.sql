@@ -196,7 +196,8 @@ INSERT INTO jam_setting (kunci, nilai, deskripsi) VALUES
   ('NPSN',               '', 'NPSN Sekolah'),
   ('TELP_SEKOLAH',       '', 'Telepon Sekolah'),
   ('EMAIL_SEKOLAH',      '', 'Email Sekolah'),
-  ('LOGO_URL',           '', 'URL Logo Sekolah')
+  ('LOGO_URL',           '', 'URL Logo Sekolah'),
+  ('RESET_ABSENSI_TERAKHIR', '', 'Timestamp ISO kapan riwayat absensi terakhir kali dihapus total (lewat Reset Absensi "Hapus Semua" atau Reset Total). Dipakai api/sync.js untuk menolak item antrian offline yang direkam SEBELUM waktu ini, supaya data lama yang baru sinkron belakangan tidak "menghidupkan kembali" riwayat yang sudah sengaja dihapus admin.')
 ON CONFLICT (kunci) DO NOTHING;
 
 -- ─── ADMIN DEFAULT (password: admin123) ────────────────────

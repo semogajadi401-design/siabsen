@@ -150,6 +150,30 @@ body{
 .badge-status.alpha{background:#fde8e8;color:var(--danger)}
 .empty-note{text-align:center;color:var(--text-muted);font-size:.82rem;padding:26px 10px}
 
+/* ── TAB "HARIAN" / "PER MAPEL" (Langkah D — BARU) ──
+   Ditaruh di atas .content-row, dipakai baik oleh render() (harian, sudah
+   ada) maupun renderMapel() (baru) supaya orang bisa pindah tampilan
+   tanpa reload halaman. */
+.tabs-riwayat{display:flex;gap:6px;margin-bottom:14px;flex-shrink:0}
+.tab-btn-riwayat{
+  flex:1;padding:9px 8px;border:1.5px solid var(--border);border-radius:10px;
+  background:#fafbfc;color:var(--text-muted);font-family:var(--font);font-size:.76rem;font-weight:700;
+  cursor:pointer;transition:.15s;text-align:center;-webkit-tap-highlight-color:transparent;
+}
+.tab-btn-riwayat.active{background:linear-gradient(120deg,var(--green-dark),var(--green));color:#fff;border-color:transparent}
+
+/* Status "Belum Terverifikasi" (per mapel) SENGAJA dibuat netral (abu-abu),
+   bukan merah seperti .alpha -- ini bukan tuduhan bolos, lihat catatan di
+   getRiwayatMapel() (api/riwayat.js) dan kotak .info-note di bawah. */
+.riwayat-item.belum{border-left-color:#bbb}
+.badge-status.belum{background:#f0f0f0;color:#666}
+.stat-item.belum .n{color:#666}
+
+.info-note{
+  background:#fff8e6;border:1px solid #ffe6a8;border-radius:10px;
+  padding:9px 11px;font-size:.68rem;color:#7a5c00;line-height:1.5;margin-bottom:10px;flex-shrink:0;
+}
+
 .footer-note{
   text-align:center;font-size:.66rem;color:rgba(255,255,255,.55);padding:10px 10px 0;
 }
@@ -275,7 +299,7 @@ const params = new URLSearchParams(window.location.search);
 const pathMatch = window.location.pathname.match(/\/riwayat\/([^/?#]+)/i);
 const TOKEN = params.get('t') || params.get('token') || (pathMatch ? pathMatch[1] : '') || '';
 
-const STATE = { info: null, semesterId: '', bulan: '', status: 'Semua' };
+const STATE = { info: null, semesterId: '', bulan: '', status: 'Semua', tab: 'harian', mapelFilter: '', mapelList: [] };
 
 const BULAN_NAMA = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const HARI_SINGKAT = { 'Senin':'Sen','Selasa':'Sel','Rabu':'Rab','Kamis':'Kam','Jumat':'Jum','Sabtu':'Sab','Minggu':'Min' };
@@ -406,6 +430,10 @@ function render(r) {
       </div>
 
       <div class="body-pad">
+        <div class="tabs-riwayat">
+          <button type="button" class="tab-btn-riwayat active" onclick="switchTab('harian')">📅 Harian</button>
+          <button type="button" class="tab-btn-riwayat" onclick="switchTab('mapel')">📚 Per Mapel</button>
+        </div>
         <div class="content-row">
 
           <!-- KOLOM KIRI: filter + ringkasan angka -->
@@ -472,6 +500,146 @@ function statusClass(status) {
 function HARI_SINGKAT_FULL(d) {
   const arr = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   return arr[d.getDay()];
+}
+
+// ── TAB "PER MAPEL" (Langkah D — BARU) ─────────────────────────────
+// Lihat catatan lengkap di getRiwayatMapel() (api/riwayat.js) soal kenapa
+// ini TIDAK memakai istilah "Alpa"/"Tidak Hadir" -- ini sampel verifikasi
+// per jam pelajaran, bukan absen harian yang mencakup semua siswa.
+function switchTab(tab) {
+  STATE.tab = tab;
+  if (tab === 'harian') loadRiwayat();
+  else loadRiwayatMapel();
+}
+
+async function loadRiwayatMapel() {
+  try {
+    const result = await api('getRiwayatMapel', {
+      token: TOKEN,
+      semesterId: STATE.semesterId,
+      bulan: STATE.bulan,
+      mapel: STATE.mapelFilter
+    });
+    if (!result.success) { renderError(result.message || 'Terjadi kesalahan.'); return; }
+    STATE.mapelList = result.mapelList || [];
+    renderMapel(result);
+  } catch (e) {
+    renderError('Terjadi kesalahan saat memuat riwayat. Coba scan ulang.');
+  }
+}
+
+function renderMapel(r) {
+  const info = STATE.info;
+  const semesterOpts = info.semesters.map(s =>
+    `<option value="${s.id}" ${s.id === STATE.semesterId ? 'selected' : ''}>${esc(s.nama)}${s.tahunAjaran ? ' - ' + s.tahunAjaran : ''}</option>`
+  ).join('');
+
+  const currentSm = info.semesters.find(s => s.id === STATE.semesterId);
+  const bulanOpts = currentSm ? bulanOptionsForSemester(currentSm) : [];
+  const bulanOptionsHTML = `<option value="">Semua Bulan</option>` + bulanOpts.map(b =>
+    `<option value="${b.value}" ${b.value === STATE.bulan ? 'selected' : ''}>${b.label}</option>`
+  ).join('');
+
+  const mapelOptionsHTML = `<option value="">Semua Mapel</option>` + (r.mapelList || []).map(m =>
+    `<option value="${esc(m)}" ${m === STATE.mapelFilter ? 'selected' : ''}>${esc(m)}</option>`
+  ).join('');
+
+  const st = r.statistik;
+  const listHTML = r.riwayat.length ? r.riwayat.map(item => {
+    const cls = item.terverifikasi ? 'hadir' : 'belum';
+    const d = new Date(item.tanggal + 'T00:00:00');
+    const infoText = item.terverifikasi
+      ? `Terverifikasi${item.jamScan ? ' pukul ' + item.jamScan : ''}${item.namaGuru ? ' • ' + item.namaGuru : ''}`
+      : (item.namaGuru ? `Guru: ${item.namaGuru}` : '-');
+    return `
+      <div class="riwayat-item ${cls}">
+        <div class="tgl-box">
+          <div class="d">${String(d.getDate()).padStart(2,'0')}</div>
+          <div class="m">${BULAN_NAMA[d.getMonth()].substring(0,3)}</div>
+        </div>
+        <div class="info">
+          <div class="hari">${esc(item.mapel)} &nbsp;•&nbsp; ${item.hari || HARI_SINGKAT_FULL(d)}</div>
+          <div class="jam">${esc(infoText)}</div>
+        </div>
+        <div class="badge-status ${cls}">${item.terverifikasi ? 'Terverifikasi' : 'Belum Terverifikasi'}</div>
+      </div>`;
+  }).join('') : `<div class="empty-note">Belum ada sesi mengajar tercatat di kelasmu untuk filter yang dipilih. (Fitur ini baru berjalan kalau guru sudah mulai absen mengajar per jam pelajaran.)</div>`;
+
+  document.getElementById('app').innerHTML = `
+    <div class="modal-card">
+      <div class="header">
+        <div class="who">
+          <span class="tag">📚 Riwayat Per Mapel</span>
+          <h1>${esc(info.siswa.nama)}</h1>
+          <div class="sub">Kelas ${info.siswa.kelas} &nbsp;•&nbsp; NISN ${info.siswa.nisn}</div>
+        </div>
+        <div class="persen-chip">
+          <div class="n">${st.totalTerverifikasi}/${st.totalSesi}</div>
+          <div class="l">Terverifikasi</div>
+        </div>
+      </div>
+
+      <div class="body-pad">
+        <div class="tabs-riwayat">
+          <button type="button" class="tab-btn-riwayat" onclick="switchTab('harian')">📅 Harian</button>
+          <button type="button" class="tab-btn-riwayat active" onclick="switchTab('mapel')">📚 Per Mapel</button>
+        </div>
+        <div class="content-row">
+
+          <!-- KOLOM KIRI: filter + ringkasan angka -->
+          <div class="side-col">
+            <div class="info-note">
+              ℹ️ "Belum Terverifikasi" <b>bukan berarti tidak hadir</b>. Guru memverifikasi lewat
+              scan sebagian kartu siswa saat mengajar (sampel), bukan mendata satu-satu semua
+              siswa tiap jam pelajaran.
+            </div>
+            <div class="filters">
+              <div>
+                <label>Semester</label>
+                <select id="selSemesterM">${semesterOpts}</select>
+              </div>
+              <div>
+                <label>Bulan</label>
+                <select id="selBulanM">${bulanOptionsHTML}</select>
+              </div>
+              <div>
+                <label>Mapel</label>
+                <select id="selMapelM">${mapelOptionsHTML}</select>
+              </div>
+            </div>
+
+            <div class="stats">
+              <div class="stat-item hadir"><div class="n">${st.totalTerverifikasi}</div><div class="l">Terverifikasi</div></div>
+              <div class="stat-item belum"><div class="n">${st.totalBelumTerverifikasi}</div><div class="l">Belum Terverifikasi</div></div>
+              <div class="stat-item total"><div class="n">${st.totalSesi}</div><div class="l">Total Sesi Tercatat</div></div>
+            </div>
+          </div>
+
+          <!-- KOLOM KANAN: daftar sesi (satu-satunya yang scroll) -->
+          <div class="main-col">
+            <div class="list-title">Detail Sesi (${r.rentang.start} s/d ${r.rentang.end})</div>
+            <div class="riwayat-list">${listHTML}</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    ${tombolTutupHTML()}
+    <div class="footer-note">Halaman ini bersifat pribadi — jangan sebarkan tautan/QR kartu ke orang lain.</div>
+  `;
+
+  document.getElementById('selSemesterM').addEventListener('change', e => {
+    STATE.semesterId = e.target.value; STATE.bulan = ''; STATE.mapelFilter = '';
+    loadRiwayatMapel();
+  });
+  document.getElementById('selBulanM').addEventListener('change', e => {
+    STATE.bulan = e.target.value; STATE.mapelFilter = '';
+    loadRiwayatMapel();
+  });
+  document.getElementById('selMapelM').addEventListener('change', e => {
+    STATE.mapelFilter = e.target.value;
+    loadRiwayatMapel();
+  });
 }
 
 init();

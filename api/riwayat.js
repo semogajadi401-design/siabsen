@@ -15,6 +15,7 @@ module.exports = async (req, res) => {
   try {
     if (action === 'getInfo')    return res.json(await getInfo(params));
     if (action === 'getRiwayat') return res.json(await getRiwayat(params));
+    if (action === 'getRiwayatMapel') return res.json(await getRiwayatMapel(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -193,6 +194,122 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
     siswa: { nama: siswa.nama, nisn: siswa.nisn, kelas: siswa.kelas },
     semester: { id: sm.id, nama: sm.nama, tahunAjaran: sm.tahun_ajaran },
     rentang: { start, end },
+    statistik,
+    riwayat
+  };
+}
+
+// ── RIWAYAT KEHADIRAN PER MAPEL (Langkah D — BARU) ────────────────────
+// Beda mendasar dari getRiwayat() di atas: itu absen datang/pulang HARIAN
+// (1 baris pasti ada tiap hari sekolah, termasuk Alpha kalau tidak ada
+// catatan). Ini soal VERIFIKASI KEHADIRAN PER JAM PELAJARAN (lihat
+// handoff fitur "Absensi Mengajar Guru") -- guru scan kartu SEBAGIAN
+// siswa (minimal MIN_VERIFIKASI_SISWA, atau semua yang hadir hari itu
+// kalau kelasnya kecil) sebagai SAMPEL, bukan mendata satu-satu semua
+// siswa tiap sesi. Karena itu:
+//   - "sesi" di sini = baris absensi_mengajar yang kelas-nya sama dengan
+//     kelas siswa ini (artinya guru memang mengajar & absen di kelas itu
+//     pada jam itu).
+//   - Siswa dianggap "Terverifikasi" HANYA kalau ada baris
+//     kehadiran_siswa_mapel dengan id_siswa dia untuk sesi itu.
+//   - SENGAJA TIDAK menyebut siswa yang tidak ada baris verifikasinya
+//     sebagai "Alpa"/"Tidak Hadir" -- karena tidak discan bisa jadi cuma
+//     karena guru belum sempat scan kartunya (verifikasi berbasis
+//     sampel), BUKAN bukti dia bolos. Label yang dipakai "Belum
+//     Terverifikasi", dan frontend WAJIB menampilkan catatan penjelas ini
+//     supaya tidak disalahartikan orang tua/siswa sebagai bukti bolos.
+async function getRiwayatMapel({ token, semesterId, bulan, mapel }) {
+  const siswa = await findSiswaByToken(token);
+  if (!siswa) return { success: false, message: 'Kode QR tidak valid atau sudah tidak berlaku' };
+  if (siswa.status !== 'Aktif') return { success: false, message: 'Data siswa ini sudah tidak aktif' };
+  if (!semesterId) return { success: false, message: 'Semester wajib dipilih' };
+
+  const { data: sm } = await supabase.from('semester').select('*').eq('id', semesterId).maybeSingle();
+  if (!sm) return { success: false, message: 'Semester tidak ditemukan' };
+
+  let start = String(sm.tanggal_mulai).substring(0, 10);
+  let end   = String(sm.tanggal_selesai).substring(0, 10);
+
+  // Rentang tanggal (semester ± filter bulan) dihitung ulang di sini
+  // sengaja TERPISAH dari getRiwayat() di atas -- supaya fungsi lama itu
+  // tidak perlu disentuh sama sekali untuk fitur baru ini.
+  if (bulan) {
+    const [y, m] = bulan.split('-');
+    const bulanStart = `${y}-${m}-01`;
+    const lastDay = new Date(Number(y), Number(m), 0).getDate();
+    const bulanEnd = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+    if (bulanStart > start) start = bulanStart;
+    if (bulanEnd < end) end = bulanEnd;
+  }
+  const todayStr = new Date().toISOString().substring(0, 10);
+  if (end > todayStr) end = todayStr;
+
+  const kosong = {
+    success: true,
+    siswa: { nama: siswa.nama, nisn: siswa.nisn, kelas: siswa.kelas },
+    semester: { id: sm.id, nama: sm.nama, tahunAjaran: sm.tahun_ajaran },
+    rentang: { start, end: start > end ? start : end },
+    mapelList: [],
+    statistik: { totalSesi: 0, totalTerverifikasi: 0, totalBelumTerverifikasi: 0, persentaseTerverifikasi: 0 },
+    riwayat: []
+  };
+  if (start > end) return kosong;
+
+  // Semua sesi mengajar yang tercatat di KELAS siswa ini pada rentang
+  // tanggal ini (kolom kelas/mapel/nama_guru didenormalisasi langsung di
+  // absensi_mengajar saat insert -- lihat scanSesiMengajar di
+  // api/mengajar.js -- jadi tidak perlu join ke jadwal_mengajar/guru).
+  const { data: sesiKelas, error: errSesi } = await supabase
+    .from('absensi_mengajar')
+    .select('id,tanggal,hari,mapel,nama_guru,status_verifikasi,jumlah_siswa_terverifikasi')
+    .eq('kelas', siswa.kelas).gte('tanggal', start).lte('tanggal', end)
+    .order('tanggal', { ascending: false });
+  if (errSesi) return { success: false, message: errSesi.message };
+
+  if (!sesiKelas || !sesiKelas.length) {
+    return { ...kosong, rentang: { start, end } };
+  }
+
+  const { data: verifSiswa, error: errVerif } = await supabase
+    .from('kehadiran_siswa_mapel')
+    .select('id_absensi_mengajar,jam_scan')
+    .eq('id_siswa', siswa.id).gte('tanggal', start).lte('tanggal', end);
+  if (errVerif) return { success: false, message: errVerif.message };
+
+  const verifMap = {};
+  (verifSiswa || []).forEach(v => { verifMap[v.id_absensi_mengajar] = v.jam_scan; });
+
+  let riwayat = sesiKelas.map(s => ({
+    tanggal: s.tanggal, hari: s.hari, mapel: s.mapel, namaGuru: s.nama_guru,
+    terverifikasi: Object.prototype.hasOwnProperty.call(verifMap, s.id),
+    jamScan: verifMap[s.id] || null,
+    // Ikut disertakan sebagai konteks tambahan (bukan alasan menuduh siswa
+    // bolos): kalau status_verifikasi sesi ini sendiri "Perlu Ditinjau",
+    // itu tandanya guru memang belum scan cukup banyak siswa sama sekali
+    // di sesi itu -- jadi "Belum Terverifikasi" untuk siswa ini makin
+    // tidak bisa dianggap bukti apa-apa.
+    statusVerifikasiSesi: s.status_verifikasi
+  }));
+
+  const mapelList = [...new Set(riwayat.map(r => r.mapel).filter(Boolean))].sort();
+
+  if (mapel) riwayat = riwayat.filter(r => r.mapel === mapel);
+
+  const totalSesi = riwayat.length;
+  const totalTerverifikasi = riwayat.filter(r => r.terverifikasi).length;
+  const statistik = {
+    totalSesi,
+    totalTerverifikasi,
+    totalBelumTerverifikasi: totalSesi - totalTerverifikasi,
+    persentaseTerverifikasi: totalSesi > 0 ? Math.round((totalTerverifikasi / totalSesi) * 1000) / 10 : 0
+  };
+
+  return {
+    success: true,
+    siswa: { nama: siswa.nama, nisn: siswa.nisn, kelas: siswa.kelas },
+    semester: { id: sm.id, nama: sm.nama, tahunAjaran: sm.tahun_ajaran },
+    rentang: { start, end },
+    mapelList,
     statistik,
     riwayat
   };

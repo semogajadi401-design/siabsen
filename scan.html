@@ -1253,7 +1253,15 @@ function setMode(mode) {
 function mulaiModeVerifikasi(result) {
   modeVerifikasiAktif = true;
   verifikasiSesi = {
-    idAbsensiMengajar: result.idAbsensiMengajar,
+    // BARU (sub-langkah 4): kalau guru memilih "Mengajar" saat OFFLINE,
+    // belum ada idAbsensiMengajar asli dari server -- cuma localSesiId
+    // (dibuat di client) yang nanti dipetakan ke id asli saat sinkron
+    // (lihat sesiIdMap di jalankanSync()). Selama idAbsensiMengajar masih
+    // null, sesi ini dianggap "sesi offline murni": semua scan kartu
+    // siswa SELALU masuk antrian, tidak pernah dicoba langsung ke server
+    // (lihat processScanSiswaVerifikasi).
+    idAbsensiMengajar: result.idAbsensiMengajar || null,
+    localSesiId: result.localSesiId || null,
     mapel: (result.jadwal && result.jadwal.mapel) || '',
     kelas: (result.jadwal && result.jadwal.kelas) || '',
     min: MIN_VERIFIKASI_SISWA,
@@ -1264,11 +1272,14 @@ function mulaiModeVerifikasi(result) {
   if (sw) sw.closest('.mode-switch-wrap').style.display = 'none';
   const box = document.getElementById('modeVerifikasiBox');
   box.style.display = '';
-  document.getElementById('verifikasiMapelKelas').textContent =
-    `${verifikasiSesi.mapel} - ${verifikasiSesi.kelas}`;
+  document.getElementById('verifikasiMapelKelas').textContent = verifikasiSesi.idAbsensiMengajar
+    ? `${verifikasiSesi.mapel} - ${verifikasiSesi.kelas}`
+    : '📴 Sesi offline — mapel & kelas dicocokkan saat sinkron';
   updateBadgeVerifikasi();
 
-  toast('📚 Mode Verifikasi Kelas aktif — lanjut scan kartu siswa satu-satu.', 4000);
+  toast(verifikasiSesi.idAbsensiMengajar
+    ? '📚 Mode Verifikasi Kelas aktif — lanjut scan kartu siswa satu-satu.'
+    : '📴 Mode Verifikasi Kelas (offline) aktif — kartu siswa disimpan lokal dulu.', 4000);
 }
 
 function updateBadgeVerifikasi() {
@@ -1312,6 +1323,27 @@ async function processScanSiswaVerifikasi(data) {
   // konsisten dengan kartu yang sama dipakai di jalur datang/pulang.
   const idSiswa = raw.includes('|') ? raw.split('|')[0] : raw;
 
+  // BARU (sub-langkah 4): sesi yang DIMULAI offline (belum ada
+  // idAbsensiMengajar asli, cuma localSesiId) SELALU disimpan ke antrian --
+  // tidak pernah dicoba langsung ke server walau internet sudah kembali di
+  // tengah sesi. Ini supaya kartu siswa tidak pernah mendahului sesi
+  // mengajarnya sendiri saat sinkron (lihat pemetaan localSesiId ->
+  // idAbsensiMengajar asli di jalankanSync()).
+  if (!verifikasiSesi.idAbsensiMengajar) {
+    return simpanScanSiswaVerifikasiOffline({
+      idSiswa, rawData: data, now, localSesiId: verifikasiSesi.localSesiId
+    });
+  }
+
+  // Sesi online (idAbsensiMengajar sudah ada dari server) tapi perangkat
+  // memang sedang offline sekarang -- langsung antri tanpa mencoba fetch
+  // dulu (hindari delay timeout jaringan yang percuma).
+  if (!isOnline) {
+    return simpanScanSiswaVerifikasiOffline({
+      idSiswa, rawData: data, now, idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar
+    });
+  }
+
   try {
     const result = await api('mengajar', 'scanSiswaMapel', {
       idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar,
@@ -1319,14 +1351,64 @@ async function processScanSiswaVerifikasi(data) {
     });
     handleHasilVerifikasiSiswa(result, data, now);
   } catch (e) {
-    // Tidak ada dukungan offline untuk mode ini (lihat catatan di state
-    // modeVerifikasiAktif) -- kalau request gagal, tampilkan error dan
-    // biarkan guru coba scan ulang saat koneksi kembali.
-    showFlash('error','❌','Gagal terhubung ke server');
-    toast('❌ Scan gagal, cek koneksi internet lalu coba lagi.');
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    // BARU: dulu request yang gagal di tengah sesi verifikasi cuma
+    // ditampilkan errornya (tidak masuk antrian, hilang begitu saja).
+    // Sekarang disamakan dengan pola datang/pulang: kalau koneksi putus
+    // tiba-tiba, simpan ke antrian offline supaya tidak hilang.
+    _lastPingOk = false;
+    isOnline = false;
+    updateOnlineStatus(false);
+    return simpanScanSiswaVerifikasiOffline({
+      idSiswa, rawData: data, now, idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar
+    });
   }
+}
+
+// ── SIMPAN SCAN SISWA VERIFIKASI KE ANTRIAN OFFLINE (BARU, sub-langkah 4) ──
+// Dipakai untuk 2 kasus: (1) sesi yang dari awal dimulai offline (bawa
+// localSesiId, idAbsensiMengajar null -- dipetakan ke id asli nanti saat
+// sinkron), dan (2) sesi online yang koneksinya putus di tengah scan
+// (bawa idAbsensiMengajar asli langsung). Pola IndexedDB SAMA PERSIS
+// dengan simpanKeAntrian() untuk item datang/pulang siswa -- tidak ada
+// mekanisme antrian baru, cuma tipe item baru ('siswaMapelOffline').
+async function simpanScanSiswaVerifikasiOffline({ idSiswa, rawData, now, idAbsensiMengajar, localSesiId }) {
+  const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
+  const tanggal = witaNow.toISOString().split('T')[0];
+  const jam     = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
+  const days    = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const hari    = days[witaNow.getUTCDay()];
+
+  const scanData = {
+    tipe: 'siswaMapelOffline',
+    idAbsensiMengajar: idAbsensiMengajar || null,
+    localSesiId: localSesiId || null,
+    idSiswa, tanggal, jam, hari,
+    namaCache: idSiswa
+  };
+
+  try {
+    await simpanKeAntrian(scanData);
+    scannedHistory[rawData] = now;
+    if (verifikasiSesi) {
+      // Hitungan SEMENTARA saja (belum tentu sama persis dengan hasil
+      // server, mis. kalau siswa ini ternyata sudah pernah discan sesi
+      // ini) -- dikoreksi otomatis begitu item ini berhasil sinkron.
+      verifikasiSesi.jumlah = (verifikasiSesi.jumlah || 0) + 1;
+      updateBadgeVerifikasi();
+    }
+    showFlash('warning', '📴', 'Siswa Tersimpan Offline');
+    toast(`📴 Kartu siswa tersimpan offline (sementara ${verifikasiSesi ? verifikasiSesi.jumlah : '?'}) — akan disinkron saat online.`);
+    updateOfflineBadge();
+  } catch (e) {
+    showFlash('error','❌','Gagal simpan lokal');
+    toast('❌ Gagal menyimpan data offline: ' + e.message);
+  }
+
+  startCooldown(1200);
+  setTimeout(() => {
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }, 1200);
 }
 
 function handleHasilVerifikasiSiswa(result, data, now) {
@@ -1351,6 +1433,18 @@ function handleHasilVerifikasiSiswa(result, data, now) {
 
 async function selesaiModeVerifikasi() {
   if (!verifikasiSesi) { keluarModeVerifikasi(); return; }
+  // BARU (sub-langkah 4): sesi yang murni offline (belum pernah dapat
+  // idAbsensiMengajar asli) tidak punya apa pun untuk diminta server
+  // rekap ulang -- cukup tutup mode secara lokal. Jumlah & status
+  // verifikasi akhir akan otomatis lengkap sendiri di server begitu
+  // semua item sesi ini (mengajarOffline + siswaMapelOffline) selesai
+  // disinkron, karena hitungUlangStatusVerifikasi() sudah otomatis
+  // dipanggil di setiap scanSiswaMapel yang berhasil sync.
+  if (!verifikasiSesi.idAbsensiMengajar) {
+    toast('📴 Sesi offline ditutup — rekap akan lengkap otomatis setelah semua kartu tersinkron.', 4000);
+    keluarModeVerifikasi();
+    return;
+  }
   const idAbsensiMengajar = verifikasiSesi.idAbsensiMengajar;
   try {
     const result = await api('mengajar', 'selesaiVerifikasi', { idAbsensiMengajar });
@@ -2048,6 +2142,13 @@ async function yaKonfirmasiPiket() {
 // dengan flag pilihan:'mengajar' atau pilihan:'piket' setelah guru menekan
 // tombol.
 let _pendingPilihMengajarPiket = null;
+// BARU (sub-langkah 4): pending state TERPISAH untuk kasus kartu guru yang
+// discan saat SUDAH TAHU offline dari awal (lihat tampilkanPilihanMengajarPiketOffline
+// di blok offline processQRWithOffline). Dipisah dari _pendingPilihMengajarPiket
+// (kasus online yang balasannya perluPilihMengajarPiket) supaya tombol modal
+// yang sama (pilihMengajar/pilihPiket di bawah) tahu harus kirim ke server
+// atau langsung antri lokal.
+let _pendingPilihanOffline = null;
 
 function tampilkanPilihanMengajarPiket(result, rawData) {
   _pendingPilihMengajarPiket = { identifier: rawData };
@@ -2063,9 +2164,27 @@ function tampilkanPilihanMengajarPiket(result, rawData) {
   document.getElementById('modalPilihMengajarPiket').style.display = 'flex';
 }
 
+// BARU (sub-langkah 4): versi offline dari modal pilihan di atas. Dipanggil
+// dari processQRWithOffline saat kartu guru (GR...) discan tapi perangkat
+// memang sedang offline -- tidak ada info jadwal (butuh server), jadi kolom
+// jadwal disembunyikan dan pesannya menegaskan ini offline. Guru sendiri
+// yang tahu apakah sedang piket atau mau mengajar; validasi jadwal/jam
+// pelajaran tetap dilakukan server saat sinkron (lihat processMengajarOffline
+// di api/sync.js).
+function tampilkanPilihanMengajarPiketOffline(identifier, tanggal, jam, hari) {
+  _pendingPilihanOffline = { identifier, tanggal, jam, hari };
+  document.getElementById('pilihMengajarPiketText').textContent =
+    `📴 Offline — kartu guru terdeteksi. Absen untuk apa?`;
+  const jadwalEl = document.getElementById('pilihMengajarPiketJadwal');
+  jadwalEl.textContent = '';
+  jadwalEl.style.display = 'none';
+  document.getElementById('modalPilihMengajarPiket').style.display = 'flex';
+}
+
 function tutupModalPilihMengajarPiket() {
   document.getElementById('modalPilihMengajarPiket').style.display = 'none';
   _pendingPilihMengajarPiket = null;
+  _pendingPilihanOffline = null;
   scanCooldown = false;
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
@@ -2090,8 +2209,73 @@ async function kirimUlangDenganPilihan(pilihan) {
   _pendingPilihMengajarPiket = null;
 }
 
-function pilihMengajar() { kirimUlangDenganPilihan('mengajar'); }
-function pilihPiket()    { kirimUlangDenganPilihan('piket'); }
+// BARU (sub-langkah 4): versi offline -- tidak pernah memanggil server sama
+// sekali, langsung simpan ke antrian IndexedDB (pola sama dengan antrian
+// guru piket/siswa yang sudah ada).
+async function kirimUlangOfflinePilihan(pilihan) {
+  if (!_pendingPilihanOffline) return tutupModalPilihMengajarPiket();
+  const { identifier, tanggal, jam, hari } = _pendingPilihanOffline;
+  document.getElementById('modalPilihMengajarPiket').style.display = 'none';
+  _pendingPilihanOffline = null;
+
+  if (pilihan === 'piket') {
+    // Sama persis dengan alur offline lama (sebelum ada pilihan Mengajar):
+    // cek guru piket lain yang sudah tercatat offline hari ini dulu.
+    const guruSudahAda = getGuruOffline();
+    if (guruSudahAda) {
+      showFlash('error','⚠️', 'Guru sudah scan hari ini');
+      toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
+      scanCooldown = false;
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+    simpanGuruOffline('(menunggu sync)', identifier, jam);
+    const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru' };
+    try {
+      await simpanKeAntrian(scanData);
+      showFlash('guru','👤','Guru Tercatat Offline (Piket)');
+      toast('📴 Guru piket tersimpan offline — akan dikirim saat internet aktif');
+      updateOfflineBadge();
+    } catch (e) {
+      hapusGuruOffline();
+      showFlash('error','❌','Gagal simpan lokal');
+      toast('❌ Gagal menyimpan data offline: ' + e.message);
+    }
+    startCooldown(2500);
+    setTimeout(() => {
+      scanCooldown = false;
+      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    }, 2500);
+    return;
+  }
+
+  // pilihan === 'mengajar': belum ada idAbsensiMengajar asli (perlu jadwal
+  // dari server) -- pakai localSesiId sebagai penghubung sementara, akan
+  // dipetakan ke id asli saat sinkron (lihat sesiIdMap di jalankanSync()).
+  const localSesiId = `msesi_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const scanData = { identifier, tanggal, jam, hari, localSesiId, namaCache: identifier, tipe: 'mengajarOffline' };
+  try {
+    await simpanKeAntrian(scanData);
+    showFlash('guru','📚','Sesi Mengajar Tercatat Offline');
+    toast('📴 Sesi mengajar tersimpan offline — akan dicocokkan jadwal saat sinkron.', 4000);
+    updateOfflineBadge();
+    mulaiModeVerifikasi({ idAbsensiMengajar: null, localSesiId, jadwal: null, jumlahSiswaTerverifikasi: 0 });
+  } catch (e) {
+    showFlash('error','❌','Gagal simpan lokal');
+    toast('❌ Gagal menyimpan data offline: ' + e.message);
+  }
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+function pilihMengajar() {
+  if (_pendingPilihanOffline) return kirimUlangOfflinePilihan('mengajar');
+  return kirimUlangDenganPilihan('mengajar');
+}
+function pilihPiket() {
+  if (_pendingPilihanOffline) return kirimUlangOfflinePilihan('piket');
+  return kirimUlangDenganPilihan('piket');
+}
 
 // ── INPUT TANPA KARTU (siswa kartu hilang/rusak/ketinggalan) ──────
 let _tkGuruUsername = null;
@@ -2711,6 +2895,20 @@ setInterval(async () => {
   if (antrian.length > 0) await showSyncOverlay(antrian);
 }, 30000);
 
+// ── LABEL TIPE ITEM ANTRIAN (BARU, sub-langkah 4) ─────────────────
+// Item lama (guru piket & siswa datang/pulang) tidak selalu punya field
+// `tipe` eksplisit (siswa datang/pulang tidak diberi `tipe` sama sekali,
+// lihat simpanKeAntrian di processQRWithOffline lama) -- fallback ke
+// pola mode datang/pulang yang sudah ada supaya tampilan lama tidak
+// berubah. Item baru (mengajarOffline/siswaMapelOffline) dikenali dari
+// field `tipe` yang memang selalu disertakan saat disimpan.
+function labelTipeAntrian(item) {
+  if (item.tipe === 'guru') return 'Guru Piket';
+  if (item.tipe === 'mengajarOffline') return 'Absen Mengajar';
+  if (item.tipe === 'siswaMapelOffline') return 'Verifikasi Siswa';
+  return item.mode === 'pulang' ? 'Pulang' : 'Datang';
+}
+
 // ── TAMPILKAN SYNC OVERLAY ────────────────────────────────────────
 async function showSyncOverlay(antrian) {
   if (isSyncing) return;
@@ -2742,7 +2940,7 @@ async function showSyncOverlay(antrian) {
       <div class="sync-log-icon">⏳</div>
       <div class="sync-log-text">
         <div class="sync-log-nama">${esc(item.namaCache || item.identifier)}</div>
-        <div class="sync-log-status">${item.tanggal} • ${item.jam} • ${item.mode === 'pulang' ? 'Pulang' : 'Datang'}</div>
+        <div class="sync-log-status">${item.tanggal} • ${item.jam} • ${labelTipeAntrian(item)}</div>
       </div>`;
     logEl.appendChild(div);
   });
@@ -2762,6 +2960,14 @@ async function jalankanSync(antrian) {
   const logEl = document.getElementById('syncLog');
   let berhasil = 0, gagal = 0;
 
+  // BARU (sub-langkah 4): peta localSesiId -> idAbsensiMengajar ASLI dari
+  // server, terisi begitu item 'mengajarOffline' berhasil sync. Antrian
+  // (getAntrian()) selalu terurut kronologis (localId diawali timestamp),
+  // jadi item 'mengajarOffline' suatu sesi SELALU sudah diproses lebih
+  // dulu daripada item 'siswaMapelOffline' yang menunjuk ke sesi yang
+  // sama -- peta ini cukup hidup selama satu pemanggilan jalankanSync().
+  const sesiIdMap = {};
+
   for (let i = 0; i < antrian.length; i++) {
     const item   = antrian[i];
     const liEl   = document.getElementById(`sli_${item.localId}`);
@@ -2774,9 +2980,43 @@ async function jalankanSync(antrian) {
     if (liEl) liEl.querySelector('.sync-log-icon').textContent = '📡';
     logEl.scrollTop = logEl.scrollHeight;
 
+    // BARU: kalau item ini scan siswa dari sesi yang DIMULAI offline
+    // (idAbsensiMengajar masih null, cuma bawa localSesiId) dan sesi
+    // induknya SUDAH berhasil sync di iterasi sebelumnya (ada di
+    // sesiIdMap), sisipkan idAbsensiMengajar asli ke body request yang
+    // dikirim -- tanpa mengubah item aslinya di IndexedDB (kalau kirim
+    // ini gagal karena sebab lain, item asli tetap konsisten di antrian).
+    let itemUntukDikirim = item;
+    if (item.tipe === 'siswaMapelOffline' && !item.idAbsensiMengajar && item.localSesiId && sesiIdMap[item.localSesiId]) {
+      itemUntukDikirim = { ...item, idAbsensiMengajar: sesiIdMap[item.localSesiId] };
+    }
+
     try {
-      const res = await api('sync', 'batchSync', { items: [item] });
+      const res = await api('sync', 'batchSync', { items: [itemUntukDikirim] });
       const r   = res.results?.[0] || res;
+
+      // BARU: catat pemetaan localSesiId -> idAbsensiMengajar asli begitu
+      // sesi mengajar offline ini berhasil sync, supaya item siswa yang
+      // menunggu di iterasi berikutnya bisa langsung diselesaikan pada
+      // pemanggilan jalankanSync() yang sama (bukan menunggu retry 30
+      // detik berikutnya).
+      if (item.tipe === 'mengajarOffline' && r.success && r.idAbsensiMengajar && item.localSesiId) {
+        sesiIdMap[item.localSesiId] = r.idAbsensiMengajar;
+        // Kalau Mode Verifikasi Kelas untuk sesi INI masih aktif di layar
+        // (guru belum tekan "Selesai Verifikasi"), sambungkan juga sesi
+        // yang sedang berjalan ke id asli supaya kartu siswa BERIKUTNYA
+        // (belum discan) langsung lewat jalur online, tidak perlu antri
+        // lagi.
+        if (verifikasiSesi && verifikasiSesi.localSesiId === item.localSesiId) {
+          verifikasiSesi.idAbsensiMengajar = r.idAbsensiMengajar;
+          if (r.jadwal) {
+            verifikasiSesi.mapel = r.jadwal.mapel || verifikasiSesi.mapel;
+            verifikasiSesi.kelas = r.jadwal.kelas || verifikasiSesi.kelas;
+            const mkEl = document.getElementById('verifikasiMapelKelas');
+            if (mkEl) mkEl.textContent = `${verifikasiSesi.mapel} - ${verifikasiSesi.kelas}`;
+          }
+        }
+      }
 
       if (r.success) {
         berhasil++;
@@ -2855,6 +3095,19 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ── OVERRIDE processQR: tangkap offline ──────────────────────────
 const _origProcessQR = processQR;
 async function processQRWithOffline(data) {
+  // BARU (sub-langkah 4): kalau Mode Verifikasi Kelas aktif, SELALU
+  // diarahkan ke processScanSiswaVerifikasi() -- baik online maupun
+  // offline -- supaya kartu yang discan selama mode ini tidak pernah
+  // "bocor" ke jalur generik guru piket/siswa datang-pulang di bawah.
+  // SEBELUMNYA cek ini tidak ada di processQRWithOffline (cuma ada di
+  // processQR yang hanya dipanggil dari cabang isOnline di bawah) --
+  // akibatnya kalau perangkat OFFLINE saat mode verifikasi aktif, kartu
+  // siswa yang discan salah diproses sebagai absen datang/pulang biasa.
+  // processScanSiswaVerifikasi sendiri yang membedakan online/offline
+  // (lihat komentar di dalamnya & simpanScanSiswaVerifikasiOffline).
+  if (modeVerifikasiAktif) {
+    return processScanSiswaVerifikasi(data);
+  }
   if (isKartuRiwayatUrl(data)) {
     // PENTING: pakai validasi kewajaran token yang sama seperti di
     // processQR() (lihat ekstrakTokenRiwayat/tokenRiwayatMasukAkal di atas).
@@ -2921,34 +3174,15 @@ async function processQRWithOffline(data) {
   const hari     = days[witaNow.getUTCDay()];
 
   // ── CEK APAKAH QR GURU (scan offline guru) ───────────────────────
+  // BARU (sub-langkah 4): dulu kartu guru offline SELALU langsung
+  // diasumsikan piket. Sekarang disamakan dengan alur online: tanya dulu
+  // "Mengajar atau Piket?" (modal yang sama, lihat
+  // tampilkanPilihanMengajarPiketOffline) -- guru sendiri yang tahu
+  // sedang piket atau mau mengajar; server tetap memvalidasi ulang
+  // (jadwal cocok/tidak, guru piket ganda, dst) saat sinkron.
   if (identifier.startsWith('GR')) {
-    const guruSudahAda = getGuruOffline();
-    if (guruSudahAda) {
-      showFlash('error','⚠️', 'Guru sudah scan hari ini');
-      toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
-      scanCooldown = false;
-      scanAnimFrame = requestAnimationFrame(scanLoop);
-      return;
-    }
-    // Simpan status guru ke localStorage
-    simpanGuruOffline('(menunggu sync)', identifier, jam);
-    const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru' };
-    try {
-      await simpanKeAntrian(scanData);
-      scannedHistory[data] = now;
-      showFlash('guru','👤','Guru Tercatat Offline');
-      toast(`📴 Guru piket tersimpan offline — akan dikirim saat internet aktif`);
-      updateOfflineBadge();
-    } catch(e) {
-      hapusGuruOffline(); // rollback kalau gagal simpan
-      showFlash('error','❌','Gagal simpan lokal');
-      toast('❌ Gagal menyimpan data offline: ' + e.message);
-    }
-    startCooldown(2500);
-    setTimeout(() => {
-      scanCooldown = false;
-      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
-    }, 2500);
+    playBeep('warning');
+    tampilkanPilihanMengajarPiketOffline(identifier, tanggal, jam, hari);
     return;
   }
 

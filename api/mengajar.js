@@ -24,7 +24,7 @@ const AKSI_ADMIN_SAJA = new Set([
   'hapusKeteranganMengajar'
 ]);
 
-module.exports = async (req, res) => {
+const handler = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   const { action, adminToken, guruToken, ...params } = req.body || {};
@@ -91,6 +91,19 @@ module.exports = async (req, res) => {
     return res.status(500).json({ success: false, message: e.message });
   }
 };
+
+// Export default handler HTTP-nya PERSIS SEPERTI SEBELUMNYA (tidak ada
+// yang berubah untuk siapa pun yang memanggil lewat POST /api/mengajar).
+// Tambahan di bawah cuma menempelkan beberapa fungsi internal sebagai
+// properti pada handler ini, supaya api/scan.js bisa memakainya langsung
+// (in-process, tanpa lewat HTTP/guruToken) untuk jalur kiosk guru scan
+// kartu -- lihat komentar di scan.js. Ini "tambahan", bukan "modifikasi
+// ke jalur lama": scanSesiMengajar/scanSiswaMapel/selesaiVerifikasi di
+// bawah SAMA PERSIS dengan yang sudah dites di Langkah A, tidak diubah.
+module.exports = handler;
+module.exports.scanSesiMengajar = scanSesiMengajar;
+module.exports.scanSiswaMapel   = scanSiswaMapel;
+module.exports.selesaiVerifikasi = selesaiVerifikasi;
 
 // ════════════════════════════════════════════════════════════════
 // JAM PELAJARAN (master jam ke-1, ke-2, dst per hari)

@@ -913,6 +913,23 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         </div>
       </div>
 
+      <!-- Modal pilihan Absen Mengajar / Piket -- SELALU muncul tiap kartu
+           guru discan (lihat handleScanResult -> result.perluPilihMengajarPiket).
+           Ditaruh setelah modalKonfirmasiPiket, style sama persis supaya
+           konsisten visual. -->
+      <div id="modalPilihMengajarPiket" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:var(--surface);color:#1a1a1a;border-radius:14px;max-width:380px;width:100%;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)">
+          <div style="font-size:2.4rem;margin-bottom:8px">🙋</div>
+          <div id="pilihMengajarPiketText" style="font-size:1rem;line-height:1.5;margin-bottom:6px"></div>
+          <div id="pilihMengajarPiketJadwal" style="font-size:.85rem;color:#666;margin-bottom:18px"></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button onclick="pilihMengajar()" style="padding:12px;border:none;border-radius:8px;background:var(--primary,#0D47A1);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">📚 Absen Mengajar</button>
+            <button onclick="pilihPiket()" style="padding:12px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">🪪 Absen Piket</button>
+            <button onclick="batalPilihMengajarPiket()" style="padding:10px;border:none;border-radius:8px;background:#e0e0e0;color:#333;font-weight:600;font-size:.9rem;cursor:pointer">Batal</button>
+          </div>
+        </div>
+      </div>
+
       <div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="transition:none"></div></div>
 
       <!-- Hasil scan terakhir -->
@@ -1743,6 +1760,16 @@ function handleScanResult(result, data, now) {
       // Simpan lokal agar dikenali saat offline
       simpanGuruOffline(result.guru.nama, result.guru.id || '', result.guru.jam);
       checkStatus();
+    } else if (result.tipe === 'mengajar') {
+      // BARU (Langkah C sub-langkah 1): hasil absen sesi mengajar, setelah
+      // guru memilih "Absen Mengajar" di modal pilihan. Mode "Verifikasi
+      // Kelas" (scan kartu siswa berturut-turut) BELUM dibangun -- itu
+      // sub-langkah 3 -- jadi untuk sekarang cukup tampilkan konfirmasi
+      // lalu lanjut scan loop seperti biasa, sama seperti cabang lain.
+      const namaGuru = (result.guru && result.guru.nama) || '';
+      const infoJadwal = result.jadwal ? `${result.jadwal.mapel} - ${result.jadwal.kelas}` : '';
+      showFlash('guru', '📚', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
+      toast('✅ ' + result.message);
     } else {
       const isLate   = result.status === 'Terlambat';
       const isPulang = result.status === 'Pulang';
@@ -1762,6 +1789,13 @@ function handleScanResult(result, data, now) {
       if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
     }, 3000);
 
+  } else if (result.perluPilihMengajarPiket) {
+    // BARU (Langkah C sub-langkah 1 & 2): kartu guru discan -> selalu
+    // tanya dulu mau absen mengajar atau piket. Sama seperti cabang
+    // perluKonfirmasi di bawah: JANGAN dianggap error, JANGAN lanjut scan
+    // loop dulu (tunggu guru menekan salah satu tombol di modal).
+    playBeep('warning');
+    tampilkanPilihanMengajarPiket(result, data);
   } else if (result.perluKonfirmasi) {
     // Guru bukan piket terjadwal -> tampilkan dialog konfirmasi, JANGAN
     // dianggap error dan JANGAN lanjut scan loop dulu (tunggu jawaban user).
@@ -1821,6 +1855,59 @@ async function yaKonfirmasiPiket() {
   }
   _pendingKonfirmasiPiket = null;
 }
+
+// ── PILIHAN ABSEN MENGAJAR / PIKET ───────────────────────────────
+// Dipicu tiap kali kartu guru discan (result.perluPilihMengajarPiket dari
+// api/scan.js) -- guru SELALU ditanya dulu mau absen mengajar atau piket,
+// bukan cuma saat kebetulan bentrok jadwal. Simpan identifier scan asli
+// (pola sama seperti _pendingKonfirmasiPiket) supaya bisa dikirim ulang
+// dengan flag pilihan:'mengajar' atau pilihan:'piket' setelah guru menekan
+// tombol.
+let _pendingPilihMengajarPiket = null;
+
+function tampilkanPilihanMengajarPiket(result, rawData) {
+  _pendingPilihMengajarPiket = { identifier: rawData };
+  document.getElementById('pilihMengajarPiketText').textContent = result.message;
+  const jadwalEl = document.getElementById('pilihMengajarPiketJadwal');
+  if (result.jadwalMengajar) {
+    jadwalEl.textContent = `Jadwal mengajar sekarang: ${result.jadwalMengajar.mapel} - ${result.jadwalMengajar.kelas}`;
+    jadwalEl.style.display = '';
+  } else {
+    jadwalEl.textContent = '';
+    jadwalEl.style.display = 'none';
+  }
+  document.getElementById('modalPilihMengajarPiket').style.display = 'flex';
+}
+
+function tutupModalPilihMengajarPiket() {
+  document.getElementById('modalPilihMengajarPiket').style.display = 'none';
+  _pendingPilihMengajarPiket = null;
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+function batalPilihMengajarPiket() {
+  toast('Dibatalkan.');
+  tutupModalPilihMengajarPiket();
+}
+
+async function kirimUlangDenganPilihan(pilihan) {
+  if (!_pendingPilihMengajarPiket) return tutupModalPilihMengajarPiket();
+  const { identifier } = _pendingPilihMengajarPiket;
+  document.getElementById('modalPilihMengajarPiket').style.display = 'none';
+  try {
+    const result = await api('scan', 'scanKartu', { identifier, mode: scanMode, pilihan });
+    handleScanResult(result, identifier, Date.now());
+  } catch (e) {
+    toast('❌ Gagal memproses. Cek koneksi internet lalu scan ulang.');
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
+  _pendingPilihMengajarPiket = null;
+}
+
+function pilihMengajar() { kirimUlangDenganPilihan('mengajar'); }
+function pilihPiket()    { kirimUlangDenganPilihan('piket'); }
 
 // ── INPUT TANPA KARTU (siswa kartu hilang/rusak/ketinggalan) ──────
 let _tkGuruUsername = null;

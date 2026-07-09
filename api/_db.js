@@ -377,6 +377,42 @@ function sebutanGuru(nama, jenisKelamin) {
 // (lihat komentar di processSingleScan()). Ini sengaja supaya dua device
 // offline yang merekam guru pengganti berbeda tidak bisa dua-duanya lolos
 // begitu saja saat sync.
+// ── CEK JADWAL MENGAJAR SAAT INI (baca saja, tidak mencatat apa pun) ─────
+// BARU (Langkah C sub-langkah 1). Dipakai api/scan.js untuk mendeteksi,
+// pada saat kartu guru discan di kiosk, apakah guru itu sedang punya
+// jadwal mengajar di jam sekarang -- SEBELUM diputuskan mau diproses
+// sebagai absen mengajar atau piket (lihat modal pilihan di scan.html).
+//
+// Logika pencarian jam & jadwal ini SENGAJA meniru persis langkah 1-2 di
+// scanSesiMengajar (api/mengajar.js), tapi TIDAK memanggil atau mengubah
+// scanSesiMengajar itu sendiri -- fungsi ini murni SELECT (read-only),
+// supaya endpoint scanSesiMengajar yang sudah dites & jalan normal (Langkah
+// A) tidak berisiko ikut berubah. Ditaruh di _db.js (bukan di scan.js atau
+// mengajar.js) mengikuti pola cekIzinPiket di atas, supaya nanti api/sync.js
+// (jalur offline, Langkah C sub-langkah 5) bisa memakai fungsi yang SAMA
+// PERSIS, bukan menduplikasi logikanya sendiri.
+async function cekJadwalMengajarSaatIni({ guruId, hari, jam }) {
+  const jamSetting = await getJamSetting();
+  const toleransi = Number(jamSetting['TOLERANSI_MENGAJAR_MENIT'] || 15);
+
+  const { data: jamPelajaranHariIni } = await supabase
+    .from('jam_pelajaran').select('*').eq('hari', hari).order('jam_ke');
+
+  const jamKeSekarang = (jamPelajaranHariIni || []).find(
+    j => jam >= j.jam_mulai && jam <= tambahMenit(j.jam_selesai, toleransi)
+  );
+  if (!jamKeSekarang) return { ada: false };
+
+  const { data: jadwalGuru } = await supabase
+    .from('jadwal_mengajar').select('*')
+    .eq('id_guru', guruId).eq('hari', hari)
+    .lte('jam_ke_mulai', jamKeSekarang.jam_ke)
+    .gte('jam_ke_selesai', jamKeSekarang.jam_ke);
+
+  if (!jadwalGuru || jadwalGuru.length === 0) return { ada: false };
+  return { ada: true, jadwal: jadwalGuru[0], jamKeSekarang };
+}
+
 async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
   if (guruRole === 'kepsek') {
     return {
@@ -492,7 +528,8 @@ module.exports = {
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni,
-  cekIzinPiket, resolveGuruIdFromToken
+  cekIzinPiket, resolveGuruIdFromToken,
+  cekJadwalMengajarSaatIni
 };
 async function requireAdminToken(token) {
   if (!token) return false;

@@ -873,6 +873,27 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         </div>
       </div>
 
+      <!-- Status Mode Verifikasi Kelas (BARU, Langkah C sub-langkah 3) —
+           tersembunyi secara default, ditampilkan lewat mulaiModeVerifikasi()
+           setelah absen mengajar berhasil. Style meniru guru-status.ada-guru
+           di atas supaya konsisten. Selama mode ini aktif, kartu apapun yang
+           discan diarahkan ke verifikasi siswa (lihat processQR di bawah),
+           BUKAN alur admin/guru/siswa datang-pulang biasa. -->
+      <div class="guru-status ada-guru" id="modeVerifikasiBox" style="display:none">
+        <div class="guru-label">📚 Mode Verifikasi Kelas</div>
+        <div id="modeVerifikasiContent" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div>
+            <div id="verifikasiMapelKelas" style="font-weight:700"></div>
+            <div style="font-size:.82rem;color:var(--text-muted)">
+              Terverifikasi: <b id="verifikasiCounter">0</b> dari minimal <b id="verifikasiMin">?</b> siswa
+            </div>
+          </div>
+          <button type="button" onclick="selesaiModeVerifikasi()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+            ✅ Selesai Verifikasi
+          </button>
+        </div>
+      </div>
+
       <div class="scanner-visual">
         <div class="ring-outer"></div>
         <div class="ring-dashed"></div>
@@ -1109,6 +1130,27 @@ let scanAnimFrame = null;
 let logData       = { hadir:[], izinSakit:[], belumHadir:[] };
 let activeTab     = 'belum';
 
+// ── MODE VERIFIKASI KELAS (BARU, Langkah C sub-langkah 3) ────────
+// Aktif setelah guru absen mengajar (lihat handleScanResult tipe
+// 'mengajar'). Selama aktif, processQR() mengarahkan SEMUA hasil scan ke
+// processScanSiswaVerifikasi() alih-alih jalur admin/guru/siswa biasa.
+// CATATAN: mode ini BELUM mendukung offline (Langkah C sub-langkah 4/5
+// belum dikerjakan) -- scanSiswaMapel dipanggil langsung ke server tiap
+// scan, jadi kalau internet mati di tengah verifikasi, scan siswa akan
+// gagal dengan pesan error (bukan masuk antrian). Guru piket/siswa
+// datang-pulang di luar mode ini tetap punya dukungan offline seperti
+// biasa, tidak terpengaruh.
+let modeVerifikasiAktif = false;
+let verifikasiSesi      = null; // { idAbsensiMengajar, mapel, kelas, min, jumlah }
+// Nilai default MIN_VERIFIKASI_SISWA (dipakai untuk menampilkan "dari
+// minimal Y siswa" di bar Mode Verifikasi SEBELUM sesi dimulai). Diisi
+// ulang dari jam_setting saat init() -- lihat blok getJamSetting di bawah.
+// Ambang EFEKTIF sebenarnya (bisa lebih kecil dari ini kalau siswa yang
+// hadir hari itu di kelas tersebut < nilai ini) selalu dihitung ulang oleh
+// server di setiap balasan scanSiswaMapel/selesaiVerifikasi -- variabel ini
+// cuma dipakai buat tampilan awal sebelum ada balasan server.
+let MIN_VERIFIKASI_SISWA = 5;
+
 // ── KODE RAHASIA MASUK ADMIN ────────────────────────────────────────
 // Menggantikan tombol "Admin" yang dulu selalu tampil di header.
 // Sekarang admin cukup mengetik kode ini di mana saja pada halaman
@@ -1202,6 +1244,137 @@ function setMode(mode) {
   lbl.className   = 'scanner-mode ' + mode;
 }
 
+// ── MODE VERIFIKASI KELAS (BARU, Langkah C sub-langkah 3) ─────────
+// Dipicu dari handleScanResult setelah absen mengajar berhasil (tipe
+// 'mengajar'). Selama aktif: (1) bar status "Mode Verifikasi Kelas"
+// ditampilkan menggantikan switch Datang/Pulang, (2) setiap hasil scan
+// diarahkan processQR() ke processScanSiswaVerifikasi() di bawah, BUKAN
+// ke scanKartu seperti biasa.
+function mulaiModeVerifikasi(result) {
+  modeVerifikasiAktif = true;
+  verifikasiSesi = {
+    idAbsensiMengajar: result.idAbsensiMengajar,
+    mapel: (result.jadwal && result.jadwal.mapel) || '',
+    kelas: (result.jadwal && result.jadwal.kelas) || '',
+    min: MIN_VERIFIKASI_SISWA,
+    jumlah: result.jumlahSiswaTerverifikasi || 0
+  };
+
+  const sw = document.getElementById('modeSwitch');
+  if (sw) sw.closest('.mode-switch-wrap').style.display = 'none';
+  const box = document.getElementById('modeVerifikasiBox');
+  box.style.display = '';
+  document.getElementById('verifikasiMapelKelas').textContent =
+    `${verifikasiSesi.mapel} - ${verifikasiSesi.kelas}`;
+  updateBadgeVerifikasi();
+
+  toast('📚 Mode Verifikasi Kelas aktif — lanjut scan kartu siswa satu-satu.', 4000);
+}
+
+function updateBadgeVerifikasi() {
+  if (!verifikasiSesi) return;
+  document.getElementById('verifikasiCounter').textContent = verifikasiSesi.jumlah;
+  document.getElementById('verifikasiMin').textContent = verifikasiSesi.min;
+}
+
+// Dipanggil dari processQR() saat modeVerifikasiAktif true. Sengaja TIDAK
+// lewat scanKartu (api/scan.js) -- scanSiswaMapel & selesaiVerifikasi
+// (api/mengajar.js) memang didesain "terbuka" (tidak butuh token apapun,
+// lihat tabel action di handoff), jadi dipanggil langsung lewat endpoint
+// /api/mengajar tanpa perlu plumbing tambahan di scan.js.
+async function processScanSiswaVerifikasi(data) {
+  const now = Date.now();
+  if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
+    scanAnimFrame = requestAnimationFrame(scanLoop); return;
+  }
+  if (scanCooldown) return;
+  scanCooldown = true;
+
+  const raw = data.trim();
+  if (!raw) {
+    showFlash('error','❌','QR tidak valid');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  // Kartu guru (GR...) atau QR lain yang kepencet saat mode verifikasi
+  // aktif -- bukan error fatal, cukup kasih tahu supaya guru scan kartu
+  // siswa atau tekan "Selesai Verifikasi".
+  if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|')) {
+    showFlash('warning','⚠️','Itu bukan kartu siswa');
+    toast('⚠️ Sedang Mode Verifikasi Kelas. Scan kartu siswa, atau tekan "Selesai Verifikasi" dulu.');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  // Format QR siswa: "SW_ID|NISN" -- ambil bagian sebelum "|", SAMA PERSIS
+  // dengan pola parsing identifier di api/scan.js (scanKartu), supaya
+  // konsisten dengan kartu yang sama dipakai di jalur datang/pulang.
+  const idSiswa = raw.includes('|') ? raw.split('|')[0] : raw;
+
+  try {
+    const result = await api('mengajar', 'scanSiswaMapel', {
+      idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar,
+      idSiswa
+    });
+    handleHasilVerifikasiSiswa(result, data, now);
+  } catch (e) {
+    // Tidak ada dukungan offline untuk mode ini (lihat catatan di state
+    // modeVerifikasiAktif) -- kalau request gagal, tampilkan error dan
+    // biarkan guru coba scan ulang saat koneksi kembali.
+    showFlash('error','❌','Gagal terhubung ke server');
+    toast('❌ Scan gagal, cek koneksi internet lalu coba lagi.');
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
+}
+
+function handleHasilVerifikasiSiswa(result, data, now) {
+  if (result.success) {
+    scannedHistory[data] = now;
+    if (verifikasiSesi) verifikasiSesi.jumlah = result.jumlahSiswaTerverifikasi;
+    updateBadgeVerifikasi();
+    showFlash('success', '✅', result.nama || 'Siswa tercatat');
+    toast(`✅ ${result.nama} terverifikasi hadir (${result.jumlahSiswaTerverifikasi}/${verifikasiSesi ? verifikasiSesi.min : '?'})`);
+  } else {
+    showFlash('error', '❌', result.message);
+    toast('❌ ' + result.message);
+  }
+  // Cooldown lebih pendek dari scan guru/siswa biasa (3000ms) supaya guru
+  // bisa scan kartu siswa berturut-turut dengan cepat.
+  startCooldown(1200);
+  setTimeout(() => {
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }, 1200);
+}
+
+async function selesaiModeVerifikasi() {
+  if (!verifikasiSesi) { keluarModeVerifikasi(); return; }
+  const idAbsensiMengajar = verifikasiSesi.idAbsensiMengajar;
+  try {
+    const result = await api('mengajar', 'selesaiVerifikasi', { idAbsensiMengajar });
+    if (result.success) {
+      toast('✅ ' + result.message, 4000);
+    } else {
+      toast('⚠️ ' + (result.message || 'Gagal menutup sesi verifikasi.'), 4000);
+    }
+  } catch (e) {
+    toast('⚠️ Gagal menutup sesi verifikasi (cek koneksi). Status tetap tersimpan sesuai scan terakhir.', 4000);
+  }
+  keluarModeVerifikasi();
+}
+
+function keluarModeVerifikasi() {
+  modeVerifikasiAktif = false;
+  verifikasiSesi = null;
+  document.getElementById('modeVerifikasiBox').style.display = 'none';
+  const sw = document.getElementById('modeSwitch');
+  if (sw) sw.closest('.mode-switch-wrap').style.display = '';
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function init() {
   // PERBAIKAN KECEPATAN MUAT: sebelumnya startScanner() (minta akses
@@ -1222,6 +1395,7 @@ async function init() {
         const nama = r.data['NAMA_SEKOLAH'];
         const logo = r.data['LOGO_URL'];
         _kodeRahasiaAdmin = r.data['KODE_RAHASIA_ADMIN'] || '';
+        if (r.data['MIN_VERIFIKASI_SISWA']) MIN_VERIFIKASI_SISWA = Number(r.data['MIN_VERIFIKASI_SISWA']) || 5;
         if (nama) document.getElementById('namaSekolah').textContent = nama;
         if (logo) {
           const el = document.getElementById('headerLogo');
@@ -1653,6 +1827,14 @@ function bukaKartuRiwayat(data) {
 }
 
 async function processQR(data) {
+  // BARU (Langkah C sub-langkah 3): selama Mode Verifikasi Kelas aktif,
+  // SEMUA kartu yang discan diarahkan ke verifikasi siswa per mapel, bukan
+  // jalur admin/guru/siswa datang-pulang biasa di bawah -- termasuk
+  // mendahului cek QR riwayat, supaya kartu riwayat siswa yang kepencet
+  // tidak tiba-tiba memindah halaman di tengah sesi verifikasi guru.
+  if (modeVerifikasiAktif) {
+    return processScanSiswaVerifikasi(data);
+  }
   if (isKartuRiwayatUrl(data)) {
     // Lapisan pengaman tambahan: kalaupun 2 frame berturut sepakat tapi
     // token hasil decode-nya jelas tidak masuk akal (kependekan/berisi
@@ -1761,15 +1943,17 @@ function handleScanResult(result, data, now) {
       simpanGuruOffline(result.guru.nama, result.guru.id || '', result.guru.jam);
       checkStatus();
     } else if (result.tipe === 'mengajar') {
-      // BARU (Langkah C sub-langkah 1): hasil absen sesi mengajar, setelah
-      // guru memilih "Absen Mengajar" di modal pilihan. Mode "Verifikasi
-      // Kelas" (scan kartu siswa berturut-turut) BELUM dibangun -- itu
-      // sub-langkah 3 -- jadi untuk sekarang cukup tampilkan konfirmasi
-      // lalu lanjut scan loop seperti biasa, sama seperti cabang lain.
+      // Hasil absen sesi mengajar, setelah guru memilih "Absen Mengajar" di
+      // modal pilihan. Kalau berhasil (atau memang sudah pernah tercatat
+      // hari ini -- result.sudahScan), masuk Mode Verifikasi Kelas supaya
+      // guru bisa lanjut scan kartu siswa satu-satu (sub-langkah 3).
       const namaGuru = (result.guru && result.guru.nama) || '';
       const infoJadwal = result.jadwal ? `${result.jadwal.mapel} - ${result.jadwal.kelas}` : '';
       showFlash('guru', '📚', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
       toast('✅ ' + result.message);
+      if (result.idAbsensiMengajar) {
+        mulaiModeVerifikasi(result);
+      }
     } else {
       const isLate   = result.status === 'Terlambat';
       const isPulang = result.status === 'Pulang';

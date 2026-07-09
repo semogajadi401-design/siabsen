@@ -508,6 +508,34 @@ async function isGuruPiketHariIni(idGuru) {
 // yang dipakai untuk QR "GURU_LOGIN|..." (bypass login lewat kartu), jadi
 // tidak menambah rahasia baru -- kalau qr_token ini bocor, akun guru itu
 // memang sudah bisa di-login penuh lewat QR juga.
+// ── SESI TOKEN untuk MODE VERIFIKASI KELAS (BARU) ─────────────────
+// scanSiswaMapel & selesaiVerifikasi (api/mengajar.js) sebelumnya tidak
+// mensyaratkan apa pun selain idAbsensiMengajar + idSiswa -- keduanya ID
+// server biasa (bukan rahasia seperti qr_token), jadi siapa pun yang
+// tahu/menebak kombinasinya bisa memalsukan verifikasi kehadiran dari
+// luar kiosk, tanpa perlu hadir fisik di kelas. Perbaikannya: begitu
+// scanSesiMengajar berhasil, server menerbitkan "sesiToken" -- HMAC dari
+// idAbsensiMengajar itu sendiri, ditandatangani pakai SESI_MENGAJAR_SECRET
+// (rahasia yang cuma ada di server, tidak pernah dicetak di kartu/QR
+// mana pun). Token ini dibawa balik oleh klien di setiap scanSiswaMapel/
+// selesaiVerifikasi untuk sesi itu, dan diverifikasi sebelum data ditulis.
+// Tanpa token yang valid (yang hanya bisa didapat dari scanSesiMengajar
+// yang sah), permintaan ditolak. Tidak mengubah alur/urutan panggilan
+// yang sudah ada -- cuma menambah satu bukti keabsahan yang wajib disertakan.
+function generateSesiToken(idAbsensiMengajar) {
+  const secret = process.env.SESI_MENGAJAR_SECRET || process.env.SUPABASE_SERVICE_KEY || '';
+  return crypto.createHmac('sha256', secret).update(String(idAbsensiMengajar)).digest('hex');
+}
+
+function verifySesiToken(idAbsensiMengajar, token) {
+  if (!token) return false;
+  const expected = generateSesiToken(idAbsensiMengajar);
+  const a = Buffer.from(String(token));
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 async function resolveGuruIdFromToken(token) {
   if (!token) return null;
   const { data } = await supabase
@@ -529,7 +557,8 @@ module.exports = {
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni,
   cekIzinPiket, resolveGuruIdFromToken,
-  cekJadwalMengajarSaatIni
+  cekJadwalMengajarSaatIni,
+  generateSesiToken, verifySesiToken
 };
 async function requireAdminToken(token) {
   if (!token) return false;

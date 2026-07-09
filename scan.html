@@ -292,8 +292,24 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .mode-switch-opt.datang.active{color:#fff;text-shadow:0 1px 2px rgba(28,38,32,0.25)}
 .mode-switch-opt.pulang.active{color:#fff;text-shadow:0 1px 2px rgba(28,38,32,0.25)}
 
+/* ── TOMBOL ABSEN KELAS (BARU) ──────────────────────────────────────
+   Pintu masuk eksplisit ke Mode Verifikasi Kelas: guru klik dulu,
+   BARU scan kartu -- menggantikan cara lama (mode verifikasi otomatis
+   nyala sebagai efek samping scan kartu guru di halaman utama), supaya
+   device ini dari awal "berniat" untuk verifikasi kelas dan tidak
+   pernah tercampur/mengganggu toggle Datang/Pulang di device lain
+   (atau di device yang sama saat dipakai bergantian). */
+.btn-absen-kelas{
+  width:100%;max-width:172px;padding:14px 10px;border:none;border-radius:16px;
+  background:linear-gradient(160deg,#5B7FE0,var(--primary,#0D47A1));
+  color:#fff;font-weight:700;font-size:.9rem;font-family:inherit;cursor:pointer;
+  box-shadow:0 6px 16px -6px rgba(13,71,161,0.55),inset 0 1px 1px rgba(255,255,255,.35);
+  transition:transform .15s;
+}
+.btn-absen-kelas:active{transform:scale(.96)}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
+  .btn-absen-kelas{max-width:184px}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -854,7 +870,18 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
     </div>
 
+    <!-- Tombol Absen Kelas (BARU) -- pintu masuk eksplisit ke Mode
+         Verifikasi Kelas, terpisah dari toggle Datang/Pulang di atas.
+         Klik dulu, baru scan kartu guru (lihat mulaiAbsenKelas()) --
+         supaya siswa yang absen Datang/Pulang di device lain (atau di
+         device ini sendiri sebelum tombol ini diklik) tidak pernah
+         "kesenggol" masuk mode verifikasi secara tidak sengaja. -->
+    <button type="button" class="btn-absen-kelas" id="btnAbsenKelas" onclick="mulaiAbsenKelas()">
+      📚 Absen Kelas
+    </button>
+
   </div>
+
 
   <!-- KOLOM KANAN: kamera + statistik/daftar -->
   <div class="content-col">
@@ -890,6 +917,20 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
           </div>
           <button type="button" onclick="selesaiModeVerifikasi()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
             ✅ Selesai Verifikasi
+          </button>
+        </div>
+      </div>
+
+      <!-- Menunggu scan kartu guru untuk Absen Kelas (BARU) -- tampil
+           setelah tombol "Absen Kelas" diklik, sebelum mode verifikasi
+           benar-benar mulai (lihat mulaiAbsenKelas()/batalAbsenKelas()).
+           Style meniru modeVerifikasiBox di atas supaya konsisten. -->
+      <div class="guru-status ada-guru" id="menungguAbsenKelasBox" style="display:none">
+        <div class="guru-label">📚 Absen Kelas</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-size:.88rem">⏳ Menunggu scan kartu guru...</div>
+          <button type="button" onclick="batalAbsenKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:#e0e0e0;color:#333;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+            ✖ Batal
           </button>
         </div>
       </div>
@@ -1142,6 +1183,11 @@ let activeTab     = 'belum';
 // biasa, tidak terpengaruh.
 let modeVerifikasiAktif = false;
 let verifikasiSesi      = null; // { idAbsensiMengajar, mapel, kelas, min, jumlah }
+// menungguAbsenKelas: true setelah tombol "Absen Kelas" diklik, SEBELUM
+// kartu guru discan. Selama true, processQR()/processQRWithOffline()
+// mengarahkan scan berikutnya ke processScanGuruAbsenKelas() (bukan
+// jalur scanKartu biasa) -- lihat mulaiAbsenKelas() di bawah.
+let menungguAbsenKelas  = false;
 // Nilai default MIN_VERIFIKASI_SISWA (dipakai untuk menampilkan "dari
 // minimal Y siswa" di bar Mode Verifikasi SEBELUM sesi dimulai). Diisi
 // ulang dari jam_setting saat init() -- lihat blok getJamSetting di bawah.
@@ -1250,6 +1296,91 @@ function setMode(mode) {
 // ditampilkan menggantikan switch Datang/Pulang, (2) setiap hasil scan
 // diarahkan processQR() ke processScanSiswaVerifikasi() di bawah, BUKAN
 // ke scanKartu seperti biasa.
+// ── TOMBOL ABSEN KELAS (BARU) ──────────────────────────────────────
+// Pintu masuk eksplisit ke Mode Verifikasi Kelas. Sebelumnya, mode ini
+// hanya bisa aktif sebagai efek samping tidak langsung: guru scan kartu
+// di halaman utama -> modal "Mengajar atau Piket?" muncul -> guru pilih
+// Mengajar. Sekarang guru (atau siapa pun di kiosk) bisa klik tombol ini
+// DULU -- device langsung "berniat" khusus untuk verifikasi kelas sejak
+// awal, sebelum kartu apa pun discan -- sehingga tidak ada jendela waktu
+// di mana kartu guru yang kepencet bisa disalahartikan sebagai Datang/
+// Pulang, dan device lain yang sedang dipakai Datang/Pulang sama sekali
+// tidak terpengaruh (state ini murni per-tab, sama seperti
+// modeVerifikasiAktif).
+function mulaiAbsenKelas() {
+  if (modeVerifikasiAktif) { toast('📚 Sedang dalam sesi verifikasi kelas.'); return; }
+  menungguAbsenKelas = true;
+  document.getElementById('btnAbsenKelas').style.display = 'none';
+  document.getElementById('menungguAbsenKelasBox').style.display = '';
+  toast('📷 Arahkan kartu GURU ke kamera untuk mulai Absen Kelas.', 3500);
+}
+
+function batalAbsenKelas() {
+  menungguAbsenKelas = false;
+  document.getElementById('btnAbsenKelas').style.display = '';
+  document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// Dipanggil dari processQR()/processQRWithOffline() saat menungguAbsenKelas
+// true. Kartu guru yang discan di sini LANGSUNG dikirim dengan
+// pilihan:'mengajar' (skip modal "Mengajar atau Piket?" -- device ini
+// sudah jelas berniat untuk verifikasi kelas karena tombol sudah diklik
+// duluan), sama seperti kalau guru menekan tombol "📚 Absen Mengajar" di
+// modal itu. Kartu selain guru (siswa/admin/riwayat) ditolak halus --
+// tetap menunggu, tidak membatalkan mode ini -- supaya kiosk yang salah
+// kepencet kartu siswa saat menunggu tidak perlu klik ulang tombolnya.
+async function processScanGuruAbsenKelas(data) {
+  const now = Date.now();
+  if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
+    scanAnimFrame = requestAnimationFrame(scanLoop); return;
+  }
+  if (scanCooldown) return;
+
+  const identifier = data.trim();
+  if (!identifier || !identifier.startsWith('GR')) {
+    showFlash('warning','⚠️','Scan kartu GURU');
+    toast('⚠️ Untuk Absen Kelas, scan kartu GURU dulu (bukan kartu siswa).');
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  scanCooldown = true;
+
+  if (!isOnline) {
+    // Offline: sama persis dengan alur pilihan 'mengajar' offline yang
+    // sudah ada (kirimUlangOfflinePilihan), cuma dipicu dari tombol ini
+    // bukan dari modal. Pakai fungsi bersama simpanSesiMengajarOffline().
+    const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
+    const tanggal = witaNow.toISOString().split('T')[0];
+    const jam     = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
+    const days    = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const hari    = days[witaNow.getUTCDay()];
+    menungguAbsenKelas = false;
+    document.getElementById('btnAbsenKelas').style.display = '';
+    document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+    await simpanSesiMengajarOffline({ identifier, tanggal, jam, hari });
+    scannedHistory[data] = now;
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+
+  try {
+    const result = await api('scan', 'scanKartu', { identifier, mode: scanMode, pilihan: 'mengajar' });
+    menungguAbsenKelas = false;
+    document.getElementById('btnAbsenKelas').style.display = '';
+    document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+    handleScanResult(result, data, now);
+  } catch (e) {
+    // Gagal (mis. internet putus tiba-tiba) -- tetap di mode menunggu
+    // supaya guru bisa langsung scan ulang begitu koneksi kembali.
+    toast('❌ Gagal memproses. Cek koneksi lalu scan ulang kartu guru.');
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
+}
+
 function mulaiModeVerifikasi(result) {
   modeVerifikasiAktif = true;
   verifikasiSesi = {
@@ -1273,6 +1404,8 @@ function mulaiModeVerifikasi(result) {
 
   const sw = document.getElementById('modeSwitch');
   if (sw) sw.closest('.mode-switch-wrap').style.display = 'none';
+  const btnAK = document.getElementById('btnAbsenKelas');
+  if (btnAK) btnAK.style.display = 'none';
   const box = document.getElementById('modeVerifikasiBox');
   box.style.display = '';
   document.getElementById('verifikasiMapelKelas').textContent = verifikasiSesi.idAbsensiMengajar
@@ -1477,6 +1610,8 @@ function keluarModeVerifikasi() {
   document.getElementById('modeVerifikasiBox').style.display = 'none';
   const sw = document.getElementById('modeSwitch');
   if (sw) sw.closest('.mode-switch-wrap').style.display = '';
+  const btnAK = document.getElementById('btnAbsenKelas');
+  if (btnAK) btnAK.style.display = '';
   scanCooldown = false;
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
@@ -1938,6 +2073,9 @@ async function processQR(data) {
   // jalur admin/guru/siswa datang-pulang biasa di bawah -- termasuk
   // mendahului cek QR riwayat, supaya kartu riwayat siswa yang kepencet
   // tidak tiba-tiba memindah halaman di tengah sesi verifikasi guru.
+  if (menungguAbsenKelas) {
+    return processScanGuruAbsenKelas(data);
+  }
   if (modeVerifikasiAktif) {
     return processScanSiswaVerifikasi(data);
   }
@@ -2261,9 +2399,19 @@ async function kirimUlangOfflinePilihan(pilihan) {
     return;
   }
 
-  // pilihan === 'mengajar': belum ada idAbsensiMengajar asli (perlu jadwal
-  // dari server) -- pakai localSesiId sebagai penghubung sementara, akan
-  // dipetakan ke id asli saat sinkron (lihat sesiIdMap di jalankanSync()).
+  // pilihan === 'mengajar'
+  await simpanSesiMengajarOffline({ identifier, tanggal, jam, hari });
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// ── SIMPAN SESI MENGAJAR OFFLINE (dipakai bersama) ────────────────
+// Diekstrak dari kirimUlangOfflinePilihan('mengajar') supaya bisa dipakai
+// ulang oleh processScanGuruAbsenKelas() (tombol "Absen Kelas") tanpa
+// duplikasi logika. Belum ada idAbsensiMengajar asli (perlu jadwal dari
+// server) -- pakai localSesiId sebagai penghubung sementara, akan
+// dipetakan ke id asli saat sinkron (lihat sesiIdMap di jalankanSync()).
+async function simpanSesiMengajarOffline({ identifier, tanggal, jam, hari }) {
   const localSesiId = `msesi_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
   const scanData = { identifier, tanggal, jam, hari, localSesiId, namaCache: identifier, tipe: 'mengajarOffline' };
   try {
@@ -2276,8 +2424,6 @@ async function kirimUlangOfflinePilihan(pilihan) {
     showFlash('error','❌','Gagal simpan lokal');
     toast('❌ Gagal menyimpan data offline: ' + e.message);
   }
-  scanCooldown = false;
-  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
 
 function pilihMengajar() {
@@ -3128,6 +3274,9 @@ async function processQRWithOffline(data) {
   // siswa yang discan salah diproses sebagai absen datang/pulang biasa.
   // processScanSiswaVerifikasi sendiri yang membedakan online/offline
   // (lihat komentar di dalamnya & simpanScanSiswaVerifikasiOffline).
+  if (menungguAbsenKelas) {
+    return processScanGuruAbsenKelas(data);
+  }
   if (modeVerifikasiAktif) {
     return processScanSiswaVerifikasi(data);
   }

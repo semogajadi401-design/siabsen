@@ -13,7 +13,8 @@
 const {
   supabase, generateID, setCors, todayStr, jamSekarang, hariIni,
   tambahMenit, isHariLibur, isHariKerja, requireAdminToken,
-  resolveGuruIdFromToken, getJamSetting
+  resolveGuruIdFromToken, getJamSetting,
+  generateSesiToken, verifySesiToken
 } = require('./_db');
 
 // Action yang MENGUBAH data master/pengaturan -> wajib admin.
@@ -315,7 +316,11 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari }) {
       jumlahSiswaTerverifikasi: sudahAda.jumlah_siswa_terverifikasi,
       statusVerifikasi: sudahAda.status_verifikasi,
       jadwal: { kelas: jadwal.kelas, mapel: jadwal.mapel },
-      message: 'Sesi ini sudah tercatat hari ini.'
+      message: 'Sesi ini sudah tercatat hari ini.',
+      // BARU: sesiToken tetap diterbitkan ulang di sini (bukan cuma saat
+      // sesi baru dibuat) supaya kiosk yang reconnect/reload di tengah
+      // sesi yang sama tetap dapat token yang sah untuk lanjut verifikasi.
+      sesiToken: generateSesiToken(sudahAda.id)
     };
   }
 
@@ -343,16 +348,26 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari }) {
   return {
     success: true, sudahScan: false, idAbsensiMengajar: id, status,
     jadwal: { kelas: jadwal.kelas, mapel: jadwal.mapel },
-    message: `Absen mengajar tercatat (${status}). Silakan lanjut scan kartu siswa untuk verifikasi kehadiran di kelas.`
+    message: `Absen mengajar tercatat (${status}). Silakan lanjut scan kartu siswa untuk verifikasi kehadiran di kelas.`,
+    // BARU: lihat catatan sesiToken di api/_db.js -- ini "tiket" yang wajib
+    // dibawa balik saat scanSiswaMapel/selesaiVerifikasi untuk sesi ini.
+    sesiToken: generateSesiToken(id)
   };
 }
 
 // ════════════════════════════════════════════════════════════════
 // VERIFIKASI KEHADIRAN SISWA PER SESI
 // ════════════════════════════════════════════════════════════════
-async function scanSiswaMapel({ idAbsensiMengajar, idSiswa }) {
+async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
   if (!idAbsensiMengajar || !idSiswa)
     return { success: false, message: 'Sesi mengajar dan ID siswa wajib diisi' };
+
+  // BARU: idAbsensiMengajar+idSiswa saja bukan rahasia (bukan qr_token),
+  // jadi tanpa ini siapa pun bisa memalsukan verifikasi lewat panggilan
+  // API langsung dari luar kiosk. sesiToken cuma diterbitkan oleh
+  // scanSesiMengajar yang sah -- lihat catatan lengkap di api/_db.js.
+  if (!verifySesiToken(idAbsensiMengajar, sesiToken))
+    return { success: false, message: 'Sesi verifikasi tidak valid atau kedaluwarsa. Mulai ulang absen mengajar.' };
 
   const { data: sesi } = await supabase
     .from('absensi_mengajar').select('*').eq('id', idAbsensiMengajar).maybeSingle();
@@ -404,7 +419,10 @@ async function hitungUlangStatusVerifikasi(sesi) {
   return { jumlah, status };
 }
 
-async function selesaiVerifikasi({ idAbsensiMengajar }) {
+async function selesaiVerifikasi({ idAbsensiMengajar, sesiToken }) {
+  if (!verifySesiToken(idAbsensiMengajar, sesiToken))
+    return { success: false, message: 'Sesi verifikasi tidak valid atau kedaluwarsa.' };
+
   const { data: sesi } = await supabase.from('absensi_mengajar').select('*').eq('id', idAbsensiMengajar).maybeSingle();
   if (!sesi) return { success: false, message: 'Sesi mengajar tidak ditemukan' };
   const hasil = await hitungUlangStatusVerifikasi(sesi);

@@ -529,6 +529,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
 
       rincian.push({
         tanggal, hari: namaHari, kelas: j.kelas, mapel: j.mapel,
+        idJadwalMengajar: j.id,
         jamKeMulai: j.jam_ke_mulai, jamKeSelesai: j.jam_ke_selesai,
         status: statusFinal,
         jamScan: absen ? absen.jam_scan : null,

@@ -2,12 +2,27 @@ const {
   supabase, generateID, setCors,
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
-  getJamPulangEfektif, cekIzinPiket, verifyPassword
+  getJamPulangEfektif, cekIzinPiket, verifyPassword,
+  cekJadwalMengajarSaatIni
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
 // SAMA PERSIS, bukan menduplikasi/menyederhanakan aturannya sendiri —
-// lihat komentar lengkap di _db.js.
+// lihat komentar lengkap di _db.js. cekJadwalMengajarSaatIni() (Langkah C,
+// baru) mengikuti pola yang sama, dipakai untuk memperkaya teks modal
+// pilihan Mengajar/Piket di bawah.
+
+// scanSesiMengajar (api/mengajar.js) DIPAKAI ULANG di sini, BUKAN dipanggil
+// lewat HTTP -- di kiosk (scan.html) tidak ada guruToken (tidak ada sesi
+// login), identitas guru di sini dijamin lewat pencocokan id kartu ke
+// tabel guru di atas. Panggilan langsung sebagai fungsi (bukan lewat
+// endpoint /api/mengajar) supaya guru.id yang sudah diverifikasi server
+// bisa dipakai langsung, tanpa perlu qr_token yang memang tidak dicetak
+// di QR depan kartu guru. module.exports di mengajar.js menempelkan
+// fungsi ini sebagai properti tambahan pada handler-nya (lihat komentar
+// di sana), jadi export default (handler HTTP-nya) tidak berubah sama
+// sekali.
+const scanSesiMengajarInternal = require('./mengajar').scanSesiMengajar;
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -223,6 +238,54 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
 
     if (!guru) return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
+
+    // ── PILIH DULU: ABSEN MENGAJAR ATAU PIKET? (Langkah C, baru) ──────
+    // Keputusan terbaru: SETIAP kartu guru discan, guru SELALU ditanya
+    // dulu mau absen mengajar atau piket -- tidak lagi cuma pada kondisi
+    // "kebetulan bentrok jadwal". `pilihan` dikirim scan.html pada
+    // percobaan KEDUA (setelah guru menekan tombol di modal pilihan),
+    // jadi ini TIDAK berlaku untuk guru_login/admin (prefix beda, sudah
+    // ditangani di atas) dan TIDAK mengubah apa pun di bawah kalau
+    // pilihan === 'piket' (jalur piket asli tetap persis sama).
+    if (params.pilihan !== 'mengajar' && params.pilihan !== 'piket') {
+      // Info jadwal mengajar sekarang cuma untuk memperkaya teks modal
+      // (opsional) -- bukan syarat untuk menampilkan pilihan. Kalau tidak
+      // ada jadwal saat ini, tombol "Mengajar" tetap ditampilkan; kalau
+      // ditekan, scanSesiMengajar yang akan menolak dengan pesan yang
+      // jelas ("Tidak ada jadwal mengajar Anda pada jam ini").
+      const cekJadwal = await cekJadwalMengajarSaatIni({ guruId: guru.id, hari, jam });
+      return {
+        success: false,
+        tipe: 'pilih_mengajar_piket',
+        perluPilihMengajarPiket: true,
+        message: `Scan kartu ${guru.nama}. Absen untuk apa?`,
+        guru: { id: guru.id, nama: guru.nama, jabatan: guru.jabatan },
+        jadwalMengajar: cekJadwal.ada
+          ? { mapel: cekJadwal.jadwal.mapel, kelas: cekJadwal.jadwal.kelas }
+          : null
+      };
+    }
+
+    if (params.pilihan === 'mengajar') {
+      // Guru sudah pilih "Mengajar" di modal -> catat sesi mengajar lewat
+      // scanSesiMengajar (api/mengajar.js), TIDAK diproses sebagai piket
+      // sama sekali walau guru ini kebetulan guru piket terjadwal hari ini.
+      // guru.id yang dipakai di sini hasil query server di atas (bukan
+      // idGuru mentah dari body request), jadi tetap memenuhi aturan
+      // "identitas guru selalu diverifikasi server, bukan lewat klaim
+      // klien" -- di kiosk ini, verifikasinya lewat pencocokan id kartu
+      // ke tabel guru, sama seperti jalur piket yang sudah ada.
+      const hasil = await scanSesiMengajarInternal({
+        guruIdTerverifikasi: guru.id, tanggal: today, jam, hari
+      });
+      return {
+        ...hasil,
+        tipe: 'mengajar',
+        guru: { id: guru.id, nama: guru.nama, jabatan: guru.jabatan }
+      };
+    }
+    // params.pilihan === 'piket' -> lanjut ke logika piket asli di bawah,
+    // TIDAK ADA YANG DIUBAH dari sini sampai akhir blok piket.
 
     // Cek jadwal piket: hanya guru terjadwal yang boleh langsung, guru
     // lain ditawari konfirmasi jadi pengganti (lihat cekIzinPiket di atas).

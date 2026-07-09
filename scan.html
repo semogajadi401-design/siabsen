@@ -1261,6 +1261,9 @@ function mulaiModeVerifikasi(result) {
     // siswa SELALU masuk antrian, tidak pernah dicoba langsung ke server
     // (lihat processScanSiswaVerifikasi).
     idAbsensiMengajar: result.idAbsensiMengajar || null,
+    // BARU: "tiket" yang wajib disertakan di setiap scanSiswaMapel/
+    // selesaiVerifikasi untuk sesi ini -- lihat catatan di api/_db.js.
+    sesiToken: result.sesiToken || null,
     localSesiId: result.localSesiId || null,
     mapel: (result.jadwal && result.jadwal.mapel) || '',
     kelas: (result.jadwal && result.jadwal.kelas) || '',
@@ -1334,19 +1337,25 @@ async function processScanSiswaVerifikasi(data) {
       idSiswa, rawData: data, now, localSesiId: verifikasiSesi.localSesiId
     });
   }
+  // (sesi pure-offline di atas belum punya sesiToken -- akan ikut
+  // terselesaikan lewat sesiTokenMap saat sesi induknya sinkron, lihat
+  // jalankanSync())
 
   // Sesi online (idAbsensiMengajar sudah ada dari server) tapi perangkat
   // memang sedang offline sekarang -- langsung antri tanpa mencoba fetch
   // dulu (hindari delay timeout jaringan yang percuma).
   if (!isOnline) {
     return simpanScanSiswaVerifikasiOffline({
-      idSiswa, rawData: data, now, idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar
+      idSiswa, rawData: data, now,
+      idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar,
+      sesiToken: verifikasiSesi.sesiToken
     });
   }
 
   try {
     const result = await api('mengajar', 'scanSiswaMapel', {
       idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar,
+      sesiToken: verifikasiSesi.sesiToken,
       idSiswa
     });
     handleHasilVerifikasiSiswa(result, data, now);
@@ -1359,7 +1368,9 @@ async function processScanSiswaVerifikasi(data) {
     isOnline = false;
     updateOnlineStatus(false);
     return simpanScanSiswaVerifikasiOffline({
-      idSiswa, rawData: data, now, idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar
+      idSiswa, rawData: data, now,
+      idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar,
+      sesiToken: verifikasiSesi.sesiToken
     });
   }
 }
@@ -1371,7 +1382,7 @@ async function processScanSiswaVerifikasi(data) {
 // (bawa idAbsensiMengajar asli langsung). Pola IndexedDB SAMA PERSIS
 // dengan simpanKeAntrian() untuk item datang/pulang siswa -- tidak ada
 // mekanisme antrian baru, cuma tipe item baru ('siswaMapelOffline').
-async function simpanScanSiswaVerifikasiOffline({ idSiswa, rawData, now, idAbsensiMengajar, localSesiId }) {
+async function simpanScanSiswaVerifikasiOffline({ idSiswa, rawData, now, idAbsensiMengajar, sesiToken, localSesiId }) {
   const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
   const tanggal = witaNow.toISOString().split('T')[0];
   const jam     = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
@@ -1381,6 +1392,7 @@ async function simpanScanSiswaVerifikasiOffline({ idSiswa, rawData, now, idAbsen
   const scanData = {
     tipe: 'siswaMapelOffline',
     idAbsensiMengajar: idAbsensiMengajar || null,
+    sesiToken: sesiToken || null,
     localSesiId: localSesiId || null,
     idSiswa, tanggal, jam, hari,
     namaCache: idSiswa
@@ -1447,7 +1459,7 @@ async function selesaiModeVerifikasi() {
   }
   const idAbsensiMengajar = verifikasiSesi.idAbsensiMengajar;
   try {
-    const result = await api('mengajar', 'selesaiVerifikasi', { idAbsensiMengajar });
+    const result = await api('mengajar', 'selesaiVerifikasi', { idAbsensiMengajar, sesiToken: verifikasiSesi.sesiToken });
     if (result.success) {
       toast('✅ ' + result.message, 4000);
     } else {
@@ -2967,6 +2979,11 @@ async function jalankanSync(antrian) {
   // dulu daripada item 'siswaMapelOffline' yang menunjuk ke sesi yang
   // sama -- peta ini cukup hidup selama satu pemanggilan jalankanSync().
   const sesiIdMap = {};
+  // BARU: sepasang dengan sesiIdMap di atas, tapi untuk sesiToken -- item
+  // 'siswaMapelOffline' yang menunjuk sesi yang baru sync di batch yang
+  // sama butuh token ini juga (lihat verifySesiToken di api/mengajar.js),
+  // bukan cuma idAbsensiMengajar.
+  const sesiTokenMap = {};
 
   for (let i = 0; i < antrian.length; i++) {
     const item   = antrian[i];
@@ -2988,7 +3005,11 @@ async function jalankanSync(antrian) {
     // ini gagal karena sebab lain, item asli tetap konsisten di antrian).
     let itemUntukDikirim = item;
     if (item.tipe === 'siswaMapelOffline' && !item.idAbsensiMengajar && item.localSesiId && sesiIdMap[item.localSesiId]) {
-      itemUntukDikirim = { ...item, idAbsensiMengajar: sesiIdMap[item.localSesiId] };
+      itemUntukDikirim = {
+        ...item,
+        idAbsensiMengajar: sesiIdMap[item.localSesiId],
+        sesiToken: sesiTokenMap[item.localSesiId]
+      };
     }
 
     try {
@@ -3002,6 +3023,7 @@ async function jalankanSync(antrian) {
       // detik berikutnya).
       if (item.tipe === 'mengajarOffline' && r.success && r.idAbsensiMengajar && item.localSesiId) {
         sesiIdMap[item.localSesiId] = r.idAbsensiMengajar;
+        sesiTokenMap[item.localSesiId] = r.sesiToken;
         // Kalau Mode Verifikasi Kelas untuk sesi INI masih aktif di layar
         // (guru belum tekan "Selesai Verifikasi"), sambungkan juga sesi
         // yang sedang berjalan ke id asli supaya kartu siswa BERIKUTNYA
@@ -3009,6 +3031,7 @@ async function jalankanSync(antrian) {
         // lagi.
         if (verifikasiSesi && verifikasiSesi.localSesiId === item.localSesiId) {
           verifikasiSesi.idAbsensiMengajar = r.idAbsensiMengajar;
+          verifikasiSesi.sesiToken = r.sesiToken;
           if (r.jadwal) {
             verifikasiSesi.mapel = r.jadwal.mapel || verifikasiSesi.mapel;
             verifikasiSesi.kelas = r.jadwal.kelas || verifikasiSesi.kelas;

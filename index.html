@@ -1761,6 +1761,22 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
   </div>
 </div>
+<!-- Modal Hari Sekolah Aktif belum diatur (khusus halaman Jadwal Mengajar) -->
+<div class="modal-backdrop" id="modalMengajarBelumAturHari">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>📅 Hari Sekolah Aktif Belum Diatur</h3><button class="modal-close" onclick="closeModal('modalMengajarBelumAturHari')">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;line-height:1.6">
+        Jadwal Mengajar mengikuti hari sekolah aktif yang diatur di menu <strong>Pengaturan Semester</strong>.
+        Silakan atur dulu hari sekolah aktif (centang minimal satu hari) sebelum mengisi jadwal mengajar.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalMengajarBelumAturHari')">Nanti Saja</button>
+      <button class="btn btn-primary" onclick="closeModal('modalMengajarBelumAturHari');showPage('semester')">⚙️ Atur Hari Kerja</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Naik Kelas -->
 <div class="modal-backdrop" id="modalNaikKelas">
   <div class="modal">
@@ -5292,13 +5308,31 @@ async function exportEvaluasiPDF() {
 // Guru) -- tidak menyentuh scan.html/api lama sama sekali (itu Langkah C,
 // belum dikerjakan di sini).
 // ══════════════════════════════════════════════════════════════════
-const HARI_MENGAJAR = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-let jpHariAktif = 'Senin';
+// Sebelumnya hardcode Senin–Sabtu. Sekarang HARI_MENGAJAR diisi ulang tiap
+// kali halaman dibuka, dari Pengaturan Semester → Hari Sekolah Aktif (endpoint
+// yang sama dipakai loadPiket()) — supaya tab jam pelajaran, filter hari, dan
+// dropdown hari di form jadwal selalu ikut hari yang benar-benar aktif.
+let HARI_MENGAJAR = [];
+let jpHariAktif = null;
 let jpRows = [];       // baris jam pelajaran untuk hari yang sedang diedit
 let jpDataSemua = [];  // seluruh jam_pelajaran dari server (semua hari)
 
 // ── JAM PELAJARAN + JADWAL MENGAJAR (halaman admin) ─────────────────
 async function loadHalamanJadwalMengajar() {
+  const pengaturanHari = await api('settings', 'getPengaturanHari');
+  HARI_MENGAJAR = pengaturanHari.success
+    ? pengaturanHari.data.filter(h => h.aktif).map(h => h.hari)
+    : [];
+
+  if (!HARI_MENGAJAR.length) {
+    document.getElementById('jpTabs').innerHTML = '';
+    const tbody = document.getElementById('jmTableBody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">⚠️ Hari sekolah aktif belum diatur.</td></tr>`;
+    openModal('modalMengajarBelumAturHari');
+    return;
+  }
+  if (!jpHariAktif || !HARI_MENGAJAR.includes(jpHariAktif)) jpHariAktif = HARI_MENGAJAR[0];
+
   populateFilterHariMengajar();
   await loadGuruDropdownMengajar();
   await loadJamPelajaranSemua();
@@ -5308,19 +5342,18 @@ async function loadHalamanJadwalMengajar() {
 
 function populateFilterHariMengajar() {
   const tabsWrap = document.getElementById('jpTabs');
-  if (tabsWrap && !tabsWrap.dataset.filled) {
-    tabsWrap.innerHTML = HARI_MENGAJAR.map((h,i) => `<button class="tab-btn${i===0?' active':''}" onclick="switchJamPelajaranHari('${h}',this)">${h}</button>`).join('');
-    tabsWrap.dataset.filled = '1';
+  if (tabsWrap) {
+    tabsWrap.innerHTML = HARI_MENGAJAR.map(h => `<button class="tab-btn${h===jpHariAktif?' active':''}" onclick="switchJamPelajaranHari('${h}',this)">${h}</button>`).join('');
   }
   const selHari = document.getElementById('jmFilterHari');
-  if (selHari && !selHari.dataset.filled) {
+  if (selHari) {
+    const prev = selHari.value;
     selHari.innerHTML = '<option value="">Semua Hari</option>' + HARI_MENGAJAR.map(h => `<option value="${h}">${h}</option>`).join('');
-    selHari.dataset.filled = '1';
+    if (HARI_MENGAJAR.includes(prev)) selHari.value = prev;
   }
   const selHariModal = document.getElementById('jmHari');
-  if (selHariModal && !selHariModal.dataset.filled) {
+  if (selHariModal) {
     selHariModal.innerHTML = HARI_MENGAJAR.map(h => `<option value="${h}">${h}</option>`).join('');
-    selHariModal.dataset.filled = '1';
   }
 }
 

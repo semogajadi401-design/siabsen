@@ -540,6 +540,10 @@ async function processMengajarOffline({ identifier, tanggal, jam, hari, waktuSim
   return {
     success: true, permanent: true, tipe: 'mengajarOffline',
     idAbsensiMengajar: hasil.idAbsensiMengajar,
+    // BARU: diteruskan supaya client bisa mengisi sesiTokenMap (lihat
+    // scan.html, sepasang dengan sesiIdMap) untuk item siswaMapelOffline
+    // yang sesi induknya baru sinkron di batch yang sama.
+    sesiToken: hasil.sesiToken,
     status: hasil.status,
     jadwal: hasil.jadwal,
     message: hasil.message,
@@ -559,7 +563,7 @@ async function processMengajarOffline({ identifier, tanggal, jam, hari, waktuSim
 // sync), gagal permanent:false supaya dicoba lagi otomatis nanti (retry
 // berkala 30 detik / transisi online berikutnya), TIDAK dibuang dari
 // antrian.
-async function processSiswaMapelOffline({ idAbsensiMengajar, idSiswa }) {
+async function processSiswaMapelOffline({ idAbsensiMengajar, idSiswa, sesiToken }) {
   if (!idAbsensiMengajar) {
     return {
       success: false, permanent: false, tipe: 'siswaMapelOffline',
@@ -569,8 +573,19 @@ async function processSiswaMapelOffline({ idAbsensiMengajar, idSiswa }) {
   if (!idSiswa) {
     return { success: false, permanent: true, tipe: 'siswaMapelOffline', message: 'ID siswa kosong' };
   }
+  // BARU: sesiToken wajib, sama seperti jalur online -- lihat scanSiswaMapel
+  // di api/mengajar.js untuk alasannya. Kalau belum ada (mis. resolusi dari
+  // sesiIdMap tapi sesiTokenMap belum terisi), tolak permanent:false supaya
+  // dicoba lagi (biasanya langsung terisi begitu item mengajarOffline induk
+  // selesai sync, karena diproses lebih dulu dalam batch yang sama).
+  if (!sesiToken) {
+    return {
+      success: false, permanent: false, tipe: 'siswaMapelOffline',
+      message: 'Token sesi induk belum tersedia. Akan dicoba lagi otomatis.'
+    };
+  }
 
-  const hasil = await scanSiswaMapelInternal({ idAbsensiMengajar, idSiswa });
+  const hasil = await scanSiswaMapelInternal({ idAbsensiMengajar, idSiswa, sesiToken });
   if (!hasil.success) {
     // "Sesi mengajar tidak ditemukan" / "Siswa tidak ditemukan" / "sudah
     // discan untuk sesi ini" -- semua deterministik dari data yang sudah

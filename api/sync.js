@@ -4,6 +4,16 @@ const {
   getJamPulangEfektif, cekIzinPiket
 } = require('./_db');
 
+// ── REUSE FUNGSI ABSENSI MENGAJAR (Langkah C sub-langkah 5, BARU) ────
+// scanSesiMengajar & scanSiswaMapel (api/mengajar.js) DIPAKAI ULANG di
+// sini, SAMA PERSIS dengan pola yang sudah ada di api/scan.js untuk kartu
+// guru piket -- module.exports di mengajar.js menempelkan kedua fungsi
+// ini sebagai properti tambahan pada handler-nya, jadi tidak ada logika
+// duplikat yang perlu dijaga sinkron manual antara jalur online dan
+// jalur sinkron offline di file ini.
+const scanSesiMengajarInternal = require('./mengajar').scanSesiMengajar;
+const scanSiswaMapelInternal   = require('./mengajar').scanSiswaMapel;
+
 // ── BATAS TOLERANSI TANGGAL UNTUK SYNC OFFLINE ──────────────────────
 // item sync membawa `tanggal`/`jam` dari JAM PERANGKAT (HP/laptop) tempat
 // scan terjadi, BUKAN dari server — ini memang perlu supaya antrian
@@ -29,6 +39,21 @@ function tanggalDalamBatasWajar(tanggal) {
   return tanggal >= batasAwalStr;
 }
 
+// ── GUARD RESET ABSENSI (BARU, dipakai fungsi mengajar/siswaMapel offline
+// di bawah) ──────────────────────────────────────────────────────────
+// Logika SAMA PERSIS dengan blok reset-guard di dalam processSingleScan()
+// di atas, cuma ditarik keluar jadi fungsi supaya bisa dipakai ulang tanpa
+// menyalin-tempel dan tanpa mengubah processSingleScan() itu sendiri
+// (fungsi itu sengaja tidak disentuh sama sekali).
+function itemDirekamSebelumReset(jamSetting, waktuSimpan) {
+  const resetTerakhir = jamSetting['RESET_ABSENSI_TERAKHIR'];
+  if (!resetTerakhir || !waktuSimpan) return false;
+  const waktuSimpanMs   = new Date(waktuSimpan).getTime();
+  const resetTerakhirMs = new Date(resetTerakhir).getTime();
+  if (Number.isNaN(waktuSimpanMs) || Number.isNaN(resetTerakhirMs)) return false;
+  return waktuSimpanMs < resetTerakhirMs;
+}
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -50,7 +75,20 @@ async function batchSync({ items }) {
 
   for (const item of items) {
     try {
-      const r = await processSingleScan(item);
+      // BARU (Langkah C sub-langkah 5): item bertipe 'mengajarOffline' &
+      // 'siswaMapelOffline' (dari Mode Verifikasi Kelas yang dimulai/putus
+      // koneksi saat offline, lihat scan.html) diproses lewat fungsi baru
+      // di bawah, TIDAK lewat processSingleScan() -- fungsi itu sengaja
+      // TIDAK disentuh sama sekali supaya kasus lama (guru piket, siswa
+      // datang/pulang) tetap persis seperti sebelumnya.
+      let r;
+      if (item.tipe === 'mengajarOffline') {
+        r = await processMengajarOffline(item);
+      } else if (item.tipe === 'siswaMapelOffline') {
+        r = await processSiswaMapelOffline(item);
+      } else {
+        r = await processSingleScan(item);
+      }
       results.push({ id: item.localId, ...r });
     } catch(e) {
       results.push({ id: item.localId, success: false, message: e.message });
@@ -440,5 +478,110 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     success: true, tipe: 'siswa', status: statusDatang,
     message: `${siswa.nama} absen datang - ${jam} (${statusDatang})`,
     siswa: { nama: siswa.nama, kelas: siswa.kelas }
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// SINKRON OFFLINE — ABSEN SESI MENGAJAR (Langkah C sub-langkah 5, BARU)
+// ════════════════════════════════════════════════════════════════
+// Item ini dibuat scan.html saat guru menekan "Absen Mengajar" di modal
+// pilihan SAAT PERANGKAT SEDANG OFFLINE (lihat kirimUlangOfflinePilihan()
+// di scan.html) -- belum ada idAbsensiMengajar asli, cuma identifier kartu
+// + waktu device saat scan terjadi.
+//
+// PENTING soal konsistensi online/offline: guru.id di sini diverifikasi
+// lewat pencocokan identifier ke tabel guru (SAMA seperti blok guru piket
+// offline di processSingleScan() di atas, dan SAMA seperti kiosk online di
+// api/scan.js) -- BUKAN dari klaim klien. scanSesiMengajarInternal
+// (api/mengajar.js) dipakai ulang APA ADANYA, jadi validasi jam
+// pelajaran/jadwal/toleransi telat sudah otomatis SAMA PERSIS dengan jalur
+// online tanpa perlu ditulis ulang di sini.
+async function processMengajarOffline({ identifier, tanggal, jam, hari, waktuSimpan }) {
+  if (!identifier || !identifier.startsWith('GR'))
+    return { success: false, permanent: true, tipe: 'mengajarOffline', message: 'Identifier guru tidak valid' };
+
+  if (!tanggalDalamBatasWajar(tanggal)) {
+    return {
+      success: false, permanent: true, tipe: 'mengajarOffline',
+      message: `Tanggal scan (${tanggal}) tidak valid atau di luar batas wajar sinkronisasi. Periksa jam/tanggal perangkat.`
+    };
+  }
+
+  const jamSetting = await getJamSetting();
+  if (itemDirekamSebelumReset(jamSetting, waktuSimpan)) {
+    return {
+      success: false, permanent: true, tipe: 'mengajarOffline',
+      message: 'Scan ini direkam sebelum riwayat absensi terakhir kali direset oleh admin, sehingga tidak disinkronkan.'
+    };
+  }
+
+  const { data: guru } = await supabase
+    .from('guru').select('id,nama,jabatan,status,role').eq('id', identifier).maybeSingle();
+  if (!guru) return { success: false, permanent: true, tipe: 'mengajarOffline', message: 'Guru tidak ditemukan' };
+  if (guru.status !== 'Aktif') return { success: false, permanent: true, tipe: 'mengajarOffline', message: 'Akun guru tidak aktif' };
+
+  const hasil = await scanSesiMengajarInternal({ guruIdTerverifikasi: guru.id, tanggal, jam, hari });
+
+  if (!hasil.success) {
+    // scanSesiMengajar didesain untuk jalur online/realtime, jadi tidak
+    // membedakan permanent/tidak sendiri. Pesan-pesan di bawah ini
+    // deterministik dari tanggal/jam yang SUDAH TERKUNCI sejak direkam
+    // offline (tidak akan pernah berubah hasil kalau diulang) -> permanent.
+    // Selain itu (mis. gagal simpan karena masalah transien database)
+    // dibiarkan permanent:false supaya dicoba lagi otomatis.
+    const pesanPermanen = [
+      'Hari ini libur', 'bukan hari sekolah', 'Bukan jam pelajaran sekarang',
+      'Tidak ada jadwal mengajar Anda pada jam ini', 'sudah tercatat hari ini'
+    ];
+    const permanent = pesanPermanen.some(p => (hasil.message || '').includes(p));
+    return { success: false, permanent, tipe: 'mengajarOffline', message: hasil.message };
+  }
+
+  return {
+    success: true, permanent: true, tipe: 'mengajarOffline',
+    idAbsensiMengajar: hasil.idAbsensiMengajar,
+    status: hasil.status,
+    jadwal: hasil.jadwal,
+    message: hasil.message,
+    guru: { id: guru.id, nama: guru.nama }
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// SINKRON OFFLINE — VERIFIKASI SISWA PER MAPEL (Langkah C sub-langkah 5, BARU)
+// ════════════════════════════════════════════════════════════════
+// idAbsensiMengajar di sini BISA berupa id asli (kalau sesi mengajarnya
+// sudah lebih dulu online, tapi koneksi putus di tengah scan siswa -- lihat
+// simpanScanSiswaVerifikasiOffline() di scan.html), ATAU sudah diresolusi
+// oleh CLIENT dari localSesiId (lihat sesiIdMap di jalankanSync(),
+// scan.html) kalau sesi mengajarnya juga baru sync di batch yang sama.
+// Kalau belum ter-resolusi sama sekali (sesi induknya belum berhasil
+// sync), gagal permanent:false supaya dicoba lagi otomatis nanti (retry
+// berkala 30 detik / transisi online berikutnya), TIDAK dibuang dari
+// antrian.
+async function processSiswaMapelOffline({ idAbsensiMengajar, idSiswa }) {
+  if (!idAbsensiMengajar) {
+    return {
+      success: false, permanent: false, tipe: 'siswaMapelOffline',
+      message: 'Sesi mengajar induk belum tersinkron. Akan dicoba lagi otomatis.'
+    };
+  }
+  if (!idSiswa) {
+    return { success: false, permanent: true, tipe: 'siswaMapelOffline', message: 'ID siswa kosong' };
+  }
+
+  const hasil = await scanSiswaMapelInternal({ idAbsensiMengajar, idSiswa });
+  if (!hasil.success) {
+    // "Sesi mengajar tidak ditemukan" / "Siswa tidak ditemukan" / "sudah
+    // discan untuk sesi ini" -- semua deterministik dari data yang sudah
+    // terkunci sejak direkam offline, tidak akan berubah kalau diulang.
+    return { success: false, permanent: true, tipe: 'siswaMapelOffline', message: hasil.message };
+  }
+  return {
+    success: true, permanent: true, tipe: 'siswaMapelOffline',
+    jumlahSiswaTerverifikasi: hasil.jumlahSiswaTerverifikasi,
+    statusVerifikasi: hasil.statusVerifikasi,
+    nama: hasil.nama,
+    message: `${hasil.nama} terverifikasi hadir (sinkron offline)`
   };
 }

@@ -168,6 +168,19 @@ async function importGuru({ dataList }) {
 
   // 1. Validasi dasar + buang duplikat NIP di DALAM file itu sendiri
   //    (NIP boleh kosong -- guru honorer/baru kadang belum punya NIP)
+  //
+  //    PENTING: banyak file Excel/CSV mengisi kolom yang kosong dengan
+  //    tanda placeholder seperti '-', '–', 'N/A', dst, bukan sel yang
+  //    benar-benar kosong. Kalau ini tidak dinormalisasi jadi '', semua
+  //    baris yang pakai placeholder yang sama akan dianggap "punya NIP
+  //    yang sama" -> baris ke-2 dst kena tandai duplikat dan gagal
+  //    diimport, padahal sebenarnya guru-guru itu memang belum punya NIP.
+  const PLACEHOLDER_KOSONG = new Set(['-', '–', '—', '.', 'n/a', 'na', 'nihil', 'tidak ada', '-1']);
+  const normalisasiNip = (raw) => {
+    const v = String(raw || '').trim();
+    return PLACEHOLDER_KOSONG.has(v.toLowerCase()) ? '' : v;
+  };
+
   const valid = [];
   const nipTerlihat = new Set();
   for (const data of dataList) {
@@ -176,7 +189,7 @@ async function importGuru({ dataList }) {
       errors.push('Baris dilewati: Nama kosong');
       continue;
     }
-    const nip = String(data.nip || '').trim();
+    const nip = normalisasiNip(data.nip);
     if (nip && nipTerlihat.has(nip)) {
       gagal++;
       errors.push(`NIP ${nip} (${data.nama}) duplikat di dalam file, dilewati`);

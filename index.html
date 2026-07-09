@@ -3998,7 +3998,14 @@ async function runInBatches(items, worker, batchSize = 4) {
   const results = new Array(items.length);
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
-    const batchResults = await Promise.all(batch.map(worker));
+    // PENTING: jangan pakai batch.map(worker) langsung — Array.map memberi
+    // index LOKAL ke batch (selalu mulai dari 0), padahal worker (di
+    // pemanggilnya) memakai index itu untuk mencari elemen DOM yang dibuat
+    // dengan index GLOBAL (mis. id="kartuGuruPrint_bulk_"+i). Akibatnya
+    // batch kedua dan seterusnya salah ambil elemen batch pertama, sehingga
+    // beberapa kartu tercetak ganda (duplikat kartu di batch sebelumnya).
+    // Perbaikan: kirim index global (i + j) secara eksplisit ke worker.
+    const batchResults = await Promise.all(batch.map((item, j) => worker(item, i + j)));
     batchResults.forEach((r, j) => { results[i + j] = r; });
   }
   return results;

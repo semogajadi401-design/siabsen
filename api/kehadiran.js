@@ -197,6 +197,33 @@ async function getSiswaKehadiran({ kelas, tanggal }) {
 }
 
 // ── INPUT KETERANGAN SAKIT / IZIN ────────────────────────────────
+// PERBAIKAN BUG (race condition -> data dobel): sebelumnya fungsi ini
+// SELECT dulu untuk cek "sudah ada keterangan hari ini atau belum", baru
+// INSERT/UPDATE terpisah berdasarkan hasil cek itu -- pola yang SAMA
+// PERSIS dipakai scanKartu()/processSingleScan() untuk tabel `absensi`/
+// `sesi_piket`, TAPI tabel-tabel itu punya UNIQUE constraint di database
+// sebagai jaring pengaman kalau dua request kebetulan lolos SELECT
+// nyaris bersamaan (lihat penanganan error.code === '23505' di api/
+// scan.js & api/sync.js). Tabel `keterangan_absensi` TIDAK punya
+// constraint itu (celah yang baru ditutup di schema.sql --
+// uniq_keteranganabsensi_siswa_tanggal), jadi race yang sama (mis. guru
+// piket tap ganda tombol di koneksi lambat, atau admin & guru piket
+// menginput keterangan untuk siswa yang sama hampir bersamaan) benar-
+// benar bisa membuat DUA baris keterangan_absensi untuk siswa+tanggal
+// yang sama -- bukan cuma race di memori yang aman. Baris dobel ini
+// membuat siswa yang sama terhitung 2x sebagai Sakit/Izin di dashboard
+// admin (api/absensi.js), dashboard live/rekap kepsek & admin (_db.js),
+// dan evaluasi kehadiran semester (rekapKeteranganRange di bawah).
+//
+// Perbaikan: pakai upsert() dengan onConflict ke UNIQUE constraint
+// (id_siswa, tanggal) -- cek "sudah ada" dan tulis datanya jadi SATU
+// operasi atomik di sisi database (Postgres ON CONFLICT ... DO UPDATE),
+// bukan dua operasi terpisah di sisi aplikasi yang punya celah waktu di
+// antaranya. Kalau ada dua request yang tetap lolos SELECT di bawah
+// bersamaan (dipakai hanya untuk teks pesan "diperbarui" vs "disimpan"),
+// upsert tetap menjamin hasil akhirnya SATU baris per siswa+tanggal --
+// yang "kalah" otomatis jadi UPDATE ke baris yang "menang", bukan insert
+// baris baru.
 async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh }) {
   if (!idSiswa || !status)
     return { success: false, message: 'ID siswa dan status wajib diisi' };
@@ -207,38 +234,33 @@ async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh }) {
     .from('siswa').select('nisn,nama,kelas').eq('id', idSiswa).maybeSingle();
   if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
 
-  // Cek sudah ada keterangan hari ini atau belum
+  // Dipakai hanya untuk menentukan teks pesan balik (diperbarui/disimpan)
+  // dan supaya baris yang diperbarui tetap mempertahankan id lamanya --
+  // BUKAN satu-satunya penjaga terhadap duplikat (itu tugas upsert +
+  // UNIQUE constraint di bawah).
   const { data: existing } = await supabase
     .from('keterangan_absensi')
     .select('id').eq('id_siswa', idSiswa).eq('tanggal', today).maybeSingle();
 
-  if (existing) {
-    const { error } = await supabase
-      .from('keterangan_absensi')
-      .update({
-        status,
-        keterangan:   keterangan   || '',
-        diinput_oleh: diinputOleh  || ''
-      })
-      .eq('id', existing.id);
-    if (error) return { success: false, message: error.message };
-    return { success: true, message: 'Keterangan berhasil diperbarui' };
-  }
+  const { error } = await supabase
+    .from('keterangan_absensi')
+    .upsert({
+      id:           existing?.id || generateID('KT'),
+      id_siswa:     idSiswa,
+      nisn:         siswa.nisn,
+      nama_siswa:   siswa.nama,
+      kelas:        siswa.kelas,
+      tanggal:      today,
+      status,
+      keterangan:   keterangan  || '',
+      diinput_oleh: diinputOleh || ''
+    }, { onConflict: 'id_siswa,tanggal' });
 
-  const id = generateID('KT');
-  const { error } = await supabase.from('keterangan_absensi').insert({
-    id,
-    id_siswa:     idSiswa,
-    nisn:         siswa.nisn,
-    nama_siswa:   siswa.nama,
-    kelas:        siswa.kelas,
-    tanggal:      today,
-    status,
-    keterangan:   keterangan  || '',
-    diinput_oleh: diinputOleh || ''
-  });
   if (error) return { success: false, message: error.message };
-  return { success: true, message: 'Keterangan berhasil disimpan' };
+  return {
+    success: true,
+    message: existing ? 'Keterangan berhasil diperbarui' : 'Keterangan berhasil disimpan'
+  };
 }
 
 // ── HAPUS KETERANGAN ─────────────────────────────────────────────

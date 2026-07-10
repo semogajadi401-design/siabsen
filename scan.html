@@ -744,6 +744,44 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .sync-close-btn.show{display:inline-block}
 .sync-close-btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(16,185,129,0.5)}
 
+/* ── OVERLAY ABSEN KELAS (BARU) ──────────────────────────────────────
+   Halaman terpisah untuk alur Absen Kelas -- dibuka lewat mulaiAbsenKelas(),
+   ditutup lewat batalAbsenKelas()/keluarModeVerifikasi(). Sengaja meniru
+   pola visual #syncOverlay (backdrop blur gelap + kartu putih di tengah)
+   supaya konsisten dan langsung terasa "halaman/mode lain", bukan bagian
+   dari layar Scan Datang/Pulang biasa. ── */
+#absenKelasOverlay{
+  position:fixed;inset:0;z-index:8500;
+  background:rgba(15,23,42,0.6);
+  backdrop-filter:blur(10px);
+  display:none;align-items:center;justify-content:center;
+  padding:20px;
+}
+#absenKelasOverlay.show{display:flex}
+.ak-card{
+  width:min(440px,94vw);
+  max-height:92vh;overflow-y:auto;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:24px;padding:22px 22px 26px;
+  box-shadow:0 30px 70px -20px rgba(30,41,59,0.35);
+  display:flex;flex-direction:column;gap:14px;
+}
+.ak-card::-webkit-scrollbar{width:4px}
+.ak-card::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.ak-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ak-header h3{font-family:var(--font-display);font-size:1.08rem;font-weight:800;color:var(--text);letter-spacing:-.2px}
+.ak-header p{font-size:.76rem;color:var(--text-muted);margin-top:3px;line-height:1.4}
+.ak-close{
+  width:32px;height:32px;border-radius:10px;flex-shrink:0;
+  border:1px solid var(--border);background:var(--bg);
+  color:var(--text-muted);font-size:.95rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+.ak-close:hover{background:var(--border);color:var(--text)}
+#akCameraSlot{display:flex;justify-content:center}
+#akCameraSlot .scanner-visual{margin:6px auto}
+
 /* ── OFFLINE BADGE (header) ── */
 .offline-badge{
   display:none;align-items:center;gap:5px;
@@ -766,6 +804,63 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 <div id="offlineBar">
   <div class="ob-dot"></div>
   <span>Tidak ada koneksi internet — scan tetap berjalan, data disimpan lokal</span>
+</div>
+
+<!-- ══════ OVERLAY ABSEN KELAS (BARU) ══════════════════════════════
+     Halaman terpisah & jelas untuk alur Absen Kelas, supaya guru tidak
+     mengira ini masih halaman scan Datang/Pulang biasa. Dibuka oleh
+     mulaiAbsenKelas() (lihat bukaOverlayAbsenKelas()), ditutup oleh
+     batalAbsenKelas() / keluarModeVerifikasi() (lihat tutupOverlayAbsenKelas()).
+     Kamera (.scanner-visual, berikut #scanVideo/#scanCanvas yang sudah
+     aktif) DIPINDAH ke sini secara utuh saat overlay dibuka -- bukan
+     diinisialisasi ulang -- supaya stream kamera yang sedang berjalan
+     tidak terputus. Saat overlay ditutup, node yang sama dikembalikan
+     persis ke posisi semula (lihat #scannerVisualAnchor). -->
+<div id="absenKelasOverlay">
+  <div class="ak-card">
+    <div class="ak-header">
+      <div>
+        <h3>📚 Absen Kelas</h3>
+        <p>Mode terpisah untuk mencatat kehadiran mengajar guru per jam pelajaran</p>
+      </div>
+      <button type="button" class="ak-close" onclick="batalAbsenKelas()" title="Tutup">✕</button>
+    </div>
+
+    <div id="akCameraSlot"></div>
+
+    <!-- Status Mode Verifikasi Kelas -- tersembunyi secara default,
+         ditampilkan lewat mulaiModeVerifikasi() setelah absen mengajar
+         berhasil. Selama mode ini aktif, kartu apapun yang discan
+         diarahkan ke verifikasi siswa (lihat processQR di bawah), BUKAN
+         alur admin/guru/siswa datang-pulang biasa. -->
+    <div class="guru-status ada-guru" id="modeVerifikasiBox" style="display:none">
+      <div class="guru-label">📚 Mode Verifikasi Kelas</div>
+      <div id="modeVerifikasiContent" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div>
+          <div id="verifikasiMapelKelas" style="font-weight:700"></div>
+          <div style="font-size:.82rem;color:var(--text-muted)">
+            Terverifikasi: <b id="verifikasiCounter">0</b> dari minimal <b id="verifikasiMin">?</b> siswa
+          </div>
+        </div>
+        <button type="button" onclick="selesaiModeVerifikasi()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+          ✅ Selesai Verifikasi
+        </button>
+      </div>
+    </div>
+
+    <!-- Menunggu scan kartu guru -- tampil setelah tombol "Absen Kelas"
+         diklik, sebelum mode verifikasi benar-benar mulai (lihat
+         mulaiAbsenKelas()/batalAbsenKelas()). -->
+    <div class="guru-status ada-guru" id="menungguAbsenKelasBox" style="display:none">
+      <div class="guru-label">📚 Absen Kelas</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="font-size:.88rem">⏳ Menunggu scan kartu guru...</div>
+        <button type="button" onclick="batalAbsenKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+          ✖ Batal
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- SYNC OVERLAY -->
@@ -900,41 +995,16 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         </div>
       </div>
 
-      <!-- Status Mode Verifikasi Kelas (BARU, Langkah C sub-langkah 3) —
-           tersembunyi secara default, ditampilkan lewat mulaiModeVerifikasi()
-           setelah absen mengajar berhasil. Style meniru guru-status.ada-guru
-           di atas supaya konsisten. Selama mode ini aktif, kartu apapun yang
-           discan diarahkan ke verifikasi siswa (lihat processQR di bawah),
-           BUKAN alur admin/guru/siswa datang-pulang biasa. -->
-      <div class="guru-status ada-guru" id="modeVerifikasiBox" style="display:none">
-        <div class="guru-label">📚 Mode Verifikasi Kelas</div>
-        <div id="modeVerifikasiContent" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div>
-            <div id="verifikasiMapelKelas" style="font-weight:700"></div>
-            <div style="font-size:.82rem;color:var(--text-muted)">
-              Terverifikasi: <b id="verifikasiCounter">0</b> dari minimal <b id="verifikasiMin">?</b> siswa
-            </div>
-          </div>
-          <button type="button" onclick="selesaiModeVerifikasi()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
-            ✅ Selesai Verifikasi
-          </button>
-        </div>
-      </div>
+      <!-- Status Mode Verifikasi Kelas dan status "menunggu kartu guru" (untuk
+           fitur Absen Kelas) sekarang tampil di dalam overlay layar-penuh
+           #absenKelasOverlay (lihat markup overlay di bawah, dekat
+           #syncOverlay), BUKAN lagi menumpang di sini -- supaya guru tidak
+           bisa salah kira ini masih halaman scan Datang/Pulang biasa.
+           Elemennya (dengan ID yang sama) sudah dipindah ke overlay; JS
+           yang mengisi/mengontrolnya (mulaiModeVerifikasi, batalAbsenKelas,
+           dst.) TIDAK berubah sama sekali karena tetap mencari ID yang sama. -->
 
-      <!-- Menunggu scan kartu guru untuk Absen Kelas (BARU) -- tampil
-           setelah tombol "Absen Kelas" diklik, sebelum mode verifikasi
-           benar-benar mulai (lihat mulaiAbsenKelas()/batalAbsenKelas()).
-           Style meniru modeVerifikasiBox di atas supaya konsisten. -->
-      <div class="guru-status ada-guru" id="menungguAbsenKelasBox" style="display:none">
-        <div class="guru-label">📚 Absen Kelas</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div style="font-size:.88rem">⏳ Menunggu scan kartu guru...</div>
-          <button type="button" onclick="batalAbsenKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
-            ✖ Batal
-          </button>
-        </div>
-      </div>
-
+      <div id="scannerVisualAnchor"></div>
       <div class="scanner-visual">
         <div class="ring-outer"></div>
         <div class="ring-dashed"></div>
@@ -1333,15 +1403,39 @@ function mulaiAbsenKelas() {
   menungguAbsenKelas = true;
   document.getElementById('btnAbsenKelas').style.display = 'none';
   document.getElementById('menungguAbsenKelasBox').style.display = '';
+  bukaOverlayAbsenKelas();
   toast('📷 Arahkan kartu GURU ke kamera untuk mulai Absen Kelas.', 3500);
 }
 
 function batalAbsenKelas() {
+  if (modeVerifikasiAktif) { toast('📚 Sesi verifikasi sedang berjalan — klik "Selesai Verifikasi" untuk keluar.'); return; }
   menungguAbsenKelas = false;
   document.getElementById('btnAbsenKelas').style.display = '';
   document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+  tutupOverlayAbsenKelas();
   scanCooldown = false;
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// Overlay layar-penuh "Absen Kelas" (BARU) -- membuat mode ini terasa
+// sebagai halaman/mode terpisah dari Scan Datang/Pulang, alih-alih cuma
+// kotak kecil yang menumpang di halaman scan biasa. Kamera (.scanner-visual,
+// berikut #scanVideo/#scanCanvas yang streamnya sudah aktif) dipindah
+// UTUH ke dalam overlay -- bukan diinisialisasi ulang -- supaya proses
+// scan tidak terputus dan tidak perlu minta izin kamera dua kali.
+function bukaOverlayAbsenKelas() {
+  const slot   = document.getElementById('akCameraSlot');
+  const visual = document.querySelector('.scanner-visual');
+  if (slot && visual && !slot.contains(visual)) slot.appendChild(visual);
+  const overlay = document.getElementById('absenKelasOverlay');
+  if (overlay) overlay.classList.add('show');
+}
+function tutupOverlayAbsenKelas() {
+  const anchor = document.getElementById('scannerVisualAnchor');
+  const visual = document.querySelector('.scanner-visual');
+  if (anchor && visual && anchor.parentNode) anchor.parentNode.insertBefore(visual, anchor.nextSibling);
+  const overlay = document.getElementById('absenKelasOverlay');
+  if (overlay) overlay.classList.remove('show');
 }
 
 // Dipanggil dari processQR()/processQRWithOffline() saat menungguAbsenKelas
@@ -1659,6 +1753,7 @@ function keluarModeVerifikasi() {
   if (sw) sw.closest('.mode-switch-wrap').style.display = '';
   const btnAK = document.getElementById('btnAbsenKelas');
   if (btnAK) btnAK.style.display = '';
+  tutupOverlayAbsenKelas();
   scanCooldown = false;
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }

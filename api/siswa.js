@@ -310,13 +310,21 @@ async function resetSemua() {
   const { error: e0 } = await supabase.from('keterangan_absensi').delete().neq('id', 'x');
   if (e0) return { success: false, message: 'Gagal hapus keterangan: ' + e0.message };
 
+  // BARU: kehadiran_siswa_mapel.id_siswa menunjuk ke siswa(id) -- kalau
+  // tidak ikut dihapus dulu, riwayat verifikasi kehadiran per mapel jadi
+  // "yatim" begitu semua siswa dihapus (sama seperti kasus sesi_piket vs
+  // guru di api/guru.js). Dipanggil lewat api/mengajar.js supaya urutan
+  // anak->induk di tabel-tabel mengajar tidak perlu diduplikasi di sini.
+  const { error: eKsm } = await supabase.from('kehadiran_siswa_mapel').delete().neq('id', 'x');
+  if (eKsm) return { success: false, message: 'Gagal hapus riwayat verifikasi kehadiran siswa per mapel: ' + eKsm.message };
+
   const { error: e1 } = await supabase.from('absensi').delete().neq('id', 'x');
   if (e1) return { success: false, message: 'Gagal hapus absensi: ' + e1.message };
 
   const { error: e2 } = await supabase.from('siswa').delete().neq('id', 'x');
   if (e2) return { success: false, message: 'Gagal hapus siswa: ' + e2.message };
 
-  return { success: true, message: 'Semua data siswa dan absensi berhasil dihapus' };
+  return { success: true, message: 'Semua data siswa, absensi, dan riwayat verifikasi kehadiran mapel berhasil dihapus' };
 }
 // ── RESET TOKEN QR RIWAYAT (kartu hilang / dicetak ulang) ────────
 // Token lama otomatis tidak berlaku lagi begitu diganti, karena

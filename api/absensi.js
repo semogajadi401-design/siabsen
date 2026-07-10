@@ -310,6 +310,9 @@ async function dashboard() {
 // guru piket (sesi_piket) untuk periode yang sama tetap tertinggal dan
 // bisa membuat statistik di halaman lain (evaluasi kehadiran, riwayat QR
 // siswa) tidak sinkron dengan riwayat absensi yang sudah "direset".
+// BARU: absensi_mengajar & kehadiran_siswa_mapel (pasangan absensi untuk
+// fitur "Jadwal Mengajar" di api/mengajar.js) ikut dibersihkan juga,
+// dengan cakupan yang sama (semua kelas / per-kelas) seperti absensi biasa.
 async function resetAbsensi({ kelas, semua }) {
   if (semua) {
     const { error: e0 } = await supabase.from('keterangan_absensi').delete().neq('id', 'x');
@@ -320,6 +323,18 @@ async function resetAbsensi({ kelas, semua }) {
     // bukan saat reset per-kelas.
     const { error: e1 } = await supabase.from('sesi_piket').delete().neq('id', 'x');
     if (e1) return { success: false, message: 'Gagal hapus riwayat sesi piket: ' + e1.message };
+
+    // BARU: kehadiran_siswa_mapel & absensi_mengajar adalah "pasangan"
+    // absensi/keterangan_absensi untuk fitur mengajar (absen guru per jam
+    // pelajaran + verifikasi kehadiran siswa per sesi mengajar), tapi
+    // sebelumnya tidak ikut dibersihkan sama sekali oleh Reset Absensi.
+    // kehadiran_siswa_mapel dihapus dulu karena punya id_absensi_mengajar
+    // (FK ke absensi_mengajar).
+    const { error: e1b } = await supabase.from('kehadiran_siswa_mapel').delete().neq('id', 'x');
+    if (e1b) return { success: false, message: 'Gagal hapus riwayat verifikasi kehadiran siswa per mapel: ' + e1b.message };
+
+    const { error: e1c } = await supabase.from('absensi_mengajar').delete().neq('id', 'x');
+    if (e1c) return { success: false, message: 'Gagal hapus riwayat absensi mengajar: ' + e1c.message };
 
     const { error } = await supabase.from('absensi').delete().neq('id', 'x');
     if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
@@ -341,7 +356,7 @@ async function resetAbsensi({ kelas, semua }) {
 
     return {
       success: true,
-      message: 'Seluruh riwayat absensi, data sakit/izin, dan riwayat sesi piket berhasil dihapus'
+      message: 'Seluruh riwayat absensi, data sakit/izin, riwayat sesi piket, dan riwayat absensi/verifikasi mengajar berhasil dihapus'
         + (eTs ? ' (peringatan: gagal mencatat waktu reset untuk proteksi sinkronisasi offline — ' + eTs.message + ')' : '')
     };
   }
@@ -351,7 +366,17 @@ async function resetAbsensi({ kelas, semua }) {
   const { error: e0 } = await supabase.from('keterangan_absensi').delete().in('kelas', kelas);
   if (e0) return { success: false, message: 'Gagal hapus data sakit/izin: ' + e0.message };
 
+  // BARU: kehadiran_siswa_mapel & absensi_mengajar sama-sama punya kolom
+  // `kelas` (lihat api/mengajar.js), jadi reset per-kelas juga dilingkupi
+  // ke kelas yang sama supaya konsisten dengan absensi biasa. Anak
+  // (kehadiran_siswa_mapel) dihapus dulu, baru induknya (absensi_mengajar).
+  const { error: e0b } = await supabase.from('kehadiran_siswa_mapel').delete().in('kelas', kelas);
+  if (e0b) return { success: false, message: 'Gagal hapus riwayat verifikasi kehadiran siswa per mapel: ' + e0b.message };
+
+  const { error: e0c } = await supabase.from('absensi_mengajar').delete().in('kelas', kelas);
+  if (e0c) return { success: false, message: 'Gagal hapus riwayat absensi mengajar: ' + e0c.message };
+
   const { error } = await supabase.from('absensi').delete().in('kelas', kelas);
   if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
-  return { success: true, message: `Riwayat absensi dan data sakit/izin kelas ${kelas.join(', ')} berhasil dihapus` };
+  return { success: true, message: `Riwayat absensi, data sakit/izin, dan riwayat absensi/verifikasi mengajar kelas ${kelas.join(', ')} berhasil dihapus` };
 }

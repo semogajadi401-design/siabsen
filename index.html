@@ -2612,24 +2612,39 @@ function buildKartuGuruPrintHTML(guru, settings, uid) {
   </div>`;
 }
 
+// Isi QR halaman belakang kartu guru/kepsek — dipusatkan di sini supaya
+// cetakKartuGuru (single), downloadAllKartuGuruPDF (massal), dan preview
+// tab Kartu Identitas semuanya konsisten. Lihat catatan di
+// buildKartuGuruBackHTML() untuk kenapa isinya beda per role.
+function isiQrBelakangGuru(guru) {
+  if (!guru.qrToken) return null;
+  if (guru.role === 'kepsek') return window.location.origin + '/monitor/' + guru.qrToken;
+  return 'GURU_LOGIN|' + guru.qrToken;
+}
+
 // Kartu HALAMAN BELAKANG guru — beda dari kartu depan (yang QR-nya untuk
-// absen piket). QR di sini isinya token acak pendek (qr_token, lihat
-// generateGuruQrToken di api/_db.js) untuk bypass login cepat ke akun
-// guru itu sendiri, mirip cara kerja QR bypass admin. Sengaja dibuat
-// simpel/tidak padat (hanya "GURU_LOGIN|token") supaya tetap gampang
-// discan kamera HP walau kartu dicetak kecil.
+// absen piket). Isi QR-nya beda tergantung role (lihat isiQrBelakangGuru()):
+//  - guru biasa: token acak pendek ("GURU_LOGIN|token") untuk bypass login
+//    cepat ke akun guru itu sendiri, mirip cara kerja QR bypass admin.
+//  - kepsek: URL ke /monitor/token, membuka dashboard pengawasan sekolah
+//    (read-only, TIDAK bisa dipakai untuk masuk ke akun kepsek). Ini
+//    supaya kepsek bisa lihat keadaan sekolah kapan saja cukup dengan scan
+//    kartunya sendiri lewat kamera HP, tanpa perlu login manual dulu.
 function buildKartuGuruBackHTML(guru, settings, uid) {
   const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
   const schoolAddr = settings['ALAMAT_SEKOLAH'] || '-';
   const telp       = settings['TELP_SEKOLAH'] || '-';
   const email      = settings['EMAIL_SEKOLAH'] || '-';
+  const isKepsek   = guru.role === 'kepsek';
+  const judulKartu = isKepsek ? 'Informasi Kartu Kepala Sekolah' : 'Informasi Kartu Guru';
+  const labelScanQr = isKepsek ? 'Scan untuk lihat dashboard sekolah' : 'Scan untuk masuk ke akun anda';
 
   return `
     <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
 
     <!-- HEADER -->
     <div style="background:linear-gradient(135deg,#0D47A1,#1976D2);padding:7px 12px;text-align:center;flex-shrink:0">
-      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.4px">Informasi Kartu Guru</div>
+      <div style="font-size:7pt;font-weight:800;color:#FFD700;text-transform:uppercase;letter-spacing:.4px">${judulKartu}</div>
       <div style="font-size:4.5pt;color:rgba(255,255,255,0.8);margin-top:1px">${schoolName}</div>
     </div>
 
@@ -2676,7 +2691,7 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
          Isinya token acak pendek saja ("GURU_LOGIN|token"), BUKAN data
          padat, supaya modul QR tetap renggang dan gampang discan kamera. -->
     <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
-      <div style="font-size:4.8pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px">Scan untuk masuk ke akun anda</div>
+      <div style="font-size:4.8pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px">${labelScanQr}</div>
       <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #1565C0;display:flex;align-items:center;justify-content:center;line-height:0">
         <div id="kartuGuruBackQR_${uid}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
@@ -2735,13 +2750,18 @@ async function cetakKartuGuru(guru) {
     }
     const qrBackEl = document.getElementById('kartuGuruBackQR_' + uid);
     if (qrBackEl && typeof QRCode !== 'undefined') {
-      if (guru.qrToken) {
+      const isiQr = isiQrBelakangGuru(guru);
+      if (isiQr) {
+        // correctLevel M (bukan L) khusus untuk QR kepsek: isinya URL penuh
+        // (lebih panjang dari token pendek "GURU_LOGIN|xxx"), jadi butuh
+        // sedikit lebih banyak toleransi koreksi supaya tetap terbaca kalau
+        // kartu tergores/kotor.
         new QRCode(qrBackEl, {
-          text: 'GURU_LOGIN|' + guru.qrToken,
+          text: isiQr,
           width: 264, height: 264,
           colorDark: '#0D47A1',
           colorLight: '#FFFFFF',
-          correctLevel: QRCode.CorrectLevel.L
+          correctLevel: guru.role === 'kepsek' ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L
         });
         qrBackEl.querySelectorAll('canvas, img').forEach(el => {
           el.style.width = '66px'; el.style.height = '66px';
@@ -2856,11 +2876,12 @@ async function downloadAllKartuGuruPDF() {
       // digenerate 52x52 (tidak penuh). Sekarang native 4x (264px) lalu
       // di-scale-down ke 66px.
       const qrBackEl = document.getElementById('kartuGuruBackQR_bulk_' + i);
-      if (qrBackEl && typeof QRCode !== 'undefined' && g.qrToken) {
+      const isiQrBack = isiQrBelakangGuru(g);
+      if (qrBackEl && typeof QRCode !== 'undefined' && isiQrBack) {
         new QRCode(qrBackEl, {
-          text: 'GURU_LOGIN|' + g.qrToken, width: 264, height: 264,
+          text: isiQrBack, width: 264, height: 264,
           colorDark: '#0D47A1', colorLight: '#FFFFFF',
-          correctLevel: QRCode.CorrectLevel.L
+          correctLevel: g.role === 'kepsek' ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L
         });
         qrBackEl.querySelectorAll('canvas, img').forEach(el => {
           el.style.width = '66px'; el.style.height = '66px';
@@ -3674,12 +3695,13 @@ async function loadKartuGuruGrid() {
           previewBackDiv.innerHTML = buildKartuGuruBackHTML(guru, settings, uidBack);
           const qrBackEl = document.getElementById('kartuGuruBackQR_' + uidBack);
           if (qrBackEl && typeof QRCode !== 'undefined') {
-            if (guru.qrToken) {
+            const isiQrPreview = isiQrBelakangGuru(guru);
+            if (isiQrPreview) {
               new QRCode(qrBackEl, {
-                text: 'GURU_LOGIN|' + guru.qrToken,
+                text: isiQrPreview,
                 width: 72, height: 72,
                 colorDark: '#0D47A1', colorLight: '#FFFFFF',
-                correctLevel: QRCode.CorrectLevel.L
+                correctLevel: guru.role === 'kepsek' ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L
               });
             } else {
               qrBackEl.innerHTML = '<div style="font-size:5pt;color:#c62828;text-align:center;line-height:1.3;padding:2px">⚠ Token belum ada — reload halaman ini sekali lagi</div>';

@@ -1108,6 +1108,43 @@ const API = window.location.origin;
 const TIMEZONE_OFFSET_HOURS = 8;
 const TZ_OFFSET_MS = TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000;
 
+// ── DEVICE ID & HEARTBEAT (BARU, Dashboard Admin) ────────────────
+// Setiap browser/kiosk yang membuka scan.html punya device_id acak yang
+// dibuat SEKALI lalu disimpan permanen di localStorage -- ini BUKAN data
+// pribadi siapapun, cuma penanda 1 perangkat fisik supaya Dashboard Admin
+// (scan QR belakang kartu admin) bisa menampilkan device mana yang
+// sedang online/offline dan berapa antrian offline yang masih menumpuk
+// di device itu. Lihat kirimHeartbeat() di bagian OFFLINE SYSTEM di
+// bawah untuk pengirimannya, dan api/sync.js -> action 'heartbeat' /
+// api/admin-monitor.js -> getStatusPerangkat untuk sisi server.
+const DEVICE_ID_KEY = 'siabsen_device_id';
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+// Label otomatis dari browser/OS -- tidak minta admin mengetik apapun
+// supaya tidak mengganggu alur kiosk piket, cukup untuk membedakan
+// device satu dengan lainnya di Dashboard Admin.
+function deviceLabelOtomatis() {
+  const ua = navigator.userAgent || '';
+  let browser = 'Browser';
+  if (/Edg/i.test(ua)) browser = 'Edge';
+  else if (/Chrome/i.test(ua)) browser = 'Chrome';
+  else if (/Firefox/i.test(ua)) browser = 'Firefox';
+  else if (/Safari/i.test(ua)) browser = 'Safari';
+  let os = '';
+  if (/Android/i.test(ua)) os = 'Android';
+  else if (/iPhone|iPad/i.test(ua)) os = 'iOS';
+  else if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Mac/i.test(ua)) os = 'Mac';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  return `${browser}${os ? ' • ' + os : ''}`;
+}
+
 async function api(endpoint, action, params={}) {
   const r = await fetch(`${API}/api/${endpoint}`, {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -2965,6 +3002,27 @@ async function updateOfflineBadge() {
   const badge = document.getElementById('offlineBadge');
   if (count > 0) badge.classList.add('show');
   else badge.classList.remove('show');
+  // Supaya angka antrian di Dashboard Admin tidak menunggu sampai 30
+  // detik berikutnya begitu antrian berubah (scan baru masuk / berhasil
+  // sync). Best-effort & tidak di-await supaya badge tetap responsif.
+  kirimHeartbeat();
+}
+
+// ── KIRIM HEARTBEAT KE SERVER ──────────────────────────────────────
+// Best-effort saja -- kalau gagal (mis. baru saja putus lagi), diamkan
+// dan biarkan kesempatan berikutnya (interval 30 detik / transisi
+// online) yang mencoba lagi. TIDAK PERNAH memblokir alur scan kiosk.
+async function kirimHeartbeat() {
+  if (!isOnline) return;
+  try {
+    const antrian = await getAntrian();
+    await api('sync', 'heartbeat', {
+      deviceId: getDeviceId(),
+      label: deviceLabelOtomatis(),
+      antrianPending: antrian.length,
+      userAgent: navigator.userAgent
+    });
+  } catch (e) { /* diamkan, heartbeat bukan fitur kritikal */ }
 }
 
 // ── UPDATE STATUS BAR ─────────────────────────────────────────────
@@ -2978,6 +3036,7 @@ function updateOnlineStatus(online) {
     updateOfflineBadge();
     // Cek antrian saat kembali online
     checkAndSync();
+    kirimHeartbeat();
   } else {
     bar.classList.add('show');
     updateOfflineBadge();
@@ -3019,6 +3078,14 @@ setInterval(async () => {
   const antrian = await getAntrian();
   if (antrian.length > 0) await showSyncOverlay(antrian);
 }, 30000);
+
+// ── HEARTBEAT BERKALA (BARU) ───────────────────────────────────────
+// Terpisah dari interval retry antrian di atas supaya tetap terkirim
+// walau antrian sedang kosong (device tetap harus terdeteksi "online"
+// di Dashboard Admin meski tidak ada aktivitas scan sama sekali).
+setInterval(kirimHeartbeat, 30000);
+// Kirim satu kali begitu halaman selesai dimuat (kalau memang online).
+kirimHeartbeat();
 
 // ── LABEL TIPE ITEM ANTRIAN (BARU, sub-langkah 4) ─────────────────
 // Item lama (guru piket & siswa datang/pulang) tidak selalu punya field

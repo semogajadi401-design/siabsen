@@ -1467,26 +1467,26 @@ async function processScanGuruAbsenKelas(data) {
     return;
   }
   if (identifier.startsWith('GURU_LOGIN|')) {
-    showFlash('warning','🔄','Itu QR halaman BELAKANG');
-    toast('🔄 Itu QR di halaman BELAKANG kartu (untuk login akun). Balik kartunya, scan QR di halaman DEPAN untuk Absen Kelas.', 4500);
+    showFlash('warning','🙃','Kartunya kebalik!');
+    toast('🙃😄 Itu QR halaman BELAKANG kartu (buat login akun) — kartunya kebalik, Pak/Bu! Balik dulu ke halaman DEPAN buat scan Absen Kelas ya.', 4500);
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }
   if (identifier.startsWith('ADMIN|')) {
-    showFlash('warning','⚠️','Itu kartu Admin');
-    toast('⚠️ Itu kartu Admin, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas.', 4000);
+    showFlash('warning','🛡️','Itu kartu Admin');
+    toast('🛡️😅 Eh, itu kartu Admin, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas, ya!', 4000);
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }
   if (isKartuRiwayatUrl(identifier)) {
-    showFlash('warning','⚠️','Itu kartu Siswa');
-    toast('⚠️ Itu QR riwayat kartu Siswa, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas.', 4000);
+    showFlash('warning','🎒','Itu kartu Siswa');
+    toast('🎒😄 Itu QR riwayat kartu Siswa, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas, ya!', 4000);
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }
   if (isKartuMonitorUrl(identifier)) {
-    showFlash('warning','⚠️','Itu kartu Kepsek');
-    toast('⚠️ Itu QR dashboard kartu Kepsek, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas.', 4000);
+    showFlash('warning','🧑‍💼','Itu kartu Kepsek');
+    toast('🧑‍💼😄 Itu QR dashboard kartu Kepsek, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas, ya!', 4000);
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }

@@ -138,6 +138,123 @@ CREATE TABLE IF NOT EXISTS semester (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ═══════════════════════════════════════════════════════════
+-- TABEL FITUR "JADWAL MENGAJAR" (ditambahkan belakangan setelah tabel-
+-- tabel di atas -- sebelumnya TIDAK ada di schema.sql sama sekali walau
+-- sudah dipakai aktif oleh api/mengajar.js, api/sync.js (sinkron
+-- offline), api/monitor.js, dan api/riwayat.js. Definisi di bawah
+-- direkonstruksi dari kolom yang benar-benar dibaca/ditulis kode
+-- tersebut, bukan tebakan -- kalau kamu setup database baru dari nol
+-- dengan schema.sql versi lama, fitur Jadwal Mengajar & Status
+-- Perangkat (dashboard admin) akan error karena tabel-tabel ini belum
+-- ada sama sekali.
+-- ═══════════════════════════════════════════════════════════
+
+-- ─── TABEL JAM PELAJARAN (master jam ke-1, ke-2, dst per hari) ──
+CREATE TABLE IF NOT EXISTS jam_pelajaran (
+  id TEXT PRIMARY KEY,
+  hari TEXT NOT NULL,
+  jam_ke INTEGER NOT NULL,
+  jam_mulai TEXT NOT NULL,
+  jam_selesai TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- 1 hari cuma boleh punya 1 baris untuk jam ke-N yang sama. simpanJamPelajaran()
+  -- di api/mengajar.js sudah menghapus baris lama per-hari sebelum insert baru,
+  -- constraint ini pengaman tambahan di level database.
+  CONSTRAINT uniq_jampelajaran_hari_jamke UNIQUE (hari, jam_ke)
+);
+CREATE INDEX IF NOT EXISTS idx_jampelajaran_hari ON jam_pelajaran(hari);
+
+-- ─── TABEL JADWAL MENGAJAR (jadwal tetap guru: hari, blok jam, kelas, mapel) ──
+CREATE TABLE IF NOT EXISTS jadwal_mengajar (
+  id TEXT PRIMARY KEY,
+  id_guru TEXT REFERENCES guru(id),
+  nama_guru TEXT,
+  hari TEXT NOT NULL,
+  jam_ke_mulai INTEGER NOT NULL,
+  jam_ke_selesai INTEGER NOT NULL,
+  kelas TEXT NOT NULL,
+  mapel TEXT NOT NULL,
+  id_semester TEXT REFERENCES semester(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_jadwalmengajar_guru ON jadwal_mengajar(id_guru);
+CREATE INDEX IF NOT EXISTS idx_jadwalmengajar_hari ON jadwal_mengajar(hari);
+
+-- ─── TABEL ABSENSI MENGAJAR (guru scan kartu sendiri saat mulai sesi) ──
+CREATE TABLE IF NOT EXISTS absensi_mengajar (
+  id TEXT PRIMARY KEY,
+  id_jadwal_mengajar TEXT REFERENCES jadwal_mengajar(id),
+  id_guru TEXT REFERENCES guru(id),
+  nama_guru TEXT,
+  kelas TEXT,
+  mapel TEXT,
+  tanggal DATE NOT NULL,
+  hari TEXT,
+  jam_scan TEXT,
+  status TEXT,                                    -- 'Hadir' | 'Telat'
+  jumlah_siswa_terverifikasi INTEGER DEFAULT 0,
+  status_verifikasi TEXT DEFAULT 'Perlu Ditinjau', -- 'Perlu Ditinjau' | 'Terverifikasi'
+  metode TEXT,                                     -- 'online' | dari sync offline
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- 1 sesi jadwal cuma boleh discan 1x per tanggal. scanSesiMengajar() di
+  -- api/mengajar.js & processMengajarOffline() di api/sync.js sama-sama
+  -- menangkap kode error 23505 dari constraint ini untuk kasus "sudah
+  -- tercatat hari ini" / race 2 perangkat.
+  CONSTRAINT uniq_absensimengajar_jadwal_tanggal UNIQUE (id_jadwal_mengajar, tanggal)
+);
+CREATE INDEX IF NOT EXISTS idx_absensimengajar_tanggal ON absensi_mengajar(tanggal);
+CREATE INDEX IF NOT EXISTS idx_absensimengajar_guru    ON absensi_mengajar(id_guru);
+CREATE INDEX IF NOT EXISTS idx_absensimengajar_kelas    ON absensi_mengajar(kelas);
+
+-- ─── TABEL KEHADIRAN SISWA PER MAPEL (verifikasi siswa scan saat sesi guru berlangsung) ──
+CREATE TABLE IF NOT EXISTS kehadiran_siswa_mapel (
+  id TEXT PRIMARY KEY,
+  id_absensi_mengajar TEXT REFERENCES absensi_mengajar(id),
+  id_siswa TEXT REFERENCES siswa(id),
+  nisn TEXT,
+  nama_siswa TEXT,
+  kelas TEXT,
+  tanggal DATE NOT NULL,
+  jam_scan TEXT,
+  metode TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- 1 siswa cuma boleh terverifikasi 1x per sesi mengajar. scanSiswaMapel()
+  -- di api/mengajar.js menangkap kode 23505 dari constraint ini untuk
+  -- pesan "sudah discan untuk sesi ini".
+  CONSTRAINT uniq_kehadiransiswamapel_sesi_siswa UNIQUE (id_absensi_mengajar, id_siswa)
+);
+CREATE INDEX IF NOT EXISTS idx_kehadiransiswamapel_siswa   ON kehadiran_siswa_mapel(id_siswa);
+CREATE INDEX IF NOT EXISTS idx_kehadiransiswamapel_tanggal ON kehadiran_siswa_mapel(tanggal);
+
+-- ─── TABEL KETERANGAN MENGAJAR (Izin/Sakit guru, manual oleh admin/TU atau guru sendiri) ──
+CREATE TABLE IF NOT EXISTS keterangan_mengajar (
+  id TEXT PRIMARY KEY,
+  id_jadwal_mengajar TEXT REFERENCES jadwal_mengajar(id),
+  id_guru TEXT REFERENCES guru(id),
+  tanggal DATE NOT NULL,
+  jenis TEXT NOT NULL, -- 'Izin' | 'Sakit'
+  keterangan TEXT,
+  diinput_oleh TEXT,   -- 'admin' | 'guru'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT uniq_keteranganmengajar_jadwal_tanggal UNIQUE (id_jadwal_mengajar, tanggal)
+);
+CREATE INDEX IF NOT EXISTS idx_keteranganmengajar_tanggal ON keterangan_mengajar(tanggal);
+
+-- ─── TABEL STATUS PERANGKAT (heartbeat kiosk scan, untuk Dashboard Admin) ──
+-- Diisi lewat upsert onConflict:'device_id' (lihat heartbeat() di
+-- api/sync.js), jadi 1 baris = 1 perangkat, terus diperbarui -- bukan
+-- menumpuk baris baru tiap heartbeat.
+CREATE TABLE IF NOT EXISTS perangkat_status (
+  device_id TEXT PRIMARY KEY,
+  label TEXT,
+  antrian_pending INTEGER DEFAULT 0,
+  user_agent TEXT,
+  last_heartbeat TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_perangkatstatus_heartbeat ON perangkat_status(last_heartbeat);
+
 -- ─── TABEL PENGATURAN HARI KERJA ────────────────────────────
 -- jam_pulang_mulai / jam_pulang_selesai: override jam pulang KHUSUS hari
 -- itu (mis. Jumat pulang lebih awal). NULL/kosong = ikuti nilai global
@@ -240,3 +357,9 @@ ALTER TABLE pengaturan_hari_kerja DISABLE ROW LEVEL SECURITY;
 ALTER TABLE keterangan_absensi    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE hari_kerja    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE jam_setting   DISABLE ROW LEVEL SECURITY;
+ALTER TABLE jam_pelajaran         DISABLE ROW LEVEL SECURITY;
+ALTER TABLE jadwal_mengajar       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE absensi_mengajar      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE kehadiran_siswa_mapel DISABLE ROW LEVEL SECURITY;
+ALTER TABLE keterangan_mengajar   DISABLE ROW LEVEL SECURITY;
+ALTER TABLE perangkat_status      DISABLE ROW LEVEL SECURITY;

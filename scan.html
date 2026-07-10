@@ -1339,10 +1339,19 @@ async function processScanGuruAbsenKelas(data) {
     const jam     = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
     const days    = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
     const hari    = days[witaNow.getUTCDay()];
-    menungguAbsenKelas = false;
-    document.getElementById('btnAbsenKelas').style.display = '';
-    document.getElementById('menungguAbsenKelasBox').style.display = 'none';
-    await simpanSesiMengajarOffline({ identifier, tanggal, jam, hari });
+    // PENTING: JANGAN keluar dari mode "menunggu Absen Kelas" duluan di
+    // sini. SEBELUMNYA baris reset ada SEBELUM simpanSesiMengajarOffline()
+    // dipanggil, jadi begitu simpan lokal gagal (mis. penyimpanan penuh),
+    // tombol "Absen Kelas" tetap muncul lagi padahal sesi mengajar belum
+    // tercatat -- kartu yang discan berikutnya lolos ke jalur scan biasa
+    // dan malah tercatat sebagai ABSEN PIKET. Sekarang tunggu hasilnya
+    // dulu (true/false), baru keluar dari mode kalau memang berhasil.
+    const berhasil = await simpanSesiMengajarOffline({ identifier, tanggal, jam, hari });
+    if (berhasil) {
+      menungguAbsenKelas = false;
+      document.getElementById('btnAbsenKelas').style.display = '';
+      document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+    }
     scannedHistory[data] = now;
     scanCooldown = false;
     if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
@@ -1351,9 +1360,27 @@ async function processScanGuruAbsenKelas(data) {
 
   try {
     const result = await api('scan', 'scanKartu', { identifier, mode: scanMode, pilihan: 'mengajar' });
-    menungguAbsenKelas = false;
-    document.getElementById('btnAbsenKelas').style.display = '';
-    document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+    // PENTING: hanya keluar dari mode "menunggu Absen Kelas" kalau hasil
+    // scan BENAR-BENAR berhasil (result.success). SEBELUMNYA 3 baris reset
+    // di bawah dijalankan tanpa syarat begitu server membalas -- termasuk
+    // saat balasannya GAGAL (mis. "Bukan jam pelajaran sekarang", "Tidak
+    // ada jadwal mengajar Anda pada jam ini", "Sesi ini sudah tercatat
+    // hari ini", dsb). Akibatnya begitu ada kegagalan macam itu (apalagi
+    // kalau responsnya lambat karena koneksi lemot di lokasi terpencil),
+    // tombol "Absen Kelas" langsung muncul lagi dan mode ini diam-diam
+    // berakhir. Kalau guru mengira scan belum terbaca (karena responsnya
+    // lambat) lalu scan ULANG kartu yang sama atau kartu guru lain, scan
+    // kedua itu jatuh ke jalur scan biasa (bukan lagi lewat fungsi ini)
+    // dan malah tercatat sebagai ABSEN PIKET -- padahal niatnya Absen
+    // Kelas. Dengan tetap berada di mode ini saat gagal, scan ulang tetap
+    // diproses lewat processScanGuruAbsenKelas() (handleScanResult di
+    // bawah tetap menampilkan pesan error dan me-resume kamera seperti
+    // biasa lewat cabang else-nya).
+    if (result.success) {
+      menungguAbsenKelas = false;
+      document.getElementById('btnAbsenKelas').style.display = '';
+      document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+    }
     handleScanResult(result, data, now);
   } catch (e) {
     // Gagal (mis. internet putus tiba-tiba) -- tetap di mode menunggu
@@ -2354,9 +2381,11 @@ async function simpanSesiMengajarOffline({ identifier, tanggal, jam, hari }) {
     toast('📴 Sesi mengajar tersimpan offline — akan dicocokkan jadwal saat sinkron.', 4000);
     updateOfflineBadge();
     mulaiModeVerifikasi({ idAbsensiMengajar: null, localSesiId, jadwal: null, jumlahSiswaTerverifikasi: 0 });
+    return true;
   } catch (e) {
     showFlash('error','❌','Gagal simpan lokal');
     toast('❌ Gagal menyimpan data offline: ' + e.message);
+    return false;
   }
 }
 

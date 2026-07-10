@@ -37,6 +37,12 @@ self.addEventListener('fetch', event => {
   // bisa melihat riwayat basi/salah saat sinyal jelek.
   if (url.pathname.startsWith('/riwayat')) return;
 
+  // Sama alasannya dengan /riwayat di atas: halaman dashboard kepsek juga
+  // selalu butuh data live (kehadiran siswa, piket, status mengajar
+  // real-time) — JANGAN pernah di-cache, supaya kepsek tidak melihat
+  // data basi saat sinyal jelek.
+  if (url.pathname.startsWith('/monitor')) return;
+
   // Biarkan request non-GET lewat langsung
   if (event.request.method !== 'GET') return;
 

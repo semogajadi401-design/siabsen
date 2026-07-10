@@ -400,7 +400,20 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
    via face-api.js) tetap mengambil data piksel asli dari video, TIDAK
    ikut terbalik, jadi pembacaan QR maupun deteksi wajah tetap akurat
    seperti sebelumnya. */
-#scanVideo{position:relative;width:100%;height:100%;object-fit:cover;display:block;z-index:1;background:transparent;transform:scaleX(-1)}
+/* KALIBRASI POSISI KAMERA: sebagian besar webcam laptop lensanya secara
+   fisik memang tidak persis di tengah bezel/layar, jadi walau orangnya
+   duduk pas di tengah layar, hasil rekaman sensor tetap sedikit geser
+   (paling sering ke kiri/kanan). --cam-offset-x menggeser TITIK CROP
+   object-fit:cover secara horizontal untuk mengompensasi itu, TANPA
+   mengubah pengambilan data piksel untuk decode QR / deteksi wajah (yang
+   masih baca video aslinya lewat drawImage/faceapi, bukan lewat CSS ini).
+   Default 50% = tengah (tidak ada koreksi). Cara kalibrasi: kalau wajah
+   masih kelihatan agak ke kiri, NAIKKAN angkanya sedikit demi sedikit
+   (mis. 55%, lalu 60%) dan lihat hasilnya di kamera; kalau malah tambah
+   parah, berarti arahnya kebalik -- TURUNKAN di bawah 50% (mis. 45%,
+   40%) sampai wajah pas di tengah lingkaran. */
+:root{--cam-offset-x:50%}
+#scanVideo{position:relative;width:100%;height:100%;object-fit:cover;object-position:var(--cam-offset-x) 50%;display:block;z-index:1;background:transparent;transform:scaleX(-1)}
 .scan-overlay{display:none}
 
 .scan-flash{

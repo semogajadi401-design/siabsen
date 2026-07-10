@@ -120,7 +120,7 @@ async function getStatus() {
 // ── SCAN KARTU (admin, guru, atau siswa) ─────────────────────────
 // konfirmasiPiket: true dikirim scan.html pada percobaan KEDUA, setelah
 // guru menekan "Ya" di dialog konfirmasi jadi guru piket pengganti.
-async function scanKartu({ identifier, mode, konfirmasiPiket }) {
+async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   if (!identifier) return { success: false, message: 'QR tidak valid' };
 
   const today = todayStr();
@@ -247,7 +247,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
     // jadi ini TIDAK berlaku untuk guru_login/admin (prefix beda, sudah
     // ditangani di atas) dan TIDAK mengubah apa pun di bawah kalau
     // pilihan === 'piket' (jalur piket asli tetap persis sama).
-    if (params.pilihan !== 'mengajar' && params.pilihan !== 'piket') {
+    if (pilihan !== 'mengajar' && pilihan !== 'piket') {
       // Info jadwal mengajar sekarang cuma untuk memperkaya teks modal
       // (opsional) -- bukan syarat untuk menampilkan pilihan. Kalau tidak
       // ada jadwal saat ini, tombol "Mengajar" tetap ditampilkan; kalau
@@ -266,7 +266,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
       };
     }
 
-    if (params.pilihan === 'mengajar') {
+    if (pilihan === 'mengajar') {
       // Guru sudah pilih "Mengajar" di modal -> catat sesi mengajar lewat
       // scanSesiMengajar (api/mengajar.js), TIDAK diproses sebagai piket
       // sama sekali walau guru ini kebetulan guru piket terjadwal hari ini.
@@ -284,7 +284,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket }) {
         guru: { id: guru.id, nama: guru.nama, jabatan: guru.jabatan }
       };
     }
-    // params.pilihan === 'piket' -> lanjut ke logika piket asli di bawah,
+    // pilihan === 'piket' -> lanjut ke logika piket asli di bawah,
     // TIDAK ADA YANG DIUBAH dari sini sampai akhir blok piket.
 
     // Cek jadwal piket: hanya guru terjadwal yang boleh langsung, guru

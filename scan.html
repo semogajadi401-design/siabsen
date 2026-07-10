@@ -6,6 +6,12 @@
 <title>SIABSEN - Absensi</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
+<!-- FITUR SAPAAN WAJAH PEMBUAT (easter egg) -- self-hosted supaya tetap
+     jalan walau koneksi lemah/terpencil (sama alasannya dengan jsQR di
+     atas yang juga dipasang fallback). Kalau file lokal /face-api.min.js
+     belum diupload ke server, otomatis jatuh ke CDN jsdelivr. -->
+<script src="/face-api.min.js"></script>
+<script>if(typeof faceapi==='undefined'){var fa=document.createElement('script');fa.src='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';document.head.appendChild(fa);}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script>
@@ -1311,6 +1317,98 @@ document.addEventListener('keydown', function(e) {
 const scannedHistory = {};
 const PER_COOLDOWN   = 30000;
 
+// ── SAPAAN WAJAH PEMBUAT (easter egg) ─────────────────────────────
+// Selama halaman scan aktif, kamera yang SAMA (video#scanVideo) juga
+// dipakai untuk cek wajah secara berkala DI LUAR loop baca QR (interval
+// terpisah, bukan tiap frame) -- supaya tidak menambah beban/latensi
+// pada pembacaan kartu yang memang prioritas utama halaman ini. Kalau
+// wajah yang terdeteksi cocok dengan REFERENCE_DESCRIPTOR (dihasilkan
+// sekali dari beberapa foto closeup, BUKAN foto itu sendiri yang
+// disimpan -- cuma "sidik wajah" berupa 128 angka), tampilkan sapaan.
+//
+// GANTI nama di bawah ini sesuai keinginan:
+const NAMA_PEMBUAT = 'Bos'; // contoh: 'Pak Budi', 'Kak Rina', dst.
+
+// Beberapa variasi pesan supaya tidak monoton kalau muncul berkali-kali
+// di hari yang sama -- dipilih acak tiap kali cocok.
+const PESAN_SAPAAN_PEMBUAT = [
+  `👋 Halo, ${NAMA_PEMBUAT}! Aplikasi buatan sendiri, keren aksesnya~`,
+  `😄 Eh, itu wajah ${NAMA_PEMBUAT} yang saya kenal! Selamat datang.`,
+  `🙌 Sang pembuat aplikasi terdeteksi! Semangat terus, ${NAMA_PEMBUAT}.`,
+  `✨ Halo ${NAMA_PEMBUAT}, semua sistem berjalan normal hari ini!`,
+];
+
+// "Sidik wajah" (descriptor 128 dimensi) hasil rata-rata dari beberapa
+// foto closeup -- BUKAN foto aslinya. Threshold 0.5 dipilih berdasarkan
+// jarak antar-foto referensi sendiri (maksimum ±0.53), sedikit di bawah
+// ambang umum face-api.js (0.6) supaya tidak gampang salah kenali orang
+// lain sebagai pembuat aplikasi.
+const REFERENCE_DESCRIPTOR = new Float32Array([-0.103356,0.077131,0.054541,-0.01779,0.017705,-0.079077,0.097716,-0.065347,0.19195,-0.084109,0.280094,-0.016913,-0.196148,-0.154586,0.053529,0.141551,-0.196027,-0.100512,-0.128718,-0.122314,-0.01772,-0.027005,0.058782,0.069451,-0.063988,-0.327343,-0.101424,-0.146522,0.07385,-0.059641,0.014476,0.047768,-0.220086,-0.10064,-0.058017,0.000185,0.006787,-0.032305,0.215095,-0.004812,-0.135146,-0.032058,0.001348,0.271343,0.14177,0.008548,-0.018922,0.057618,0.062839,-0.230979,0.015455,0.095899,0.168649,0.036456,0.052242,-0.104309,0.008194,0.038956,-0.167353,0.015873,0.011934,-0.090195,-0.04403,-0.01556,0.267062,0.092448,-0.098688,-0.081636,0.171328,-0.09962,0.02132,0.093478,-0.118896,-0.129842,-0.276477,0.119077,0.413376,0.090982,-0.134368,-0.009828,-0.187897,-0.003803,0.007648,0.004412,-0.129271,0.033276,-0.120754,0.054921,0.120765,-0.011408,-0.083637,0.208729,-0.039657,0.031318,0.000088,-0.031168,-0.010579,-0.004571,-0.101529,0.041719,0.110618,-0.107432,-0.009965,0.073605,-0.189228,0.053295,0.015365,-0.025413,0.016472,0.100422,-0.153945,-0.060736,0.128377,-0.257973,0.194201,0.192718,-0.026655,0.11601,0.024915,0.061874,-0.059743,-0.051359,-0.116211,-0.065067,0.114089,-0.006437,0.069392,0.028126]);
+const FACE_MATCH_THRESHOLD = 0.5;
+// Jangan sapa berkali-kali selagi wajah masih di depan kamera -- cukup
+// sekali per beberapa menit (mengikuti prinsip yang sama dengan
+// scannedHistory di atas: sekali kenal, tidak perlu diulang terus).
+const SAPAAN_COOLDOWN_MS = 5 * 60 * 1000; // 5 menit
+let _sapaanTerakhir = 0;
+let _faceModelsSiap = false;
+let _faceCheckInterval = null;
+
+async function muatModelWajah() {
+  try {
+    if (typeof faceapi === 'undefined') return; // library gagal dimuat, diamkan saja
+    await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+    await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+    await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+    _faceModelsSiap = true;
+  } catch (e) {
+    // Diamkan -- ini fitur easter egg, kegagalan di sini TIDAK BOLEH
+    // mengganggu fungsi utama scan QR sama sekali.
+    console.warn('Sapaan wajah: gagal memuat model,', e.message);
+  }
+}
+
+function jarakDescriptor(a, b) {
+  let total = 0;
+  for (let i = 0; i < a.length; i++) total += (a[i] - b[i]) ** 2;
+  return Math.sqrt(total);
+}
+
+async function cekWajahPembuat() {
+  if (!_faceModelsSiap) return;
+  const video = document.getElementById('scanVideo');
+  if (!video || video.readyState < 2) return;
+  if (Date.now() - _sapaanTerakhir < SAPAAN_COOLDOWN_MS) return;
+
+  try {
+    const hasil = await faceapi
+      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    if (!hasil) return;
+
+    const jarak = jarakDescriptor(hasil.descriptor, REFERENCE_DESCRIPTOR);
+    if (jarak <= FACE_MATCH_THRESHOLD) {
+      _sapaanTerakhir = Date.now();
+      const pesan = PESAN_SAPAAN_PEMBUAT[Math.floor(Math.random() * PESAN_SAPAAN_PEMBUAT.length)];
+      showFlash('success', '😄', NAMA_PEMBUAT + ' terdeteksi!');
+      toast(pesan, 4000);
+    }
+  } catch (e) {
+    // Diamkan -- sama seperti di atas, tidak boleh mengganggu scan QR.
+  }
+}
+
+// Dipanggil dari startScanner() setelah kamera aktif -- cek wajah tiap
+// 3 detik, jauh lebih jarang dari loop baca QR (yang jalan tiap frame),
+// supaya CPU/GPU device kiosk tidak terbebani dua pekerjaan berat
+// bersamaan.
+function mulaiCekWajahPembuat() {
+  if (_faceCheckInterval) return;
+  muatModelWajah().then(() => {
+    _faceCheckInterval = setInterval(cekWajahPembuat, 3000);
+  });
+}
+
 // ── FULLSCREEN ───────────────────────────────────────────────────
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -2094,6 +2192,7 @@ async function startScanner() {
     }
 
     scanLoop();
+    mulaiCekWajahPembuat();
   } catch(e) {
     toast('⚠️ Kamera tidak bisa diakses: ' + e.message);
   }

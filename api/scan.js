@@ -157,7 +157,18 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
         success: true,
         tipe: 'admin',
         message: 'Login sebagai Administrator',
-        admin: { username: admin.username, nama: admin.nama }
+        // PENTING (perbaikan bug "Sesi admin tidak valid"): qrToken WAJIB
+        // disertakan di sini. index.html menyisipkan APP.user.qrToken
+        // sebagai adminToken di SETIAP request admin berikutnya (lihat
+        // fungsi api() di index.html) -- kalau field ini tidak ada,
+        // scan.html menyimpan sesi tanpa qrToken sama sekali, sehingga
+        // begitu masuk dashboard, semua aksi admin (tambah/ubah/hapus data)
+        // ditolak server dengan "Sesi admin tidak valid. Silakan login
+        // ulang." meski baru saja login. Login lewat username/password
+        // (api/auth.js) sudah benar dari awal karena qrToken memang
+        // disertakan di sana -- bug ini KHUSUS untuk login lewat scan
+        // kartu QR admin.
+        admin: { username: admin.username, nama: admin.nama, qrToken: admin.qr_token }
       };
     }
 
@@ -206,7 +217,16 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
         // role menentukan sidebar mana yang dibuka scan.html setelah
         // redirect ke index.html (lihat handleScanResult di scan.html):
         // 'kepsek' -> kepsekNav (read-only), selain itu -> guruNav.
-        role: guruLogin.role === 'kepsek' ? 'kepsek' : 'guru'
+        role: guruLogin.role === 'kepsek' ? 'kepsek' : 'guru',
+        // PENTING (perbaikan bug "Sesi guru tidak valid" / "Sesi admin
+        // tidak valid" setelah login lewat scan kartu): qrToken WAJIB
+        // disertakan, sama seperti perbaikan di blok ADMIN| di atas.
+        // Tanpa ini, index.html tidak bisa menyisipkan guruToken otomatis
+        // di request berikutnya (lihat fungsi api() di index.html),
+        // sehingga aksi guru yang butuh verifikasi identitas (mis. input
+        // keterangan siswa, lihat riwayat piket sendiri) selalu ditolak
+        // server sampai guru login ulang lewat username/password.
+        qrToken: guruLogin.qr_token
       }
     };
   }

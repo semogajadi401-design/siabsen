@@ -22,7 +22,8 @@ const AKSI_ADMIN_SAJA = new Set([
   'simpanJamPelajaran',
   'tambahJadwalMengajar', 'editJadwalMengajar', 'hapusJadwalMengajar',
   'importJadwalMengajar',
-  'hapusKeteranganMengajar'
+  'hapusKeteranganMengajar',
+  'resetSemua'
 ]);
 
 const handler = async (req, res) => {
@@ -73,6 +74,8 @@ const handler = async (req, res) => {
     }
     if (action === 'hapusKeteranganMengajar') return res.json(await hapusKeteranganMengajar(params));
 
+    if (action === 'resetSemua')            return res.json(await resetSemua());
+
     if (action === 'getRekapKehadiranGuru') {
       // Akses: admin (adminToken), kepsek (role kepsek, guru manapun), atau
       // guru itu sendiri (idGuru yang diminta harus sama dengan identitas
@@ -105,6 +108,11 @@ module.exports = handler;
 module.exports.scanSesiMengajar = scanSesiMengajar;
 module.exports.scanSiswaMapel   = scanSiswaMapel;
 module.exports.selesaiVerifikasi = selesaiVerifikasi;
+// BARU: diekspor supaya api/guru.js dan api/siswa.js bisa memanggilnya
+// langsung (in-process) saat resetSemua guru/siswa, tanpa duplikasi logika
+// urutan hapus anak->induk di tabel-tabel mengajar. Lihat komentar di
+// resetSemua() di bawah dan di api/guru.js / api/siswa.js.
+module.exports.resetSemua = resetSemua;
 
 // ════════════════════════════════════════════════════════════════
 // JAM PELAJARAN (master jam ke-1, ke-2, dst per hari)
@@ -468,6 +476,44 @@ async function hapusKeteranganMengajar({ id }) {
   const { error } = await supabase.from('keterangan_mengajar').delete().eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Keterangan berhasil dihapus' };
+}
+
+// ── RESET SEMUA DATA JADWAL & ABSENSI MENGAJAR ────────────────────
+// Sebelumnya menu "Reset Data" tidak punya kartu untuk fitur mengajar
+// sama sekali -- jadwal_mengajar, jam_pelajaran, absensi_mengajar,
+// kehadiran_siswa_mapel, dan keterangan_mengajar tidak pernah ikut
+// terhapus lewat Reset Absensi/Siswa/Guru/Semester/Total manapun.
+// Urutan hapus WAJIB anak dulu baru induk (sama pola dengan
+// resetSemua() di api/guru.js untuk sesi_piket->guru):
+//   kehadiran_siswa_mapel  -> punya id_absensi_mengajar (FK ke absensi_mengajar)
+//   absensi_mengajar       -> punya id_guru (FK ke guru)
+//   keterangan_mengajar    -> punya id_jadwal_mengajar (FK ke jadwal_mengajar)
+//   jadwal_mengajar        -> punya id_guru (FK ke guru)
+//   jam_pelajaran          -> tidak ada FK ke tabel lain, aman dihapus kapan saja
+// Fungsi ini dipakai berdiri sendiri (kartu "Reset Jadwal Mengajar") MAUPUN
+// dipanggil ulang secara implisit lewat resetSemua() di guru.js/siswa.js/
+// resetAbsensi() di absensi.js -- aman dijalankan berkali-kali (idempotent,
+// delete ke tabel yang sudah kosong tidak menghasilkan error).
+async function resetSemua() {
+  const { error: e1 } = await supabase.from('kehadiran_siswa_mapel').delete().neq('id', 'x');
+  if (e1) return { success: false, message: 'Gagal hapus riwayat verifikasi kehadiran siswa per mapel: ' + e1.message };
+
+  const { error: e2 } = await supabase.from('absensi_mengajar').delete().neq('id', 'x');
+  if (e2) return { success: false, message: 'Gagal hapus riwayat absensi mengajar guru: ' + e2.message };
+
+  const { error: e3 } = await supabase.from('keterangan_mengajar').delete().neq('id', 'x');
+  if (e3) return { success: false, message: 'Gagal hapus keterangan izin/sakit mengajar: ' + e3.message };
+
+  const { error: e4 } = await supabase.from('jadwal_mengajar').delete().neq('id', 'x');
+  if (e4) return { success: false, message: 'Gagal hapus jadwal mengajar: ' + e4.message };
+
+  const { error: e5 } = await supabase.from('jam_pelajaran').delete().neq('id', 'x');
+  if (e5) return { success: false, message: 'Gagal hapus jam pelajaran: ' + e5.message };
+
+  return {
+    success: true,
+    message: 'Semua jadwal mengajar, jam pelajaran, riwayat absensi mengajar guru, dan riwayat verifikasi kehadiran siswa per mapel berhasil dihapus'
+  };
 }
 
 // ════════════════════════════════════════════════════════════════

@@ -2671,7 +2671,13 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
   const labelScanQr = isKepsek ? 'Scan untuk lihat dashboard sekolah' : 'Scan untuk masuk ke akun anda';
 
   return `
-    <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
+    <!-- Latar belakang kartu BELAKANG sengaja dibuat beda dari kartu DEPAN
+         (yang putih polos) -- supaya sekilas mata langsung bisa bedakan
+         sisi depan vs belakang kartu (mengurangi salah scan sisi kartu).
+         Kotak QR di bawah tetap putih solid + border tebal supaya kontras
+         maksimal dan kamera cepat mengunci fokus, terlepas dari tint
+         warna latar kartunya. -->
+    <div id="kartuGuruBack_${uid}" style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:linear-gradient(180deg,#e8f1fb 0%,#dfeaf8 100%);color:#1a1a1a;flex-shrink:0;border:1px dashed #b9cee7">
 
     <!-- HEADER -->
     <div style="background:linear-gradient(135deg,#0D47A1,#1976D2);padding:7px 12px;text-align:center;flex-shrink:0">
@@ -2680,7 +2686,7 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
     </div>
 
     <!-- PEMILIK -->
-    <div style="margin:6px 10px 0;background:linear-gradient(135deg,#eef5fd,#fdf9e8);border:1.5px solid #b8cfe0;border-radius:8px;padding:6px 9px;flex-shrink:0">
+    <div style="margin:6px 10px 0;background:linear-gradient(135deg,#ffffff,#fdf9e8);border:1.5px solid #b8cfe0;border-radius:8px;padding:6px 9px;flex-shrink:0">
       <div style="font-size:8pt;font-weight:800;color:#0D47A1;margin-bottom:1px">${esc(guru.nama || '-')}</div>
       <div style="font-size:5.3pt;color:#555;line-height:1.35">
         ${guru.nip ? `NIP: <strong>${esc(guru.nip)}</strong> &nbsp;|&nbsp; ` : ''}Jabatan: <strong>${esc(guru.jabatan || '-')}</strong>
@@ -2693,7 +2699,7 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
          piket). guru.password null untuk guru lama yang belum pernah
          di-edit/reset sejak fitur ini ditambahkan -- tampilkan "-"
          alih-alih kosong/undefined supaya jelas perlu direset dulu. -->
-    <div style="margin:5px 10px 0;background:#f4f7fb;border-radius:6px;padding:6px 9px;border:1px solid #d8e3ee;flex-shrink:0">
+    <div style="margin:5px 10px 0;background:#ffffff;border-radius:6px;padding:6px 9px;border:1px solid #cddcee;flex-shrink:0">
       <div style="font-size:5.3pt;font-weight:800;color:#0D47A1;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">🔑 Akun Login</div>
       <div style="display:flex;align-items:baseline;margin-bottom:1px">
         <span style="font-size:5.3pt;color:#888;min-width:38px;flex-shrink:0">Username</span>
@@ -2723,7 +2729,7 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
          padat, supaya modul QR tetap renggang dan gampang discan kamera. -->
     <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
       <div style="font-size:4.8pt;font-weight:700;color:#0D47A1;text-align:center;margin-bottom:4px">${labelScanQr}</div>
-      <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #1565C0;display:flex;align-items:center;justify-content:center;line-height:0">
+      <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2.5px solid #1565C0;box-shadow:0 2px 8px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:center;line-height:0">
         <div id="kartuGuruBackQR_${uid}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
     </div>
@@ -4132,7 +4138,13 @@ function buildKartuBackHTML(s, settings) {
   const email      = settings?.['EMAIL_SEKOLAH'] || '-';
 
   return `
-    <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;flex-shrink:0;border:1px dashed #d5d5d5">
+    <!-- Latar belakang kartu BELAKANG sengaja dibuat beda dari kartu DEPAN
+         (yang putih polos) -- supaya sekilas mata langsung bisa bedakan
+         sisi depan vs belakang kartu (mengurangi salah scan sisi kartu).
+         Kotak QR di bawah tetap putih solid + border tebal supaya kontras
+         maksimal dan kamera cepat mengunci fokus, terlepas dari tint
+         warna latar kartunya. -->
+    <div style="width:215px;border-radius:12px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:linear-gradient(180deg,#eaf6ee 0%,#e0f1e6 100%);color:#1a1a1a;flex-shrink:0;border:1px dashed #bfe0c8">
 
     <!-- HEADER -->
     <div style="background:linear-gradient(135deg,#1a6b3a,#2d9e57);padding:7px 12px;text-align:center;flex-shrink:0">
@@ -4141,7 +4153,7 @@ function buildKartuBackHTML(s, settings) {
     </div>
 
     <!-- PEMILIK -->
-    <div style="margin:6px 10px 0;background:linear-gradient(135deg,#f0faf4,#fdf9e8);border:1.5px solid #b8d4c0;border-radius:8px;padding:6px 9px;flex-shrink:0">
+    <div style="margin:6px 10px 0;background:linear-gradient(135deg,#ffffff,#fdf9e8);border:1.5px solid #b8d4c0;border-radius:8px;padding:6px 9px;flex-shrink:0">
       <div style="font-size:8pt;font-weight:800;color:#1a3a26;margin-bottom:1px">${esc(s.nama || '-')}</div>
       <div style="font-size:5.3pt;color:#555;line-height:1.35">
         NISN: <strong>${s.nisn || '-'}</strong> &nbsp;|&nbsp; Kelas: <strong>${s.kelas || '-'}</strong>
@@ -4165,7 +4177,7 @@ function buildKartuBackHTML(s, settings) {
          siswa/ortu bisa lihat riwayat kehadiran sendiri tanpa perlu login. -->
     <div style="display:flex;flex-direction:column;align-items:center;padding:6px 12px 4px;flex:1;justify-content:center">
       <div style="font-size:4.8pt;font-weight:700;color:#1a6b3a;text-align:center;margin-bottom:4px">📊 Scan untuk riwayat kehadiran</div>
-      <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2px solid #b8d4c0;display:flex;align-items:center;justify-content:center;line-height:0">
+      <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;border:2.5px solid #1a6b3a;box-shadow:0 2px 8px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:center;line-height:0">
         <div class="qr-riwayat-${s.id}" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
       </div>
     </div>

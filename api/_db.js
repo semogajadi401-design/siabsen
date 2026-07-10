@@ -217,6 +217,31 @@ async function generateGuruQrToken() {
   return randomBase62(RIWAYAT_TOKEN_LENGTH) + Date.now().toString(36);
 }
 
+// ── GENERATE TOKEN QR LOGIN ADMIN (pendek, sama filosofinya dengan
+// token riwayat siswa & qr_token guru di atas) ──────────────────────
+// Dulu admin memakai generateQrToken() (48 karakter hex) -- jauh lebih
+// panjang dari token guru/siswa (8 karakter base62). Digabung dengan
+// prefix "ADMIN|username|" di QR depan, atau dengan URL dashboard penuh
+// (origin + "/admin-monitor/") di QR belakang, itu membuat versi QR
+// admin jadi jauh lebih tinggi (modul jauh lebih padat/halus) daripada
+// kartu guru & siswa -- itulah sebabnya QR admin lebih lambat & lebih
+// sering gagal discan kamera HP dibanding kartu lain. Fungsi ini
+// menyamakan admin dengan pola guru/siswa: token base62 8 karakter,
+// dicek unik ke tabel admin sendiri (kolom qr_token).
+async function generateAdminQrToken() {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const token = randomBase62(RIWAYAT_TOKEN_LENGTH);
+    const { data } = await supabase
+      .from('admin')
+      .select('username')
+      .eq('qr_token', token)
+      .maybeSingle();
+    if (!data) return token; // belum dipakai admin manapun -> aman dipakai
+  }
+  // Fallback ekstrem (harusnya nyaris mustahil tercapai)
+  return randomBase62(RIWAYAT_TOKEN_LENGTH) + Date.now().toString(36);
+}
+
 // ── GENERATE BANYAK QR_TOKEN GURU SEKALIGUS (backfill saat getAll) ──
 // SEBELUMNYA guru.getAll() memanggil generateGuruQrToken() SATU PER SATU
 // di dalam for-loop untuk tiap guru yang belum punya qr_token — itu 2
@@ -827,7 +852,7 @@ async function ringkasanRekapPeriode(rentang) {
 module.exports = {
   supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
-  jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
+  jamSekarang, hariIni, tambahMenit, generateQrToken, generateAdminQrToken, generateRiwayatToken,
   generateRiwayatTokenBatch, generateGuruQrToken, generateGuruQrTokenBatch,
   encryptPassword, decryptPassword,
   // ── TAMBAHAN BARU ──

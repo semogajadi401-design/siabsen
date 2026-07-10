@@ -1,4 +1,4 @@
-const { supabase, setCors, generateQrToken, generateGuruQrToken, hashPassword, verifyPassword } = require('./_db');
+const { supabase, setCors, generateAdminQrToken, generateGuruQrToken, hashPassword, verifyPassword } = require('./_db');
 
 // ── RATE LIMITING SEDERHANA (anti brute-force) ──────────────────────
 // PENTING: ini penyimpanan IN-MEMORY per instance serverless — bukan
@@ -86,9 +86,18 @@ async function login({ username, password }) {
 
       // Pastikan admin punya qr_token unik untuk QR login yang aman.
       // Akun lama (dibuat sebelum kolom qr_token ada) dibuatkan sekali di sini.
+      //
+      // Migrasi transparan (sama pola dengan re-hash password di atas):
+      // token admin dulu dibuat 48 karakter hex (generateQrToken lama),
+      // jauh lebih panjang dari token guru/siswa yang cuma 8 karakter
+      // base62. Token sepanjang itu membuat QR kartu admin jadi padat &
+      // sulit/lambat discan kamera HP. Begitu admin login lewat username
+      // & password (bukan scan QR), token lama otomatis diganti dengan
+      // token pendek baru -- kartu tinggal dicetak ulang sekali setelah
+      // ini supaya QR-nya sederhana seperti kartu guru & siswa.
       let qrToken = adminData.qr_token;
-      if (!qrToken) {
-        qrToken = generateQrToken();
+      if (!qrToken || qrToken.length > 12) {
+        qrToken = await generateAdminQrToken();
         await supabase.from('admin').update({ qr_token: qrToken }).eq('username', username);
       }
       return {

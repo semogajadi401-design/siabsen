@@ -1361,12 +1361,55 @@ function updateJamInfoBar(r) {
 }
 
 // ── TOAST ────────────────────────────────────────────────────────
+// PERBAIKAN "pesan dobel berantai": sebelumnya setiap panggilan toast()
+// selalu membuat elemen DOM baru, jadi kalau ada beberapa panggilan
+// beruntun dalam waktu singkat (mis. respons jaringan lambat yang
+// akhirnya datang bersamaan), semuanya numpuk terlihat sekaligus di
+// layar -- persis gejala "berantai" yang dilaporkan. Sekarang: (1) pesan
+// PERSIS SAMA yang masih tampil tidak dibuat ulang, cukup perpanjang
+// durasinya (dedup), (2) jumlah toast yang tampil sekaligus dibatasi,
+// toast tertua dibuang duluan kalau sudah penuh (cap).
+const _toastAktif   = new Map(); // msg -> { el, timerHide, timerRemove }
+const MAX_TOAST_TAMPIL = 3;
+
 function toast(msg, dur=3000) {
+  const wrap = document.getElementById('toastWrap');
+
+  // Dedup: pesan yang sama sedang tampil -> jangan buat elemen baru,
+  // cukup reset timer supaya tetap kelihatan (bukan kelihatan "dobel").
+  const existing = _toastAktif.get(msg);
+  if (existing) {
+    clearTimeout(existing.timerHide);
+    clearTimeout(existing.timerRemove);
+    existing.el.style.opacity = '';
+    existing.timerHide = setTimeout(() => hideToast(msg), dur);
+    return;
+  }
+
+  // Cap: batasi jumlah toast yang tampil bersamaan supaya layar tidak
+  // penuh kalau memang ada beberapa pesan BERBEDA datang beruntun.
+  while (_toastAktif.size >= MAX_TOAST_TAMPIL) {
+    const [pesanTertua] = _toastAktif.keys();
+    hideToast(pesanTertua, true);
+  }
+
   const t = document.createElement('div');
   t.className = 's-toast'; t.textContent = msg;
-  document.getElementById('toastWrap').appendChild(t);
-  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s';
-    setTimeout(()=>t.remove(),300); }, dur);
+  wrap.appendChild(t);
+
+  const entry = { el: t, timerHide: null, timerRemove: null };
+  entry.timerHide = setTimeout(() => hideToast(msg), dur);
+  _toastAktif.set(msg, entry);
+}
+
+function hideToast(msg, segera) {
+  const entry = _toastAktif.get(msg);
+  if (!entry) return;
+  _toastAktif.delete(msg);
+  const { el } = entry;
+  if (segera) { el.remove(); return; }
+  el.style.opacity = '0'; el.style.transition = 'opacity .3s';
+  entry.timerRemove = setTimeout(() => el.remove(), 300);
 }
 
 // ── MODE ─────────────────────────────────────────────────────────
@@ -1463,37 +1506,37 @@ async function processScanGuruAbsenKelas(data) {
   if (!identifier) {
     showFlash('warning','⚠️','QR tidak terbaca');
     toast('⚠️ QR tidak terbaca, coba scan ulang.');
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   if (identifier.startsWith('GURU_LOGIN|')) {
     showFlash('warning','🙃','Kartunya kebalik!');
     toast('🙃😄 Itu QR halaman BELAKANG kartu (buat login akun) — kartunya kebalik, Pak/Bu! Balik dulu ke halaman DEPAN buat scan Absen Kelas ya.', 4500);
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   if (identifier.startsWith('ADMIN|')) {
     showFlash('warning','🛡️','Itu kartu Admin');
     toast('🛡️😅 Eh, itu kartu Admin, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas, ya!', 4000);
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   if (isKartuRiwayatUrl(identifier)) {
     showFlash('warning','🎒','Itu kartu Siswa');
     toast('🎒😄 Itu QR riwayat kartu Siswa, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas, ya!', 4000);
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   if (isKartuMonitorUrl(identifier)) {
     showFlash('warning','🧑‍💼','Itu kartu Kepsek');
     toast('🧑‍💼😄 Itu QR dashboard kartu Kepsek, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas, ya!', 4000);
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   if (!identifier.startsWith('GR')) {
     showFlash('warning','⚠️','Scan kartu GURU');
     toast('⚠️ Untuk Absen Kelas, scan QR depan kartu GURU dulu (bukan kartu siswa).');
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   scanCooldown = true;
@@ -1543,8 +1586,7 @@ async function processScanGuruAbsenKelas(data) {
     if (result.tipe === 'guru_login') {
       showFlash('warning','🧑‍💼','Itu kartu Kepsek/Login');
       toast('🧑‍💼😄 Itu kartu Kepsek (atau kartu login), bukan kartu Guru mapel. Scan kartu Guru yang jadwalnya mengajar jam ini untuk Absen Kelas, ya!', 4500);
-      scanCooldown = false;
-      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+      resumeScanSetelahJeda();
       return;
     }
 
@@ -1574,8 +1616,7 @@ async function processScanGuruAbsenKelas(data) {
     // Gagal (mis. internet putus tiba-tiba) -- tetap di mode menunggu
     // supaya guru bisa langsung scan ulang begitu koneksi kembali.
     toast('❌ Gagal memproses. Cek koneksi lalu scan ulang kartu guru.');
-    scanCooldown = false;
-    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
   }
 }
 
@@ -1638,8 +1679,7 @@ async function processScanSiswaVerifikasi(data) {
   const raw = data.trim();
   if (!raw) {
     showFlash('error','❌','QR tidak valid');
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   // Kartu guru (GR...) atau QR lain yang kepencet saat mode verifikasi
@@ -1648,8 +1688,7 @@ async function processScanSiswaVerifikasi(data) {
   if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|') || isKartuRiwayatUrl(raw) || isKartuMonitorUrl(raw)) {
     showFlash('warning','⚠️','Itu bukan kartu siswa');
     toast('⚠️ Sedang Mode Verifikasi Kelas. Scan kartu siswa, atau tekan "Selesai Verifikasi" dulu.');
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   // Format QR siswa: "SW_ID|NISN" -- ambil bagian sebelum "|", SAMA PERSIS
@@ -2096,6 +2135,25 @@ let _qrKandidat = null;
 let _qrKandidatCount = 0;
 const QR_KONFIRMASI_MINIMAL = 2;
 
+// PERBAIKAN "pesan berantai" bagian ke-2: banyak jalur peringatan/gagal
+// SEBELUMNYA resume scanLoop() SAAT ITU JUGA (tanpa scanCooldown=true dan
+// tanpa jeda), beda dengan jalur sukses yang selalu menunggu (biasanya
+// 3 detik) dulu. Kalau kartu yang salah/gagal itu masih di depan kamera
+// persis saat resume terjadi, frame berikutnya langsung mendeteksi QR
+// yang sama lagi -> peringatan yang sama muncul lagi -> berulang selama
+// kartu belum diangkat. Helper ini dipakai di jalur-jalur tsb supaya ada
+// jeda singkat (cukup untuk user menjauhkan kartu dari kamera) sebelum
+// scan dilanjutkan, tanpa mengubah durasi cooldown 3 detik yang sudah ada
+// di jalur sukses.
+const WARN_COOLDOWN_MS = 1500;
+function resumeScanSetelahJeda(ms = WARN_COOLDOWN_MS) {
+  scanCooldown = true;
+  setTimeout(() => {
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }, ms);
+}
+
 function scanLoop() {
   if (!scanActive) return;
   const video  = document.getElementById('scanVideo');
@@ -2269,8 +2327,7 @@ function bukaKartuMonitor(data) {
   if (!isOnline) {
     showFlash('warning', '📴', 'Offline — dashboard tidak bisa dibuka');
     toast('📴 Dashboard kepala sekolah butuh koneksi internet. Coba lagi kalau sinyal/WiFi sudah tersedia.', 4000);
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   showFlash('guru', '👑', 'Membuka dashboard...');
@@ -2291,8 +2348,7 @@ function bukaKartuRiwayat(data) {
   if (!isOnline) {
     showFlash('warning', '📴', 'Offline — riwayat tidak bisa dibuka');
     toast('📴 Fitur riwayat kehadiran butuh koneksi internet. Coba lagi kalau sinyal/WiFi sudah tersedia.', 4000);
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
 
@@ -2347,8 +2403,7 @@ async function processQR(data) {
     const identifier = data.trim();
     if (!identifier) {
       showFlash('error','❌','QR tidak valid');
-      scanCooldown = false;
-      scanAnimFrame = requestAnimationFrame(scanLoop);
+      resumeScanSetelahJeda();
       return;
     }
 
@@ -2485,8 +2540,7 @@ function handleScanResult(result, data, now) {
     showFlash('error','❌', result.message);
     toast('❌ ' + result.message);
     updateLastResultError(result.message);
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
   }
 }
 
@@ -2528,8 +2582,7 @@ async function yaKonfirmasiPiket() {
     handleScanResult(result, identifier, Date.now());
   } catch (e) {
     toast('❌ Gagal konfirmasi. Cek koneksi internet lalu scan ulang.');
-    scanCooldown = false;
-    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
   }
   _pendingKonfirmasiPiket = null;
 }
@@ -2546,8 +2599,7 @@ async function absenPiketOffline(identifier, tanggal, jam, hari) {
   if (guruSudahAda) {
     showFlash('error','⚠️', 'Guru sudah scan hari ini');
     toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
   simpanGuruOffline('(menunggu sync)', identifier, jam);
@@ -3519,8 +3571,7 @@ async function processQRWithOffline(data) {
   const identifier = data.trim();
   if (!identifier) {
     showFlash('error','❌','QR tidak valid');
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
 
@@ -3528,8 +3579,7 @@ async function processQRWithOffline(data) {
   if (identifier.startsWith('ADMIN|')) {
     showFlash('error','⚠️','Login admin butuh internet');
     toast('⚠️ Scan kartu admin membutuhkan koneksi internet');
-    scanCooldown = false;
-    scanAnimFrame = requestAnimationFrame(scanLoop);
+    resumeScanSetelahJeda();
     return;
   }
 

@@ -577,10 +577,18 @@ async function cekGuruPiketHariIni(username, password) {
   if (!username) return { ok: false, message: 'Username wajib diisi' };
   if (!password) return { ok: false, message: 'Password wajib diisi' };
 
+  // PERBAIKAN BUG: sebelumnya pakai .ilike() (case-insensitive, TAPI juga
+  // mengaktifkan wildcard SQL LIKE seperti '%' dan '_' di input pengguna)
+  // -- tidak konsisten dengan login utama (api/auth.js -> login()) yang
+  // memakai .eq() case-sensitive biasa. Selain rawan salah paham (username
+  // "budi%" atau "_udi" bisa cocok ke baris yang tidak seharusnya cocok),
+  // ini juga cara yang salah untuk mencari 1 username spesifik. Disamakan
+  // ke .eq() seperti auth.js -- exact match, tanpa arti khusus untuk
+  // karakter wildcard apapun.
   const { data: guru } = await supabase
     .from('guru')
     .select('id,nama,username,status,password')
-    .ilike('username', username.trim())
+    .eq('username', username.trim())
     .maybeSingle();
 
   if (!guru) return { ok: false, message: 'Username atau password salah' };

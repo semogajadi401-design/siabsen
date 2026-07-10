@@ -975,22 +975,6 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         </div>
       </div>
 
-      <!-- Modal pilihan Absen Mengajar / Piket -- SELALU muncul tiap kartu
-           guru discan (lihat handleScanResult -> result.perluPilihMengajarPiket).
-           Ditaruh setelah modalKonfirmasiPiket, style sama persis supaya
-           konsisten visual. -->
-      <div id="modalPilihMengajarPiket" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-        <div style="background:var(--surface);color:#1a1a1a;border-radius:14px;max-width:380px;width:100%;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)">
-          <div style="font-size:2.4rem;margin-bottom:8px">🙋</div>
-          <div id="pilihMengajarPiketText" style="font-size:1rem;line-height:1.5;margin-bottom:6px"></div>
-          <div id="pilihMengajarPiketJadwal" style="font-size:.85rem;color:#666;margin-bottom:18px"></div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <button onclick="pilihMengajar()" style="padding:12px;border:none;border-radius:8px;background:var(--primary,#0D47A1);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">📚 Absen Mengajar</button>
-            <button onclick="pilihPiket()" style="padding:12px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">🪪 Absen Piket</button>
-            <button onclick="batalPilihMengajarPiket()" style="padding:10px;border:none;border-radius:8px;background:#e0e0e0;color:#333;font-weight:600;font-size:.9rem;cursor:pointer">Batal</button>
-          </div>
-        </div>
-      </div>
 
       <div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="transition:none"></div></div>
 
@@ -1348,9 +1332,8 @@ async function processScanGuruAbsenKelas(data) {
   scanCooldown = true;
 
   if (!isOnline) {
-    // Offline: sama persis dengan alur pilihan 'mengajar' offline yang
-    // sudah ada (kirimUlangOfflinePilihan), cuma dipicu dari tombol ini
-    // bukan dari modal. Pakai fungsi bersama simpanSesiMengajarOffline().
+    // Offline: langsung simpan sesi mengajar offline lewat fungsi bersama
+    // simpanSesiMengajarOffline() (dipakai juga untuk sinkron nanti).
     const witaNow = new Date(Date.now() + TZ_OFFSET_MS);
     const tanggal = witaNow.toISOString().split('T')[0];
     const jam     = `${String(witaNow.getUTCHours()).padStart(2,'0')}:${String(witaNow.getUTCMinutes()).padStart(2,'0')}`;
@@ -2262,13 +2245,6 @@ function handleScanResult(result, data, now) {
       if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
     }, 3000);
 
-  } else if (result.perluPilihMengajarPiket) {
-    // BARU (Langkah C sub-langkah 1 & 2): kartu guru discan -> selalu
-    // tanya dulu mau absen mengajar atau piket. Sama seperti cabang
-    // perluKonfirmasi di bawah: JANGAN dianggap error, JANGAN lanjut scan
-    // loop dulu (tunggu guru menekan salah satu tombol di modal).
-    playBeep('warning');
-    tampilkanPilihanMengajarPiket(result, data);
   } else if (result.perluKonfirmasi) {
     // Guru bukan piket terjadwal -> tampilkan dialog konfirmasi, JANGAN
     // dianggap error dan JANGAN lanjut scan loop dulu (tunggu jawaban user).
@@ -2329,133 +2305,46 @@ async function yaKonfirmasiPiket() {
   _pendingKonfirmasiPiket = null;
 }
 
-// ── PILIHAN ABSEN MENGAJAR / PIKET ───────────────────────────────
-// Dipicu tiap kali kartu guru discan (result.perluPilihMengajarPiket dari
-// api/scan.js) -- guru SELALU ditanya dulu mau absen mengajar atau piket,
-// bukan cuma saat kebetulan bentrok jadwal. Simpan identifier scan asli
-// (pola sama seperti _pendingKonfirmasiPiket) supaya bisa dikirim ulang
-// dengan flag pilihan:'mengajar' atau pilihan:'piket' setelah guru menekan
-// tombol.
-let _pendingPilihMengajarPiket = null;
-// BARU (sub-langkah 4): pending state TERPISAH untuk kasus kartu guru yang
-// discan saat SUDAH TAHU offline dari awal (lihat tampilkanPilihanMengajarPiketOffline
-// di blok offline processQRWithOffline). Dipisah dari _pendingPilihMengajarPiket
-// (kasus online yang balasannya perluPilihMengajarPiket) supaya tombol modal
-// yang sama (pilihMengajar/pilihPiket di bawah) tahu harus kirim ke server
-// atau langsung antri lokal.
-let _pendingPilihanOffline = null;
-
-function tampilkanPilihanMengajarPiket(result, rawData) {
-  _pendingPilihMengajarPiket = { identifier: rawData };
-  document.getElementById('pilihMengajarPiketText').textContent = result.message;
-  const jadwalEl = document.getElementById('pilihMengajarPiketJadwal');
-  if (result.jadwalMengajar) {
-    jadwalEl.textContent = `Jadwal mengajar sekarang: ${result.jadwalMengajar.mapel} - ${result.jadwalMengajar.kelas}`;
-    jadwalEl.style.display = '';
-  } else {
-    jadwalEl.textContent = '';
-    jadwalEl.style.display = 'none';
-  }
-  document.getElementById('modalPilihMengajarPiket').style.display = 'flex';
-}
-
-// BARU (sub-langkah 4): versi offline dari modal pilihan di atas. Dipanggil
-// dari processQRWithOffline saat kartu guru (GR...) discan tapi perangkat
-// memang sedang offline -- tidak ada info jadwal (butuh server), jadi kolom
-// jadwal disembunyikan dan pesannya menegaskan ini offline. Guru sendiri
-// yang tahu apakah sedang piket atau mau mengajar; validasi jadwal/jam
-// pelajaran tetap dilakukan server saat sinkron (lihat processMengajarOffline
-// di api/sync.js).
-function tampilkanPilihanMengajarPiketOffline(identifier, tanggal, jam, hari) {
-  _pendingPilihanOffline = { identifier, tanggal, jam, hari };
-  document.getElementById('pilihMengajarPiketText').textContent =
-    `📴 Offline — kartu guru terdeteksi. Absen untuk apa?`;
-  const jadwalEl = document.getElementById('pilihMengajarPiketJadwal');
-  jadwalEl.textContent = '';
-  jadwalEl.style.display = 'none';
-  document.getElementById('modalPilihMengajarPiket').style.display = 'flex';
-}
-
-function tutupModalPilihMengajarPiket() {
-  document.getElementById('modalPilihMengajarPiket').style.display = 'none';
-  _pendingPilihMengajarPiket = null;
-  _pendingPilihanOffline = null;
-  scanCooldown = false;
-  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
-}
-
-function batalPilihMengajarPiket() {
-  toast('Dibatalkan.');
-  tutupModalPilihMengajarPiket();
-}
-
-async function kirimUlangDenganPilihan(pilihan) {
-  if (!_pendingPilihMengajarPiket) return tutupModalPilihMengajarPiket();
-  const { identifier } = _pendingPilihMengajarPiket;
-  document.getElementById('modalPilihMengajarPiket').style.display = 'none';
-  try {
-    const result = await api('scan', 'scanKartu', { identifier, mode: scanMode, pilihan });
-    handleScanResult(result, identifier, Date.now());
-  } catch (e) {
-    toast('❌ Gagal memproses. Cek koneksi internet lalu scan ulang.');
+// ── ABSEN PIKET OFFLINE (kartu guru discan di kamera utama, offline) ──
+// SEBELUMNYA menampilkan modal "Absen untuk apa?" (mengajar/piket) tiap
+// kali kartu guru discan, walau offline. Sekarang disederhanakan: kamera
+// utama HANYA untuk absen piket (sama seperti sebelum modal itu ada).
+// Absen mengajar sekarang cuma lewat tombol "📚 Absen Kelas" (lihat
+// processScanGuruAbsenKelas(), yang memanggil simpanSesiMengajarOffline()
+// di bawah secara langsung untuk kasus offline).
+async function absenPiketOffline(identifier, tanggal, jam, hari) {
+  const guruSudahAda = getGuruOffline();
+  if (guruSudahAda) {
+    showFlash('error','⚠️', 'Guru sudah scan hari ini');
+    toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
     scanCooldown = false;
-    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
-  }
-  _pendingPilihMengajarPiket = null;
-}
-
-// BARU (sub-langkah 4): versi offline -- tidak pernah memanggil server sama
-// sekali, langsung simpan ke antrian IndexedDB (pola sama dengan antrian
-// guru piket/siswa yang sudah ada).
-async function kirimUlangOfflinePilihan(pilihan) {
-  if (!_pendingPilihanOffline) return tutupModalPilihMengajarPiket();
-  const { identifier, tanggal, jam, hari } = _pendingPilihanOffline;
-  document.getElementById('modalPilihMengajarPiket').style.display = 'none';
-  _pendingPilihanOffline = null;
-
-  if (pilihan === 'piket') {
-    // Sama persis dengan alur offline lama (sebelum ada pilihan Mengajar):
-    // cek guru piket lain yang sudah tercatat offline hari ini dulu.
-    const guruSudahAda = getGuruOffline();
-    if (guruSudahAda) {
-      showFlash('error','⚠️', 'Guru sudah scan hari ini');
-      toast(`⚠️ ${guruSudahAda.namaGuru} sudah tercatat sebagai guru piket hari ini (offline)`);
-      scanCooldown = false;
-      scanAnimFrame = requestAnimationFrame(scanLoop);
-      return;
-    }
-    simpanGuruOffline('(menunggu sync)', identifier, jam);
-    const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru' };
-    try {
-      await simpanKeAntrian(scanData);
-      showFlash('guru','👤','Guru Tercatat Offline (Piket)');
-      toast('📴 Guru piket tersimpan offline — akan dikirim saat internet aktif');
-      updateOfflineBadge();
-    } catch (e) {
-      hapusGuruOffline();
-      showFlash('error','❌','Gagal simpan lokal');
-      toast('❌ Gagal menyimpan data offline: ' + e.message);
-    }
-    startCooldown(2500);
-    setTimeout(() => {
-      scanCooldown = false;
-      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
-    }, 2500);
+    scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }
-
-  // pilihan === 'mengajar'
-  await simpanSesiMengajarOffline({ identifier, tanggal, jam, hari });
-  scanCooldown = false;
-  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  simpanGuruOffline('(menunggu sync)', identifier, jam);
+  const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru' };
+  try {
+    await simpanKeAntrian(scanData);
+    showFlash('guru','👤','Guru Tercatat Offline (Piket)');
+    toast('📴 Guru piket tersimpan offline — akan dikirim saat internet aktif');
+    updateOfflineBadge();
+  } catch (e) {
+    hapusGuruOffline();
+    showFlash('error','❌','Gagal simpan lokal');
+    toast('❌ Gagal menyimpan data offline: ' + e.message);
+  }
+  startCooldown(2500);
+  setTimeout(() => {
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }, 2500);
 }
 
 // ── SIMPAN SESI MENGAJAR OFFLINE (dipakai bersama) ────────────────
-// Diekstrak dari kirimUlangOfflinePilihan('mengajar') supaya bisa dipakai
-// ulang oleh processScanGuruAbsenKelas() (tombol "Absen Kelas") tanpa
-// duplikasi logika. Belum ada idAbsensiMengajar asli (perlu jadwal dari
-// server) -- pakai localSesiId sebagai penghubung sementara, akan
-// dipetakan ke id asli saat sinkron (lihat sesiIdMap di jalankanSync()).
+// Dipakai satu-satunya oleh processScanGuruAbsenKelas() (tombol
+// "Absen Kelas") saat offline. Belum ada idAbsensiMengajar asli (perlu
+// jadwal dari server) -- pakai localSesiId sebagai penghubung sementara,
+// akan dipetakan ke id asli saat sinkron (lihat sesiIdMap di jalankanSync()).
 async function simpanSesiMengajarOffline({ identifier, tanggal, jam, hari }) {
   const localSesiId = `msesi_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
   const scanData = { identifier, tanggal, jam, hari, localSesiId, namaCache: identifier, tipe: 'mengajarOffline' };
@@ -2469,15 +2358,6 @@ async function simpanSesiMengajarOffline({ identifier, tanggal, jam, hari }) {
     showFlash('error','❌','Gagal simpan lokal');
     toast('❌ Gagal menyimpan data offline: ' + e.message);
   }
-}
-
-function pilihMengajar() {
-  if (_pendingPilihanOffline) return kirimUlangOfflinePilihan('mengajar');
-  return kirimUlangDenganPilihan('mengajar');
-}
-function pilihPiket() {
-  if (_pendingPilihanOffline) return kirimUlangOfflinePilihan('piket');
-  return kirimUlangDenganPilihan('piket');
 }
 
 // ── INPUT TANPA KARTU (siswa kartu hilang/rusak/ketinggalan) ──────
@@ -3400,15 +3280,13 @@ async function processQRWithOffline(data) {
   const hari     = days[witaNow.getUTCDay()];
 
   // ── CEK APAKAH QR GURU (scan offline guru) ───────────────────────
-  // BARU (sub-langkah 4): dulu kartu guru offline SELALU langsung
-  // diasumsikan piket. Sekarang disamakan dengan alur online: tanya dulu
-  // "Mengajar atau Piket?" (modal yang sama, lihat
-  // tampilkanPilihanMengajarPiketOffline) -- guru sendiri yang tahu
-  // sedang piket atau mau mengajar; server tetap memvalidasi ulang
-  // (jadwal cocok/tidak, guru piket ganda, dst) saat sinkron.
+  // Kartu guru yang discan di kamera utama (bukan lewat tombol
+  // "📚 Absen Kelas") SELALU diasumsikan absen piket langsung, sama
+  // seperti sebelum ada modal "Mengajar atau Piket?" -- modal itu sudah
+  // dihapus karena absen mengajar sekarang punya pintu masuk sendiri
+  // (tombol Absen Kelas / mulaiAbsenKelas()).
   if (identifier.startsWith('GR')) {
-    playBeep('warning');
-    tampilkanPilihanMengajarPiketOffline(identifier, tanggal, jam, hari);
+    await absenPiketOffline(identifier, tanggal, jam, hari);
     return;
   }
 

@@ -290,6 +290,48 @@ CREATE TABLE IF NOT EXISTS keterangan_absensi (
 CREATE INDEX IF NOT EXISTS idx_keterangan_absensi_tanggal ON keterangan_absensi(tanggal);
 CREATE INDEX IF NOT EXISTS idx_keterangan_absensi_siswa   ON keterangan_absensi(id_siswa);
 
+-- ─── PERBAIKAN BUG (BARU): keterangan_absensi TIDAK PUNYA pengaman
+-- UNIQUE di level database, berbeda dari SEMUA tabel "1 baris per hari"
+-- lain di file ini (absensi, sesi_piket, absensi_mengajar,
+-- kehadiran_siswa_mapel, keterangan_mengajar -- lihat CONSTRAINT
+-- uniq_... masing-masing di atas). api/kehadiran.js (inputKeterangan)
+-- memakai pola yang SAMA PERSIS dengan tabel-tabel itu (SELECT cek ada/
+-- tidak, baru INSERT/UPDATE) -- tapi tanpa UNIQUE constraint ini, dua
+-- request yang nyaris bersamaan (mis. tap ganda di koneksi lambat, atau
+-- admin & guru piket menginput keterangan untuk siswa yang sama hampir
+-- bersamaan) bisa SAMA-SAMA lolos cek "belum ada" lalu SAMA-SAMA insert
+-- baris baru -- menghasilkan 2 baris keterangan_absensi untuk siswa+
+-- tanggal yang sama. Baris dobel ini merusak semua statistik yang
+-- MENGHITUNG JUMLAH BARIS keterangan_absensi (dashboard admin di
+-- api/absensi.js, live/rekap kepsek & admin di _db.js, dan evaluasi
+-- kehadiran semester di api/kehadiran.js) -- siswa yang sama bisa
+-- terhitung 2x sebagai Sakit/Izin.
+--
+-- 1) Bersihkan dulu duplikat yang MUNGKIN SUDAH ADA di database
+--    production (kalau bug ini sudah sempat kejadian sebelum perbaikan
+--    ini dipasang), supaya ALTER TABLE di bawah tidak gagal karena data
+--    yang sudah tidak unik. Baris yang dipertahankan adalah yang paling
+--    baru (created_at terbesar, id sebagai tie-breaker).
+DELETE FROM keterangan_absensi a
+USING keterangan_absensi b
+WHERE a.id_siswa IS NOT NULL
+  AND a.id_siswa = b.id_siswa
+  AND a.tanggal  = b.tanggal
+  AND (a.created_at, a.id) < (b.created_at, b.id);
+
+-- 2) Pasang UNIQUE constraint-nya, idempotent (aman dijalankan berkali-
+--    kali) memakai DO block karena Postgres tidak punya sintaks
+--    "ADD CONSTRAINT IF NOT EXISTS" bawaan seperti ADD COLUMN.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uniq_keteranganabsensi_siswa_tanggal'
+  ) THEN
+    ALTER TABLE keterangan_absensi
+      ADD CONSTRAINT uniq_keteranganabsensi_siswa_tanggal UNIQUE (id_siswa, tanggal);
+  END IF;
+END $$;
+
 -- ─── TABEL JADWAL PIKET ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS jadwal_piket (
   id TEXT PRIMARY KEY,

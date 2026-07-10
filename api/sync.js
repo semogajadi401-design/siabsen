@@ -60,11 +60,38 @@ module.exports = async (req, res) => {
   const { action, ...params } = req.body || {};
   try {
     if (action === 'batchSync') return res.json(await batchSync(params));
+    if (action === 'heartbeat') return res.json(await heartbeat(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
   }
 };
+
+// ── HEARTBEAT PERANGKAT (BARU) ────────────────────────────────────
+// Dikirim berkala oleh scan.html (lihat kirimHeartbeat() di sana) supaya
+// Dashboard Admin (api/admin-monitor.js -> getStatusPerangkat) bisa
+// menampilkan device mana yang aktif/online dan berapa item yang masih
+// menumpuk di antrian offline lokalnya. TIDAK butuh login apapun --
+// device_id-nya acak & dibuat sendiri oleh browser (localStorage), jadi
+// endpoint ini cuma menyimpan status "kesehatan" device, bukan data
+// absensi apapun. Dipakai upsert supaya 1 device = 1 baris yang terus
+// diperbarui, bukan menumpuk baris baru tiap heartbeat.
+async function heartbeat({ deviceId, label, antrianPending, userAgent }) {
+  const id = deviceId ? String(deviceId).trim().slice(0, 100) : '';
+  if (!id) return { success: false, message: 'deviceId wajib diisi' };
+  const safeLabel = String(label || 'Perangkat Scan').slice(0, 60);
+  const pendingNum = Number(antrianPending);
+  const pending = Number.isFinite(pendingNum) ? Math.max(0, Math.floor(pendingNum)) : 0;
+  const ua = userAgent ? String(userAgent).slice(0, 200) : null;
+
+  const { error } = await supabase.from('perangkat_status').upsert({
+    device_id: id, label: safeLabel, antrian_pending: pending, user_agent: ua,
+    last_heartbeat: new Date().toISOString()
+  }, { onConflict: 'device_id' });
+
+  if (error) return { success: false, message: 'Gagal mencatat heartbeat: ' + error.message };
+  return { success: true };
+}
 
 // ── BATCH SYNC: terima array antrian scan dari offline ────────────
 async function batchSync({ items }) {

@@ -89,6 +89,11 @@ body{
 .footer-note{padding:12px 18px;background:#f4f7fb;font-size:.68rem;color:var(--text-muted);text-align:center;line-height:1.5}
 .btn-refresh{margin-top:14px;width:100%;padding:11px;border-radius:10px;border:none;background:var(--blue-dark);
   color:#fff;font-weight:700;font-size:.85rem;cursor:pointer}
+.btn-close{
+  display:block;width:100%;margin-top:10px;padding:11px;border-radius:10px;border:1.5px solid #ddd;
+  background:#fff;color:#555;font-weight:700;font-size:.82rem;cursor:pointer;
+}
+.btn-close:active{transform:scale(.97)}
 </style>
 </head>
 <body>
@@ -138,12 +143,24 @@ const TOKEN = qp.get('t') || qp.get('token') || (pathMatch ? pathMatch[1] : '') 
 let INFO = null;
 let currentTab = 'hari';
 
+// Tombol "Tutup dan kembali ke halaman scan" — sama pola dengan
+// riwayat.html, supaya kalau halaman ini dibuka dari kiosk scan.html
+// (mis. QR kartu kepsek kepencet discan di tablet piket), ada jalan
+// jelas untuk kembali ke mode scan tanpa perlu tombol back browser.
+function tombolTutupHTML() {
+  return `<button class="btn-close" onclick="tutupDanKembaliKeScan()">✖ Tutup dan kembali ke halaman scan</button>`;
+}
+function tutupDanKembaliKeScan() {
+  window.location.href = window.location.origin + '/scan';
+}
+
 function renderState(emoji, title, msg) {
   document.getElementById('app').innerHTML = `
     <div class="state-box">
       <div class="emoji">${emoji}</div>
       <h3>${esc(title)}</h3>
       <p>${esc(msg)}</p>
+      ${tombolTutupHTML()}
     </div>`;
 }
 
@@ -178,6 +195,9 @@ function renderShell() {
       </div>
       <div class="footer-note">
         Data diperbarui langsung dari server. Halaman ini hanya bisa dibuka lewat QR kartu Kepala Sekolah.
+      </div>
+      <div style="padding:0 18px 18px">
+        ${tombolTutupHTML()}
       </div>
     </div>`;
 }

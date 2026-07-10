@@ -1,8 +1,18 @@
 // sw.js — Service Worker SIABSEN Offline
-const CACHE_NAME = 'siabsen-v3';
+const CACHE_NAME = 'siabsen-v4';
 
+// PENTING: precache pakai '/scan' (URL bersih hasil rewrite di
+// vercel.json), BUKAN '/scan.html'. Semua tombol/link di aplikasi
+// (index.html, monitor.html, riwayat.html, admin-monitor.html) selalu
+// mengarahkan ke '/scan' -- rewrite Vercel terjadi di sisi server,
+// jadi Service Worker (yang jalan di browser) melihat request ASLI-nya
+// sebagai '/scan', bukan '/scan.html'. Precache dengan key yang salah
+// (versi lama) tidak pernah cocok dengan fetch event sungguhan untuk
+// '/scan', sehingga precache itu sia-sia -- device yang baru dipasang
+// lalu langsung offline sebelum sempat 1x berhasil buka '/scan' secara
+// online tidak akan punya app-shell offline sama sekali.
 const CACHE_URLS = [
-  '/scan.html',
+  '/scan',
   'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
 ];
 

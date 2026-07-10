@@ -1454,9 +1454,45 @@ async function processScanGuruAbsenKelas(data) {
   if (scanCooldown) return;
 
   const identifier = data.trim();
-  if (!identifier || !identifier.startsWith('GR')) {
+  // Kartu guru YANG BENAR untuk Absen Kelas adalah QR halaman DEPAN
+  // (identifier "GR..."). Beberapa QR lain sering kepencet tidak sengaja
+  // dan SEBENARNYA valid, cuma salah konteks -- kasih pesan yang akurat
+  // untuk masing-masing supaya guru tahu persis apa yang harus dilakukan,
+  // alih-alih pesan generik "bukan kartu guru" yang membingungkan padahal
+  // itu memang kartu guru miliknya sendiri (cuma salah sisi/halaman).
+  if (!identifier) {
+    showFlash('warning','⚠️','QR tidak terbaca');
+    toast('⚠️ QR tidak terbaca, coba scan ulang.');
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  if (identifier.startsWith('GURU_LOGIN|')) {
+    showFlash('warning','🔄','Itu QR halaman BELAKANG');
+    toast('🔄 Itu QR di halaman BELAKANG kartu (untuk login akun). Balik kartunya, scan QR di halaman DEPAN untuk Absen Kelas.', 4500);
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  if (identifier.startsWith('ADMIN|')) {
+    showFlash('warning','⚠️','Itu kartu Admin');
+    toast('⚠️ Itu kartu Admin, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas.', 4000);
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  if (isKartuRiwayatUrl(identifier)) {
+    showFlash('warning','⚠️','Itu kartu Siswa');
+    toast('⚠️ Itu QR riwayat kartu Siswa, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas.', 4000);
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  if (isKartuMonitorUrl(identifier)) {
+    showFlash('warning','⚠️','Itu kartu Kepsek');
+    toast('⚠️ Itu QR dashboard kartu Kepsek, bukan kartu Guru. Scan QR depan kartu Guru untuk Absen Kelas.', 4000);
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  if (!identifier.startsWith('GR')) {
     showFlash('warning','⚠️','Scan kartu GURU');
-    toast('⚠️ Untuk Absen Kelas, scan kartu GURU dulu (bukan kartu siswa).');
+    toast('⚠️ Untuk Absen Kelas, scan QR depan kartu GURU dulu (bukan kartu siswa).');
     scanAnimFrame = requestAnimationFrame(scanLoop);
     return;
   }

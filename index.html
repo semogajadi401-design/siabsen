@@ -2641,6 +2641,24 @@ function buildKartuGuruBackHTML(guru, settings, uid) {
       </div>
     </div>
 
+    <!-- AKUN LOGIN — username & password ditampilkan di sini (bukan di
+         kartu depan) supaya tidak terlihat sekilas kalau kartu depan
+         dilihat orang lain (mis. dipakai sebagai tanda pengenal saat
+         piket). guru.password null untuk guru lama yang belum pernah
+         di-edit/reset sejak fitur ini ditambahkan -- tampilkan "-"
+         alih-alih kosong/undefined supaya jelas perlu direset dulu. -->
+    <div style="margin:5px 10px 0;background:#f4f7fb;border-radius:6px;padding:6px 9px;border:1px solid #d8e3ee;flex-shrink:0">
+      <div style="font-size:5.3pt;font-weight:800;color:#0D47A1;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">🔑 Akun Login</div>
+      <div style="display:flex;align-items:baseline;margin-bottom:1px">
+        <span style="font-size:5.3pt;color:#888;min-width:38px;flex-shrink:0">Username</span>
+        <span style="font-size:5.8pt;font-weight:700;color:#222;font-family:'Courier New',monospace">${esc(guru.username || '-')}</span>
+      </div>
+      <div style="display:flex;align-items:baseline">
+        <span style="font-size:5.3pt;color:#888;min-width:38px;flex-shrink:0">Password</span>
+        <span style="font-size:5.8pt;font-weight:700;color:#222;font-family:'Courier New',monospace">${esc(guru.password || '-')}</span>
+      </div>
+    </div>
+
     <!-- NOTICE -->
     <div style="margin:5px 10px 0;background:#fff8f2;border-radius:6px;padding:6px 9px;border-left:2.5px solid #c62828;flex-shrink:0">
       <div style="font-size:5.3pt;font-weight:800;color:#c62828;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Kartu Identitas Resmi</div>

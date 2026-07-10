@@ -2186,11 +2186,18 @@ function handleScanResult(result, data, now) {
       toast('🔐 Mengalihkan ke dashboard admin...', 2000);
 
       // Simpan session ke localStorage agar index.html langsung masuk dashboard
+      // PENTING: qrToken WAJIB ikut disimpan -- ini yang dipakai index.html
+      // sebagai adminToken di setiap aksi admin berikutnya (lihat fungsi
+      // api() di index.html). SEBELUMNYA field ini tidak disimpan sama
+      // sekali, jadi begitu login lewat scan kartu, semua aksi admin
+      // (tambah/ubah/hapus data) langsung ditolak server dengan "Sesi
+      // admin tidak valid. Silakan login ulang." walau baru saja login.
       const sessionData = {
         user: {
           username: result.admin.username,
           nama: result.admin.nama,
-          role: 'admin'
+          role: 'admin',
+          qrToken: result.admin.qrToken
         },
         loginTime: Date.now()
       };
@@ -2210,6 +2217,11 @@ function handleScanResult(result, data, now) {
       showFlash('guru', '🔑', 'Login ' + result.guru.nama);
       toast('🔐 Mengalihkan ke dashboard guru...', 2000);
 
+      // PENTING: qrToken WAJIB ikut disimpan -- dipakai index.html sebagai
+      // guruToken di aksi berikutnya yang butuh verifikasi identitas guru.
+      // SEBELUMNYA tidak disimpan, sehingga guru/kepsek yang login lewat
+      // scan QR belakang kartu mengalami "Sesi guru tidak valid" pada
+      // fitur seperti input keterangan siswa / riwayat piket pribadi.
       const sessionData = {
         user: {
           id: result.guru.id,
@@ -2220,7 +2232,8 @@ function handleScanResult(result, data, now) {
           // Sebelumnya di-hardcode 'guru' di sini, sehingga akun Kepala
           // Sekolah yang bypass login lewat QR kartu ini tetap masuk ke
           // dashboard guru piket biasa alih-alih menu pengawasan kepsek.
-          role: result.guru.role || 'guru'
+          role: result.guru.role || 'guru',
+          qrToken: result.guru.qrToken
         },
         loginTime: Date.now()
       };

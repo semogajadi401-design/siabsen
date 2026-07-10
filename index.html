@@ -1312,8 +1312,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
                 <div style="font-size:2rem;margin-bottom:10px">👨‍🏫</div>
                 <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Data Guru</h4>
-                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data guru, jadwal piket, dan riwayat sesi piket (kecuali akun admin).</p>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua data guru, jadwal piket, riwayat sesi piket, jadwal mengajar, dan riwayat absensi mengajar (kecuali akun admin).</p>
                 <button class="btn btn-danger btn-sm" onclick="konfirmasiReset('guru')">🗑 Reset Guru</button>
+              </div>
+              <!-- Reset Jadwal Mengajar -->
+              <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
+                <div style="font-size:2rem;margin-bottom:10px">📚</div>
+                <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Jadwal Mengajar</h4>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus semua jadwal mengajar, jam pelajaran, riwayat absensi mengajar guru, riwayat verifikasi kehadiran siswa per mapel, dan keterangan izin/sakit mengajar.</p>
+                <button class="btn btn-danger btn-sm" onclick="konfirmasiReset('mengajar')">🗑 Reset Jadwal Mengajar</button>
               </div>
               <!-- Reset Semester -->
               <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
@@ -1333,7 +1340,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div style="border:2px solid var(--danger);border-radius:14px;padding:20px;background:var(--danger-light)">
                 <div style="font-size:2rem;margin-bottom:10px">☢️</div>
                 <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px;color:var(--danger)">Reset Total (Semua Data)</h4>
-                <p style="font-size:.82rem;color:var(--danger);margin-bottom:16px">Menjalankan SEMUA kartu reset di atas sekaligus secara berurutan: absensi, siswa, guru, semester, dan pengaturan aplikasi. Akun admin tetap aman.</p>
+                <p style="font-size:.82rem;color:var(--danger);margin-bottom:16px">Menjalankan SEMUA kartu reset di atas sekaligus secara berurutan: absensi, siswa, guru, jadwal mengajar, semester, dan pengaturan aplikasi. Akun admin tetap aman.</p>
                 <button class="btn btn-danger btn-sm" onclick="konfirmasiResetTotal()">☢️ Reset Total</button>
               </div>
             </div>
@@ -4462,8 +4469,9 @@ async function eksekusiResetAbsensi() {
 function konfirmasiReset(tipe) {
   _resetType = tipe;
   const texts = {
-    siswa: 'Semua data siswa dan riwayat absensinya akan dihapus permanen.',
-    guru: 'Semua data guru, jadwal piket, dan riwayat sesi piket (kecuali akun admin) akan dihapus permanen.',
+    siswa: 'Semua data siswa, riwayat absensinya, dan riwayat verifikasi kehadiran per mapel akan dihapus permanen.',
+    guru: 'Semua data guru, jadwal piket, riwayat sesi piket, jadwal mengajar, jam pelajaran, dan riwayat absensi mengajar (kecuali akun admin) akan dihapus permanen.',
+    mengajar: 'Semua jadwal mengajar, jam pelajaran, riwayat absensi mengajar guru, riwayat verifikasi kehadiran siswa per mapel, dan keterangan izin/sakit mengajar akan dihapus permanen.',
     semester: 'Semua data semester (periode akademik) akan dihapus permanen. Absensi tidak bisa dilakukan sampai admin membuat & mengaktifkan semester baru.',
     pengaturan: 'Jam operasional, hari sekolah aktif, dan kalender hari libur akan dikembalikan ke pengaturan default. Profil sekolah (nama, alamat, dll) tidak akan berubah.'
   };
@@ -4480,6 +4488,7 @@ async function eksekusiReset() {
     let r;
     if (_resetType === 'siswa')          r = await api('siswa', 'resetSemua', {});
     else if (_resetType === 'guru')      r = await api('guru', 'resetSemua', {});
+    else if (_resetType === 'mengajar')  r = await api('mengajar', 'resetSemua', {});
     else if (_resetType === 'semester')  r = await api('semester', 'resetSemua', {});
     else if (_resetType === 'pengaturan') r = await api('settings', 'resetPengaturanAplikasi', {});
     toast(r?.message || 'Selesai', r?.success ? 'success' : 'error', 5000);
@@ -4506,12 +4515,19 @@ async function eksekusiResetTotal() {
   progress.style.display = 'block';
 
   // Dijalankan berurutan (bukan Promise.all) supaya urutannya aman terhadap
-  // foreign key: absensi & keterangan_absensi/sesi_piket dulu, baru siswa
-  // (yang di-reference oleh absensi) dan guru (yang di-reference oleh
-  // sesi_piket/jadwal_piket), baru semester, baru pengaturan aplikasi.
+  // foreign key: absensi & keterangan_absensi/sesi_piket (+ pasangan
+  // mengajarnya: absensi_mengajar/kehadiran_siswa_mapel) dulu, baru jadwal
+  // mengajar & jam pelajaran, baru siswa (yang di-reference oleh absensi)
+  // dan guru (yang di-reference oleh sesi_piket/jadwal_piket/jadwal
+  // mengajar), baru semester, baru pengaturan aplikasi. Beberapa langkah
+  // sengaja tumpang tindih menghapus tabel yang sama (mis. langkah 1 dan 3
+  // sama-sama menyentuh absensi_mengajar) -- ini aman karena semua fungsi
+  // reset di backend idempotent (hapus baris yang sudah tidak ada tidak
+  // menghasilkan error).
   const steps = [
-    { label: 'Riwayat absensi, sakit/izin & sesi piket', call: () => api('absensi', 'resetAbsensi', { semua: true }) },
+    { label: 'Riwayat absensi, sakit/izin, sesi piket & absensi mengajar', call: () => api('absensi', 'resetAbsensi', { semua: true }) },
     { label: 'Data siswa',                                call: () => api('siswa', 'resetSemua', {}) },
+    { label: 'Jadwal mengajar & jam pelajaran',           call: () => api('mengajar', 'resetSemua', {}) },
     { label: 'Data guru & jadwal piket',                  call: () => api('guru', 'resetSemua', {}) },
     { label: 'Data semester',                             call: () => api('semester', 'resetSemua', {}) },
     { label: 'Pengaturan aplikasi (jam, hari kerja, kalender libur)', call: () => api('settings', 'resetPengaturanAplikasi', {}) }

@@ -389,7 +389,18 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:2.6rem;color:#94A3B8;z-index:0;
 }
-#scanVideo{position:relative;width:100%;height:100%;object-fit:cover;display:block;z-index:1;background:transparent}
+/* PERBAIKAN "susah pas di tengah kamera": video SEBELUMNYA tidak dibalik
+   (bukan seperti cermin), padahal orang terbiasa dengan tampilan kamera
+   yang mirror (Zoom, kamera HP, dst -- geser kepala ke kanan, bayangan
+   di layar ikut ke kanan). Tanpa mirror, arahnya kebalik -- begitu user
+   coba "koreksi" posisi berdasarkan yang terlihat di layar, gerakannya
+   malah menjauhkan dari tengah yang sebenarnya. transform di sini HANYA
+   membalik TAMPILANNYA saja (murni visual/CSS) -- proses decode QR
+   (canvas.drawImage(video,...)) dan deteksi wajah (tf.browser.fromPixels
+   via face-api.js) tetap mengambil data piksel asli dari video, TIDAK
+   ikut terbalik, jadi pembacaan QR maupun deteksi wajah tetap akurat
+   seperti sebelumnya. */
+#scanVideo{position:relative;width:100%;height:100%;object-fit:cover;display:block;z-index:1;background:transparent;transform:scaleX(-1)}
 .scan-overlay{display:none}
 
 .scan-flash{

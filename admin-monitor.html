@@ -128,7 +128,7 @@ async function api(action, params = {}) {
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(`${API_BASE}/api/admin-monitor`, {
+    res = await fetch(`${API_BASE}/api/monitor`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, ...params }), signal: controller.signal
     });
@@ -173,7 +173,7 @@ function statBox(n, l, cls) {
 
 async function init() {
   if (!TOKEN) { renderState('❌', 'QR tidak valid', 'Kode QR ini tidak berisi token yang bisa dibaca.'); return; }
-  const info = await api('getInfo', { token: TOKEN });
+  const info = await api('adminGetInfo', { token: TOKEN });
   if (!info.success) { renderState('⛔', 'Tidak bisa membuka dashboard', info.message); return; }
   INFO = info;
   renderShell();
@@ -220,18 +220,18 @@ async function loadTab(tab) {
 
   if (tab === 'sistem') {
     const [master, perangkat, aktivitas] = await Promise.all([
-      api('getRingkasanMaster', { token: TOKEN }),
-      api('getStatusPerangkat', { token: TOKEN }),
-      api('getAktivitasTerbaru', { token: TOKEN })
+      api('adminGetRingkasanMaster', { token: TOKEN }),
+      api('adminGetStatusPerangkat', { token: TOKEN }),
+      api('adminGetAktivitasTerbaru', { token: TOKEN })
     ]);
     if (!master.success) { el.innerHTML = `<div class="empty">❌ ${esc(master.message)}</div>`; return; }
     el.innerHTML = renderSistem(master, perangkat, aktivitas);
   } else if (tab === 'hari') {
-    const d = await api('getLiveHariIni', { token: TOKEN });
+    const d = await api('adminGetLiveHariIni', { token: TOKEN });
     if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
     el.innerHTML = renderHariIni(d);
   } else {
-    const d = await api('getRekapPeriode', { token: TOKEN, rentang: tab });
+    const d = await api('adminGetRekapPeriode', { token: TOKEN, rentang: tab });
     if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
     el.innerHTML = renderRekapPeriode(d);
   }

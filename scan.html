@@ -1527,6 +1527,27 @@ async function processScanGuruAbsenKelas(data) {
 
   try {
     const result = await api('scan', 'scanKartu', { identifier, mode: scanMode, pilihan: 'mengajar' });
+
+    // PENTING (perbaikan bug "scan kartu Kepsek malah login"): kartu DEPAN
+    // Kepala Sekolah formatnya sama persis dengan kartu depan guru biasa
+    // ("GR..."), jadi lolos cek identifier.startsWith('GR') di atas. Tapi
+    // di server (api/scan.js, poin 1c) kartu ini SELALU dibalas
+    // tipe:'guru_login' (APAPUN pilihan yang dikirim, termasuk 'mengajar'
+    // yang kita kirim di sini) supaya kepsek bisa login lewat kartu
+    // sendiri dari halaman scan biasa. Kalau dibiarkan lanjut ke
+    // handleScanResult() di bawah, cabang 'guru_login' di sana akan
+    // langsung menyimpan sesi & redirect ke dashboard kepsek -- padahal
+    // guru piket cuma sedang mencoba Absen Kelas dan salah pencet kartu
+    // Kepsek. Ditahan DI SINI, sebelum sempat masuk ke handleScanResult(),
+    // supaya tidak pernah ikut login.
+    if (result.tipe === 'guru_login') {
+      showFlash('warning','🧑‍💼','Itu kartu Kepsek/Login');
+      toast('🧑‍💼😄 Itu kartu Kepsek (atau kartu login), bukan kartu Guru mapel. Scan kartu Guru yang jadwalnya mengajar jam ini untuk Absen Kelas, ya!', 4500);
+      scanCooldown = false;
+      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+
     // PENTING: hanya keluar dari mode "menunggu Absen Kelas" kalau hasil
     // scan BENAR-BENAR berhasil (result.success). SEBELUMNYA 3 baris reset
     // di bawah dijalankan tanpa syarat begitu server membalas -- termasuk

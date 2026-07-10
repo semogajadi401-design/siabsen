@@ -157,10 +157,24 @@ async function resetSemua() {
   const { error: e2 } = await supabase.from('sesi_piket').delete().neq('id', 'x');
   if (e2) return { success: false, message: 'Gagal hapus riwayat sesi piket: ' + e2.message };
 
+  // BARU: sebelumnya "Reset Guru" tidak menyentuh data fitur mengajar sama
+  // sekali, padahal jadwal_mengajar dan absensi_mengajar juga punya
+  // id_guru yang menunjuk ke guru(id) -- persis kasus sesi_piket di atas.
+  // Kalau tidak dibersihkan dulu, baris-baris itu jadi "yatim" (menunjuk
+  // guru yang sudah tidak ada), dan kalau suatu saat FK-nya dibuat strict
+  // seperti sesi_piket, DELETE guru akan gagal lagi. Pakai fungsi terpusat
+  // dari api/mengajar.js supaya urutan hapus anak->induk di tabel-tabel
+  // mengajar (kehadiran_siswa_mapel -> absensi_mengajar,
+  // keterangan_mengajar -> jadwal_mengajar) tidak perlu diduplikasi di sini.
+  const hasilMengajar = await require('./mengajar').resetSemua();
+  if (!hasilMengajar.success) {
+    return { success: false, message: 'Gagal hapus data jadwal/absensi mengajar: ' + hasilMengajar.message };
+  }
+
   const { error: e3 } = await supabase.from('guru').delete().neq('id', 'x');
   if (e3) return { success: false, message: 'Gagal hapus guru: ' + e3.message };
 
-  return { success: true, message: 'Semua data guru, jadwal piket, dan riwayat sesi piket berhasil dihapus (akun admin tetap aman)' };
+  return { success: true, message: 'Semua data guru, jadwal piket, riwayat sesi piket, jadwal mengajar, jam pelajaran, dan riwayat absensi mengajar berhasil dihapus (akun admin tetap aman)' };
 }
 
 // ── IMPORT GURU (batch, sama pola dengan importSiswa di api/siswa.js) ──

@@ -3141,6 +3141,76 @@ function buildAdminCardHTML(settings, adminUser) {
   </div>`, qrId: ADMIN_QR_ID };
 }
 
+// ── ADMIN CARD — HALAMAN BELAKANG (BARU) ──────────────────────────
+// Sama pola dengan buildKartuGuruBackHTML() untuk kepsek: QR di sini
+// mengarah ke URL "/admin-monitor/TOKEN" yang membuka Dashboard Sistem
+// admin (read-only, publik tanpa login) -- lihat api/admin-monitor.js.
+// Token yang dipakai SAMA dengan QR di kartu DEPAN (ADMIN_QR_ID di atas,
+// isinya admin.qrToken juga) -- sengaja tidak dibuat token baru, karena
+// siapa pun yang pegang kartu ini fisik sudah bisa bypass login penuh
+// lewat QR depan, jadi dashboard read-only di belakang tidak menambah
+// risiko baru. TIDAK ada blok "Akun Login" seperti kartu guru/kepsek di
+// sini -- password admin tidak disimpan reversibel (beda dari guru),
+// dan QR bypass login admin memang sudah ada di kartu depan.
+function buildAdminCardBackHTML(settings, adminUser) {
+  const schoolName = (settings['NAMA_SEKOLAH'] || 'NAMA SEKOLAH').toUpperCase();
+  const schoolAddr = settings['ALAMAT_SEKOLAH'] || '-';
+  const telp       = settings['TELP_SEKOLAH'] || '-';
+  const email      = settings['EMAIL_SEKOLAH'] || '-';
+  const adminNama  = adminUser?.nama || 'Administrator';
+  const DASHBOARD_URL = window.location.origin + '/admin-monitor/' + (adminUser?.qrToken || '');
+
+  return { html: `
+  <div id="kartuAdminBackPrint" style="width:215px;border-radius:16px;font-family:'Segoe UI',Arial,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;background:#070714;color:#fff;flex-shrink:0;border:1px solid rgba(0,212,255,0.4);box-shadow:0 0 40px rgba(0,212,255,0.2)">
+
+    <!-- ANIMATED GRID BG -->
+    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.04) 1px,transparent 1px);background-size:12px 12px;pointer-events:none;z-index:0"></div>
+    <div style="position:absolute;top:-30px;left:50%;transform:translateX(-50%);width:180px;height:80px;background:radial-gradient(ellipse,rgba(124,58,237,0.3),transparent 70%);pointer-events:none;z-index:0"></div>
+
+    <!-- HEADER -->
+    <div style="position:relative;z-index:2;padding:7px 12px;text-align:center;border-bottom:1px solid rgba(0,212,255,0.2)">
+      <div style="font-size:7pt;font-weight:800;color:#00d4ff;text-transform:uppercase;letter-spacing:.4px">Informasi Kartu Administrator</div>
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.6);margin-top:1px">${schoolName}</div>
+    </div>
+
+    <!-- PEMILIK -->
+    <div style="position:relative;z-index:2;margin:8px 10px 0;background:rgba(0,212,255,0.06);border:1.5px solid rgba(0,212,255,0.35);border-radius:8px;padding:7px 9px;flex-shrink:0">
+      <div style="font-size:8pt;font-weight:800;color:#fff;margin-bottom:1px">${esc(adminNama)}</div>
+      <div style="font-size:5.3pt;color:rgba(255,255,255,0.6);line-height:1.35">Administrator Sistem &nbsp;•&nbsp; Full System Access</div>
+    </div>
+
+    <!-- NOTICE -->
+    <div style="position:relative;z-index:2;margin:6px 10px 0;background:rgba(198,40,40,0.12);border-radius:6px;padding:6px 9px;border-left:2.5px solid #ff5252;flex-shrink:0">
+      <div style="font-size:5.3pt;font-weight:800;color:#ff8a80;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">⚠ Kartu Identitas Resmi & Rahasia</div>
+      <div style="font-size:5.4pt;color:rgba(255,255,255,0.75);line-height:1.4">Kartu ini memberi akses penuh ke sistem. Jika hilang, segera laporkan ke pihak sekolah untuk reset token.</div>
+    </div>
+
+    <!-- KONTAK -->
+    <div style="position:relative;z-index:2;margin:6px 10px 0;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.25);border-radius:8px;padding:5px 9px;flex-shrink:0">
+      <div style="font-size:4.5pt;color:rgba(255,255,255,0.5);letter-spacing:.3px;margin-bottom:2px;text-transform:uppercase">Hubungi Sekolah</div>
+      <div style="font-size:5.4pt;color:rgba(255,255,255,0.85);font-weight:600;line-height:1.4">📍 ${schoolAddr}</div>
+      <div style="font-size:5.4pt;color:rgba(255,255,255,0.85);font-weight:600;line-height:1.4">📞 ${telp} &nbsp;•&nbsp; ✉️ ${esc(email)}</div>
+    </div>
+
+    <!-- QR DASHBOARD — panel terang di atas kartu gelap (sama alasan
+         dengan QR depan: auto-exposure kamera HP lebih stabil). -->
+    <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:7px 12px 5px;flex:1;justify-content:center">
+      <div style="width:100%;max-width:184px;background:linear-gradient(180deg,#ffffff,#f2f8ff);border-radius:12px;padding:8px 10px 6px;box-sizing:border-box;border:1.5px solid rgba(0,212,255,0.55);box-shadow:0 0 22px rgba(0,212,255,0.25);display:flex;flex-direction:column;align-items:center">
+        <div style="font-size:4.3pt;color:#0077cc;letter-spacing:.5px;text-transform:uppercase;font-weight:800;margin-bottom:4px">Scan untuk Dashboard Sistem</div>
+        <div style="width:74px;height:74px;background:#fff;border-radius:8px;padding:4px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;line-height:0">
+          <div id="kartuAdminBackQR" style="width:66px;height:66px;overflow:hidden;line-height:0;flex-shrink:0"></div>
+        </div>
+      </div>
+      <div style="font-size:4pt;color:rgba(0,212,255,0.55);margin-top:5px;letter-spacing:.3px;font-family:monospace">Publik • tanpa login</div>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="position:relative;z-index:2;background:linear-gradient(90deg,rgba(0,212,255,0.1),rgba(0,128,255,0.1),rgba(124,58,237,0.1));border-top:1px solid rgba(0,212,255,0.2);padding:4px 10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-size:4.5pt;color:rgba(255,255,255,0.6);letter-spacing:.3px;font-weight:600">SiAbsen System</span>
+    </div>
+  </div>`, qrUrl: DASHBOARD_URL };
+}
+
 async function renderAdminCardPreview() {
   const user = APP.user;
   if (!user || user.role !== 'admin') return;
@@ -3154,7 +3224,8 @@ async function renderAdminCardPreview() {
   if (!container) return;
 
   const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
-  container.innerHTML = html;
+  const { html: htmlBack, qrUrl } = buildAdminCardBackHTML(APP.settings || {}, user);
+  container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:center">${html}${htmlBack}</div>`;
 
   setTimeout(() => {
     const qrEl = document.getElementById('kartuAdminQR');
@@ -3167,7 +3238,35 @@ async function renderAdminCardPreview() {
         correctLevel: QRCode.CorrectLevel.L
       });
     }
+    const qrBackEl = document.getElementById('kartuAdminBackQR');
+    if (qrBackEl && typeof QRCode !== 'undefined') {
+      new QRCode(qrBackEl, {
+        text: qrUrl,
+        width: 66, height: 66,
+        colorDark: '#000000',
+        colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
   }, 300);
+}
+
+// ── HELPER: render 1 sisi kartu admin (dark theme) jadi dataURL PNG ──
+// Dipakai untuk depan & belakang -- backgroundColor dipaksa gelap
+// (#070714) karena captureKartu() umum di file ini defaultnya putih,
+// yang akan bocor di sudut membulat kartu admin yang bertema gelap.
+async function captureKartuAdminGelap(kartu) {
+  const w = kartu.offsetWidth || 215;
+  const h = kartu.scrollHeight || kartu.offsetHeight || 400;
+  if (typeof domtoimage !== 'undefined') {
+    return domtoimage.toPng(kartu, { width: w, height: h, style: { 'box-shadow': 'none' }, quality: 1, scale: 3 });
+  }
+  const cv = await html2canvas(kartu, {
+    scale: 3, useCORS: true, allowTaint: true,
+    backgroundColor: '#070714', width: w, height: h,
+    windowWidth: 215, logging: false, imageTimeout: 15000
+  });
+  return cv.toDataURL('image/png', 1.0);
 }
 
 async function downloadKartuAdmin() {
@@ -3182,47 +3281,68 @@ async function downloadKartuAdmin() {
   toast('⏳ Menyiapkan kartu admin...');
 
   const { html, qrId } = buildAdminCardHTML(APP.settings || {}, user);
+  const { html: htmlBack, qrUrl } = buildAdminCardBackHTML(APP.settings || {}, user);
 
-  // Buat wrapper di luar viewport tapi tetap visible
+  // Buat wrapper di luar viewport tapi tetap visible (depan & belakang
+  // dirender berdampingan, TIDAK bertumpuk, supaya offsetWidth/scrollHeight
+  // masing-masing terbaca benar oleh html2canvas/dom-to-image).
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;left:-9999px;top:50px;width:215px;z-index:9999;visibility:visible';
-  wrap.innerHTML = html;
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:50px;display:flex;gap:40px;z-index:9999;visibility:visible';
+  wrap.innerHTML = html + htmlBack;
   document.body.appendChild(wrap);
 
   await new Promise(r => setTimeout(r, 80));
 
-  const kartu = document.getElementById('kartuAdminPrint');
-  if (!kartu) { toast('❌ Gagal: elemen kartu tidak ditemukan'); document.body.removeChild(wrap); return; }
+  const kartuFront = document.getElementById('kartuAdminPrint');
+  const kartuBack  = document.getElementById('kartuAdminBackPrint');
+  if (!kartuFront) { toast('❌ Gagal: elemen kartu tidak ditemukan'); document.body.removeChild(wrap); return; }
 
-  // Hapus conic-gradient dan animasi
-  kartu.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
-    el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
-    el.style.animation = 'none';
-  });
-  kartu.querySelectorAll('[style*="animation"]').forEach(el => {
-    el.style.animation = 'none';
+  [kartuFront, kartuBack].forEach(kartu => {
+    if (!kartu) return;
+    kartu.querySelectorAll('[style*="conic-gradient"]').forEach(el => {
+      el.style.background = 'linear-gradient(135deg,#00d4ff,#0080ff,#7c3aed)';
+      el.style.animation = 'none';
+    });
+    kartu.querySelectorAll('[style*="animation"]').forEach(el => { el.style.animation = 'none'; });
   });
 
-  // Render QR lalu ganti canvas dengan <img>
+  // Render QR depan lalu ganti canvas dengan <img>
   const qrEl = document.getElementById('kartuAdminQR');
   if (qrEl && typeof QRCode !== 'undefined') {
     qrEl.innerHTML = '';
-    // Native 4x (312px) discale-down ke 78px via <img> style di bawah --
-    // tepi modul tetap tajam, sama seperti kartu guru & siswa.
     new QRCode(qrEl, {
       text: qrId, width: 312, height: 312,
       colorDark: '#000000', colorLight: '#FFFFFF',
       correctLevel: QRCode.CorrectLevel.L
     });
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 500));
     const qrCanvas = qrEl.querySelector('canvas');
     if (qrCanvas && qrCanvas.width > 0 && qrCanvas.height > 0) {
-      const du = qrCanvas.toDataURL('image/png');
       const img = document.createElement('img');
-      img.src = du;
+      img.src = qrCanvas.toDataURL('image/png');
       img.style.cssText = 'width:78px;height:78px;display:block;flex-shrink:0';
       qrEl.innerHTML = '';
       qrEl.appendChild(img);
+    }
+  }
+
+  // Render QR belakang (URL dashboard sistem)
+  const qrBackEl = document.getElementById('kartuAdminBackQR');
+  if (qrBackEl && typeof QRCode !== 'undefined') {
+    qrBackEl.innerHTML = '';
+    new QRCode(qrBackEl, {
+      text: qrUrl, width: 264, height: 264,
+      colorDark: '#000000', colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    await new Promise(r => setTimeout(r, 500));
+    const qrCanvas = qrBackEl.querySelector('canvas');
+    if (qrCanvas && qrCanvas.width > 0 && qrCanvas.height > 0) {
+      const img = document.createElement('img');
+      img.src = qrCanvas.toDataURL('image/png');
+      img.style.cssText = 'width:66px;height:66px;display:block;flex-shrink:0';
+      qrBackEl.innerHTML = '';
+      qrBackEl.appendChild(img);
     }
   }
 
@@ -3230,42 +3350,39 @@ async function downloadKartuAdmin() {
 
   try {
     const { jsPDF } = window.jspdf;
-    const w = kartu.offsetWidth || 215;
-    const h = kartu.scrollHeight || kartu.offsetHeight || 400;
 
-    // Coba dom-to-image-more dulu (kompatibel Edge/Chrome/Firefox)
-    // Fallback ke html2canvas kalau gagal
-    let pngDataUrl;
-    if (typeof domtoimage !== 'undefined') {
-      pngDataUrl = await domtoimage.toPng(kartu, {
-        width: w,
-        height: h,
-        style: { 'box-shadow': 'none' },
-        quality: 1,
-        scale: 3
-      });
-    } else {
-      // Fallback html2canvas
-      const cv = await html2canvas(kartu, {
-        scale: 3, useCORS: true, allowTaint: true,
-        backgroundColor: '#070714', width: w, height: h,
-        windowWidth: 215, logging: false, imageTimeout: 15000
-      });
-      pngDataUrl = cv.toDataURL('image/png', 1.0);
-    }
+    const pngFront = await captureKartuAdminGelap(kartuFront);
+    const pngBack  = kartuBack ? await captureKartuAdminGelap(kartuBack) : null;
 
-    // Buat PDF dari PNG
-    const tmpImg = new Image();
-    await new Promise((res, rej) => { tmpImg.onload = res; tmpImg.onerror = rej; tmpImg.src = pngDataUrl; });
-    // Ukuran fisik kartu DIPAKSA tetap (85mm x 108mm) — sedikit lebih kecil
-    // dari gantungan ID card sekolah (92mm x 115mm) supaya mudah dimasukkan
-    // setelah digunting.
+    // Ukuran fisik kartu DIPAKSA tetap (85mm x 108mm), sama seperti kartu
+    // guru/siswa. Belakang ditumpuk di bawah depan dalam 1 file, dirotasi
+    // 180° supaya begitu kertas dibalik pas dilihat, tulisannya sudah
+    // menghadap benar.
     const CARD_W_PT = 8.5 * 28.3465;
     const CARD_H_PT = 10.8 * 28.3465;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, CARD_H_PT] });
-    pdf.addImage(pngDataUrl, 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
+    const GAP_PT = 4;
+    const totalH_PT = CARD_H_PT + (pngBack ? GAP_PT + CARD_H_PT : 0);
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, totalH_PT] });
+    pdf.addImage(pngFront, 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
+
+    if (pngBack) {
+      const backImg = new Image();
+      await new Promise((res, rej) => { backImg.onload = res; backImg.onerror = rej; backImg.src = pngBack; });
+      const flipped = document.createElement('canvas');
+      flipped.width  = backImg.naturalWidth;
+      flipped.height = backImg.naturalHeight;
+      const ctx = flipped.getContext('2d');
+      ctx.save();
+      ctx.translate(flipped.width / 2, flipped.height / 2);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(backImg, -flipped.width / 2, -flipped.height / 2);
+      ctx.restore();
+      pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG', 0, CARD_H_PT + GAP_PT, CARD_W_PT, CARD_H_PT);
+    }
+
     pdf.save(`Kartu_Admin_${esc((user.nama || 'Administrator').replace(/\s+/g, '_'))}.pdf`);
-    toast('✅ Kartu Admin berhasil didownload!', 'success');
+    toast('✅ Kartu Admin (depan+belakang) berhasil didownload!', 'success');
   } catch (e) {
     toast('❌ Gagal: ' + e.message, 'error');
   } finally {

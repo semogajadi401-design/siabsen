@@ -54,6 +54,20 @@ CREATE INDEX IF NOT EXISTS idx_guru_qr_token ON guru(qr_token);
 ALTER TABLE guru ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'guru';
 UPDATE guru SET role = 'guru' WHERE role IS NULL;
 
+-- ── PASSWORD TERENKRIPSI (REVERSIBLE) UNTUK KARTU GURU ───────────────
+-- Kolom `password` di atas berisi hash bcrypt SATU ARAH (untuk login,
+-- tidak bisa dibalikin ke teks asli). Kolom BARU ini menyimpan password
+-- yang sama tapi dienkripsi AES-256-GCM (bisa dibalikin, lihat
+-- encryptPassword/decryptPassword di api/_db.js), khusus supaya admin
+-- bisa mencetak ulang password guru di kartu identitas (termasuk saat
+-- download kartu massal) tanpa perlu reset password dulu.
+-- PERHATIAN KEAMANAN: berbeda dari kolom `password`, kolom ini bisa
+-- dibaca ulang kalau database + kunci enkripsi (env var
+-- PASSWORD_ENC_KEY / SUPABASE_SERVICE_KEY) sama-sama bocor. Guru lama
+-- yang dibuat SEBELUM kolom ini ada akan bernilai NULL di sini sampai
+-- password mereka di-set ulang (edit/reset) minimal sekali.
+ALTER TABLE guru ADD COLUMN IF NOT EXISTS password_enc TEXT;
+
 -- ─── TABEL SISWA ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS siswa (
   id TEXT PRIMARY KEY,

@@ -1,5 +1,5 @@
 // api/guru.js — CRUD Data Guru
-const { supabase, hashPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, generateGuruQrToken, generateGuruQrTokenBatch } = require('./_db');
+const { supabase, hashPassword, encryptPassword, decryptPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, generateGuruQrToken, generateGuruQrTokenBatch } = require('./_db');
 
 // Semua aksi di file ini mengubah/menghapus data master guru, jadi semuanya
 // wajib login admin. Hanya dipanggil dari index.html (dashboard admin),
@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
 
 async function getAll({ activeOnly }) {
   let q = supabase.from('guru')
-    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,role,created_at')
+    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,role,created_at,password_enc')
     .order('nama');
   if (activeOnly === true || activeOnly === 'true') q = q.eq('status', 'Aktif');
   const { data, error } = await q;
@@ -58,7 +58,14 @@ async function getAll({ activeOnly }) {
       id: g.id, nama: g.nama, jenisKelamin: g.jenis_kelamin,
       jabatan: g.jabatan, nip: g.nip, noHp: g.no_hp,
       email: g.email, alamat: g.alamat, username: g.username, status: g.status,
-      qrToken: g.qr_token, role: g.role || 'guru'
+      qrToken: g.qr_token, role: g.role || 'guru',
+      // Password asli (didekripsi dari password_enc) -- sengaja disertakan
+      // di sini supaya kartu identitas (single maupun download massal)
+      // bisa menampilkannya. Guru lama yang belum pernah di-edit/reset
+      // sejak fitur ini ada akan bernilai null (password_enc belum
+      // terisi) -- kartu untuk guru itu akan menampilkan "-" alih-alih
+      // password, bukan error.
+      password: g.password_enc ? decryptPassword(g.password_enc) : null
     }))
   };
 }
@@ -76,7 +83,8 @@ async function tambah({ data }) {
     id, nama: data.nama, jenis_kelamin: data.jenisKelamin,
     jabatan: data.jabatan, nip: data.nip || '', no_hp: data.noHp || '',
     email: data.email || '', alamat: data.alamat || '',
-    username, password: await hashPassword(rawPassword), status: 'Aktif',
+    username, password: await hashPassword(rawPassword),
+    password_enc: encryptPassword(rawPassword), status: 'Aktif',
     qr_token: await generateGuruQrToken(), role
   });
   if (error) return { success: false, message: error.message };
@@ -93,7 +101,9 @@ async function edit({ id, data }) {
     role: data.role === 'kepsek' ? 'kepsek' : 'guru'
   };
   if (data.password && data.password.trim().length >= 6) {
-    updates.password = await hashPassword(data.password.trim());
+    const rawPassword = data.password.trim();
+    updates.password = await hashPassword(rawPassword);
+    updates.password_enc = encryptPassword(rawPassword);
   }
   const { error } = await supabase.from('guru').update(updates).eq('id', id);
   if (error) return { success: false, message: error.message };
@@ -128,7 +138,10 @@ async function resetPassword({ id }) {
   const { data: guru } = await supabase.from('guru').select('username').eq('id', id).single();
   if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
   const newPass = generatePassword();
-  await supabase.from('guru').update({ password: await hashPassword(newPass) }).eq('id', id);
+  await supabase.from('guru').update({
+    password: await hashPassword(newPass),
+    password_enc: encryptPassword(newPass)
+  }).eq('id', id);
   return { success: true, message: 'Password direset', password: newPass, username: guru.username };
 }
 
@@ -259,6 +272,7 @@ async function importGuru({ dataList }) {
       alamat: data.alamat || '',
       username,
       password: await hashPassword(rawPassword),
+      password_enc: encryptPassword(rawPassword),
       status: 'Aktif',
       qr_token: qrTokens[i],
       role

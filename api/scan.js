@@ -2,15 +2,14 @@ const {
   supabase, generateID, setCors,
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
-  getJamPulangEfektif, cekIzinPiket, verifyPassword,
-  cekJadwalMengajarSaatIni
+  getJamPulangEfektif, cekIzinPiket, verifyPassword
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
 // SAMA PERSIS, bukan menduplikasi/menyederhanakan aturannya sendiri —
-// lihat komentar lengkap di _db.js. cekJadwalMengajarSaatIni() (Langkah C,
-// baru) mengikuti pola yang sama, dipakai untuk memperkaya teks modal
-// pilihan Mengajar/Piket di bawah.
+// lihat komentar lengkap di _db.js. Modal pilihan Mengajar/Piket sudah
+// dihapus -- lihat catatan di scanKartu() di bawah; absen mengajar
+// sekarang HANYA lewat tombol "Absen Kelas".
 
 // scanSesiMengajar (api/mengajar.js) DIPAKAI ULANG di sini, BUKAN dipanggil
 // lewat HTTP -- di kiosk (scan.html) tidak ada guruToken (tidak ada sesi
@@ -239,33 +238,22 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
     if (!guru) return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
 
-    // ── PILIH DULU: ABSEN MENGAJAR ATAU PIKET? (Langkah C, baru) ──────
-    // Keputusan terbaru: SETIAP kartu guru discan, guru SELALU ditanya
-    // dulu mau absen mengajar atau piket -- tidak lagi cuma pada kondisi
-    // "kebetulan bentrok jadwal". `pilihan` dikirim scan.html pada
-    // percobaan KEDUA (setelah guru menekan tombol di modal pilihan),
-    // jadi ini TIDAK berlaku untuk guru_login/admin (prefix beda, sudah
-    // ditangani di atas) dan TIDAK mengubah apa pun di bawah kalau
-    // pilihan === 'piket' (jalur piket asli tetap persis sama).
-    if (pilihan !== 'mengajar' && pilihan !== 'piket') {
-      // Info jadwal mengajar sekarang cuma untuk memperkaya teks modal
-      // (opsional) -- bukan syarat untuk menampilkan pilihan. Kalau tidak
-      // ada jadwal saat ini, tombol "Mengajar" tetap ditampilkan; kalau
-      // ditekan, scanSesiMengajar yang akan menolak dengan pesan yang
-      // jelas ("Tidak ada jadwal mengajar Anda pada jam ini").
-      const cekJadwal = await cekJadwalMengajarSaatIni({ guruId: guru.id, hari, jam });
-      return {
-        success: false,
-        tipe: 'pilih_mengajar_piket',
-        perluPilihMengajarPiket: true,
-        message: `Scan kartu ${guru.nama}. Absen untuk apa?`,
-        guru: { id: guru.id, nama: guru.nama, jabatan: guru.jabatan },
-        jadwalMengajar: cekJadwal.ada
-          ? { mapel: cekJadwal.jadwal.mapel, kelas: cekJadwal.jadwal.kelas }
-          : null
-      };
-    }
-
+    // ── ABSEN MENGAJAR VS PIKET ────────────────────────────────────
+    // SEBELUMNYA (Langkah C): setiap kartu guru discan di sini SELALU
+    // menampilkan modal "Absen untuk apa?" (mengajar/piket), walau kiosk
+    // sudah punya tombol "📚 Absen Kelas" sendiri yang jadi pintu masuk
+    // eksplisit ke absen mengajar (lihat mulaiAbsenKelas()/
+    // processScanGuruAbsenKelas() di scan.html, yang mengirim
+    // pilihan:'mengajar' langsung tanpa modal). Akibatnya kartu guru yang
+    // discan lewat kamera UTAMA (bukan lewat tombol itu) tetap ditanya
+    // ulang mengajar/piket -- padahal scan di kamera utama memang cuma
+    // untuk piket, dan absen mengajar sudah punya pintu sendiri.
+    //
+    // Sekarang disederhanakan: kartu guru yang discan di kamera utama
+    // (pilihan tidak dikirim / bukan 'mengajar') SELALU diproses sebagai
+    // ABSEN PIKET langsung, sama seperti sebelum Langkah C ada. Absen
+    // mengajar HANYA bisa dipicu lewat tombol "📚 Absen Kelas", yang
+    // mengirim pilihan:'mengajar' secara eksplisit dan ditangani di bawah.
     if (pilihan === 'mengajar') {
       // Guru sudah pilih "Mengajar" di modal -> catat sesi mengajar lewat
       // scanSesiMengajar (api/mengajar.js), TIDAK diproses sebagai piket

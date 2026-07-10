@@ -1349,30 +1349,24 @@ const PESAN_SAPAAN_PEMBUAT = [
   `✨ Halo ${NAMA_PEMBUAT}, semua sistem berjalan normal hari ini!`,
 ];
 
-// "Sidik wajah" (descriptor 128 dimensi) DIPERBARUI 11 Juli 2026 dari 7
-// foto yang dikirim langsung oleh pembuat aplikasi. Dari 7 foto, cuma 4
-// yang wajahnya berhasil dideteksi model (3 lainnya sudut kameranya
-// terlalu ekstrem -- kamera terlalu menunduk/mendongak sehingga wajah
-// tidak terbaca sebagai wajah sama sekali oleh TinyFaceDetector, BUKAN
-// soal cocok/tidak cocok). Descriptor di bawah ini adalah RATA-RATA dari
-// 4 foto yang valid tsb, dihitung pakai model & parameter deteksi PERSIS
-// SAMA dengan yang dipakai cekWajahPembuat() di bawah (inputSize 608,
-// scoreThreshold 0.4) supaya hasilnya konsisten dengan yang dipakai saat
-// scan sungguhan.
+// "Sidik wajah" (descriptor 128 dimensi) DIPERBARUI LAGI 11 Juli 2026,
+// kali ini dari 6 dari 7 foto yang dikirim pembuat aplikasi (1 foto
+// yang sudutnya PALING ekstrem -- kepala menunduk sangat dalam sampai
+// cuma dahi & mata melirik ke bawah yang kelihatan -- sengaja DIBUANG
+// dari rata-rata: bukan soal deteksi lagi, tapi di sudut se-ekstrem itu
+// model PENGENALAN wajahnya sendiri sudah tidak bisa diandalkan --
+// jaraknya ke 6 foto lain 0.72-0.80, jauh di luar variasi wajar. Kalau
+// tetap diikutkan, malah merusak akurasi utk sudut yang wajar).
 //
-// Jarak PAIRWISE terjauh ANTAR foto referensi itu sendiri: 0.5033 --
-// artinya threshold lama (0.5) itu SUDAH PAS-PASAN bahkan cuma untuk
-// membandingkan foto-foto pembuat aplikasi dgn foto pembuat aplikasi yg
-// lain sendiri (belum lawan kondisi kamera kios yg beda lagi)! Itu
-// sebabnya sering "tidak mengenali" walau wajah sudah tertangkap kamera.
-const REFERENCE_DESCRIPTOR = new Float32Array([-0.084125,0.082051,0.047808,-0.027723,-0.001546,-0.080616,0.085217,-0.049252,0.190694,-0.085124,0.298922,-0.016875,-0.21186,-0.150605,0.036414,0.145134,-0.196511,-0.099038,-0.107123,-0.11222,-0.013829,-0.03263,0.050082,0.078027,-0.054422,-0.317255,-0.104122,-0.154136,0.06412,-0.081837,0.01424,0.062594,-0.213694,-0.114643,-0.06685,-0.013272,0.01001,-0.033593,0.219721,0.010284,-0.137346,-0.030327,-0.006438,0.290302,0.153182,-0.008784,-0.012819,0.061146,0.064031,-0.240014,0.018809,0.092764,0.176312,0.046127,0.039568,-0.113227,-0.000553,0.050309,-0.167554,0.020673,0.015376,-0.085448,-0.049479,-0.029362,0.273978,0.098958,-0.099263,-0.106022,0.182749,-0.10104,-0.004716,0.105454,-0.133462,-0.124456,-0.280742,0.136037,0.400336,0.106649,-0.141046,-0.004443,-0.186229,0.005095,0.000672,0.009388,-0.105183,0.039397,-0.114909,0.039069,0.106978,-0.017609,-0.102496,0.208207,-0.042417,0.041273,0.019877,-0.02723,-0.002861,-0.001659,-0.122532,0.04145,0.097553,-0.114065,-0.017921,0.077911,-0.170696,0.053296,0.007358,-0.016397,0.003334,0.109596,-0.15191,-0.059454,0.136781,-0.264614,0.206155,0.184177,-0.014184,0.110806,0.037925,0.068582,-0.059278,-0.061768,-0.116121,-0.067869,0.115367,0.001798,0.066607,0.024743]);
-// Threshold DINAIKKAN dari 0.5 -> 0.6 (nilai rekomendasi default
-// face-api.js sendiri untuk "orang yang sama"), memberi margin yang
-// jauh lebih aman di atas 0.5033 (jarak pairwise terjauh foto referensi
-// sendiri) tapi masih jauh di bawah jarak khas antar-ORANG BERBEDA
-// (biasanya 0.8+), jadi risiko salah kenali orang lain sebagai pembuat
-// tetap kecil.
-const FACE_MATCH_THRESHOLD = 0.6;
+// Descriptor di bawah dihitung pakai SSD MobileNet v1 (lihat perubahan
+// detektor di muatModelWajah() & cekWajahPembuat() di bawah).
+const REFERENCE_DESCRIPTOR = new Float32Array([-0.101279,0.079009,0.055478,-0.018599,0.015287,-0.084042,0.091673,-0.056711,0.190844,-0.081844,0.282528,-0.021815,-0.205188,-0.15307,0.04586,0.144915,-0.198042,-0.101845,-0.117617,-0.121756,-0.017762,-0.028353,0.05231,0.073299,-0.069616,-0.324842,-0.101325,-0.152551,0.067371,-0.065685,0.011604,0.057042,-0.219206,-0.106028,-0.05789,0.001288,0.012661,-0.035893,0.216519,0.005714,-0.13405,-0.037784,0.000225,0.280632,0.143885,-0.006835,-0.011263,0.059529,0.060312,-0.232464,0.018823,0.094299,0.174339,0.042945,0.051059,-0.109969,0.002737,0.044467,-0.171725,0.01576,0.01781,-0.082894,-0.051596,-0.02544,0.26721,0.09892,-0.101591,-0.09157,0.181696,-0.10262,0.012961,0.095594,-0.119917,-0.126448,-0.284601,0.124729,0.405955,0.101623,-0.137462,-0.006188,-0.187491,-0.001622,0.003605,0.007331,-0.1227,0.046864,-0.109112,0.05036,0.111159,-0.002612,-0.09289,0.20061,-0.040699,0.030495,0.012088,-0.034686,-0.005671,-0.009676,-0.110194,0.046222,0.095521,-0.115443,-0.014253,0.074415,-0.183007,0.052257,0.017059,-0.028138,0.00508,0.108238,-0.156722,-0.05624,0.132197,-0.268899,0.1928,0.187825,-0.022465,0.117623,0.029051,0.066033,-0.060215,-0.055288,-0.114393,-0.068722,0.11234,-0.005006,0.070036,0.028566]);
+// Jarak pairwise terjauh antar 6 foto (yang dipakai): 0.5347. Threshold
+// dinaikkan ke 0.62 -- kasih margin ± 0.085 di atas variasi foto sendiri
+// (kondisi kamera kios nanti pasti beda device/pencahayaan lagi dari
+// sesi foto ini, jadi margin ekstra diperlukan), tapi masih jauh di
+// bawah jarak khas antar-ORANG BERBEDA (umumnya 0.8+).
+const FACE_MATCH_THRESHOLD = 0.62;
 // Jangan sapa berkali-kali selagi wajah masih di depan kamera -- cukup
 // sekali per beberapa menit (mengikuti prinsip yang sama dengan
 // scannedHistory di atas: sekali kenal, tidak perlu diulang terus).
@@ -1381,12 +1375,26 @@ let _sapaanTerakhir = 0;
 let _faceModelsSiap = false;
 let _faceCheckInterval = null;
 
+// PERUBAHAN DETEKTOR (11 Juli 2026): TinyFaceDetector diganti SSD
+// MobileNet v1. Diuji langsung ke 7 foto pembuat aplikasi -- TinyFace-
+// Detector cuma berhasil di 3-4 foto (gagal total di foto yang kepala
+// menunduk/mendongak), sedangkan SSD MobileNet v1 berhasil di 7/7 foto
+// dengan skor keyakinan tinggi (0.79-0.998), TERMASUK yang sedikit
+// menunduk atau miring. SSD MobileNet memang lebih berat dari
+// TinyFaceDetector, tapi ini AMAN karena pengecekan cuma jalan tiap 3
+// detik (bukan tiap frame seperti loop baca QR) -- lihat
+// mulaiCekWajahPembuat() di bawah. Catatan jujur: untuk sudut yang
+// BENAR-BENAR ekstrem (kepala menunduk sangat dalam, wajah nyaris tidak
+// kelihatan), tidak ada model pengenalan wajah manapun yang bisa
+// diandalkan -- itu bukan lagi soal "detektor kurang canggih", tapi
+// memang datanya sendiri sudah tidak cukup buat dikenali (lihat catatan
+// REFERENCE_DESCRIPTOR di atas soal foto yang dibuang).
 async function muatModelWajah() {
   try {
     if (typeof faceapi === 'undefined') return; // library gagal dimuat, diamkan saja
     // Model diletakkan di ROOT repo (bukan di dalam folder /models),
     // menyesuaikan dengan lokasi file yang sudah diupload.
-    await faceapi.nets.tinyFaceDetector.loadFromUri('/');
+    await faceapi.nets.ssdMobilenetv1.loadFromUri('/');
     await faceapi.nets.faceLandmark68Net.loadFromUri('/');
     await faceapi.nets.faceRecognitionNet.loadFromUri('/');
     _faceModelsSiap = true;
@@ -1411,21 +1419,15 @@ async function cekWajahPembuat() {
 
   try {
     const hasil = await faceapi
-      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
-        // PERBAIKAN "tidak terdeteksi kalau agak jauh dari kamera":
-        // inputSize default (416) menyusutkan frame cukup agresif demi
-        // kecepatan, sehingga wajah yang porsinya kecil di frame (posisi
-        // agak jauh) jadi terlalu buram bagi model utk dideteksi. Dinaikkan
-        // ke 608 (lebih detail, sedikit lebih berat) -- ini AMAN dilakukan
-        // di sini karena pengecekan cuma jalan tiap 3 detik (bukan tiap
-        // frame seperti loop baca QR), jadi ada banyak ruang performa.
-        // scoreThreshold diturunkan sedikit (0.5 -> 0.4) supaya deteksi
-        // wajah agak jauh/miring tidak keburu dianggap "bukan wajah" oleh
-        // detektornya sendiri, SEBELUM sempat dibandingkan ke
-        // REFERENCE_DESCRIPTOR (FACE_MATCH_THRESHOLD di atas yang tetap
-        // menjaga supaya tidak salah kenali orang lain).
-        inputSize: 608,
-        scoreThreshold: 0.4
+      .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({
+        // minConfidence rendah (0.15) supaya wajah dengan sudut agak
+        // menunduk/miring/jauh tetap dianggap "ada wajah" oleh detektor
+        // -- SSD MobileNet v1 jauh lebih tahan pose ekstrem dibanding
+        // TinyFaceDetector, jadi ambang serendah ini tetap aman (tidak
+        // asal nangkap bentuk lain sebagai wajah). FACE_MATCH_THRESHOLD
+        // di atas tetap jadi penjaga utama supaya tidak salah kenali
+        // orang lain.
+        minConfidence: 0.15
       }))
       .withFaceLandmarks()
       .withFaceDescriptor();

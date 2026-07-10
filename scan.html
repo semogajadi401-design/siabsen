@@ -1356,9 +1356,11 @@ let _faceCheckInterval = null;
 async function muatModelWajah() {
   try {
     if (typeof faceapi === 'undefined') return; // library gagal dimuat, diamkan saja
-    await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-    await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-    await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+    // Model diletakkan di ROOT repo (bukan di dalam folder /models),
+    // menyesuaikan dengan lokasi file yang sudah diupload.
+    await faceapi.nets.tinyFaceDetector.loadFromUri('/');
+    await faceapi.nets.faceLandmark68Net.loadFromUri('/');
+    await faceapi.nets.faceRecognitionNet.loadFromUri('/');
     _faceModelsSiap = true;
   } catch (e) {
     // Diamkan -- ini fitur easter egg, kegagalan di sini TIDAK BOLEH

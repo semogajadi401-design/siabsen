@@ -232,6 +232,56 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   }
   // ===========================================================================
 
+  // ========== 1c. CEK APAKAH QR KEPSEK — KARTU DEPAN, LOGIN LANGSUNG ==========
+  // PERBAIKAN: sebelumnya kartu DEPAN Kepala Sekolah (formatnya sama dengan
+  // kartu depan guru biasa, "GR...") ikut lolos ke bawah dan diproses lewat
+  // alur absen piket seperti guru pada umumnya, lalu SELALU ditolak oleh
+  // cekIzinPiket() dengan pesan "Akun Kepala Sekolah tidak diperbolehkan
+  // tercatat sebagai guru piket..." — sesuatu yang di sisi kiosk tampil
+  // sebagai "Gagal diproses". Itu memang benar kalau tujuannya mencatat
+  // piket, tapi salah kalau kartu ini justru dipakai kepsek untuk LOGIN ke
+  // akunnya sendiri (mis. buka menu pengawasan piket / riwayat).
+  //
+  // Sekarang disamakan persis dengan pola kartu admin (poin 1) dan QR
+  // belakang guru "GURU_LOGIN|" (poin 1b): begitu id "GR..." ini terdeteksi
+  // milik akun ber-role 'kepsek', LANGSUNG login ke akunnya — APAPUN
+  // KONDISINYA (di luar jam operasional, sudah ada/belum ada guru piket
+  // hari ini, dst) — tanpa pernah masuk ke cekIzinPiket()/logika piket sama
+  // sekali. Sengaja dicek DI SINI, SEBELUM validasi jam operasional di
+  // bawah, supaya kartu kepsek juga tidak ikut tertahan jam absensi seperti
+  // guru/siswa (sama seperti QR admin yang juga dicek sebelum validasi jam).
+  if (id.startsWith('GR')) {
+    const { data: calonKepsek } = await supabase
+      .from('guru')
+      .select('id, nama, jabatan, username, status, role, qr_token')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (calonKepsek && calonKepsek.role === 'kepsek') {
+      if (calonKepsek.status !== 'Aktif') {
+        return { success: false, tipe: 'guru_login', message: 'Akun guru tidak aktif' };
+      }
+      return {
+        success: true,
+        tipe: 'guru_login',
+        message: `Login sebagai ${calonKepsek.nama}`,
+        guru: {
+          id: calonKepsek.id, nama: calonKepsek.nama,
+          jabatan: calonKepsek.jabatan, username: calonKepsek.username,
+          role: 'kepsek',
+          // qrToken di sini bukan token QR belakang (guru ini belum tentu
+          // punya qr_token belakang di-generate) -- dipakai index.html
+          // hanya sebagai guruToken verifikasi identitas berikutnya, sama
+          // seperti dipakai di alur GURU_LOGIN| di atas.
+          qrToken: calonKepsek.qr_token
+        }
+      };
+    }
+    // Bukan kepsek -> lanjut normal ke validasi jam & logika guru biasa
+    // (poin 2) di bawah, TIDAK ADA YANG DIUBAH dari sini.
+  }
+  // ===========================================================================
+
   // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
   const jamSetting = await getJamSetting();
   const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';

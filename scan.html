@@ -1327,7 +1327,7 @@ const PER_COOLDOWN   = 30000;
 // disimpan -- cuma "sidik wajah" berupa 128 angka), tampilkan sapaan.
 //
 // GANTI nama di bawah ini sesuai keinginan:
-const NAMA_PEMBUAT = 'Pembuat saya, Tasrif Abbas';
+const NAMA_PEMBUAT = 'Bos'; // contoh: 'Pak Budi', 'Kak Rina', dst.
 
 // Beberapa variasi pesan supaya tidak monoton kalau muncul berkali-kali
 // di hari yang sama -- dipilih acak tiap kali cocok.
@@ -1383,7 +1383,22 @@ async function cekWajahPembuat() {
 
   try {
     const hasil = await faceapi
-      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
+        // PERBAIKAN "tidak terdeteksi kalau agak jauh dari kamera":
+        // inputSize default (416) menyusutkan frame cukup agresif demi
+        // kecepatan, sehingga wajah yang porsinya kecil di frame (posisi
+        // agak jauh) jadi terlalu buram bagi model utk dideteksi. Dinaikkan
+        // ke 608 (lebih detail, sedikit lebih berat) -- ini AMAN dilakukan
+        // di sini karena pengecekan cuma jalan tiap 3 detik (bukan tiap
+        // frame seperti loop baca QR), jadi ada banyak ruang performa.
+        // scoreThreshold diturunkan sedikit (0.5 -> 0.4) supaya deteksi
+        // wajah agak jauh/miring tidak keburu dianggap "bukan wajah" oleh
+        // detektornya sendiri, SEBELUM sempat dibandingkan ke
+        // REFERENCE_DESCRIPTOR (FACE_MATCH_THRESHOLD di atas yang tetap
+        // menjaga supaya tidak salah kenali orang lain).
+        inputSize: 608,
+        scoreThreshold: 0.4
+      }))
       .withFaceLandmarks()
       .withFaceDescriptor();
     if (!hasil) return;

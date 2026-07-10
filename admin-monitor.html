@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Dashboard Administrator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cyan:#00d4ff;--cyan-dim:#0080ff;--purple:#7c3aed;
+  --bg:#070714;--surface:#fff;--text:#1a1a1a;--text-muted:#777;--border:#eee;
+  --success:#2E7D32;--warning:#F57F17;--danger:#C62828;
+  --font:'Segoe UI',system-ui,Arial,sans-serif;
+}
+html,body{height:100%}
+body{
+  font-family:var(--font);min-height:100vh;min-height:100dvh;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(0,212,255,.25), transparent 55%),
+    radial-gradient(circle at 90% 100%, rgba(124,58,237,.25), transparent 55%),
+    var(--bg);
+  color:var(--text);padding:16px;display:flex;justify-content:center;
+}
+.wrap{width:100%;max-width:780px}
+
+.state-box{
+  width:100%;max-width:420px;margin:10vh auto 0;
+  background:var(--surface);border-radius:16px;padding:36px 24px;text-align:center;
+  box-shadow:0 20px 50px rgba(0,0,0,.35);
+}
+.spinner{width:40px;height:40px;border:4px solid #e5e5e5;border-top-color:var(--cyan-dim);border-radius:50%;
+  margin:0 auto 16px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.state-box h3{font-size:1rem;margin-bottom:6px}
+.state-box p{font-size:.85rem;color:var(--text-muted);line-height:1.5}
+.state-box .emoji{font-size:2.2rem;margin-bottom:10px}
+
+.card{background:var(--surface);border-radius:18px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.45);
+  animation:popIn .3s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes popIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+
+.header{background:linear-gradient(120deg,#0a0a1a 0%,#0d1b3e 60%,#0a0a1a 100%);
+  padding:16px 20px;color:#fff;border-bottom:1px solid rgba(0,212,255,.3)}
+.header .tag{display:inline-block;background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.5);
+  color:var(--cyan);font-size:.62rem;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:20px;
+  text-transform:uppercase;margin-bottom:6px}
+.header h1{font-size:1.1rem;font-weight:800}
+.header .sub{font-size:.78rem;color:rgba(255,255,255,.75);margin-top:2px}
+
+.tabs{display:flex;gap:6px;padding:12px 16px 0;background:#f4f7fb;overflow-x:auto}
+.tab-btn{flex-shrink:0;padding:8px 14px;border-radius:9px 9px 0 0;border:none;cursor:pointer;
+  font-size:.78rem;font-weight:700;background:transparent;color:var(--text-muted)}
+.tab-btn.active{background:var(--surface);color:var(--cyan-dim)}
+
+.content{padding:16px 18px 20px;background:var(--surface)}
+.section{margin-bottom:18px}
+.section:last-child{margin-bottom:0}
+.section-title{font-size:.72rem;font-weight:800;color:var(--cyan-dim);text-transform:uppercase;
+  letter-spacing:.4px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
+@media(max-width:480px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-box{background:#f4f7fb;border-radius:10px;padding:10px 6px;text-align:center;border:1px solid #e5ecf4}
+.stat-box .n{font-size:1.15rem;font-weight:800;color:var(--cyan-dim)}
+.stat-box .l{font-size:.62rem;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.2px}
+.stat-box.success .n{color:var(--success)}
+.stat-box.warning .n{color:var(--warning)}
+.stat-box.danger .n{color:var(--danger)}
+.stat-box.purple .n{color:var(--purple)}
+
+.pct-bar-wrap{background:#eee;border-radius:20px;height:8px;overflow:hidden;margin-top:8px}
+.pct-bar{height:100%;background:linear-gradient(90deg,var(--cyan-dim),var(--success))}
+
+.list-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.list-item:last-child{border-bottom:none}
+.avatar{width:34px;height:34px;border-radius:9px;background:#eef5fd;color:var(--cyan-dim);
+  display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:.85rem}
+.li-main{flex:1;min-width:0}
+.li-name{font-weight:600;font-size:.85rem}
+.li-sub{font-size:.72rem;color:var(--text-muted)}
+.badge{font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:20px;flex-shrink:0}
+.badge-success{background:#e8f5e9;color:var(--success)}
+.badge-warning{background:#fff8e1;color:var(--warning)}
+.badge-danger{background:#ffebee;color:var(--danger)}
+.badge-info{background:#e3f2fd;color:var(--cyan-dim)}
+.badge-gray{background:#f0f0f0;color:#777}
+.badge-purple{background:#f1e9fe;color:var(--purple)}
+
+.empty{font-size:.8rem;color:var(--text-muted);padding:10px 0;text-align:center}
+
+.footer-note{padding:12px 18px;background:#f4f7fb;font-size:.68rem;color:var(--text-muted);text-align:center;line-height:1.5}
+.btn-refresh{margin-top:14px;width:100%;padding:11px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,var(--cyan),var(--cyan-dim));
+  color:#fff;font-weight:700;font-size:.85rem;cursor:pointer}
+.btn-close{
+  display:block;width:100%;margin-top:10px;padding:11px;border-radius:10px;border:1.5px solid #ddd;
+  background:#fff;color:#555;font-weight:700;font-size:.82rem;cursor:pointer;
+}
+.btn-close:active{transform:scale(.97)}
+
+.device-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.device-dot.on{background:var(--success);box-shadow:0 0 6px var(--success)}
+.device-dot.off{background:#bbb}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="state-box">
+    <div class="spinner"></div>
+    <h3>Memuat dashboard sistem...</h3>
+    <p>Mengambil data terbaru, mohon tunggu sebentar.</p>
+  </div>
+</div>
+
+<script>
+function esc(s){
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+const API_BASE = window.location.origin;
+const API_TIMEOUT_MS = 8000;
+
+async function api(action, params = {}) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { success: false, message: 'Tidak ada koneksi internet. Dashboard ini butuh koneksi internet untuk dimuat.' };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api/admin-monitor`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...params }), signal: controller.signal
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') return { success: false, message: 'Koneksi terlalu lambat. Coba refresh lagi.' };
+    return { success: false, message: 'Gagal terhubung ke server. Pastikan HP terhubung ke internet.' };
+  }
+  clearTimeout(timer);
+  if (!res.ok) return { success: false, message: `Server error (status ${res.status})` };
+  try { return await res.json(); } catch (e) { return { success: false, message: 'Respons server tidak valid.' }; }
+}
+
+// Dukung /admin-monitor?t=TOKEN dan /admin-monitor/TOKEN
+const qp = new URLSearchParams(window.location.search);
+const pathMatch = window.location.pathname.match(/\/admin-monitor\/([^/?#]+)/i);
+const TOKEN = qp.get('t') || qp.get('token') || (pathMatch ? pathMatch[1] : '') || '';
+
+let INFO = null;
+let currentTab = 'sistem';
+
+function tombolTutupHTML() {
+  return `<button class="btn-close" onclick="tutupDanKembaliKeScan()">✖ Tutup dan kembali ke halaman scan</button>`;
+}
+function tutupDanKembaliKeScan() {
+  window.location.href = window.location.origin + '/scan';
+}
+
+function renderState(emoji, title, msg) {
+  document.getElementById('app').innerHTML = `
+    <div class="state-box">
+      <div class="emoji">${emoji}</div>
+      <h3>${esc(title)}</h3>
+      <p>${esc(msg)}</p>
+      ${tombolTutupHTML()}
+    </div>`;
+}
+
+function statBox(n, l, cls) {
+  return `<div class="stat-box ${cls||''}"><div class="n">${n}</div><div class="l">${esc(l)}</div></div>`;
+}
+
+async function init() {
+  if (!TOKEN) { renderState('❌', 'QR tidak valid', 'Kode QR ini tidak berisi token yang bisa dibaca.'); return; }
+  const info = await api('getInfo', { token: TOKEN });
+  if (!info.success) { renderState('⛔', 'Tidak bisa membuka dashboard', info.message); return; }
+  INFO = info;
+  renderShell();
+  loadTab('sistem');
+}
+
+function renderShell() {
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      <div class="header">
+        <div class="tag">🛡️ Dashboard Administrator</div>
+        <h1>${esc(INFO.namaSekolah)}</h1>
+        <div class="sub">Halo, ${esc(INFO.admin.nama)} — keadaan sistem & sekolah saat ini</div>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" id="tabbtn-sistem" onclick="loadTab('sistem')">🖥️ Sistem</button>
+        <button class="tab-btn" id="tabbtn-hari" onclick="loadTab('hari')">📍 Hari Ini</button>
+        <button class="tab-btn" id="tabbtn-minggu" onclick="loadTab('minggu')">📅 7 Hari</button>
+        <button class="tab-btn" id="tabbtn-bulan" onclick="loadTab('bulan')">🗓️ Bulan Ini</button>
+      </div>
+      <div class="content" id="tabContent">
+        <div class="empty">Memuat...</div>
+      </div>
+      <div class="footer-note">
+        Data diperbarui langsung dari server. Halaman ini hanya bisa dibuka lewat QR kartu Administrator.
+      </div>
+      <div style="padding:0 18px 18px">
+        ${tombolTutupHTML()}
+      </div>
+    </div>`;
+}
+
+function setActiveTabBtn(tab) {
+  ['sistem','hari','minggu','bulan'].forEach(t => {
+    document.getElementById('tabbtn-' + t).classList.toggle('active', t === tab);
+  });
+}
+
+async function loadTab(tab) {
+  currentTab = tab;
+  setActiveTabBtn(tab);
+  const el = document.getElementById('tabContent');
+  el.innerHTML = `<div class="empty">⏳ Memuat data...</div>`;
+
+  if (tab === 'sistem') {
+    const [master, perangkat, aktivitas] = await Promise.all([
+      api('getRingkasanMaster', { token: TOKEN }),
+      api('getStatusPerangkat', { token: TOKEN }),
+      api('getAktivitasTerbaru', { token: TOKEN })
+    ]);
+    if (!master.success) { el.innerHTML = `<div class="empty">❌ ${esc(master.message)}</div>`; return; }
+    el.innerHTML = renderSistem(master, perangkat, aktivitas);
+  } else if (tab === 'hari') {
+    const d = await api('getLiveHariIni', { token: TOKEN });
+    if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
+    el.innerHTML = renderHariIni(d);
+  } else {
+    const d = await api('getRekapPeriode', { token: TOKEN, rentang: tab });
+    if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
+    el.innerHTML = renderRekapPeriode(d);
+  }
+}
+
+// ═══════════════ TAB SISTEM (khusus admin) ═══════════════
+function renderSistem(master, perangkat, aktivitas) {
+  const sem = master.semesterAktif;
+
+  const perangkatHTML = (perangkat.success && perangkat.perangkat.length)
+    ? perangkat.perangkat.map(p => `
+      <div class="list-item">
+        <div class="device-dot ${p.online ? 'on' : 'off'}"></div>
+        <div class="li-main">
+          <div class="li-name">${esc(p.label)}</div>
+          <div class="li-sub">${p.online ? 'Online' : 'Terakhir lapor ' + formatDurasi(p.detikSejakLapor) + ' lalu'}</div>
+        </div>
+        ${p.antrianPending > 0
+          ? `<span class="badge badge-warning">⏳ ${p.antrianPending} antri</span>`
+          : `<span class="badge badge-success">✅ Kosong</span>`}
+      </div>`).join('')
+    : `<div class="empty">${perangkat.success ? 'Belum ada perangkat yang pernah lapor status.' : '❌ ' + esc(perangkat.message || 'Gagal memuat status perangkat')}</div>`;
+
+  const aktivitasHTML = (aktivitas.success && aktivitas.aktivitas.length)
+    ? aktivitas.aktivitas.map(a => `
+      <div class="list-item">
+        <div class="avatar">${a.tipe === 'piket' ? '🪪' : '📚'}</div>
+        <div class="li-main">
+          <div class="li-name">${esc(a.teks)}</div>
+          <div class="li-sub">${esc(a.tanggal)}${a.jam ? ' • ' + esc(a.jam) : ''}</div>
+        </div>
+      </div>`).join('')
+    : `<div class="empty">${aktivitas.success ? 'Belum ada aktivitas tercatat dalam 3 hari terakhir.' : '❌ ' + esc(aktivitas.message || 'Gagal memuat aktivitas terbaru')}</div>`;
+
+  return `
+    <div class="section">
+      <div class="section-title">🗂️ Ringkasan Data Master</div>
+      <div class="stat-grid">
+        ${statBox(master.guruAktif, 'Guru Aktif', '')}
+        ${statBox(master.siswaAktif, 'Siswa Aktif', '')}
+        ${statBox(master.jumlahKelasAktif, 'Kelas Aktif', '')}
+        ${statBox(master.guruTidakAktif, 'Guru Nonaktif', 'warning')}
+      </div>
+      ${sem
+        ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:6px">Semester berjalan: <b>${esc(sem.nama)}</b> (${esc(sem.tahunAjaran || '-')}) — ${esc(sem.mulai)} s/d ${esc(sem.selesai)}</div>`
+        : `<div style="font-size:.72rem;color:var(--danger);margin-top:6px">⚠️ Belum ada semester aktif yang diatur.</div>`}
+    </div>
+
+    <div class="section">
+      <div class="section-title">🖥️ Status Sinkronisasi & Antrian Offline</div>
+      ${perangkat.success ? `
+      <div class="stat-grid">
+        ${statBox(perangkat.ringkasan.online, 'Online', 'success')}
+        ${statBox(perangkat.ringkasan.offline, 'Offline', 'danger')}
+        ${statBox(perangkat.ringkasan.totalAntrianPending, 'Item Antri', perangkat.ringkasan.totalAntrianPending > 0 ? 'warning' : '')}
+        ${statBox(perangkat.ringkasan.totalPerangkat, 'Total Device', 'purple')}
+      </div>` : ''}
+      <div style="margin-top:6px">${perangkatHTML}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🕒 Aktivitas Terbaru (3 Hari Terakhir)</div>
+      ${aktivitasHTML}
+    </div>
+    <button class="btn-refresh" onclick="loadTab('sistem')">🔄 Refresh</button>
+  `;
+}
+
+function formatDurasi(detik) {
+  if (detik < 60) return `${detik} detik`;
+  const menit = Math.floor(detik / 60);
+  if (menit < 60) return `${menit} menit`;
+  const jam = Math.floor(menit / 60);
+  if (jam < 24) return `${jam} jam`;
+  return `${Math.floor(jam / 24)} hari`;
+}
+
+// ═══════════════ TAB HARI INI / MINGGU / BULAN (sama seperti kepsek) ═══════════════
+function renderHariIni(d) {
+  if (!d.hariSekolah) {
+    return `<div class="empty">😴 Hari ini (${esc(d.hari)}) bukan hari sekolah${d.keteranganLibur ? ' — ' + esc(d.keteranganLibur) : ''}.</div>`;
+  }
+  const k = d.kehadiranSiswa;
+  const m = d.mengajar;
+
+  const sakitIzinHTML = k.daftarSakitIzin.length
+    ? k.daftarSakitIzin.map(s => `
+      <div class="list-item">
+        <div class="avatar">${esc((s.nama||'?').charAt(0))}</div>
+        <div class="li-main">
+          <div class="li-name">${esc(s.nama)}</div>
+          <div class="li-sub">${esc(s.kelas)}${s.keterangan ? ' • ' + esc(s.keterangan) : ''}</div>
+        </div>
+        <span class="badge ${s.status==='Sakit'?'badge-warning':'badge-info'}">${esc(s.status)}</span>
+      </div>`).join('')
+    : `<div class="empty">Tidak ada siswa sakit/izin tercatat hari ini.</div>`;
+
+  const piketHTML = d.piket.length
+    ? d.piket.map(p => `
+      <div class="list-item">
+        <div class="avatar">${esc((p.namaGuru||'?').charAt(0))}</div>
+        <div class="li-main">
+          <div class="li-name">${esc(p.namaGuru)}</div>
+          <div class="li-sub">${esc(p.jabatan||'-')}${p.jamLapor ? ' • lapor ' + esc(p.jamLapor) : ''}</div>
+        </div>
+        <span class="badge ${p.sudahLapor?'badge-success':'badge-danger'}">${p.sudahLapor?'✅ Sudah Lapor':'⛔ Belum Lapor'}</span>
+      </div>`).join('')
+    : `<div class="empty">Tidak ada jadwal piket hari ini.</div>`;
+
+  const mengajarSection = (title, arr, renderer, emptyMsg) => `
+    <div class="section-title" style="margin-top:14px">${title} (${arr.length})</div>
+    ${arr.length ? arr.map(renderer).join('') : `<div class="empty">${emptyMsg}</div>`}
+  `;
+
+  return `
+    <div class="section">
+      <div class="section-title">📊 Kehadiran Siswa Hari Ini</div>
+      <div class="stat-grid">
+        ${statBox(k.hadir, 'Hadir', 'success')}
+        ${statBox(k.terlambat, 'Terlambat', 'warning')}
+        ${statBox(k.sakit + k.izin, 'Sakit/Izin', '')}
+        ${statBox(k.alpha, 'Tanpa Keterangan', 'danger')}
+      </div>
+      <div style="font-size:.72rem;color:var(--text-muted)">dari total ${k.totalSiswa} siswa aktif</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🤒 Siswa Sakit / Izin Hari Ini</div>
+      ${sakitIzinHTML}
+    </div>
+
+    <div class="section">
+      <div class="section-title">🪪 Guru Piket Hari Ini</div>
+      ${piketHTML}
+    </div>
+
+    <div class="section">
+      <div class="section-title">📚 Status Mengajar Guru (Real-time, jam ${esc(d.jamSekarang)})</div>
+      ${mengajarSection('🟢 Sedang Mengajar', m.sedangMengajar, g => `
+        <div class="list-item">
+          <div class="avatar">${esc((g.namaGuru||'?').charAt(0))}</div>
+          <div class="li-main"><div class="li-name">${esc(g.namaGuru)}</div>
+            <div class="li-sub">${esc(g.mapel)} • ${esc(g.kelas)}</div></div>
+          <span class="badge ${g.tercatatAbsen?'badge-success':'badge-warning'}">${g.tercatatAbsen?'Absen ✓':'Belum Absen'}</span>
+        </div>`, 'Tidak ada guru yang sedang mengajar saat ini.')}
+      ${mengajarSection('✅ Sudah Selesai Mengajar', m.sudahSelesai, g => `
+        <div class="list-item">
+          <div class="avatar">${esc((g.namaGuru||'?').charAt(0))}</div>
+          <div class="li-main"><div class="li-name">${esc(g.namaGuru)}</div>
+            <div class="li-sub">${g.totalSesi} sesi hari ini</div></div>
+          ${g.adaYangTidakTercatat ? '<span class="badge badge-warning">Ada sesi tak tercatat</span>' : '<span class="badge badge-success">Lengkap</span>'}
+        </div>`, 'Belum ada guru yang menyelesaikan jadwal mengajarnya.')}
+      ${mengajarSection('⏳ Belum Mulai Mengajar', m.belumMulai, g => `
+        <div class="list-item">
+          <div class="avatar">${esc((g.namaGuru||'?').charAt(0))}</div>
+          <div class="li-main"><div class="li-name">${esc(g.namaGuru)}</div>
+            <div class="li-sub">${esc(g.mapel)} • ${esc(g.kelas)} — mulai ${esc(g.jamMulai)}</div></div>
+        </div>`, 'Tidak ada guru yang masih menunggu jadwalnya.')}
+    </div>
+    <button class="btn-refresh" onclick="loadTab('hari')">🔄 Refresh</button>
+  `;
+}
+
+function renderRekapPeriode(d) {
+  const k = d.kehadiranSiswa;
+  const labelRentang = d.rentang === 'minggu' ? '7 Hari Terakhir' : 'Bulan Ini';
+
+  const piketHTML = d.kepatuhanPiket.length
+    ? d.kepatuhanPiket.map(g => `
+      <div class="list-item">
+        <div class="avatar">${esc((g.namaGuru||'?').charAt(0))}</div>
+        <div class="li-main">
+          <div class="li-name">${esc(g.namaGuru)}</div>
+          <div class="li-sub">Tepat: ${g.hadirTepat} • Digantikan: ${g.digantikan} • Tanpa Piket: ${g.tanpaPiket}</div>
+        </div>
+        ${g.tanpaPiket > 0
+          ? `<span class="badge badge-danger">⚠️ ${g.tanpaPiket}x bolong</span>`
+          : `<span class="badge badge-success">✅ Patuh</span>`}
+      </div>`).join('')
+    : `<div class="empty">Belum ada jadwal piket yang diatur.</div>`;
+
+  return `
+    <div class="section">
+      <div class="section-title">📊 Rekap Kehadiran Siswa — ${esc(labelRentang)}</div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px">${esc(d.tanggalMulai)} s/d ${esc(d.tanggalSelesai)} (${d.jumlahHariSekolah} hari sekolah)</div>
+      <div class="stat-grid">
+        ${statBox(k.hadir, 'Hadir', 'success')}
+        ${statBox(k.terlambat, 'Terlambat', 'warning')}
+        ${statBox(k.sakit + k.izin, 'Sakit/Izin', '')}
+        ${statBox(k.alpha, 'Tanpa Keterangan', 'danger')}
+      </div>
+      <div class="pct-bar-wrap"><div class="pct-bar" style="width:${k.persentaseKehadiran}%"></div></div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Persentase kehadiran: <b>${k.persentaseKehadiran}%</b></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🪪 Kepatuhan Piket Guru — ${esc(labelRentang)}</div>
+      ${piketHTML}
+    </div>
+    <button class="btn-refresh" onclick="loadTab('${d.rentang}')">🔄 Refresh</button>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

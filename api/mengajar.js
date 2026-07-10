@@ -134,6 +134,18 @@ async function getJamPelajaran({ hari } = {}) {
 // simpanJamPelajaran: upsert banyak baris sekaligus (halaman admin biasanya
 // mengatur jam ke-1..ke-N untuk satu hari dalam satu form, lalu simpan semua
 // sekaligus). rows: [{ hari, jamKe, jamMulai, jamSelesai }, ...]
+//
+// BARU: semantik diganti jadi "ganti semua jam pelajaran untuk hari yang
+// dikirim" (hapus dulu baris lama utk hari-hari itu, baru insert baris
+// baru) -- bukan lagi upsert satu-per-satu per jam-ke. Alasannya dua:
+// 1) Kalau admin mengurangi jumlah jam pelajaran (hapus baris terakhir di
+//    UI) lalu simpan, cara upsert lama TIDAK PERNAH menghapus baris jam-ke
+//    yang sudah tidak ada di form -- baris itu tetap nyangkut di DB
+//    selamanya. Cara baru ini otomatis membersihkannya.
+// 2) Sekarang jam pelajaran "default" bisa disiarkan ke banyak hari
+//    sekaligus dalam satu panggilan (lihat simpanJamPelajaranDefault() di
+//    index.html) -- lebih efisien dihapus per-hari dulu baru insert massal,
+//    dibanding query cek-lalu-update/insert satu per satu seperti sebelumnya.
 async function simpanJamPelajaran({ rows }) {
   if (!rows || !Array.isArray(rows) || rows.length === 0)
     return { success: false, message: 'Tidak ada data jam pelajaran untuk disimpan' };
@@ -143,24 +155,18 @@ async function simpanJamPelajaran({ rows }) {
       return { success: false, message: 'Setiap baris wajib punya hari, jamKe, jamMulai, jamSelesai' };
   }
 
-  for (const r of rows) {
-    const { data: existing } = await supabase
-      .from('jam_pelajaran').select('id')
-      .eq('hari', r.hari).eq('jam_ke', r.jamKe).maybeSingle();
+  const hariList = [...new Set(rows.map(r => r.hari))];
 
-    if (existing) {
-      const { error } = await supabase.from('jam_pelajaran')
-        .update({ jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai })
-        .eq('id', existing.id);
-      if (error) return { success: false, message: error.message };
-    } else {
-      const { error } = await supabase.from('jam_pelajaran').insert({
-        id: generateID('JPL'), hari: r.hari, jam_ke: r.jamKe,
-        jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai
-      });
-      if (error) return { success: false, message: error.message };
-    }
-  }
+  const { error: eDel } = await supabase.from('jam_pelajaran').delete().in('hari', hariList);
+  if (eDel) return { success: false, message: 'Gagal membersihkan jam pelajaran lama: ' + eDel.message };
+
+  const toInsert = rows.map(r => ({
+    id: generateID('JPL'), hari: r.hari, jam_ke: r.jamKe,
+    jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai
+  }));
+  const { error: eIns } = await supabase.from('jam_pelajaran').insert(toInsert);
+  if (eIns) return { success: false, message: 'Gagal simpan jam pelajaran: ' + eIns.message };
+
   return { success: true, message: 'Jam pelajaran berhasil disimpan' };
 }
 

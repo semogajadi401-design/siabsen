@@ -1447,7 +1447,7 @@ async function processScanSiswaVerifikasi(data) {
   // Kartu guru (GR...) atau QR lain yang kepencet saat mode verifikasi
   // aktif -- bukan error fatal, cukup kasih tahu supaya guru scan kartu
   // siswa atau tekan "Selesai Verifikasi".
-  if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|')) {
+  if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|') || isKartuRiwayatUrl(raw) || isKartuMonitorUrl(raw)) {
     showFlash('warning','⚠️','Itu bukan kartu siswa');
     toast('⚠️ Sedang Mode Verifikasi Kelas. Scan kartu siswa, atau tekan "Selesai Verifikasi" dulu.');
     scanCooldown = false;
@@ -2044,6 +2044,42 @@ function tokenRiwayatMasukAkal(token) {
   return typeof token === 'string' && /^[A-Za-z0-9]{6,16}$/.test(token);
 }
 
+// QR belakang kartu KEPSEK berisi URL dashboard pengawasan (bukan token
+// login lagi, lihat isiQrBelakangGuru() di index.html), contoh:
+// "https://xxx.vercel.app/monitor/abcd1234". Sama seperti QR riwayat siswa
+// di atas -- kalau tidak sengaja kepencet scan lewat kiosk ini, jangan
+// diproses sebagai scan absensi/piket, langsung buka halamannya.
+function isKartuMonitorUrl(data) {
+  return typeof data === 'string' && /^https?:\/\//i.test(data.trim()) && data.includes('/monitor');
+}
+function ekstrakTokenMonitor(url) {
+  try {
+    const u = new URL(url.trim());
+    const dariQuery = u.searchParams.get('t') || u.searchParams.get('token');
+    if (dariQuery) return dariQuery;
+    const m = u.pathname.match(/\/monitor\/([^/?#]+)/i);
+    return m ? m[1] : '';
+  } catch (e) {
+    return '';
+  }
+}
+function tokenMonitorMasukAkal(token) {
+  return typeof token === 'string' && /^[A-Za-z0-9]{6,16}$/.test(token);
+}
+function bukaKartuMonitor(data) {
+  if (!isOnline) {
+    showFlash('warning', '📴', 'Offline — dashboard tidak bisa dibuka');
+    toast('📴 Dashboard kepala sekolah butuh koneksi internet. Coba lagi kalau sinyal/WiFi sudah tersedia.', 4000);
+    scanCooldown = false;
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  showFlash('guru', '👑', 'Membuka dashboard...');
+  toast('👑 Ini QR dashboard Kepala Sekolah — membuka halamannya...');
+  scanCooldown = false;
+  setTimeout(() => { window.location.href = data.trim(); }, 600);
+}
+
 function bukaKartuRiwayat(data) {
   // PENTING (guard offline): sebelumnya fungsi ini SELALU redirect ke
   // /riwayat tanpa cek koneksi sama sekali. Kalau HP sedang offline,
@@ -2090,6 +2126,15 @@ async function processQR(data) {
       return;
     }
     bukaKartuRiwayat(data);
+    return;
+  }
+  if (isKartuMonitorUrl(data)) {
+    const tokenM = ekstrakTokenMonitor(data);
+    if (!tokenMonitorMasukAkal(tokenM)) {
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+    bukaKartuMonitor(data);
     return;
   }
   const now = Date.now();
@@ -3297,6 +3342,15 @@ async function processQRWithOffline(data) {
       return;
     }
     bukaKartuRiwayat(data);
+    return;
+  }
+  if (isKartuMonitorUrl(data)) {
+    const tokenM = ekstrakTokenMonitor(data);
+    if (!tokenMonitorMasukAkal(tokenM)) {
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+    bukaKartuMonitor(data);
     return;
   }
   if (isOnline) {

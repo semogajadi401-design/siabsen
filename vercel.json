@@ -8,6 +8,8 @@
     { "source": "/riwayat/:token", "destination": "/riwayat.html?t=:token" },
     { "source": "/monitor", "destination": "/monitor.html" },
     { "source": "/monitor/:token", "destination": "/monitor.html?t=:token" },
+    { "source": "/admin-monitor", "destination": "/admin-monitor.html" },
+    { "source": "/admin-monitor/:token", "destination": "/admin-monitor.html?t=:token" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],

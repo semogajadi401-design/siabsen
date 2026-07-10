@@ -50,6 +50,66 @@ async function verifyPassword(password, storedHash) {
   return { valid, needsRehash: valid };
 }
 
+// ── ENKRIPSI PASSWORD (REVERSIBLE) UNTUK DICETAK DI KARTU GURU ───────
+// BEDA dari hashPassword() di atas: hash bcrypt itu SATU ARAH (tidak
+// bisa dibalikin ke password asli) dan tetap dipakai untuk verifikasi
+// login — itu tidak berubah. Fungsi di bawah ini adalah tambahan
+// terpisah, khusus supaya admin bisa mencetak ulang password guru di
+// kartu identitas (termasuk lewat download kartu MASSAL) kapan saja,
+// tanpa guru itu harus login/reset dulu.
+//
+// TRADE-OFF KEAMANAN yang perlu disadari: karena ini reversible
+// (AES-256-GCM, bukan hash satu arah), siapa pun yang berhasil mencuri
+// SUPABASE_SERVICE_KEY / PASSWORD_ENC_KEY sekaligus isi database bisa
+// membaca ulang SEMUA password guru dalam bentuk asli. Ini beda dari
+// kolom `password` (bcrypt) yang tetap aman walau database bocor. Kalau
+// suatu saat kebutuhan cetak password ini sudah tidak diperlukan lagi,
+// sebaiknya kolom `password_enc` dihapus dan admin kembali mengandalkan
+// alur reset password biasa.
+//
+// Kunci enkripsi diambil dari PASSWORD_ENC_KEY (disarankan diisi khusus
+// di environment variable Vercel), dengan fallback ke SUPABASE_SERVICE_KEY
+// supaya tetap jalan walau env var itu belum diisi -- sama pola fallback
+// yang sudah dipakai generateSesiToken() di bawah.
+const PASSWORD_ENC_ALGO = 'aes-256-gcm';
+
+function getPasswordEncKey() {
+  const secret = process.env.PASSWORD_ENC_KEY || process.env.SUPABASE_SERVICE_KEY || '';
+  // sha256 supaya secret apapun panjangnya selalu jadi kunci 32-byte
+  // yang valid untuk aes-256-gcm.
+  return crypto.createHash('sha256').update(String(secret)).digest();
+}
+
+// Hasil enkripsi disimpan sebagai satu string "iv:authTag:ciphertext"
+// (semua base64) supaya muat di satu kolom TEXT tanpa perlu kolom
+// tambahan lain.
+function encryptPassword(plainPassword) {
+  const key = getPasswordEncKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(PASSWORD_ENC_ALGO, key, iv);
+  const encrypted = Buffer.concat([cipher.update(String(plainPassword), 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return [iv, authTag, encrypted].map(b => b.toString('base64')).join(':');
+}
+
+// Mengembalikan null (bukan melempar error) kalau data rusak/format
+// lama/kunci berubah -- supaya satu baris guru yang gagal didekripsi
+// tidak membuat SELURUH daftar guru gagal dimuat.
+function decryptPassword(encoded) {
+  if (!encoded || typeof encoded !== 'string') return null;
+  try {
+    const [ivB64, tagB64, dataB64] = encoded.split(':');
+    if (!ivB64 || !tagB64 || !dataB64) return null;
+    const key = getPasswordEncKey();
+    const decipher = crypto.createDecipheriv(PASSWORD_ENC_ALGO, key, Buffer.from(ivB64, 'base64'));
+    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch (e) {
+    return null;
+  }
+}
+
 // ── GENERATE TOKEN QR ADMIN (acak, tidak bisa ditebak) ────
 function generateQrToken() {
   return crypto.randomBytes(24).toString('hex');
@@ -553,6 +613,7 @@ module.exports = {
   generatePassword, setCors, getJamSetting, todayStr,
   jamSekarang, hariIni, tambahMenit, generateQrToken, generateRiwayatToken,
   generateRiwayatTokenBatch, generateGuruQrToken, generateGuruQrTokenBatch,
+  encryptPassword, decryptPassword,
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni,

@@ -1295,11 +1295,53 @@ function deviceLabelOtomatis() {
 // lengkap di generateKioskToken()/verifyKioskToken() di api/_db.js.
 let _kioskToken = null;
 
-async function api(endpoint, action, params={}) {
-  const body = {action, ...params};
+// PERBAIKAN BUG (race condition "Sesi kiosk tidak valid" walau baru
+// refresh): init() memanggil startScanner() PALING AWAL supaya preview
+// kamera langsung tampak, PARALEL dengan checkStatus() yang baru mengisi
+// _kioskToken setelah getStatus() ke server selesai. Kalau guru sempat
+// scan kartu DI JEDA SINGKAT itu (kamera sudah aktif, tapi getStatus()
+// belum sempat balas), scanKartu terkirim dengan kioskToken masih null
+// -> server menolak dengan pesan "Sesi kiosk tidak valid...", padahal
+// halaman baru saja dimuat/refresh dan sama sekali belum "kedaluwarsa".
+// _aksiButuhToken & pastikanKioskToken() di bawah menutup celah itu: kalau
+// token belum ada saat mau dipakai, kita TUNGGU dulu satu getStatus()
+// (atau numpang ke fetch yang sedang berjalan kalau sudah ada) sebelum
+// request sesungguhnya dikirim -- bukan langsung gagal.
+const _aksiButuhToken = new Set(['scanKartu', 'inputTanpaKartu', 'batchSync']);
+let _kioskTokenPromise = null;
+
+async function pastikanKioskToken() {
+  if (_kioskToken) return _kioskToken;
+  if (_kioskTokenPromise) return _kioskTokenPromise; // numpang fetch yang sudah jalan, jangan dobel
+  _kioskTokenPromise = (async () => {
+    try {
+      const res = await fetch(`${API}/api/scan`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ action: 'getStatus' })
+      });
+      const r = await res.json();
+      if (r && r.success && r.kioskToken) _kioskToken = r.kioskToken;
+    } catch (e) {
+      // Biarkan _kioskToken tetap null -- pemanggil (api()) akan tetap
+      // mengirim request tanpa token kalau ini gagal (mis. benar-benar
+      // offline), server yang akan menolaknya seperti biasa.
+    }
+    _kioskTokenPromise = null;
+    return _kioskToken;
+  })();
+  return _kioskTokenPromise;
+}
+
+async function api(endpoint, action, params={}, _sudahDicobaUlang=false) {
   // Sisipkan otomatis untuk endpoint scan & sync -- kedua endpoint ini
   // memverifikasi kioskToken di server sebelum memproses aksi yang
-  // membuat catatan hadir (scanKartu, inputTanpaKartu, batchSync).
+  // membuat catatan hadir (scanKartu, inputTanpaKartu, batchSync). Kalau
+  // token belum ada sama sekali, TUNGGU dulu sampai siap (lihat catatan
+  // pastikanKioskToken() di atas) -- bukan langsung kirim kosong.
+  if ((endpoint === 'scan' || endpoint === 'sync') && !_kioskToken && _aksiButuhToken.has(action)) {
+    await pastikanKioskToken();
+  }
+  const body = {action, ...params};
   if ((endpoint === 'scan' || endpoint === 'sync') && _kioskToken) {
     body.kioskToken = _kioskToken;
   }
@@ -1307,7 +1349,22 @@ async function api(endpoint, action, params={}) {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(body)
   });
-  return r.json();
+  const hasil = await r.json();
+
+  // JARING PENGAMAN tambahan: kalau server TETAP membalas "sesi kiosk
+  // tidak valid" (mis. token yang sudah kepegang ternyata baru saja
+  // kedaluwarsa, atau clock skew), paksa ambil token baru lalu coba ULANG
+  // SEKALI secara otomatis -- transparan buat guru piket, tidak perlu
+  // manual muat ulang halaman untuk kasus yang sebetulnya sekadar telat
+  // beberapa detik.
+  if (!hasil.success && !_sudahDicobaUlang && _aksiButuhToken.has(action)
+      && typeof hasil.message === 'string' && hasil.message.toLowerCase().includes('kiosk')) {
+    _kioskToken = null;
+    await pastikanKioskToken();
+    return api(endpoint, action, params, true);
+  }
+
+  return hasil;
 }
 
 // ── OFFLINE STATE (harus di atas init agar tersedia saat dipanggil) ──

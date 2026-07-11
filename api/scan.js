@@ -323,6 +323,45 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   }
   // ===========================================================================
 
+  // ========== 1d. CEK QR BELAKANG ADMIN — URL DASHBOARD MONITORING ==========
+  // Format QR: URL lengkap ".../admin-monitor/TOKEN" (lihat buildAdminCardBackHTML
+  // di index.html). BEDA dari QR DEPAN admin ("ADMIN|user|token", poin 1) yang
+  // fungsinya LOGIN -- QR BELAKANG ini fungsinya membuka dashboard monitoring
+  // PUBLIK read-only (admin-monitor.html), bukan login. Normalnya QR ini dibuka
+  // langsung sebagai link lewat kamera HP biasa, TAPI kalau kebetulan discan
+  // lewat kamera utama kiosk, sebelumnya identifier (URL lengkap) tidak cocok
+  // format manapun di atas, jatuh ke alur absensi biasa, dan pengguna cuma
+  // melihat pesan jam operasional yang membingungkan (seolah "tidak dikenali").
+  // Sekarang dikenali eksplisit di sini, SEBELUM validasi jam operasional,
+  // supaya kiosk tetap mengarahkan ke dashboard monitoring -- konsisten
+  // dengan kartu kepsek (depan = login, belakang = selalu dikenali & terarah
+  // ke tujuannya, bukan jatuh ke alur absensi).
+  if (raw.includes('/admin-monitor/')) {
+    const token = (raw.split('/admin-monitor/')[1] || '').split(/[?#]/)[0].trim();
+
+    if (!token) {
+      return { success: false, tipe: 'admin_monitor', message: 'QR dashboard monitoring tidak valid' };
+    }
+
+    const { data: adminMon } = await supabase
+      .from('admin')
+      .select('username, qr_token')
+      .eq('qr_token', token)
+      .maybeSingle();
+
+    if (adminMon && adminMon.qr_token === token) {
+      return {
+        success: true,
+        tipe: 'admin_monitor',
+        message: 'Membuka dashboard monitoring...',
+        redirectUrl: '/admin-monitor/' + token
+      };
+    }
+
+    return { success: false, tipe: 'admin_monitor', message: 'Token dashboard monitoring tidak dikenali' };
+  }
+  // ===========================================================================
+
   // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
   // PERBAIKAN PERFORMA: sebelumnya getJamSetting() dan getJamPulangEfektif()
   // di-await BERURUTAN, padahal query pengaturan_hari_kerja di dalam

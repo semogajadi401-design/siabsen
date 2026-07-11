@@ -264,13 +264,21 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   display:flex;align-items:center;gap:10px;
   color:#B45309;font-size:.8rem;font-weight:600;
 }
-.no-guru-text span{font-size:1.25rem}
+/* Cuma ikon (span pertama, mis. ⏳/⚠️) yang dibesarkan -- sebelumnya rule
+   ini "span{...}" tanpa :first-child, jadi ikut membesarkan span TEKS
+   pesannya juga (jadi 1.25rem, jauh lebih besar dari teks lain di halaman
+   ini seperti .guru-nama .8rem / .guru-jam .68rem). */
+.no-guru-text span:first-child{font-size:1.25rem;flex-shrink:0}
+/* Nama guru piket terjadwal pada pesan "Menunggu ..." -- dibuat hijau
+   terang supaya menonjol dari teks abu di sekitarnya. */
+.nama-guru-terjadwal{color:#22C55E}
 
 /* Teks tebal berkedip -- dipakai untuk menegaskan status "belum bisa
    diproses" (guru piket belum scan) dan "siap" (guru piket sudah scan) */
 @keyframes blinkText{0%,100%{opacity:1}50%{opacity:.25}}
 .blink-text{font-weight:800;animation:blinkText 1.1s ease-in-out infinite}
 .blink-text.blink-green{color:#059669}
+.blink-text.blink-red{color:var(--danger,#E11D48)}
 
 /* Info tambahan "Scan Kartu Siswa sudah siap" di kartu guru sudah ada */
 .siswa-siap-text{
@@ -1353,7 +1361,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         <div id="guruStatusContent">
           <div class="no-guru-text">
             <span>⚠️</span>
-            <span>Guru Piket belum ada. Scan kehadiran Siswa <b class="blink-text">Belum bisa di proses</b>.</span>
+            <span>Guru Piket belum ada. Scan kehadiran Siswa <b class="blink-text blink-red">Belum bisa di proses</b>.</span>
           </div>
         </div>
       </div>
@@ -2795,13 +2803,13 @@ function updateGuruStatus(guruList, status) {
       // Tidak ada jadwal diatur untuk hari ini -> guru manapun boleh scan
       content.innerHTML = `<div class="no-guru-text">
         <span>⚠️</span>
-        <span>Guru Piket belum ada. Scan kehadiran Siswa <b class="blink-text">Belum bisa di proses</b>.</span>
+        <span>Guru Piket belum ada. Scan kehadiran Siswa <b class="blink-text blink-red">Belum bisa di proses</b>.</span>
       </div>`;
     } else {
       const namaTerjadwal = jadwal.map(j => j.nama_guru).join(', ');
       content.innerHTML = `<div class="no-guru-text">
         <span>⏳</span>
-        <span>Menunggu <b>${esc(namaTerjadwal)}</b> (piket terjadwal hari ini). Guru lain yang scan akan diminta konfirmasi jadi pengganti.</span>
+        <span>Menunggu <b class="nama-guru-terjadwal">${esc(namaTerjadwal)}</b> (piket terjadwal hari ini). Guru lain yang scan akan diminta konfirmasi jadi pengganti.</span>
       </div>`;
     }
     return;

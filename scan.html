@@ -1514,6 +1514,14 @@ const FACE_MATCH_THRESHOLD = 0.62;
 // Jangan sapa berkali-kali selagi wajah masih di depan kamera -- cukup
 // sekali per beberapa menit (mengikuti prinsip yang sama dengan
 // scannedHistory di atas: sekali kenal, tidak perlu diulang terus).
+// SAKLAR UJI COBA (2026): matikan/nyalakan fitur "sapaan wajah pembuat"
+// dari satu tempat ini saja. Saat false: model wajah TIDAK dimuat sama
+// sekali (hemat >6MB unduhan & waktu loading) dan cekWajahPembuat() TIDAK
+// pernah dipanggil (lihat mulaiCekWajahPembuat() di bawah) -- dipakai
+// untuk membandingkan apakah fitur ini benar biang kerok scan QR terasa
+// lambat di device kiosk. Tinggal ubah ke true untuk mengaktifkan lagi.
+const FITUR_SAPAAN_WAJAH_AKTIF = false;
+
 const SAPAAN_COOLDOWN_MS = 5 * 60 * 1000; // 5 menit
 let _sapaanTerakhir = 0;
 let _faceModelsSiap = false;
@@ -1728,6 +1736,12 @@ function jadwalkanCekWajahBerikutnya() {
 }
 
 function mulaiCekWajahPembuat() {
+  // SAKLAR UJI COBA (2026): diberi false sementara untuk mengetes apakah
+  // fitur deteksi wajah ini betul penyebab scan QR terasa lambat di
+  // device kiosk. Kalau setelah dites terbukti TIDAK banyak pengaruh dan
+  // fiturnya mau dipakai lagi, tinggal ubah balik ke true -- tidak ada
+  // bagian lain dari kode yang perlu diubah.
+  if (!FITUR_SAPAAN_WAJAH_AKTIF) return;
   if (_faceCheckInterval) return;
   muatModelWajah().then(() => {
     jadwalkanCekWajahBerikutnya();

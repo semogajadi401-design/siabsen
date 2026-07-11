@@ -127,6 +127,17 @@ async function heartbeat({ deviceId, label, antrianPending, userAgent }) {
   }, { onConflict: 'device_id' });
 
   if (error) return { success: false, message: 'Gagal mencatat heartbeat: ' + error.message };
+
+  // BARU — dicatat juga ke perangkat_status_log (menumpuk baris, BUKAN
+  // upsert) supaya riwayat konektivitas dari waktu ke waktu tersimpan,
+  // dipakai fitur "Cek Kesehatan Sistem" (lihat api/monitor.js) untuk
+  // mendeteksi celah waktu yang tidak wajar antar heartbeat. Best-effort:
+  // kalau gagal, tidak menggagalkan heartbeat utama di atas (fitur cek
+  // kesehatan cuma tampilan tambahan, bukan alur kritikal absensi).
+  await supabase.from('perangkat_status_log').insert({
+    device_id: id, label: safeLabel, antrian_pending: pending
+  });
+
   return { success: true };
 }
 

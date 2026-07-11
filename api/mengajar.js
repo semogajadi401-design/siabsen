@@ -279,7 +279,15 @@ async function importJadwalMengajar({ rows }) {
 // (dicocokkan lewat jam_pelajaran), lalu mencatat absensi_mengajar. Kalau
 // tidak ada sesi yang cocok saat ini, ditolak dengan pesan jelas -- bukan
 // asal dicatat, sesuai keputusan sebelumnya.
-async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari }) {
+// PERBAIKAN PERFORMA: parameter jamSetting sekarang OPSIONAL. Kalau
+// pemanggil (mis. scanKartu di scan.js, yang sudah lebih dulu mengambil
+// jamSetting untuk validasi jam operasional) sudah punya nilainya, kirim di
+// sini supaya tidak query tabel pengaturan dari nol lagi untuk baca satu
+// angka toleransi (TOLERANSI_MENGAJAR_MENIT). Kalau tidak dikirim (mis.
+// dipanggil lewat endpoint HTTP /api/mengajar action scanSesiMengajar
+// langsung, tanpa lewat scan.js), tetap di-fetch sendiri seperti sebelumnya
+// -- tidak ada perilaku yang berubah untuk jalur itu.
+async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSetting: jamSettingDikirim }) {
   if (!guruIdTerverifikasi)
     return { success: false, message: 'Identitas guru tidak terverifikasi. Silakan login ulang.' };
 
@@ -287,12 +295,22 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari }) {
   const jamNow = jam || jamSekarang();
   const hariNow = hari || hariIni();
 
-  const cekLibur = await isHariLibur(today);
+  // PERBAIKAN PERFORMA: isHariLibur dan isHariKerja tidak saling butuh hasil
+  // satu sama lain (keduanya cuma perlu `today`/`hariNow` yang sudah ada),
+  // jadi dijalankan paralel lewat Promise.all, bukan berurutan seperti
+  // sebelumnya. Konsekuensinya: pada hari libur (kasus jarang), isHariKerja
+  // tetap ikut ter-query walau akhirnya tidak dipakai (karena sudah ditolak
+  // duluan oleh cekLibur.libur) -- pertukaran yang wajar demi memangkas satu
+  // round-trip di HARI SEKOLAH BIASA (kasus jauh lebih sering terjadi).
+  const [cekLibur, hariAktif] = await Promise.all([
+    isHariLibur(today),
+    isHariKerja(hariNow)
+  ]);
   if (cekLibur.libur) return { success: false, message: `Hari ini libur (${cekLibur.keterangan || '-'})` };
-  if (!(await isHariKerja(hariNow))) return { success: false, message: `${hariNow} bukan hari sekolah` };
+  if (!hariAktif) return { success: false, message: `${hariNow} bukan hari sekolah` };
 
   // 1. Cari semua jam_pelajaran hari ini yang jam_mulai <= sekarang <= jam_selesai + toleransi
-  const jamSetting = await getJamSetting();
+  const jamSetting = jamSettingDikirim || await getJamSetting();
   const toleransi = Number(jamSetting['TOLERANSI_MENGAJAR_MENIT'] || 15);
 
   const { data: jamPelajaranHariIni } = await supabase
@@ -339,9 +357,12 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari }) {
   }
 
   // 4. Telat kalau scan > toleransi menit setelah jam_mulai jam ke awal blok.
-  const { data: jamMulaiBlok } = await supabase
-    .from('jam_pelajaran').select('jam_mulai')
-    .eq('hari', hariNow).eq('jam_ke', jadwal.jam_ke_mulai).maybeSingle();
+  // PERBAIKAN PERFORMA: SEBELUMNYA baris ini query ULANG tabel jam_pelajaran
+  // ke database untuk cari satu baris (jam_ke = jadwal.jam_ke_mulai) -- padahal
+  // baris itu SUDAH ADA di jamPelajaranHariIni (langkah 1 di atas), yang
+  // sudah berisi SEMUA jam ke- untuk hariNow yang sama persis. Sekarang
+  // dicari langsung di array yang sudah di memori, tanpa round-trip baru.
+  const jamMulaiBlok = (jamPelajaranHariIni || []).find(j => j.jam_ke === jadwal.jam_ke_mulai) || null;
   const batasTelat = jamMulaiBlok ? tambahMenit(jamMulaiBlok.jam_mulai, toleransi) : jamKeSekarang.jam_mulai;
   const status = jamMulaiBlok && jamNow > batasTelat ? 'Telat' : 'Hadir';
 

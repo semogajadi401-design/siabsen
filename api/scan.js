@@ -2,7 +2,9 @@ const {
   supabase, generateID, setCors,
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
-  getJamPulangEfektif, cekIzinPiket, verifyPassword
+  getJamPulangEfektif, cekIzinPiket, verifyPassword,
+  // ── TAMBAHAN BARU (perbaikan keamanan) ──
+  generateKioskToken, verifyKioskToken, checkRateLimit, getClientIp
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -23,10 +25,41 @@ const {
 // sekali.
 const scanSesiMengajarInternal = require('./mengajar').scanSesiMengajar;
 
+// ── AKSI YANG BUTUH kioskToken + RATE LIMIT (BARU — perbaikan keamanan) ──
+// scanKartu & inputTanpaKartu adalah aksi yang bisa MEMBUAT catatan
+// hadir/pulang. Keduanya publik (kiosk tidak login), jadi keduanya kita
+// lindungi dengan dua lapis:
+//   1. kioskToken -- bukti request berasal dari halaman kiosk yang baru
+//      saja memuat/refresh getStatus() (lihat generateKioskToken di
+//      _db.js), bukan panggilan API buta dari luar.
+//   2. Rate limit per IP -- membatasi berapa kali satu alamat bisa
+//      mencoba scan per menit, supaya percobaan tebak-tebak id/nisn
+//      (brute force) tetap tidak praktis walau kioskToken-nya entah
+//      bagaimana bocor/dipakai ulang dalam jendela waktu yang sama.
+const AKSI_BUTUH_KIOSK_TOKEN = new Set(['scanKartu', 'inputTanpaKartu']);
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, kioskToken, ...params } = req.body || {};
+
+  if (AKSI_BUTUH_KIOSK_TOKEN.has(action)) {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`scan:${ip}`, { maxRequest: 40, windowMs: 60 * 1000 });
+    if (!limit.allowed) {
+      return res.status(429).json({
+        success: false,
+        message: `Terlalu banyak percobaan scan dari perangkat/jaringan ini. Coba lagi dalam ${limit.retryAfterSec} detik.`
+      });
+    }
+    if (!verifyKioskToken(kioskToken)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Sesi kiosk tidak valid atau kedaluwarsa. Muat ulang halaman scan.'
+      });
+    }
+  }
+
   try {
     if (action === 'ping')            return res.json({ ok: true });
     if (action === 'getStatus')       return res.json(await getStatus());
@@ -96,6 +129,11 @@ async function getStatus() {
   return {
     success: true,
     bisaAbsen: true,
+    // BARU (perbaikan keamanan): token sesi kiosk berumur pendek, wajib
+    // disertakan klien di setiap scanKartu/inputTanpaKartu berikutnya --
+    // lihat catatan lengkap di generateKioskToken()/verifyKioskToken()
+    // di _db.js dan AKSI_BUTUH_KIOSK_TOKEN di atas.
+    kioskToken: generateKioskToken(),
     adaGuru,
     guruPiket: sesiList || [],
     jam,

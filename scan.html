@@ -135,9 +135,17 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 }
 @media(max-width:900px){
   .main{grid-template-columns:1fr;gap:16px;padding:14px;height:auto;min-height:calc(100vh - 58px)}
-  .content-col{display:flex;flex-direction:column;height:auto;min-height:0}
-  .scanner-stage{height:auto;overflow-y:visible}
-  .log-panel{height:auto}
+  /* CATATAN: override .content-col/.scanner-stage/.log-panel untuk mobile
+     SENGAJA TIDAK diletakkan di sini lagi -- lihat penjelasan lengkap di
+     media query yang sama persis, ditaruh SETELAH base rule masing-masing
+     (dekat .log-panel di bawah). Taruh di sini (SEBELUM base rule-nya)
+     menyebabkan override-nya kalah oleh base rule yang sumbernya datang
+     belakangan di stylesheet -- sama-sama single class selector jadi
+     specificity-nya seri, dan CSS memenangkan aturan yang urutannya lebih
+     akhir, TERLEPAS dari apakah dia di dalam media query yang cocok atau
+     tidak. Akibatnya .content-col tetap 2 kolom grid di HP (tidak pernah
+     benar-benar bertumpuk), bikin halaman overflow ke samping -- itu
+     penyebab tombol/kolom kehadiran siswa tampak terpotong/aneh di HP. */
 }
 
 /* ── SIDEBAR KIRI — kontrol (judul, status guru piket, switch mode) ── */
@@ -154,12 +162,6 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 @media(max-width:900px){
   .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
   .side-rail .scan-title{flex:1 1 100%}
-  /* Grup tombol Absen Kelas + Cek Aktivitas Guru dipaksa jadi baris
-     TERSENDIRI (flex-basis 100%) alih-alih ikut berebut ruang di baris
-     yang sama dengan mode-switch-wrap -- itu penyebab tombol/teks
-     tampak berantakan/tersembunyi di HP setelah tombol kedua
-     ditambahkan (lihat .aksi-kelas-wrap di bawah). */
-  .aksi-kelas-wrap{flex:1 1 100%}
 }
 
 /* ── KOLOM KANAN — kamera & statistik/daftar berdampingan, tidak perlu scroll ── */
@@ -363,11 +365,12 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
      lalu dipotong oleh max-width, jadi tiap tombol berebut ruang
      dengan mode-switch-wrap dan wrap tidak beraturan/terpotong di HP
      -- makin parah begitu tombol kedua ditambahkan.
-     Sekarang .aksi-kelas-wrap dipaksa jadi baris SENDIRI (flex:1 1 100%
-     di media query .side-rail di atas), dan di sini isinya diubah jadi
-     baris (dua tombol berdampingan, berbagi lebar rata lewat flex:1)
-     supaya rapi dan tidak ada yang tersembunyi. */
-  .aksi-kelas-wrap{flex-direction:row;max-width:none;gap:10px}
+     Sekarang .aksi-kelas-wrap dipaksa jadi baris SENDIRI (flex:1 1 100%,
+     supaya tidak ikut berebut ruang di baris yang sama dengan
+     mode-switch-wrap), lalu isinya diubah jadi baris (dua tombol
+     berdampingan, berbagi lebar rata lewat flex:1) supaya rapi dan
+     tidak ada yang tersembunyi. */
+  .aksi-kelas-wrap{flex:1 1 100%;flex-direction:row;max-width:none;gap:10px}
   .btn-absen-kelas,.btn-cek-aktivitas-guru{flex:1 1 0;width:auto}
 }
 @media(max-width:520px){
@@ -550,6 +553,22 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
 /* ── PANEL LOG (statistik + daftar), sekarang di bawah kamera dalam kolom kanan ── */
 .log-panel{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0}
+
+/* PERBAIKAN BUG LAMA (bukan dari sesi ini -- baru ketahuan sekarang):
+   override mobile untuk .content-col/.scanner-stage/.log-panel HARUS
+   berada SETELAH baris base rule masing-masing di atas (bukan di media
+   query dekat .main paling atas file, tempatnya semula) supaya benar-
+   benar menang -- lihat catatan panjang di media query dekat .main.
+   Tanpa ini, .content-col tetap grid 2 kolom (minmax(300px,400px) 1fr)
+   di layar HP yang lebih sempit dari 300px+konten kolom kanan, sehingga
+   halaman overflow ke samping dan ke-clip oleh overflow-x:hidden di
+   body -- persis gejala tombol/teks "kepotong ke kanan" dan kolom
+   kehadiran siswa yang "aneh" di HP. */
+@media(max-width:900px){
+  .content-col{display:flex;flex-direction:column;height:auto;min-height:0}
+  .scanner-stage{height:auto;overflow-y:visible}
+  .log-panel{height:auto}
+}
 
 /* Stats */
 .stats-row{

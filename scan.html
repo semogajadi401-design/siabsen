@@ -763,6 +763,17 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .log-kelas{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 .log-right{margin-left:auto;text-align:right;flex-shrink:0}
 .log-jam{font-size:.78rem;color:var(--text);font-weight:700}
+/* Baris "Datang HH:MM" / "Pulang HH:MM" ditampilkan terpisah (bukan
+   cuma salah satu, tergantung mana yang sudah diisi) -- lihat renderLog()
+   bagian tab 'hadir'. */
+.log-jam-baris{
+  display:flex;align-items:baseline;justify-content:flex-end;gap:5px;
+  line-height:1.35;
+}
+.log-jam-label{font-size:.66rem;color:var(--text-muted);font-weight:600}
+/* Dipakai saat jam pulang belum diisi ("Belum absen") -- dibuat lebih
+   pudar & miring supaya jelas beda dari jam yang sudah benar-benar tercatat. */
+.log-jam--kosong{color:var(--text-muted);font-weight:600;font-style:italic}
 .log-badge{
   font-size:.68rem;font-weight:700;
   padding:3px 10px;border-radius:20px;margin-top:4px;
@@ -4057,10 +4068,16 @@ function renderLog() {
   } else {
     container.innerHTML = list.map(s => {
       const isLate = s.statusDatang === 'Terlambat';
-      const isPul  = s.jamPulang;
+      // s.jamPulang datang dari backend sebagai null kalau siswa belum
+      // discan pulang (lihat getLogHariIni di api/scan.js: `absen.jam_pulang
+      // || null`) -- jadi aman dipakai sebagai boolean di sini.
+      const isPul  = !!s.jamPulang;
       const avCls  = isLate ? 'terlambat' : 'hadir';
+      // Badge sekarang murni menandai STATUS (bukan lagi merangkap
+      // menampilkan jam pulang seperti sebelumnya -- jam pulang kini
+      // punya barisnya sendiri di bawah, lihat log-jam-baris kedua).
       const bdgCls = isPul ? 'badge-pulang' : isLate ? 'badge-terlambat' : 'badge-hadir';
-      const bdgTxt = isPul ? `Pulang ${s.jamPulang}` : isLate ? 'Terlambat' : 'Hadir';
+      const bdgTxt = isPul ? 'Sudah Pulang' : isLate ? 'Terlambat' : 'Hadir';
       return `
         <div class="log-item">
           <div class="log-avatar ${avCls}">${esc(s.nama.charAt(0))}</div>
@@ -4069,7 +4086,14 @@ function renderLog() {
             <div class="log-kelas">${s.kelas}</div>
           </div>
           <div class="log-right">
-            <div class="log-jam">${s.jamDatang}</div>
+            <div class="log-jam-baris">
+              <span class="log-jam-label">Datang</span>
+              <span class="log-jam">${s.jamDatang}</span>
+            </div>
+            <div class="log-jam-baris">
+              <span class="log-jam-label">Pulang</span>
+              <span class="log-jam${isPul ? '' : ' log-jam--kosong'}">${isPul ? s.jamPulang : 'Belum absen'}</span>
+            </div>
             <span class="log-badge ${bdgCls}">${bdgTxt}</span>
           </div>
         </div>`;

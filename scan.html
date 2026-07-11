@@ -1693,6 +1693,28 @@ let isOnline     = navigator.onLine;
 let isSyncing    = false;
 let _lastPingOk  = navigator.onLine;
 
+// PERBAIKAN REALTIME-ISH (BARU): interval auto-refresh data lintas-perangkat
+// di halaman scan ini. SEBELUMNYA guruStatusBox (guru piket) di-refresh tiap
+// 10 detik dan log kehadiran siswa tiap 30 detik -- terlalu lambat kalau ada
+// dua guru scan dari perangkat BERBEDA di saat bersamaan (mis. guru piket
+// scan dari HP-nya sendiri, sementara guru lain menunggu di kiosk laptop
+// untuk absen kelas). Angka-angka ini dipersingkat supaya perangkat lain
+// "ngeh" data baru lebih cepat, TANPA pindah ke realtime push (WebSocket) --
+// koneksi sekolah ini kadang lemah/putus-nyambung, dan polling pendek+mandiri
+// per siklus jauh lebih tahan banting dibanding koneksi persisten yang butuh
+// deteksi+sambung ulang. Dikumpulkan di sini (bukan angka mentah di tiap
+// setInterval) supaya gampang di-tuning ulang kalau perlu.
+const REFRESH_STATUS_MS         = 5000;  // guru piket + info jam (checkStatus)
+const REFRESH_LOG_MS            = 8000;  // log kehadiran siswa (loadLog)
+const REFRESH_AKTIVITAS_GURU_MS = 6000;  // modal Cek Aktivitas Guru, HANYA selagi modal terbuka
+
+// Penjaga in-flight: kalau siklus sebelumnya belum selesai (koneksi lambat),
+// siklus setInterval berikutnya di-SKIP dulu, bukan ikut menembak request
+// baru yang numpuk di atas yang lama. Dicek di masing-masing fungsi terkait.
+let _loadLogInFlight    = false;
+let _checkStatusInFlight = false;
+let _agRefreshInFlight   = false;
+
 async function pingServer() {
   try {
     const ctrl = new AbortController();
@@ -2717,8 +2739,8 @@ async function init() {
   if (isOnline) await checkAndSync();
 
   // Auto refresh — hanya jika online
-  setInterval(() => { if (isOnline) loadLog(); }, 30000);
-  setInterval(() => { if (isOnline) checkStatus(); }, 10000);
+  setInterval(() => { if (isOnline) loadLog(); }, REFRESH_LOG_MS);
+  setInterval(() => { if (isOnline) checkStatus(); }, REFRESH_STATUS_MS);
 }
 
 // ── CEK STATUS ───────────────────────────────────────────────────
@@ -2729,6 +2751,11 @@ async function checkStatus() {
     document.getElementById('mainContent').style.display = 'grid';
     return;
   }
+  // PERBAIKAN (BARU): skip siklus ini kalau panggilan checkStatus() SEBELUMNYA
+  // belum selesai (mis. koneksi sekolah sedang lambat) -- mencegah beberapa
+  // request getStatus menumpuk berbarengan sejak REFRESH_STATUS_MS dipersingkat.
+  if (_checkStatusInFlight) return;
+  _checkStatusInFlight = true;
   try {
     const r = await api('scan','getStatus');
 
@@ -2788,6 +2815,8 @@ async function checkStatus() {
     // Jika fetch gagal, tetap tampilkan mainContent agar scan bisa jalan
     document.getElementById('liburBanner').style.display = 'none';
     document.getElementById('mainContent').style.display = 'grid';
+  } finally {
+    _checkStatusInFlight = false;
   }
 }
 
@@ -3722,6 +3751,8 @@ function tutupModalTanpaKartu() {
 // termasuk saat menunggu kartu di mode Absen Kelas, karena tidak
 // menyentuh state scanner sama sekali (lihat getAktivitasGuruHariIni()
 // di api/scan.js). ══════
+let _agRefreshTimer = null;
+
 async function bukaModalAktivitasGuru() {
   pauseScanBerat();
   document.getElementById('modalAktivitasGuru').style.display = 'flex';
@@ -3734,11 +3765,43 @@ async function bukaModalAktivitasGuru() {
   } catch (e) {
     toast('Gagal memuat data. Cek koneksi.');
     tutupModalAktivitasGuru();
+    return;
+  }
+
+  // PERBAIKAN REALTIME-ISH (BARU): selagi modal ini terbuka, refresh
+  // otomatis tiap REFRESH_AKTIVITAS_GURU_MS -- supaya kalau guru piket
+  // scan dari perangkat LAIN (mis. HP-nya sendiri) sementara guru ini
+  // sedang membuka modal ini di kiosk, datanya ikut update tanpa perlu
+  // tutup-buka modal manual. Timer DIHENTIKAN begitu modal ditutup (lihat
+  // tutupModalAktivitasGuru() di bawah) -- tidak nge-poll sia-sia selagi
+  // tidak ada yang sedang melihat modal ini.
+  if (_agRefreshTimer) clearInterval(_agRefreshTimer);
+  _agRefreshTimer = setInterval(refreshAktivitasGuruSilent, REFRESH_AKTIVITAS_GURU_MS);
+}
+
+// Refresh "diam-diam" (TANPA menampilkan ulang agLoading, supaya tidak
+// kedip tiap beberapa detik) -- dipanggil timer di atas selama modal masih
+// terbuka & koneksi online. Kalau gagal (mis. koneksi putus sesaat),
+// dibiarkan saja untuk dicoba lagi siklus berikutnya -- TIDAK menutup modal
+// paksa seperti kegagalan saat pertama kali dibuka.
+async function refreshAktivitasGuruSilent() {
+  if (!isOnline) return;
+  if (document.getElementById('modalAktivitasGuru').style.display === 'none') return;
+  if (_agRefreshInFlight) return;
+  _agRefreshInFlight = true;
+  try {
+    const r = await api('scan', 'getAktivitasGuruHariIni', {});
+    if (r.success) renderAktivitasGuru(r);
+  } catch (e) {
+    // diam saja, dicoba lagi di siklus berikutnya
+  } finally {
+    _agRefreshInFlight = false;
   }
 }
 
 function tutupModalAktivitasGuru() {
   document.getElementById('modalAktivitasGuru').style.display = 'none';
+  if (_agRefreshTimer) { clearInterval(_agRefreshTimer); _agRefreshTimer = null; }
   resumeScanBerat();
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
@@ -4046,6 +4109,12 @@ function updateLastResultError(msg) {
 
 // ── LOAD LOG ─────────────────────────────────────────────────────
 async function loadLog() {
+  // PERBAIKAN (BARU): skip siklus ini kalau panggilan loadLog() SEBELUMNYA
+  // belum selesai -- mencegah request getLogHariIni menumpuk berbarengan
+  // sejak REFRESH_LOG_MS dipersingkat, terutama di koneksi sekolah yang
+  // kadang lambat.
+  if (_loadLogInFlight) return;
+  _loadLogInFlight = true;
   const kelas = document.getElementById('filterKelas').value;
   try {
     const r = await api('scan','getLogHariIni',{ kelas });
@@ -4074,7 +4143,10 @@ async function loadLog() {
         }));
       } catch(e) {}
     }
-  } catch(e) {}
+  } catch(e) {
+  } finally {
+    _loadLogInFlight = false;
+  }
 }
 
 // ── SWITCH TAB ───────────────────────────────────────────────────

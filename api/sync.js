@@ -517,11 +517,31 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   if (absenHariIni?.jam_datang) {
     if (jam < absenHariIni.jam_datang) {
       const statusKoreksi = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
-      const { error: fixError } = await supabase.from('absensi').update({
-        jam_datang: jam, status_datang: statusKoreksi,
-        id_guru_piket: idGP, nama_guru_piket: namaGP, metode: metodeFinal
-      }).eq('id', absenHariIni.id);
+      // PERBAIKAN RACE CONDITION: sama seperti jalur koreksi jam PULANG di
+      // atas -- `.eq('jam_datang', absenHariIni.jam_datang)` ditambahkan
+      // sebagai guard optimistic-concurrency, supaya UPDATE ini hanya benar-
+      // benar mengenai baris kalau nilai jam_datang di database MASIH SAMA
+      // PERSIS dengan yang barusan dibaca (absenHariIni). Tanpa ini, kalau
+      // ADA proses sync lain yang sudah lebih dulu mengoreksi/mengubah baris
+      // yang sama di antara SELECT dan UPDATE, kita bisa menimpanya secara
+      // buta dengan nilai yang sudah basi. Kasusnya sangat jarang (perlu 2
+      // proses sync offline untuk siswa yang sama, nyaris bersamaan), tapi
+      // kalau memang kalah race di sini, item ini ditandai TIDAK permanen --
+      // percobaan sync berikutnya (otomatis dari device) akan membaca ulang
+      // nilai terbaru dan mengevaluasi lagi dari situ.
+      const { data: koreksiUpdated, error: fixError } = await supabase
+        .from('absensi')
+        .update({
+          jam_datang: jam, status_datang: statusKoreksi,
+          id_guru_piket: idGP, nama_guru_piket: namaGP, metode: metodeFinal
+        })
+        .eq('id', absenHariIni.id)
+        .eq('jam_datang', absenHariIni.jam_datang)
+        .select('jam_datang');
       if (fixError) return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal mengoreksi jam absen: ' + fixError.message };
+      if (!koreksiUpdated || koreksiUpdated.length === 0) {
+        return { success: false, permanent: false, tipe: 'siswa', message: `${siswa.nama} - jam datang berubah di perangkat lain, dicoba lagi di sinkron berikutnya` };
+      }
       return {
         success: true, tipe: 'siswa', status: statusKoreksi,
         message: `${siswa.nama} - jam absen dikoreksi ke ${jam} (scan offline lebih awal)`,

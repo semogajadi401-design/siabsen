@@ -3421,6 +3421,20 @@ function handleScanResult(result, data, now) {
     }
     // ===================================================
 
+    // ========== CEK QR BELAKANG ADMIN (DASHBOARD MONITORING) ==========
+    // Beda dari tipe 'admin' di atas (login) -- ini QR belakang kartu admin,
+    // fungsinya cuma MEMBUKA dashboard monitoring publik read-only, TIDAK
+    // login/menyimpan sesi apapun. Lihat catatan di api/scan.js poin 1d.
+    if (result.tipe === 'admin_monitor') {
+      showFlash('guru', '📊', 'Dashboard Monitoring');
+      toast('🔐 Membuka dashboard monitoring...', 1200);
+      setTimeout(() => {
+        window.location.href = result.redirectUrl;
+      }, 1000);
+      return;
+    }
+    // ===================================================
+
     scannedHistory[data] = now;
 
     if (result.tipe === 'guru') {

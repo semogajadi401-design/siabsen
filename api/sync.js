@@ -1,7 +1,9 @@
 const {
   supabase, generateID, setCors, todayStr,
   hariIni, isHariLibur, isHariKerja, getSemesterAktif, getJamSetting, tambahMenit,
-  getJamPulangEfektif, cekIzinPiket
+  getJamPulangEfektif, cekIzinPiket,
+  // ── TAMBAHAN BARU (perbaikan keamanan) ──
+  verifyKioskToken, checkRateLimit, getClientIp
 } = require('./_db');
 
 // ── REUSE FUNGSI ABSENSI MENGAJAR (Langkah C sub-langkah 5, BARU) ────
@@ -54,10 +56,45 @@ function itemDirekamSebelumReset(jamSetting, waktuSimpan) {
   return waktuSimpanMs < resetTerakhirMs;
 }
 
+// BATAS JUMLAH ITEM PER PANGGILAN batchSync (BARU — perbaikan keamanan).
+// Antrian offline wajar (bahkan beberapa hari penuh scan siswa/guru di
+// satu perangkat) realistisnya tidak akan mendekati angka ini -- batas
+// ini murni jaring pengaman supaya satu payload raksasa dari luar tidak
+// bisa memaksa server memproses ribuan baris absensi dalam satu request.
+const MAKS_ITEM_PER_BATCH = 500;
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, ...params } = req.body || {};
+  const { action, kioskToken, ...params } = req.body || {};
+
+  // BARU (perbaikan keamanan): batchSync bisa membuat catatan hadir sama
+  // seperti scanKartu() di api/scan.js, jadi dilindungi dua lapis yang
+  // sama persis -- kioskToken (bukti berasal dari halaman kiosk yang
+  // sah) & rate limit per IP. Lihat catatan lengkap di _db.js.
+  if (action === 'batchSync') {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`sync:${ip}`, { maxRequest: 20, windowMs: 60 * 1000 });
+    if (!limit.allowed) {
+      return res.status(429).json({
+        success: false,
+        message: `Terlalu banyak percobaan sinkronisasi dari perangkat/jaringan ini. Coba lagi dalam ${limit.retryAfterSec} detik.`
+      });
+    }
+    if (!verifyKioskToken(kioskToken)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Sesi kiosk tidak valid atau kedaluwarsa. Muat ulang halaman scan lalu coba sinkron lagi.'
+      });
+    }
+    if (Array.isArray(params.items) && params.items.length > MAKS_ITEM_PER_BATCH) {
+      return res.status(400).json({
+        success: false,
+        message: `Terlalu banyak item dalam satu kali sinkron (maks ${MAKS_ITEM_PER_BATCH}).`
+      });
+    }
+  }
+
   try {
     if (action === 'batchSync') return res.json(await batchSync(params));
     if (action === 'heartbeat') return res.json(await heartbeat(params));

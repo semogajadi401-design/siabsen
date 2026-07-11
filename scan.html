@@ -1351,7 +1351,7 @@ const PER_COOLDOWN   = 30000;
 // disimpan -- cuma "sidik wajah" berupa 128 angka), tampilkan sapaan.
 //
 // GANTI nama di bawah ini sesuai keinginan:
-const NAMA_PEMBUAT = 'Tasrif-Pencipta saya'; // contoh: 'Pak Budi', 'Kak Rina', dst.
+const NAMA_PEMBUAT = 'Abang Tasrif'; // contoh: 'Pak Budi', 'Kak Rina', dst.
 
 // Beberapa variasi pesan supaya tidak monoton kalau muncul berkali-kali
 // di hari yang sama -- dipilih acak tiap kali cocok.
@@ -1413,6 +1413,19 @@ let _idlePesanTerakhirDitampilkan = 0;
 // handleScanResult(). Dipakai untuk tahu apakah kamera "diam" (tidak ada
 // aktivitas) selama beberapa detik terakhir.
 let _lastActivityTime = Date.now();
+
+// Pesan yang ditampilkan kalau ADA wajah terdeteksi tapi BUKAN wajah
+// pembuat (jarak descriptor > FACE_MATCH_THRESHOLD). Beda dari fitur
+// sapaan di atas -- ini sekadar sapaan ramah untuk orang lain, bukan
+// easter egg mengenali siapa-siapa, jadi cukup satu pesan generik saja.
+const PESAN_ORANG_LAIN = 'Sepertinya anda bukan pencipta saya. Semoga harimu menyenangkan 😊🚀';
+// Cooldown khusus supaya tidak spam toast tiap 1.5 detik kalau orang
+// yang sama berdiri lama di depan kamera -- lebih singkat dari cooldown
+// sapaan pembuat (5 menit) karena ini cuma sapaan ringan, bukan hal yang
+// perlu dijaga jarang-jarang banget.
+const SAPAAN_ORANG_LAIN_COOLDOWN_MS = 2 * 60 * 1000; // 2 menit
+let _sapaanOrangLainTerakhir = 0;
+let _wajahLainMulaiTampil = null;
 
 // PERUBAHAN DETEKTOR (11 Juli 2026): TinyFaceDetector diganti SSD
 // MobileNet v1. Diuji langsung ke 7 foto pembuat aplikasi -- TinyFace-
@@ -1525,15 +1538,25 @@ async function cekWajahPembuat() {
       // Wajah tidak kelihatan sama sekali -- reset penanda "mulai tampil"
       // supaya kalau nanti muncul lagi, dihitung sebagai sesi baru.
       _wajahPembuatMulaiTampil = null;
+      _wajahLainMulaiTampil = null;
       return;
     }
 
     const jarak = jarakDescriptor(hasil.descriptor, REFERENCE_DESCRIPTOR);
     if (jarak > FACE_MATCH_THRESHOLD) {
-      // Ada wajah, tapi bukan wajah pembuat -- juga reset.
+      // Ada wajah, tapi bukan wajah pembuat -- sapa dengan pesan generik,
+      // dengan cooldown sendiri supaya tidak spam kalau orang yang sama
+      // berdiri lama di depan kamera.
       _wajahPembuatMulaiTampil = null;
+      const nowLain = Date.now();
+      if (_wajahLainMulaiTampil === null) _wajahLainMulaiTampil = nowLain;
+      if (nowLain - _sapaanOrangLainTerakhir >= SAPAAN_ORANG_LAIN_COOLDOWN_MS) {
+        _sapaanOrangLainTerakhir = nowLain;
+        toast(PESAN_ORANG_LAIN, 4000);
+      }
       return;
     }
+    _wajahLainMulaiTampil = null; // wajah pembuat cocok, reset penanda orang lain
 
     // Wajah pembuat cocok.
     const now = Date.now();

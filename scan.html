@@ -29,6 +29,38 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── DURASI TERLAMBAT (untuk tabel kehadiran tab 'hadir') ──────────
+// Backend (api/scan.js) menghitung statusDatang ('Terlambat'/'Hadir')
+// dengan cara: jamBatasDatang = JAM_DATANG_SELESAI + TOLERANSI_MENIT
+// (lihat scanAbsen() & inputTanpaKartu() di api/scan.js), lalu
+// statusDatang = 'Terlambat' kalau jam scan > jamBatasDatang. Nilai
+// JAM_DATANG_SELESAI & TOLERANSI_MENIT itu sendiri sudah dimuat di
+// client saat init() (lihat blok getJamSetting di init()), jadi durasi
+// terlambat bisa dihitung ulang di sini TANPA perlu tambahan apa pun
+// dari backend -- cukup selisih jamDatang siswa terhadap jamBatasDatang
+// yang sama persis dipakai server untuk menandai 'Terlambat'.
+let _jamBatasDatangMenit = null; // diisi di init() kalau setting berhasil dimuat
+
+function jamKeMenit(jamStr) {
+  if (!jamStr || typeof jamStr !== 'string') return null;
+  const m = jamStr.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+// Selalu diawali kata "Terlambat" supaya konsisten dipakai langsung
+// sebagai teks badge (mis. hasil: "Terlambat 20 menit", "Terlambat 1 jam").
+function formatTerlambat(menitDatang, menitBatas) {
+  if (menitDatang == null || menitBatas == null) return 'Terlambat';
+  const selisih = menitDatang - menitBatas;
+  if (selisih <= 0) return 'Terlambat'; // jaga-jaga kalau selisih negatif/nol
+  const jam = Math.floor(selisih / 60);
+  const sisaMenit = selisih % 60;
+  if (jam === 0) return `Terlambat ${sisaMenit} menit`;
+  if (sisaMenit === 0) return `Terlambat ${jam} jam`;
+  return `Terlambat ${jam} jam ${sisaMenit} menit`;
+}
+
 // Register Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -767,10 +799,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
    cuma salah satu, tergantung mana yang sudah diisi) -- lihat renderLog()
    bagian tab 'hadir'. */
 .log-jam-baris{
-  display:flex;align-items:baseline;justify-content:flex-end;gap:5px;
+  display:flex;align-items:baseline;justify-content:flex-end;gap:3px;
   line-height:1.35;
 }
-.log-jam-label{font-size:.66rem;color:var(--text-muted);font-weight:600}
+.log-jam-label{
+  font-size:.66rem;color:var(--text-muted);font-weight:600;
+  min-width:42px;text-align:right;
+}
+.log-jam-titik{font-size:.66rem;color:var(--text-muted);font-weight:600}
 /* Dipakai saat jam pulang belum diisi ("Belum absen") -- dibuat lebih
    pudar & miring supaya jelas beda dari jam yang sudah benar-benar tercatat. */
 .log-jam--kosong{color:var(--text-muted);font-weight:600;font-style:italic}
@@ -2614,6 +2650,12 @@ async function init() {
         const logo = r.data['LOGO_URL'];
         _kodeRahasiaAdmin = r.data['KODE_RAHASIA_ADMIN'] || '';
         if (r.data['MIN_VERIFIKASI_SISWA']) MIN_VERIFIKASI_SISWA = Number(r.data['MIN_VERIFIKASI_SISWA']) || 5;
+        // Dipakai untuk menghitung "Terlambat X menit/jam" di tabel
+        // kehadiran (lihat formatTerlambat() & renderLog()) -- sama
+        // persis dengan rumus backend, cuma dihitung ulang di sini.
+        const menitBatasDasar = jamKeMenit(r.data['JAM_DATANG_SELESAI'] || '08:00');
+        const toleransiMenit  = Number(r.data['TOLERANSI_MENIT']) || 0;
+        if (menitBatasDasar != null) _jamBatasDatangMenit = menitBatasDasar + toleransiMenit;
         if (nama) document.getElementById('namaSekolah').textContent = nama;
         if (logo) {
           const el = document.getElementById('headerLogo');
@@ -4073,11 +4115,14 @@ function renderLog() {
       // || null`) -- jadi aman dipakai sebagai boolean di sini.
       const isPul  = !!s.jamPulang;
       const avCls  = isLate ? 'terlambat' : 'hadir';
-      // Badge sekarang murni menandai STATUS (bukan lagi merangkap
-      // menampilkan jam pulang seperti sebelumnya -- jam pulang kini
-      // punya barisnya sendiri di bawah, lihat log-jam-baris kedua).
-      const bdgCls = isPul ? 'badge-pulang' : isLate ? 'badge-terlambat' : 'badge-hadir';
-      const bdgTxt = isPul ? 'Sudah Pulang' : isLate ? 'Terlambat' : 'Hadir';
+      // Badge: kalau terlambat, SELALU tampilkan durasi keterlambatan
+      // (paling penting untuk guru piket, terlepas siswa sudah pulang
+      // atau belum). Kalau tidak terlambat, badge menandai status
+      // kepulangan seperti sebelumnya.
+      const bdgCls = isLate ? 'badge-terlambat' : isPul ? 'badge-pulang' : 'badge-hadir';
+      const bdgTxt = isLate
+        ? formatTerlambat(jamKeMenit(s.jamDatang), _jamBatasDatangMenit)
+        : (isPul ? 'Sudah Pulang' : 'Hadir');
       return `
         <div class="log-item">
           <div class="log-avatar ${avCls}">${esc(s.nama.charAt(0))}</div>
@@ -4088,10 +4133,12 @@ function renderLog() {
           <div class="log-right">
             <div class="log-jam-baris">
               <span class="log-jam-label">Datang</span>
+              <span class="log-jam-titik">:</span>
               <span class="log-jam">${s.jamDatang}</span>
             </div>
             <div class="log-jam-baris">
               <span class="log-jam-label">Pulang</span>
+              <span class="log-jam-titik">:</span>
               <span class="log-jam${isPul ? '' : ' log-jam--kosong'}">${isPul ? s.jamPulang : 'Belum absen'}</span>
             </div>
             <span class="log-badge ${bdgCls}">${bdgTxt}</span>

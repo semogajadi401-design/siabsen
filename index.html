@@ -4775,14 +4775,25 @@ async function eksekusiResetAbsensi() {
   const konfirm = prompt(`Ketik HAPUS untuk konfirmasi menghapus riwayat absensi${semuaChecked ? ' SEMUA KELAS' : ' kelas: '+checkedItems.join(', ')}:`);
   if (konfirm !== 'HAPUS') { toast('Konfirmasi tidak sesuai', 'warning'); return; }
 
+  // Satu panggilan API tunggal → progresnya tidak bisa diukur per-tahap,
+  // jadi pakai ring indeterminate (sama seperti reset kategori lain).
+  closeModal('modalResetAbsensi');
+  progressOpen('Menghapus Riwayat Absensi', {
+    label: semuaChecked ? 'Menghapus riwayat semua kelas...' : `Menghapus riwayat kelas: ${checkedItems.join(', ')}...`,
+    indeterminate: true
+  });
+
   try {
     const r = await api('absensi', 'resetAbsensi', {
       kelas: semuaChecked ? null : checkedItems,
       semua: semuaChecked
     });
+    progressDone(!!r.success, r.message || (r.success ? 'Selesai' : 'Terjadi kesalahan'));
     toast(r.message, r.success ? 'success' : 'error', 5000);
-    if (r.success) closeModal('modalResetAbsensi');
-  } catch(e) { toast('Gagal: '+e.message, 'error'); }
+  } catch(e) {
+    progressDone(false, 'Gagal: ' + e.message);
+    toast('Gagal: '+e.message, 'error');
+  }
 }
 
 function konfirmasiReset(tipe) {

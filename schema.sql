@@ -255,7 +255,36 @@ CREATE TABLE IF NOT EXISTS perangkat_status (
 );
 CREATE INDEX IF NOT EXISTS idx_perangkatstatus_heartbeat ON perangkat_status(last_heartbeat);
 
--- ─── TABEL PENGATURAN HARI KERJA ────────────────────────────
+-- ─── TABEL LOG RIWAYAT HEARTBEAT (BARU) — untuk fitur "Cek Kesehatan
+-- Sistem" di Dashboard Admin/Kepsek. BEDA dari `perangkat_status` di
+-- atas: tabel itu HANYA punya 1 baris per perangkat (ditimpa terus,
+-- riwayatnya hilang), jadi tidak bisa menjawab "apakah perangkat ini
+-- online jam sekian TADI PAGI". Tabel ini menumpuk baris baru tiap
+-- heartbeat (bukan upsert), supaya riwayat konektivitas dari waktu ke
+-- waktu bisa ditelusuri ke belakang -- dipakai untuk mendeteksi celah
+-- waktu yang tidak wajar (indikasi kemungkinan gangguan aplikasi/kiosk)
+-- saat admin/kepsek menekan tombol "Cek Kesehatan Sistem".
+-- Dibuat ringan (cuma kolom penting) karena akan terus bertambah baris
+-- tiap ~30 detik per perangkat aktif.
+CREATE TABLE IF NOT EXISTS perangkat_status_log (
+  id BIGSERIAL PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  label TEXT,
+  antrian_pending INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_perangkatstatuslog_created ON perangkat_status_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_perangkatstatuslog_device_created ON perangkat_status_log(device_id, created_at);
+
+-- Pembersihan otomatis opsional (biar tabel ini tidak tumbuh tanpa
+-- batas): baris lebih tua dari 1 semester (± 6 bulan) aman dihapus,
+-- karena filter terjauh di fitur "Cek Kesehatan Sistem" adalah
+-- "semester". Jalankan manual/berkala lewat Supabase SQL editor kalau
+-- perlu, BUKAN otomatis dari kode aplikasi (supaya tidak ada penghapusan
+-- data tak terduga tanpa sepengetahuan admin):
+--   DELETE FROM perangkat_status_log WHERE created_at < NOW() - INTERVAL '6 months';
+
+
 -- jam_pulang_mulai / jam_pulang_selesai: override jam pulang KHUSUS hari
 -- itu (mis. Jumat pulang lebih awal). NULL/kosong = ikuti nilai global
 -- di jam_setting (JAM_PULANG_MULAI/JAM_PULANG_SELESAI, menu Pengaturan
@@ -405,3 +434,4 @@ ALTER TABLE absensi_mengajar      DISABLE ROW LEVEL SECURITY;
 ALTER TABLE kehadiran_siswa_mapel DISABLE ROW LEVEL SECURITY;
 ALTER TABLE keterangan_mengajar   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE perangkat_status      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE perangkat_status_log  DISABLE ROW LEVEL SECURITY;

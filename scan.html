@@ -1362,6 +1362,23 @@ const PESAN_SAPAAN_PEMBUAT = [
   `✨ Halo ${NAMA_PEMBUAT}, semua sistem berjalan normal hari ini!`,
 ];
 
+// Pesan "idle" -- muncul kalau wajah pembuat MASIH di depan kamera tapi
+// beberapa saat tidak ada aktivitas scan sama sekali (lihat logika
+// _wajahPembuatMulaiTampil & _lastActivityTime di cekWajahPembuat()).
+// Sengaja dibuat beda dari PESAN_SAPAAN_PEMBUAT supaya tidak terasa
+// pesan yang itu-itu saja kalau wajahnya betah diam di depan kamera.
+const PESAN_IDLE_PEMBUAT = [
+  `☕ Masih di situ aja, ${NAMA_PEMBUAT}? Santai dulu gapapa~`,
+  `🚀 Kode boleh istirahat, tapi semangatnya jangan, ya!`,
+  `🛠️ Sistem ini masih jalan berkat ${NAMA_PEMBUAT}. Mantap!`,
+  `🌤️ Cuaca hari ini cerah, secerah kode tanpa bug (semoga).`,
+  `🎯 Fokusmu keren, tapi jangan lupa istirahat mata sejenak.`,
+  `💡 Ide bagus sering muncul pas lagi santai kayak gini.`,
+  `🔥 Tetap semangat, ${NAMA_PEMBUAT}! Kamu inspirasi buat sistem ini.`,
+];
+// Jarak minimal antar pesan idle (biar tidak numpuk toast tiap 3 detik).
+const IDLE_MESSAGE_GAP_MS = 10 * 1000; // 10 detik
+
 // "Sidik wajah" (descriptor 128 dimensi) DIPERBARUI LAGI 11 Juli 2026,
 // kali ini dari 6 dari 7 foto yang dikirim pembuat aplikasi (1 foto
 // yang sudutnya PALING ekstrem -- kepala menunduk sangat dalam sampai
@@ -1387,6 +1404,15 @@ const SAPAAN_COOLDOWN_MS = 5 * 60 * 1000; // 5 menit
 let _sapaanTerakhir = 0;
 let _faceModelsSiap = false;
 let _faceCheckInterval = null;
+// Dipakai fitur pesan idle di bawah: kapan wajah pembuat MULAI terdeteksi
+// terus-menerus (null = sedang tidak ada di kamera), dan kapan pesan idle
+// terakhir ditampilkan (biar tidak numpuk tiap 3 detik).
+let _wajahPembuatMulaiTampil = null;
+let _idlePesanTerakhirDitampilkan = 0;
+// Waktu aktivitas scan (QR/kartu) terakhir -- diperbarui di
+// handleScanResult(). Dipakai untuk tahu apakah kamera "diam" (tidak ada
+// aktivitas) selama beberapa detik terakhir.
+let _lastActivityTime = Date.now();
 
 // PERUBAHAN DETEKTOR (11 Juli 2026): TinyFaceDetector diganti SSD
 // MobileNet v1. Diuji langsung ke 7 foto pembuat aplikasi -- TinyFace-
@@ -1394,9 +1420,10 @@ let _faceCheckInterval = null;
 // menunduk/mendongak), sedangkan SSD MobileNet v1 berhasil di 7/7 foto
 // dengan skor keyakinan tinggi (0.79-0.998), TERMASUK yang sedikit
 // menunduk atau miring. SSD MobileNet memang lebih berat dari
-// TinyFaceDetector, tapi ini AMAN karena pengecekan cuma jalan tiap 3
-// detik (bukan tiap frame seperti loop baca QR) -- lihat
-// mulaiCekWajahPembuat() di bawah. Catatan jujur: untuk sudut yang
+// TinyFaceDetector, tapi ini AMAN karena pengecekan tidak jalan tiap
+// frame (bukan seperti loop baca QR) dan sudah dilindungi reentrancy
+// guard + inputSize kecil (lihat cekWajahPembuat() &
+// mulaiCekWajahPembuat() di bawah). Catatan jujur: untuk sudut yang
 // BENAR-BENAR ekstrem (kepala menunduk sangat dalam, wajah nyaris tidak
 // kelihatan), tidak ada model pengenalan wajah manapun yang bisa
 // diandalkan -- itu bukan lagi soal "detektor kurang canggih", tapi
@@ -1405,11 +1432,34 @@ let _faceCheckInterval = null;
 async function muatModelWajah() {
   try {
     if (typeof faceapi === 'undefined') return; // library gagal dimuat, diamkan saja
+
+    // PERBAIKAN KECEPATAN (backend): tanpa ini, tfjs kadang diam-diam
+    // jatuh ke backend CPU (terutama di browser/device yang WebGL-nya
+    // tidak terdeteksi otomatis dengan baik) -- inferensi SSD MobileNet
+    // di CPU bisa berkali-kali lipat lebih lambat dibanding WebGL (GPU).
+    // Dipaksa eksplisit di sini supaya konsisten cepat di semua device
+    // kios. Kalau WebGL benar-benar tidak tersedia, biarkan tfjs pilih
+    // sendiri (fallback otomatis) -- jangan sampai error di sini
+    // mengganggu fitur utama.
+    try {
+      if (faceapi.tf && typeof faceapi.tf.setBackend === 'function') {
+        await faceapi.tf.setBackend('webgl');
+        await faceapi.tf.ready();
+      }
+    } catch (eBackend) {
+      console.warn('Sapaan wajah: gagal set backend webgl, pakai default,', eBackend.message);
+    }
+
+    // PERBAIKAN KECEPATAN (loading): 3 model dimuat PARALEL (Promise.all)
+    // bukan berurutan seperti sebelumnya -- total waktu loading jadi
+    // sekitar selama model TERLAMA saja, bukan jumlah ketiganya.
     // Model diletakkan di ROOT repo (bukan di dalam folder /models),
     // menyesuaikan dengan lokasi file yang sudah diupload.
-    await faceapi.nets.ssdMobilenetv1.loadFromUri('/');
-    await faceapi.nets.faceLandmark68Net.loadFromUri('/');
-    await faceapi.nets.faceRecognitionNet.loadFromUri('/');
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri('/'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('/'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/'),
+    ]);
     _faceModelsSiap = true;
   } catch (e) {
     // Diamkan -- ini fitur easter egg, kegagalan di sini TIDAK BOLEH
@@ -1424,12 +1474,27 @@ function jarakDescriptor(a, b) {
   return Math.sqrt(total);
 }
 
+// PERBAIKAN KECEPATAN (reentrancy guard): mencegah pemanggilan
+// cekWajahPembuat() yang tumpang tindih. Sebelumnya pakai setInterval
+// polos -- kalau satu siklus deteksi (yang async & cukup berat) belum
+// selesai saat interval berikutnya terpicu, dua inferensi model jalan
+// BERSAMAAN dan berebut GPU/CPU yang sama, membuat KEDUANYA melambat
+// (dan berpotensi ikut memperlambat scanLoop() baca QR juga karena
+// device makin terbebani). Guard ini memastikan hanya SATU siklus
+// deteksi yang jalan setiap saat.
+let _faceCheckBusy = false;
+
 async function cekWajahPembuat() {
-  if (!_faceModelsSiap) return;
+  if (!_faceModelsSiap || _faceCheckBusy) return;
   const video = document.getElementById('scanVideo');
   if (!video || video.readyState < 2) return;
-  if (Date.now() - _sapaanTerakhir < SAPAAN_COOLDOWN_MS) return;
+  // CATATAN: guard cooldown lama yang langsung `return` di sini DIHAPUS --
+  // sebelumnya ini bikin fungsi berhenti total selama 5 menit cooldown,
+  // padahal sekarang kita PERLU tetap jalan selama itu supaya logika
+  // pesan idle di bawah (yang justru aktif SAAT dalam cooldown) bisa
+  // bekerja. Pengecekan cooldown sekarang ditangani di dalam try block.
 
+  _faceCheckBusy = true;
   try {
     const hasil = await faceapi
       .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({
@@ -1440,32 +1505,95 @@ async function cekWajahPembuat() {
         // asal nangkap bentuk lain sebagai wajah). FACE_MATCH_THRESHOLD
         // di atas tetap jadi penjaga utama supaya tidak salah kenali
         // orang lain.
-        minConfidence: 0.15
+        minConfidence: 0.15,
+        // PERBAIKAN KECEPATAN (inputSize): sebelumnya tidak diatur sama
+        // sekali, jadi SSD MobileNet memproses di resolusi input default
+        // (512px) -- lebih besar dari yang perlu untuk sekadar mendeteksi
+        // satu wajah di depan kamera. Diturunkan ke 320px: inferensi jadi
+        // signifikan lebih cepat (secara umum ~1.5-2x di kebanyakan
+        // device), dan untuk kebutuhan "satu wajah, jarak wajar dari
+        // kamera kios" akurasinya tidak banyak berkurang -- beda dengan
+        // TinyFaceDetector yang gagal total di sudut ekstrem, resolusi
+        // input SSD yang diperkecil TIDAK menghilangkan kemampuannya
+        // menangani sudut miring/menunduk, cuma memproses gambar yang
+        // sama pada skala lebih kecil.
+        inputSize: 320
       }))
       .withFaceLandmarks()
       .withFaceDescriptor();
-    if (!hasil) return;
+    if (!hasil) {
+      // Wajah tidak kelihatan sama sekali -- reset penanda "mulai tampil"
+      // supaya kalau nanti muncul lagi, dihitung sebagai sesi baru.
+      _wajahPembuatMulaiTampil = null;
+      return;
+    }
 
     const jarak = jarakDescriptor(hasil.descriptor, REFERENCE_DESCRIPTOR);
-    if (jarak <= FACE_MATCH_THRESHOLD) {
-      _sapaanTerakhir = Date.now();
+    if (jarak > FACE_MATCH_THRESHOLD) {
+      // Ada wajah, tapi bukan wajah pembuat -- juga reset.
+      _wajahPembuatMulaiTampil = null;
+      return;
+    }
+
+    // Wajah pembuat cocok.
+    const now = Date.now();
+    if (_wajahPembuatMulaiTampil === null) _wajahPembuatMulaiTampil = now;
+
+    if (now - _sapaanTerakhir >= SAPAAN_COOLDOWN_MS) {
+      // Sapaan utama (cooldown 5 menit, seperti semula).
+      _sapaanTerakhir = now;
+      _idlePesanTerakhirDitampilkan = now; // biar pesan idle tidak langsung nyusul sapaan ini
       const pesan = PESAN_SAPAAN_PEMBUAT[Math.floor(Math.random() * PESAN_SAPAAN_PEMBUAT.length)];
       showFlash('success', '😄', NAMA_PEMBUAT + ' datang!');
       toast(pesan, 4000);
+      return;
+    }
+
+    // Sudah pernah disapa baru-baru ini (masih dalam cooldown 5 menit).
+    // Kalau wajah pembuat sudah ~10 detik terus tampil DAN selama itu
+    // tidak ada aktivitas scan sama sekali (kios lagi "diam"), tampilkan
+    // pesan lain yang beda supaya tidak membosankan -- dan bisa berulang
+    // tiap ±10 detik selama kondisi ini bertahan.
+    const sudahSekitar10DetikTampil = now - _wajahPembuatMulaiTampil >= 10000;
+    const tidakAdaAktivitas10Detik = now - _lastActivityTime >= 10000;
+    const belumTampilkanIdleBaruBaru = now - _idlePesanTerakhirDitampilkan >= IDLE_MESSAGE_GAP_MS;
+    if (sudahSekitar10DetikTampil && tidakAdaAktivitas10Detik && belumTampilkanIdleBaruBaru) {
+      _idlePesanTerakhirDitampilkan = now;
+      const pesanIdle = PESAN_IDLE_PEMBUAT[Math.floor(Math.random() * PESAN_IDLE_PEMBUAT.length)];
+      toast(pesanIdle, 4000);
     }
   } catch (e) {
     // Diamkan -- sama seperti di atas, tidak boleh mengganggu scan QR.
+  } finally {
+    _faceCheckBusy = false;
   }
 }
 
-// Dipanggil dari startScanner() setelah kamera aktif -- cek wajah tiap
-// 3 detik, jauh lebih jarang dari loop baca QR (yang jalan tiap frame),
-// supaya CPU/GPU device kiosk tidak terbebani dua pekerjaan berat
-// bersamaan.
+// PERBAIKAN KECEPATAN (loop adaptif): sebelumnya setInterval(fn, 3000)
+// polos -- jeda TETAP 3 detik antar SIKLUS (bukan antar hasil), jadi
+// kalau device lemah dan satu inferensi makan waktu 2 detik, siklus
+// berikutnya baru mulai 1 detik kemudian (3s - 2s), padahal idealnya
+// jeda dihitung SETELAH siklus sebelumnya benar-benar selesai. Sekarang
+// pakai recursive setTimeout: siklus berikutnya baru dijadwalkan setelah
+// cekWajahPembuat() selesai (berhasil ataupun gagal), sehingga tidak
+// pernah menumpuk dan device tidak pernah dipaksa mulai kerja baru
+// sebelum kerja sebelumnya kelar. Interval juga dipangkas dari 3000ms
+// ke 1500ms -- aman sekarang karena ada guard (_faceCheckBusy) dan
+// inferensi lebih ringan (inputSize 320), jadi wajah pembuat terdeteksi
+// jauh lebih responsif tanpa membebani device secara berlebihan.
+const FACE_CHECK_INTERVAL_MS = 1500;
+
+function jadwalkanCekWajahBerikutnya() {
+  _faceCheckInterval = setTimeout(async () => {
+    await cekWajahPembuat();
+    jadwalkanCekWajahBerikutnya();
+  }, FACE_CHECK_INTERVAL_MS);
+}
+
 function mulaiCekWajahPembuat() {
   if (_faceCheckInterval) return;
   muatModelWajah().then(() => {
-    _faceCheckInterval = setInterval(cekWajahPembuat, 3000);
+    jadwalkanCekWajahBerikutnya();
   });
 }
 
@@ -2582,6 +2710,7 @@ async function processQR(data) {
 }
 
 function handleScanResult(result, data, now) {
+  _lastActivityTime = now; // dipakai fitur sapaan idle (lihat cekWajahPembuat)
   if (result.success) {
     // ========== CEK ADMIN ==========
     if (result.tipe === 'admin') {

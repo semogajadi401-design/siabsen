@@ -546,10 +546,45 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
     if (absenHariIni.jam_pulang)
       return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}` };
 
-    await supabase.from('absensi').update({
-      jam_pulang: jam, status_pulang: 'Pulang',
-      nama_guru_piket: namaGuru, id_guru_piket: idGuru
-    }).eq('id', absenHariIni.id);
+    // PERBAIKAN RACE CONDITION: sebelumnya UPDATE ini tidak punya syarat
+    // apa pun selain `id` -- kalau 2 perangkat scan pulang siswa yang sama
+    // nyaris bersamaan, keduanya bisa lolos pengecekan `absenHariIni.jam_pulang`
+    // di atas (dua-duanya masih melihat kondisi "belum pulang" sebelum salah
+    // satu sempat menyimpan), lalu dua-duanya sukses UPDATE tanpa ada yang
+    // ditolak. Tidak merusak data (hasil akhirnya tetap satu nilai jam_pulang
+    // yang konsisten), tapi kedua device sama-sama menampilkan "sukses"
+    // padahal cuma salah satu yang seharusnya. `.is('jam_pulang', null)` di
+    // sini membuat UPDATE hanya benar-benar mengenai baris kalau jam_pulang
+    // MASIH kosong PERSIS SAAT database mengeksekusinya (bukan cuma saat kita
+    // SELECT di atas) -- kalau ada perangkat lain yang menang duluan,
+    // `.select()` di bawah akan mengembalikan array kosong, dan itu jadi
+    // sinyal untuk memperlakukannya sebagai duplikat (sama seperti pola
+    // 23505 di jalur lain).
+    const { data: pulangUpdated, error: pulangError } = await supabase
+      .from('absensi')
+      .update({
+        jam_pulang: jam, status_pulang: 'Pulang',
+        nama_guru_piket: namaGuru, id_guru_piket: idGuru
+      })
+      .eq('id', absenHariIni.id)
+      .is('jam_pulang', null)
+      .select('jam_pulang');
+
+    if (pulangError) {
+      return { success: false, tipe: 'siswa', message: 'Gagal simpan: ' + pulangError.message };
+    }
+
+    if (!pulangUpdated || pulangUpdated.length === 0) {
+      // Kalah race -- perangkat lain sudah lebih dulu mengisi jam_pulang
+      // di antara SELECT absenHariIni di atas dan UPDATE ini. Ambil ulang
+      // nilai jam_pulang yang sebenarnya tersimpan supaya pesannya akurat.
+      const { data: absenTerbaru } = await supabase
+        .from('absensi').select('jam_pulang').eq('id', absenHariIni.id).maybeSingle();
+      return {
+        success: false, tipe: 'siswa',
+        message: `${siswa.nama} sudah absen pulang pukul ${absenTerbaru?.jam_pulang || '-'}`
+      };
+    }
 
     return {
       success: true, tipe: 'siswa', status: 'Pulang',

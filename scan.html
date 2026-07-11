@@ -562,14 +562,21 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   transform:translate(-50%,-50%) scale(.94);
   display:flex;align-items:flex-start;gap:10px;
   max-width:min(88vw,380px);
-  padding:16px 20px;border-radius:18px;
+  padding:16px 44px 16px 20px;border-radius:18px;
   color:#fff;font-weight:700;font-size:.92rem;line-height:1.5;
   text-align:left;white-space:pre-line;overflow-wrap:break-word;
   box-shadow:0 20px 44px -12px rgba(0,0,0,.55);
   opacity:0;pointer-events:none;
   transition:opacity .25s ease,transform .25s ease;
 }
-#scanFlashBanner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+/* PERBAIKAN "tombol X tidak berfungsi": pointer-events:none di atas
+   sengaja dipakai supaya banner yang SEDANG TERSEMBUNYI (opacity:0)
+   tidak diam-diam menangkap tap yang seharusnya jatuh ke elemen di
+   bawahnya. Tapi itu berarti pointer-events HARUS dibalik ke auto lagi
+   begitu banner benar-benar tampil (.show) -- sebelumnya baris ini
+   belum ada, jadi tombol ✕ di dalamnya tidak pernah bisa menerima
+   klik/tap sama sekali walau sudah ditaruh benar secara HTML/CSS. */
+#scanFlashBanner.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto}
 #scanFlashBanner.success{background:rgba(5,150,105,0.96)}
 #scanFlashBanner.error{background:rgba(225,29,72,0.96)}
 /* Warna warning ASLI (rgba(251,191,36) -- kuning terang) dipertahankan
@@ -581,6 +588,19 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 #scanFlashBanner.guru{background:rgba(79,70,229,0.96)}
 .scan-flash-banner-icon{font-size:1.4rem;line-height:1.3;flex-shrink:0}
 .scan-flash-banner-text{flex:1;min-width:0}
+/* Tombol ✕ -- supaya guru yang mau langsung lanjut scan tidak perlu
+   menunggu durasi baca otomatis habis (bisa sampai 8 detik untuk pesan
+   panjang). Ditaruh di pojok kanan-atas, target sentuh dibuat cukup
+   besar (32x32) walau ikonnya kecil, supaya gampang kena jari di HP. */
+.scan-flash-banner-close{
+  position:absolute;top:6px;right:6px;
+  width:32px;height:32px;border-radius:50%;
+  border:none;background:rgba(255,255,255,0.18);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1rem;line-height:1;cursor:pointer;padding:0;
+  transition:background .15s;
+}
+.scan-flash-banner-close:active{background:rgba(255,255,255,0.32)}
 
 /* Status bar / hasil scan terakhir */
 .last-result{
@@ -1019,6 +1039,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 <div id="scanFlashBanner">
   <span class="scan-flash-banner-icon" id="flashBannerIcon"></span>
   <span class="scan-flash-banner-text" id="flashBannerText"></span>
+  <button type="button" class="scan-flash-banner-close" onclick="tutupFlashBanner()" aria-label="Tutup pesan" title="Tutup">✕</button>
 </div>
 
 <!-- OFFLINE TOP BAR -->
@@ -3849,6 +3870,17 @@ function hitungDurasiBacaFlash(text) {
 }
 
 let _flashBannerHideTimer = null;
+
+// Dipanggil oleh tombol ✕ di banner -- tutup SEKARANG JUGA, tidak perlu
+// menunggu hitungDurasiBacaFlash() selesai. Berguna kalau guru sudah
+// selesai baca (atau tidak perlu baca detail) dan mau langsung lanjut
+// scan kartu berikutnya tanpa pesan lama menghalangi pandangan.
+function tutupFlashBanner() {
+  clearTimeout(_flashBannerHideTimer);
+  const banner = document.getElementById('scanFlashBanner');
+  if (banner) banner.className = '';
+}
+
 function showFlash(type, icon, text) {
   // Kilatan warna + ikon di dalam lingkaran kamera -- TETAP seperti
   // semula (durasi tetap 2 detik, cuma efek "pop" sekilas), tapi teksnya

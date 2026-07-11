@@ -904,7 +904,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
           </div>
         </div>
         <button type="button" onclick="selesaiModeVerifikasi()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
-          ✅ Selesai Verifikasi
+          ✅ Kirim Verifikasi
         </button>
       </div>
     </div>
@@ -1888,7 +1888,7 @@ function mulaiAbsenKelas() {
 }
 
 function batalAbsenKelas() {
-  if (modeVerifikasiAktif) { toast('📚 Sesi verifikasi sedang berjalan — klik "Selesai Verifikasi" untuk keluar.'); return; }
+  if (modeVerifikasiAktif) { toast('📚 Sesi verifikasi sedang berjalan — klik "Kirim Verifikasi" untuk keluar.'); return; }
   menungguAbsenKelas = false;
   document.getElementById('btnAbsenKelas').style.display = '';
   document.getElementById('menungguAbsenKelasBox').style.display = 'none';
@@ -2121,10 +2121,10 @@ async function processScanSiswaVerifikasi(data) {
   }
   // Kartu guru (GR...) atau QR lain yang kepencet saat mode verifikasi
   // aktif -- bukan error fatal, cukup kasih tahu supaya guru scan kartu
-  // siswa atau tekan "Selesai Verifikasi".
+  // siswa atau tekan "Kirim Verifikasi".
   if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|') || isKartuRiwayatUrl(raw) || isKartuMonitorUrl(raw)) {
     showFlash('warning','⚠️','Itu bukan kartu siswa');
-    toast('⚠️ Sedang Mode Verifikasi Kelas. Scan kartu siswa, atau tekan "Selesai Verifikasi" dulu.');
+    toast('⚠️ Sedang Mode Verifikasi Kelas. Scan kartu siswa, atau tekan "Kirim Verifikasi" dulu.');
     resumeScanSetelahJeda();
     return;
   }
@@ -2975,7 +2975,7 @@ function handleScanResult(result, data, now) {
         // Sesi tidak jadi dibuka -- pastikan overlay Absen Kelas (yang
         // sudah dibuka di mulaiAbsenKelas() sebelum kartu guru discan)
         // ikut ditutup, karena modeVerifikasiBox (yang biasanya jadi jalan
-        // keluarnya lewat tombol "Selesai Verifikasi") tidak pernah tampil
+        // keluarnya lewat tombol "Kirim Verifikasi") tidak pernah tampil
         // di jalur ini.
         tutupOverlayAbsenKelas();
       } else {
@@ -3884,7 +3884,7 @@ async function jalankanSync(antrian) {
         sesiIdMap[item.localSesiId] = r.idAbsensiMengajar;
         sesiTokenMap[item.localSesiId] = r.sesiToken;
         // Kalau Mode Verifikasi Kelas untuk sesi INI masih aktif di layar
-        // (guru belum tekan "Selesai Verifikasi"), sambungkan juga sesi
+        // (guru belum tekan "Kirim Verifikasi"), sambungkan juga sesi
         // yang sedang berjalan ke id asli supaya kartu siswa BERIKUTNYA
         // (belum discan) langsung lewat jalur online, tidak perlu antri
         // lagi.

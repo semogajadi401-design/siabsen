@@ -3360,17 +3360,39 @@ async function downloadKartuAdmin() {
     const pngFront = await captureKartuAdminGelap(kartuFront);
     const pngBack  = kartuBack ? await captureKartuAdminGelap(kartuBack) : null;
 
-    // Ukuran fisik kartu DIPAKSA tetap (85mm x 108mm), sama seperti kartu
-    // guru/siswa. Belakang ditumpuk di bawah depan dalam 1 file, dirotasi
-    // 180° supaya begitu kertas dibalik pas dilihat, tulisannya sudah
-    // menghadap benar.
-    const CARD_W_PT = 8.5 * 28.3465;
-    const CARD_H_PT = 10.8 * 28.3465;
-    const GAP_PT = 4;
-    const totalH_PT = CARD_H_PT + (pngBack ? GAP_PT + CARD_H_PT : 0);
+    // PERBAIKAN (kartu admin cetak jadi besar sendiri): sebelumnya halaman
+    // PDF di sini DIPAKSA sekecil kartu itu sendiri (85mm x 108mm) --
+    // BUKAN ukuran kertas standar (A4/F4/Letter). Banyak dialog cetak/PDF
+    // viewer, kalau ukuran halaman PDF tidak cocok kertas yang terpasang
+    // di printer, DEFAULT ke "Fit to Page"/"Scale to Fit Paper" -- menarik
+    // halaman kecil itu supaya MEMENUHI kertas A4 yang dipasang, sehingga
+    // kartu tercetak jauh lebih besar dari ukuran aslinya. Kartu guru versi
+    // BULK/massal (downloadAllKartuGuruPDF, lihat di atas) tidak kena
+    // masalah ini karena halamannya memang sudah ukuran standar (F4) --
+    // kartu di dalamnya ditempel di ukuran asli, jadi cetak "Actual Size"
+    // di kertas F4 sudah otomatis benar tanpa perlu apa-apa.
+    //
+    // Sekarang halaman dipaksa A4 (ukuran STANDAR yang selalu dikenali
+    // printer), kartu ditempel PERSIS di ukuran aslinya (85mm x 108mm, SAMA
+    // seperti kartu guru/siswa) di tengah halaman, dengan garis tepi tipis
+    // sebagai panduan gunting + catatan pengingat cara cetak yang benar.
+    // Selama dicetak "Ukuran Asli / Actual Size / 100%" (JANGAN centang
+    // "Fit to Page"), ukurannya otomatis benar.
+    const CARD_W_CM  = 8.5;
+    const CARD_H_CM  = 10.8;
+    const GAP_CM     = 0.6;
+    const PAGE_W_CM  = 21.0;  // A4
+    const PAGE_H_CM  = 29.7;  // A4
+    const startX     = (PAGE_W_CM - CARD_W_CM) / 2;
+    const startYFront = 2.2;
+    const startYBack  = startYFront + CARD_H_CM + GAP_CM;
 
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [CARD_W_PT, totalH_PT] });
-    pdf.addImage(pngFront, 'PNG', 0, 0, CARD_W_PT, CARD_H_PT);
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W_CM, PAGE_H_CM] });
+
+    pdf.setDrawColor(190);
+    pdf.setLineWidth(0.02);
+    pdf.addImage(pngFront, 'PNG', startX, startYFront, CARD_W_CM, CARD_H_CM);
+    pdf.rect(startX, startYFront, CARD_W_CM, CARD_H_CM, 'S');
 
     if (pngBack) {
       const backImg = new Image();
@@ -3384,11 +3406,22 @@ async function downloadKartuAdmin() {
       ctx.rotate(Math.PI);
       ctx.drawImage(backImg, -flipped.width / 2, -flipped.height / 2);
       ctx.restore();
-      pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG', 0, CARD_H_PT + GAP_PT, CARD_W_PT, CARD_H_PT);
+      pdf.addImage(flipped.toDataURL('image/png', 1.0), 'PNG', startX, startYBack, CARD_W_CM, CARD_H_CM);
+      pdf.rect(startX, startYBack, CARD_W_CM, CARD_H_CM, 'S');
     }
 
+    // Pengingat cara cetak — supaya tidak lupa cetak "Actual Size", bahkan
+    // kalau file ini dibuka/dicetak orang lain yang tidak baca chat ini.
+    pdf.setFontSize(8);
+    pdf.setTextColor(140);
+    pdf.text(
+      'Cetak di ukuran kertas A4, mode "Ukuran Asli / Actual Size / 100%" -- JANGAN "Fit to Page". Gunting mengikuti garis tepi kartu.',
+      PAGE_W_CM / 2, startYBack + CARD_H_CM + 1.1,
+      { align: 'center', maxWidth: PAGE_W_CM - 3 }
+    );
+
     pdf.save(`Kartu_Admin_${esc((user.nama || 'Administrator').replace(/\s+/g, '_'))}.pdf`);
-    toast('✅ Kartu Admin (depan+belakang) berhasil didownload!', 'success');
+    toast('✅ Kartu Admin (depan+belakang) berhasil didownload! Ingat: cetak "Ukuran Asli", bukan "Fit to Page".', 'success', 6000);
   } catch (e) {
     toast('❌ Gagal: ' + e.message, 'error');
   } finally {

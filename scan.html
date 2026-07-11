@@ -160,7 +160,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .side-rail::-webkit-scrollbar{width:4px}
 .side-rail::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 @media(max-width:900px){
-  .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
+  /* PERBAIKAN: baris .mode-switch-wrap sering cuma diisi 1 elemen
+     (karena .scan-title & .aksi-kelas-wrap dipaksa flex:1 1 100% jadi
+     baris sendiri-sendiri) -- tanpa justify-content, flex-wrap membuat
+     tiap "baris" rata kiri (flex-start bawaan), jadi tombol Datang/
+     Pulang nampak nempel ke kiri, bukan di tengah. justify-content:center
+     merapikan SETIAP baris (termasuk baris berisi satu elemen) ke tengah,
+     tanpa mengubah tata letak baris yang sudah penuh lebar. */
+  .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px}
   .side-rail .scan-title{flex:1 1 100%}
 }
 
@@ -458,21 +465,58 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   box-shadow:0 14px 32px -12px rgba(30,41,59,0.18),0 0 0 1px rgba(16,185,129,0.08);
   z-index:1;
 }
+/* ── TOMBOL KECIL GANTI KAMERA (BARU) ───────────────────────────────
+   Sengaja dibuat KECIL & bukan tombol besar seperti .btn-absen-kelas --
+   ini cuma aksi sekunder ("kalau perlu ganti kamera"), bukan aksi utama
+   halaman scan, jadi tidak boleh bersaing perhatian dengan lingkaran
+   kamera. Ditaruh menempel di tepi kanan-bawah lingkaran kamera (mirip
+   pola ikon "kamera flip" di app kamera bawaan HP pada umumnya), tetap
+   jelas terlihat lewat kontras lingkaran gelap + ikon putih.
+   display:none di sini adalah DEFAULT (desktop) -- baru dimunculkan
+   lewat media query di bawah (layar sempit/HP) DAN class
+   --tersedia yang ditambahkan lewat JS kalau device memang punya >=2
+   kamera (lihat tampilkanTombolSwitchCamJikaTersedia()). Dua syarat ini
+   sengaja dipisah: media query soal UKURAN LAYAR, class --tersedia
+   soal KEMAMPUAN DEVICE -- supaya tombol tidak nongol percuma di
+   desktop maupun di HP yang cuma py 1 kamera. */
+.btn-switch-cam{
+  display:none;
+  position:absolute;right:2%;bottom:4%;z-index:3;
+  width:30px;height:30px;border-radius:50%;
+  align-items:center;justify-content:center;
+  border:1.5px solid rgba(255,255,255,0.85);
+  background:rgba(15,23,42,0.62);color:#fff;
+  cursor:pointer;padding:0;
+  box-shadow:0 3px 10px -3px rgba(0,0,0,0.5);
+  transition:transform .15s,background .2s;
+}
+.btn-switch-cam:active{transform:scale(.88);background:rgba(15,23,42,0.8)}
+.btn-switch-cam:disabled{opacity:.5;cursor:default}
+@media(max-width:900px){
+  .btn-switch-cam.btn-switch-cam--tersedia{display:flex}
+}
 .scanner-placeholder{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:2.6rem;color:#94A3B8;z-index:0;
 }
-/* PERBAIKAN "susah pas di tengah kamera": video SEBELUMNYA tidak dibalik
-   (bukan seperti cermin), padahal orang terbiasa dengan tampilan kamera
-   yang mirror (Zoom, kamera HP, dst -- geser kepala ke kanan, bayangan
-   di layar ikut ke kanan). Tanpa mirror, arahnya kebalik -- begitu user
-   coba "koreksi" posisi berdasarkan yang terlihat di layar, gerakannya
-   malah menjauhkan dari tengah yang sebenarnya. transform di sini HANYA
-   membalik TAMPILANNYA saja (murni visual/CSS) -- proses decode QR
-   (canvas.drawImage(video,...)) dan deteksi wajah (tf.browser.fromPixels
-   via face-api.js) tetap mengambil data piksel asli dari video, TIDAK
-   ikut terbalik, jadi pembacaan QR maupun deteksi wajah tetap akurat
-   seperti sebelumnya. */
+/* PERBAIKAN (11 Juli 2026): transform:scaleX(-1) yang dulu dipasang di
+   sini SALAH ARAH untuk kamera kios ini. Mirroring cuma masuk akal untuk
+   kamera DEPAN (selfie) yang menghadap orang yang sama dengan yang
+   melihat layar -- di situ orang terbiasa "seperti cermin" (Zoom, kamera
+   depan HP). Scanner ini justru minta facingMode:'environment' (KAMERA
+   BELAKANG, lihat startScanner()) -- device dipegang menghadap subjek/
+   kartu, dan yang melihat layar melihat ke arah YANG SAMA dengan arah
+   kamera, bukan berhadapan. Untuk kamera belakang, tampilan HARUS
+   natural (tidak dibalik): geser objek ke kiri -> harus tampak ke kiri
+   juga di layar. Dengan scaleX(-1) di sini, arahnya jadi terbalik --
+   itu sebabnya geser objek ke kiri malah tampak ke kanan di bingkai
+   kamera. Mirror sekarang dikendalikan lewat class .scanVideo--mirror
+   yang HANYA ditambahkan lewat JS kalau device ternyata jatuh ke kamera
+   depan (browser/laptop tanpa kamera belakang, facingMode aktual jadi
+   'user') -- lihat terapkanMirrorSesuaiFacingMode() di startScanner().
+   Proses decode QR (canvas.drawImage(video,...)) dan deteksi wajah
+   (face-api.js) tetap mengambil data piksel asli dari video, TIDAK
+   terpengaruh oleh transform CSS ini sama sekali. */
 /* KALIBRASI POSISI KAMERA: sebagian besar webcam laptop lensanya secara
    fisik memang tidak persis di tengah bezel/layar, jadi walau orangnya
    duduk pas di tengah layar, hasil rekaman sensor tetap sedikit geser
@@ -486,7 +530,8 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
    parah, berarti arahnya kebalik -- TURUNKAN di bawah 50% (mis. 45%,
    40%) sampai wajah pas di tengah lingkaran. */
 :root{--cam-offset-x:50%}
-#scanVideo{position:relative;width:100%;height:100%;object-fit:cover;object-position:var(--cam-offset-x) 50%;display:block;z-index:1;background:transparent;transform:scaleX(-1)}
+#scanVideo{position:relative;width:100%;height:100%;object-fit:cover;object-position:var(--cam-offset-x) 50%;display:block;z-index:1;background:transparent}
+#scanVideo.scanVideo--mirror{transform:scaleX(-1)}
 .scan-overlay{display:none}
 
 .scan-flash{
@@ -1217,6 +1262,25 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
           </div>
           <canvas id="scanCanvas" style="display:none"></canvas>
         </div>
+        <!-- Tombol kecil ganti kamera depan/belakang. Ditaruh sebagai anak
+             .scanner-visual (bukan .scanner-wrap) supaya TIDAK ikut
+             terpotong oleh overflow:hidden lingkaran kamera, tapi tetap
+             ikut terbawa otomatis saat .scanner-visual dipindah ke/dari
+             overlay Absen Kelas (lihat bukaOverlayAbsenKelas() /
+             tutupOverlayAbsenKelas()) -- tidak perlu salinan kedua tombol
+             ini di HTML overlay. Disembunyikan default lewat CSS (baru
+             ditampilkan di layar sempit/HP DAN kalau device benar-benar
+             punya >=2 kamera -- lihat tampilkanTombolSwitchCamJikaTersedia()). -->
+        <button type="button" class="btn-switch-cam" id="btnSwitchCam"
+                onclick="switchCamera()" title="Ganti kamera depan/belakang"
+                aria-label="Ganti kamera depan/belakang">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 2l4 4-4 4"/>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+            <path d="M7 22l-4-4 4-4"/>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Tips silau: muncul otomatis kalau QR belum kebaca ±1.5 detik.
@@ -1527,6 +1591,23 @@ let scanCooldown  = false;
 let scanActive    = false;
 let scanStream    = null;
 let scanAnimFrame = null;
+
+// PERBAIKAN "klik menu jadi berat": scanLoop() (jalan tiap frame lewat
+// requestAnimationFrame -- lihat definisinya di bawah) melakukan
+// drawImage+getImageData+jsQR SETIAP frame, dan cekWajahPembuat()
+// menjalankan inferensi SSD MobileNet tiap 1.5 detik -- KEDUANYA terus
+// berjalan penuh walau modal (mis. "Cek Aktivitas Guru", "Tanpa Kartu",
+// "Konfirmasi Piket") sedang dibuka menutupi kamera. Kamera tidak
+// terlihat sama sekali di balik modal itu, jadi proses berat ini
+// sia-sia sekaligus merebut CPU/GPU utama dari thread yang sama dipakai
+// untuk animasi/klik tombol menu -- itu sebabnya menu terasa "keras"/
+// tersendat saat modal dibuka. _scanBeratPaused dicek di scanLoop() dan
+// cekWajahPembuat() supaya keduanya berhenti total (skip pekerjaan
+// berat) selama modal terbuka, lalu otomatis lanjut lagi begitu modal
+// ditutup -- lewat pauseScanBerat()/resumeScanBerat() di bawah.
+let _scanBeratPaused = false;
+function pauseScanBerat() { _scanBeratPaused = true; }
+function resumeScanBerat() { _scanBeratPaused = false; }
 let logData       = { hadir:[], izinSakit:[], belumHadir:[] };
 let activeTab     = 'belum';
 
@@ -1744,7 +1825,7 @@ function jarakDescriptor(a, b) {
 let _faceCheckBusy = false;
 
 async function cekWajahPembuat() {
-  if (!_faceModelsSiap || _faceCheckBusy) return;
+  if (!_faceModelsSiap || _faceCheckBusy || _scanBeratPaused) return;
   const video = document.getElementById('scanVideo');
   if (!video || video.readyState < 2) return;
   // CATATAN: guard cooldown lama yang langsung `return` di sini DIHAPUS --
@@ -2622,6 +2703,136 @@ function updateGuruStatus(guruList, status) {
 //     re-fokus (mis. app di-background lalu dibuka lagi).
 // factor width/height/frameRate di bawah "ideal" (bukan wajib persis),
 // browser tetap boleh menyesuaikan device yang tidak mendukungnya.
+// PERBAIKAN ARAH KAMERA: cermin (mirror) HANYA benar untuk kamera DEPAN
+// (facingMode 'user') -- lihat catatan panjang di CSS #scanVideo di atas.
+// Kita minta 'environment' (kamera belakang) sebagai preferensi, tapi
+// beberapa device (laptop/tablet tanpa kamera belakang) tetap akan
+// jatuh ke kamera depan walau constraint-nya "ideal" bukan "exact".
+// Fungsi ini mengecek facingMode SEBENARNYA dari track yang didapat
+// (bukan yang diminta) lewat getSettings(), lalu baru menentukan perlu
+// mirror atau tidak -- supaya benar di kedua kasus, bukan cuma diasumsikan.
+function terapkanMirrorSesuaiFacingMode(stream) {
+  const video = document.getElementById('scanVideo');
+  if (!video) return;
+  let facing = null;
+  try {
+    const [track] = stream.getVideoTracks();
+    facing = track && typeof track.getSettings === 'function'
+      ? (track.getSettings().facingMode || null) : null;
+  } catch (e) { /* biarkan facing = null, default tidak dicermin */ }
+  video.classList.toggle('scanVideo--mirror', facing === 'user');
+}
+
+// Sebagian device baru benar-benar menerapkan continuous autofocus lewat
+// applyConstraints ke track (bukan lewat getUserMedia awal). Dipisah jadi
+// fungsi sendiri supaya bisa dipakai ulang oleh switchCamera() (ganti
+// kamera depan/belakang) tanpa duplikasi kode. Dibungkus try/catch karena
+// banyak browser (terutama iOS Safari) belum mendukung focusMode sama
+// sekali lewat Web API — kamera iOS tetap autofocus terus-menerus secara
+// bawaan OS, jadi kegagalan di sini aman diabaikan, bukan tanda ada yang salah.
+async function aturContinuousAutofocus(stream) {
+  const [track] = stream.getVideoTracks();
+  if (track && typeof track.getCapabilities === 'function') {
+    try {
+      const caps = track.getCapabilities();
+      if (caps.focusMode && caps.focusMode.includes('continuous')) {
+        await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    } catch (eFocus) {
+      // Diamkan — bukan fitur wajib, cuma optimisasi tambahan kalau device mendukung.
+    }
+  }
+}
+
+// FITUR BARU: tombol kecil untuk ganti kamera depan/belakang di HP.
+// _camFacingMode menyimpan PREFERENSI arah kamera saat ini -- dipakai
+// baik oleh startScanner() (permintaan getUserMedia awal) maupun
+// switchCamera() (ganti arah). Default 'environment' (belakang) supaya
+// perilaku default aplikasi TIDAK berubah untuk siapa pun yang belum
+// pernah menekan tombol switch.
+let _camFacingMode = 'environment';
+
+// Tombol switch HANYA ditampilkan kalau device benar-benar punya lebih
+// dari satu kamera -- supaya tidak muncul percuma di device dengan satu
+// kamera saja (mis. sebagian besar laptop). Media query di CSS sudah
+// membatasi tombol ini ke layar sempit (HP); pengecekan jumlah kamera
+// di sini adalah lapis kedua (device-based, bukan cuma lebar layar).
+async function tampilkanTombolSwitchCamJikaTersedia() {
+  const btn = document.getElementById('btnSwitchCam');
+  if (!btn) return;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const jumlahKamera = devices.filter(d => d.kind === 'videoinput').length;
+    btn.classList.toggle('btn-switch-cam--tersedia', jumlahKamera >= 2);
+  } catch (e) {
+    // enumerateDevices gagal (jarang) -- biarkan tombol tersembunyi,
+    // lebih aman daripada menampilkan tombol yang mungkin tidak berguna.
+  }
+}
+
+// Ganti kamera aktif antara depan (user) <-> belakang (environment).
+// Stream lama DIHENTIKAN dulu sebelum minta stream baru -- di banyak
+// device Android, dua kamera tidak boleh aktif bersamaan, jadi
+// permintaan kamera baru bisa gagal kalau track lama belum dilepas.
+let _switchCamBusy = false;
+async function switchCamera() {
+  if (!scanActive || !scanStream || _switchCamBusy) return;
+  _switchCamBusy = true;
+  const btn = document.getElementById('btnSwitchCam');
+  if (btn) btn.disabled = true;
+
+  const arahSebelumnya = _camFacingMode;
+  const arahBaru = arahSebelumnya === 'environment' ? 'user' : 'environment';
+  scanStream.getTracks().forEach(t => t.stop());
+
+  try {
+    // 'exact' dipakai di sini (bukan 'ideal') supaya kalau device memang
+    // tidak punya kamera ke arah itu, permintaannya GAGAL dengan jelas
+    // (masuk catch) alih-alih browser diam-diam memberi kamera yang sama
+    // seperti sebelumnya -- yang membuat tombol terasa "tidak ngefek".
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { exact: arahBaru },
+        width:  { ideal: 960 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+        advanced: [{ focusMode: 'continuous' }]
+      }
+    });
+    _camFacingMode = arahBaru;
+    scanStream = stream;
+    const video = document.getElementById('scanVideo');
+    video.srcObject = stream;
+    await video.play();
+    terapkanMirrorSesuaiFacingMode(stream);
+    await aturContinuousAutofocus(stream);
+  } catch (e) {
+    // Kamera ke arah itu tidak ada di device ini -- coba kembalikan ke
+    // arah semula supaya kamera tidak mati total gara-gara tombol ini.
+    toast('⚠️ Kamera itu tidak tersedia di device ini.');
+    try {
+      const fallback = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: arahSebelumnya } }
+      });
+      _camFacingMode = arahSebelumnya;
+      scanStream = fallback;
+      const video = document.getElementById('scanVideo');
+      video.srcObject = fallback;
+      await video.play();
+      terapkanMirrorSesuaiFacingMode(fallback);
+      await aturContinuousAutofocus(fallback);
+    } catch (e2) {
+      // Kedua arah gagal -- sangat jarang (device kehilangan akses kamera
+      // di tengah jalan). Beri tahu pengguna supaya sadar perlu mulai ulang.
+      toast('⚠️ Kamera terputus. Coba muat ulang halaman.');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+    _switchCamBusy = false;
+  }
+}
+
+
 async function startScanner() {
   if (scanActive) return;
   _scanGagalBerturut = 0;
@@ -2629,7 +2840,7 @@ async function startScanner() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { ideal: 'environment' },
+        facingMode: { ideal: _camFacingMode },
         width:  { ideal: 960 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 },
@@ -2644,24 +2855,9 @@ async function startScanner() {
     const video = document.getElementById('scanVideo');
     video.srcObject = stream;
     await video.play();
-
-    // Sebagian device baru benar-benar menerapkan continuous autofocus
-    // lewat applyConstraints ke track (bukan lewat getUserMedia awal).
-    // Dibungkus try/catch karena banyak browser (terutama iOS Safari)
-    // belum mendukung focusMode sama sekali lewat Web API — kamera iOS
-    // tetap autofocus terus-menerus secara bawaan OS, jadi kegagalan di
-    // sini aman diabaikan, bukan tanda ada yang salah.
-    const [track] = stream.getVideoTracks();
-    if (track && typeof track.getCapabilities === 'function') {
-      try {
-        const caps = track.getCapabilities();
-        if (caps.focusMode && caps.focusMode.includes('continuous')) {
-          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-        }
-      } catch (eFocus) {
-        // Diamkan — bukan fitur wajib, cuma optimisasi tambahan kalau device mendukung.
-      }
-    }
+    terapkanMirrorSesuaiFacingMode(stream);
+    await aturContinuousAutofocus(stream);
+    tampilkanTombolSwitchCamJikaTersedia();
 
     scanLoop();
     mulaiCekWajahPembuat();
@@ -2727,6 +2923,7 @@ function resumeScanSetelahJeda(ms = WARN_COOLDOWN_MS) {
 
 function scanLoop() {
   if (!scanActive) return;
+  if (_scanBeratPaused) { scanAnimFrame = requestAnimationFrame(scanLoop); return; }
   const video  = document.getElementById('scanVideo');
   const canvas = document.getElementById('scanCanvas');
   if (!video.readyState || video.readyState < 2) {
@@ -3150,6 +3347,7 @@ function handleScanResult(result, data, now) {
 let _pendingKonfirmasiPiket = null;
 
 function tampilkanKonfirmasiPiket(result, rawData) {
+  pauseScanBerat();
   _pendingKonfirmasiPiket = { identifier: rawData };
   document.getElementById('konfirmasiPiketText').textContent = result.message;
   // Sebelum toleransi lewat -> tombol "Batal", sesudah -> tombol "Tidak"
@@ -3162,6 +3360,7 @@ function tutupModalKonfirmasiPiket() {
   document.getElementById('modalKonfirmasiPiket').style.display = 'none';
   _pendingKonfirmasiPiket = null;
   scanCooldown = false;
+  resumeScanBerat();
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
 
@@ -3264,6 +3463,7 @@ let _tkOfflineMode   = false;
 // IndexedDB yang sama dipakai scan QR, jadi otomatis dapat semua jaminan
 // retry/dedup yang sudah ada tanpa mekanisme offline terpisah.
 function bukaModalTanpaKartu() {
+  pauseScanBerat();
   _tkSelected = new Set();
   document.getElementById('modalTanpaKartu').style.display = 'flex';
 
@@ -3271,6 +3471,8 @@ function bukaModalTanpaKartu() {
     const guruOffline = getGuruOffline();
     if (!guruOffline) {
       document.getElementById('modalTanpaKartu').style.display = 'none';
+      resumeScanBerat();
+      if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
       toast('⛔ Scan dulu kartu guru piket (offline) sebelum pakai fitur ini');
       return;
     }
@@ -3328,6 +3530,8 @@ async function buildChecklistFromCache() {
 
 function tutupModalTanpaKartu() {
   document.getElementById('modalTanpaKartu').style.display = 'none';
+  resumeScanBerat();
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
 
 // ══════ CEK AKTIVITAS GURU (BARU) — read-only, boleh dibuka kapan saja
@@ -3335,6 +3539,7 @@ function tutupModalTanpaKartu() {
 // menyentuh state scanner sama sekali (lihat getAktivitasGuruHariIni()
 // di api/scan.js). ══════
 async function bukaModalAktivitasGuru() {
+  pauseScanBerat();
   document.getElementById('modalAktivitasGuru').style.display = 'flex';
   document.getElementById('agLoading').style.display = '';
   document.getElementById('agKonten').style.display = 'none';
@@ -3350,6 +3555,8 @@ async function bukaModalAktivitasGuru() {
 
 function tutupModalAktivitasGuru() {
   document.getElementById('modalAktivitasGuru').style.display = 'none';
+  resumeScanBerat();
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
 
 function renderAktivitasGuru(data) {

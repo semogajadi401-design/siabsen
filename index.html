@@ -2947,14 +2947,17 @@ async function downloadAllKartuGuruPDF() {
 
     // Capture semua kartu (depan+belakang) — diproses 4 per batch secara
     // paralel supaya cepat, sama pola dengan bulk download kartu siswa.
+    const BATCH_SIZE = Math.max(4, Math.min(8, navigator.hardwareConcurrency || 4));
     const cards = await runInBatches(guruList, async (g, i) => {
       const front = document.getElementById('kartuGuruPrint_bulk_' + i);
       const back  = document.getElementById('kartuGuruBack_bulk_' + i);
       const fixedWidth = front.offsetWidth;
-      const cfCanvas = await captureKartu(front, fixedWidth);
-      const cbCanvas = back ? await captureKartu(back, fixedWidth) : null;
+      const [cfCanvas, cbCanvas] = await Promise.all([
+        captureKartu(front, fixedWidth),
+        back ? captureKartu(back, fixedWidth) : Promise.resolve(null)
+      ]);
       return { cfCanvas, cbCanvas };
-    }, 4);
+    }, BATCH_SIZE);
 
     const { jsPDF } = window.jspdf;
 
@@ -4357,14 +4360,17 @@ async function downloadAllKartuPDF() {
     // untuk kelas isi 40 siswa, versi lama melakukan 80 kali render
     // html2canvas (depan+belakang) SATU PER SATU secara berurutan.
     const validWraps = Array.from(wraps).filter(w => w.querySelector('.student-card-print'));
+    const BATCH_SIZE = Math.max(4, Math.min(8, navigator.hardwareConcurrency || 4));
     const cards = await runInBatches(validWraps, async (wrap) => {
       const front = wrap.querySelector('.student-card-print');
       const back  = wrap.querySelector('.student-card-back');
       const fixedWidth = front.offsetWidth;
-      const cfCanvas = await captureKartu(front, fixedWidth);
-      const cbCanvas = back ? await captureKartu(back, fixedWidth) : null;
+      const [cfCanvas, cbCanvas] = await Promise.all([
+        captureKartu(front, fixedWidth),
+        back ? captureKartu(back, fixedWidth) : Promise.resolve(null)
+      ]);
       return { cfCanvas, cbCanvas };
-    }, 4);
+    }, BATCH_SIZE);
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
 

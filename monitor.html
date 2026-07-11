@@ -94,6 +94,17 @@ body{
   background:#fff;color:#555;font-weight:700;font-size:.82rem;cursor:pointer;
 }
 .btn-close:active{transform:scale(.97)}
+
+.health-note{font-size:.72rem;color:var(--text-muted);line-height:1.55;margin-bottom:10px}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{padding:6px 13px;border-radius:20px;border:1.5px solid #ddd;background:#fff;
+  font-size:.72rem;font-weight:700;cursor:pointer;color:var(--text-muted)}
+.chip.active{background:var(--blue-dark);border-color:var(--blue-dark);color:#fff}
+.chip:active{transform:scale(.96)}
+.health-subtitle{font-size:.72rem;font-weight:700;color:var(--blue-dark);margin:14px 0 6px}
+.health-disclaimer{margin-top:10px;font-size:.65rem;color:var(--text-muted);line-height:1.55;
+  background:#f4f7fb;border-radius:8px;padding:9px 11px}
+.chart-legend{font-size:.6rem;color:var(--text-muted);margin-top:4px}
 </style>
 </head>
 <body>
@@ -189,6 +200,7 @@ function renderShell() {
         <button class="tab-btn active" id="tabbtn-hari" onclick="loadTab('hari')">📍 Hari Ini</button>
         <button class="tab-btn" id="tabbtn-minggu" onclick="loadTab('minggu')">📅 7 Hari Terakhir</button>
         <button class="tab-btn" id="tabbtn-bulan" onclick="loadTab('bulan')">🗓️ Bulan Ini</button>
+        <button class="tab-btn" id="tabbtn-sistem" onclick="loadTab('sistem')">🩺 Sistem</button>
       </div>
       <div class="content" id="tabContent">
         <div class="empty">Memuat...</div>
@@ -203,7 +215,7 @@ function renderShell() {
 }
 
 function setActiveTabBtn(tab) {
-  ['hari','minggu','bulan'].forEach(t => {
+  ['hari','minggu','bulan','sistem'].forEach(t => {
     document.getElementById('tabbtn-' + t).classList.toggle('active', t === tab);
   });
 }
@@ -212,8 +224,16 @@ async function loadTab(tab) {
   currentTab = tab;
   setActiveTabBtn(tab);
   const el = document.getElementById('tabContent');
-  el.innerHTML = `<div class="empty">⏳ Memuat data...</div>`;
 
+  if (tab === 'sistem') {
+    // BEDA dari tab lain: TIDAK memanggil api() apapun begitu tab dibuka.
+    // Panel ini hanya menampilkan filter chip -- pengecekan baru berjalan
+    // kalau salah satu chip ditekan (lihat cekKesehatan()).
+    el.innerHTML = renderPanelKesehatanSistem();
+    return;
+  }
+
+  el.innerHTML = `<div class="empty">⏳ Memuat data...</div>`;
   if (tab === 'hari') {
     const d = await api('getLiveHariIni', { token: TOKEN });
     if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
@@ -348,6 +368,130 @@ function renderRekapPeriode(d) {
     </div>
     <button class="btn-refresh" onclick="loadTab('${d.rentang}')">🔄 Refresh</button>
   `;
+}
+
+// ═══════════════ CEK KESEHATAN SISTEM (BARU, khusus kepsek) ═══════════════
+function renderPanelKesehatanSistem() {
+  return `
+    <div class="section">
+      <div class="section-title">🩺 Cek Kesehatan Sistem</div>
+      <div class="health-note">
+        Untuk memverifikasi klaim "kendala sistem/tidak bisa buka aplikasi" dari guru piket.
+        Pilih rentang waktu, lalu tekan salah satu tombol di bawah — pengecekan baru berjalan
+        setelah ditekan, tidak otomatis.
+      </div>
+      <div class="filter-chips" id="healthFilters">
+        <button class="chip" data-r="jam" onclick="cekKesehatan('jam')">🕐 6 Jam Terakhir</button>
+        <button class="chip" data-r="hari" onclick="cekKesehatan('hari')">📍 Hari Ini</button>
+        <button class="chip" data-r="minggu" onclick="cekKesehatan('minggu')">📅 Minggu</button>
+        <button class="chip" data-r="bulan" onclick="cekKesehatan('bulan')">🗓️ Bulan</button>
+        <button class="chip" data-r="semester" onclick="cekKesehatan('semester')">🎓 Semester</button>
+      </div>
+      <div id="healthResult"></div>
+    </div>
+  `;
+}
+
+let healthLoading = false;
+async function cekKesehatan(rentang) {
+  if (healthLoading) return;
+  healthLoading = true;
+  document.querySelectorAll('#healthFilters .chip').forEach(b => b.classList.toggle('active', b.dataset.r === rentang));
+  const el = document.getElementById('healthResult');
+  if (!el) { healthLoading = false; return; }
+  el.innerHTML = `<div class="empty">⏳ Mengecek riwayat kiosk & status layanan eksternal (Vercel/Supabase)...</div>`;
+  const d = await api('cekKesehatanSistem', { token: TOKEN, rentang });
+  healthLoading = false;
+  if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
+  el.innerHTML = renderHasilKesehatan(d);
+}
+
+function renderHasilKesehatan(d) {
+  const r = d.ringkasan;
+  return `
+    <div class="stat-grid">
+      ${statBox(r.totalHeartbeat, 'Heartbeat Tercatat', '')}
+      ${statBox(r.totalPerangkat, 'Perangkat', '')}
+      ${statBox(r.totalGangguanTerdeteksi, 'Celah Terdeteksi', r.totalGangguanTerdeteksi > 0 ? 'warning' : 'success')}
+      ${statBox(r.totalInsidenEksternal, 'Insiden Resmi', r.totalInsidenEksternal > 0 ? 'danger' : 'success')}
+    </div>
+
+    <div class="health-subtitle">📈 Aktivitas Kiosk dari Waktu ke Waktu</div>
+    ${buatGrafikSVG(d.timeline)}
+
+    <div class="health-subtitle">⚠️ Celah Waktu Mencurigakan (indikasi kiosk offline/gangguan)</div>
+    ${renderGangguan(d.gangguanTerdeteksi)}
+
+    <div class="health-subtitle">☁️ Insiden Resmi Vercel / Supabase pada Rentang Ini</div>
+    ${renderInsiden(d.insidenEksternal)}
+
+    <div class="health-disclaimer">
+      ℹ️ Ini <b>indikasi</b>, bukan bukti mutlak. Celah waktu bisa juga terjadi karena kiosk
+      memang sengaja dimatikan di luar jam sekolah (malam, akhir pekan, libur) — bukan berarti
+      gangguan sungguhan. Tetap perlu penilaian manusia, terutama untuk kejadian di luar jam
+      operasional sekolah.
+    </div>
+    <button class="btn-refresh" onclick="loadTab('sistem')">🔄 Reset Filter</button>
+  `;
+}
+
+function buatGrafikSVG(timeline) {
+  if (!timeline || !timeline.length) return `<div class="empty">Tidak ada data heartbeat tercatat pada rentang ini.</div>`;
+  const w = 600, h = 110, padX = 3, baseY = h - 18;
+  const maxVal = Math.max(1, ...timeline.map(t => t.jumlah));
+  const barW = (w - padX * 2) / timeline.length;
+  const bars = timeline.map((t, i) => {
+    const kosong = t.jumlah === 0;
+    const barH = kosong ? 3 : Math.max(3, (t.jumlah / maxVal) * (baseY - 10));
+    const x = padX + i * barW;
+    const y = baseY - barH;
+    const judul = `${esc(new Date(t.waktu).toLocaleString('id-ID'))}: ${t.jumlah} heartbeat${kosong ? ' — tidak ada aktivitas' : ''}`;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, barW - 1.2).toFixed(1)}" height="${barH.toFixed(1)}" rx="2"
+      style="fill:${kosong ? 'var(--danger)' : 'var(--blue-dark)'}"><title>${judul}</title></rect>`;
+  }).join('');
+  const fmtOpt = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' };
+  const labelAwal = new Date(timeline[0].waktu).toLocaleString('id-ID', fmtOpt);
+  const labelAkhir = new Date(timeline[timeline.length - 1].waktu).toLocaleString('id-ID', fmtOpt);
+  return `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block;background:#fafcff;border-radius:8px">
+      <line x1="${padX}" y1="${baseY}" x2="${w - padX}" y2="${baseY}" stroke="#e5e5e5" stroke-width="1"/>
+      ${bars}
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--text-muted);margin-top:3px">
+      <span>${esc(labelAwal)}</span><span>${esc(labelAkhir)}</span>
+    </div>
+    <div class="chart-legend">🟦 Ada aktivitas kiosk &nbsp;&nbsp; 🟥 Batang kosong = tidak ada heartbeat sama sekali di jendela waktu itu</div>
+  `;
+}
+
+function renderGangguan(list) {
+  if (!list || !list.length) return `<div class="empty">✅ Tidak ada celah waktu mencurigakan terdeteksi pada rentang ini.</div>`;
+  return list.map(g => `
+    <div class="list-item">
+      <div class="avatar">🖥️</div>
+      <div class="li-main">
+        <div class="li-name">${esc(g.label)}</div>
+        <div class="li-sub">${esc(new Date(g.mulai).toLocaleString('id-ID'))} → ${esc(new Date(g.selesai).toLocaleString('id-ID'))}</div>
+      </div>
+      <span class="badge badge-warning">⏳ ${g.durasiMenit} menit</span>
+    </div>`).join('');
+}
+
+function renderInsiden(list) {
+  if (!list || !list.length) return `<div class="empty">✅ Tidak ada insiden resmi tercatat dari Vercel/Supabase pada rentang ini.</div>`;
+  return list.map(i => {
+    const dampak = (i.dampak || 'none').toLowerCase();
+    const cls = (dampak === 'critical' || dampak === 'major') ? 'badge-danger' : (dampak === 'minor' ? 'badge-warning' : 'badge-gray');
+    return `
+    <div class="list-item">
+      <div class="avatar">☁️</div>
+      <div class="li-main">
+        <div class="li-name">${esc(i.judul)}</div>
+        <div class="li-sub">${esc(i.sumber)} • ${esc(new Date(i.mulai).toLocaleString('id-ID'))} • ${esc(i.status)}</div>
+      </div>
+      <span class="badge ${cls}">${esc(dampak.toUpperCase())}</span>
+    </div>`;
+  }).join('');
 }
 
 init();

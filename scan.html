@@ -332,9 +332,22 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   transition:transform .15s;
 }
 .btn-absen-kelas:active{transform:scale(.96)}
+
+/* ── TOMBOL CEK AKTIVITAS GURU (BARU) ───────────────────────────────
+   Sama-sama di bawah tombol Absen Kelas, tapi warna beda (teal) supaya
+   jelas ini cuma buka ringkasan read-only, bukan mulai sesi absen. */
+.btn-cek-aktivitas-guru{
+  width:100%;max-width:150px;margin-top:8px;padding:12px 10px;border:none;border-radius:16px;
+  background:linear-gradient(160deg,#5EEAD4,#0D9488);
+  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
+  box-shadow:0 6px 16px -6px rgba(13,148,136,0.55),inset 0 1px 1px rgba(255,255,255,.35);
+  transition:transform .15s;
+}
+.btn-cek-aktivitas-guru:active{transform:scale(.96)}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
   .btn-absen-kelas{max-width:184px}
+  .btn-cek-aktivitas-guru{max-width:184px}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -1044,6 +1057,65 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       📚 Absen Kelas
     </button>
 
+    <!-- Tombol Cek Aktivitas Guru (BARU) -- ringkasan read-only, tidak
+         menyentuh proses scan sama sekali: siapa guru yang sudah
+         mengajar hari ini (+ berapa siswa sudah diverifikasi di sesi
+         itu), dan siapa yang jadwalnya hari ini tapi belum mengajar.
+         Lihat getAktivitasGuruHariIni() di api/scan.js. -->
+    <button type="button" class="btn-cek-aktivitas-guru" id="btnCekAktivitasGuru" onclick="bukaModalAktivitasGuru()">
+      👨‍🏫 Cek Aktivitas Guru
+    </button>
+
+  </div>
+
+  <!-- ══════ MODAL: AKTIVITAS GURU HARI INI ══════ -->
+  <div id="modalAktivitasGuru" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-weight:800;font-size:.98rem">👨‍🏫 Aktivitas Guru Hari Ini</div>
+        <button onclick="tutupModalAktivitasGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Isi (loading / konten / error) -->
+      <div id="agIsi" style="overflow-y:auto;flex:1;padding:16px 20px">
+        <div id="agLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+
+        <div id="agKonten" style="display:none">
+
+          <!-- Ringkasan singkat -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+            <div style="background:var(--success-soft,#DCFCE7);border-radius:10px;padding:10px 6px;text-align:center">
+              <div id="agTotalSudah" style="font-weight:800;font-size:1.1rem;color:var(--success,#16A34A)">0</div>
+              <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Sudah Mengajar</div>
+            </div>
+            <div style="background:var(--danger-soft,#FEE2E2);border-radius:10px;padding:10px 6px;text-align:center">
+              <div id="agTotalBelum" style="font-weight:800;font-size:1.1rem;color:var(--danger,#DC2626)">0</div>
+              <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Belum Mengajar</div>
+            </div>
+            <div style="background:#EDE9FE;border-radius:10px;padding:10px 6px;text-align:center">
+              <div id="agTotalSiswa" style="font-weight:800;font-size:1.1rem;color:#7C3AED">0</div>
+              <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Siswa Terverifikasi</div>
+            </div>
+          </div>
+
+          <div id="agLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
+
+          <!-- Sudah mengajar -->
+          <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--success,#16A34A)">✅ Sudah Mengajar</div>
+          <div id="agListSudah" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
+          <div id="agKosongSudah" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0 18px">Belum ada guru yang mengajar hari ini.</div>
+
+          <!-- Belum mengajar -->
+          <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--danger,#DC2626)">⏳ Belum Mengajar</div>
+          <div id="agListBelum" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div id="agKosongBelum" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">🎉 Semua guru terjadwal sudah mengajar.</div>
+
+        </div>
+      </div>
+
+    </div>
   </div>
 
 
@@ -3204,6 +3276,83 @@ async function buildChecklistFromCache() {
 
 function tutupModalTanpaKartu() {
   document.getElementById('modalTanpaKartu').style.display = 'none';
+}
+
+// ══════ CEK AKTIVITAS GURU (BARU) — read-only, boleh dibuka kapan saja
+// termasuk saat menunggu kartu di mode Absen Kelas, karena tidak
+// menyentuh state scanner sama sekali (lihat getAktivitasGuruHariIni()
+// di api/scan.js). ══════
+async function bukaModalAktivitasGuru() {
+  document.getElementById('modalAktivitasGuru').style.display = 'flex';
+  document.getElementById('agLoading').style.display = '';
+  document.getElementById('agKonten').style.display = 'none';
+  try {
+    const r = await api('scan', 'getAktivitasGuruHariIni', {});
+    if (!r.success) { toast(r.message || 'Gagal memuat data aktivitas guru.'); tutupModalAktivitasGuru(); return; }
+    renderAktivitasGuru(r);
+  } catch (e) {
+    toast('Gagal memuat data. Cek koneksi.');
+    tutupModalAktivitasGuru();
+  }
+}
+
+function tutupModalAktivitasGuru() {
+  document.getElementById('modalAktivitasGuru').style.display = 'none';
+}
+
+function renderAktivitasGuru(data) {
+  document.getElementById('agLoading').style.display = 'none';
+  document.getElementById('agKonten').style.display = '';
+
+  document.getElementById('agTotalSudah').textContent = data.ringkasan.totalSudahMengajar;
+  document.getElementById('agTotalBelum').textContent = data.ringkasan.totalBelumMengajar;
+  document.getElementById('agTotalSiswa').textContent = data.ringkasan.totalSiswaTerverifikasi;
+
+  const liburBox = document.getElementById('agLiburBox');
+  if (data.keteranganLibur) {
+    liburBox.style.display = '';
+    liburBox.textContent = `📅 Hari ini libur (${data.keteranganLibur}) — belum tentu ada jadwal mengajar.`;
+  } else {
+    liburBox.style.display = 'none';
+  }
+
+  // ── Sudah mengajar ──
+  const listSudah = document.getElementById('agListSudah');
+  listSudah.innerHTML = (data.sudahMengajar || []).map(g => {
+    const badgeVerif = g.statusVerifikasi === 'Terverifikasi'
+      ? `<span style="background:var(--success-soft,#DCFCE7);color:var(--success,#16A34A);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:20px">✔ Terverifikasi</span>`
+      : `<span style="background:#FEF3C7;color:#B45309;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:20px">⚠ Perlu Ditinjau</span>`;
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:.86rem">${esc(g.namaGuru)}</div>
+            <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">${esc(g.kelas)} · ${esc(g.mapel)}</div>
+          </div>
+          ${badgeVerif}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:.75rem;color:var(--text-muted)">
+          <span>🕒 Scan jam ${esc(g.jamScan || '-')}${g.statusAbsen === 'Telat' ? ' <span style="color:var(--danger,#DC2626);font-weight:700">(Telat)</span>' : ''}</span>
+          <span style="font-weight:700;color:var(--text)">👥 ${g.jumlahSiswaTerverifikasi} siswa</span>
+        </div>
+      </div>`;
+  }).join('');
+  document.getElementById('agKosongSudah').style.display = (data.sudahMengajar || []).length ? 'none' : '';
+
+  // ── Belum mengajar ──
+  const labelStatusWaktu = {
+    'terlewat':        '<span style="color:var(--danger,#DC2626);font-weight:700">⛔ Terlewat, belum absen</span>',
+    'berlangsung':     '<span style="color:#B45309;font-weight:700">🔴 Sedang berlangsung</span>',
+    'belum-waktunya':  '<span style="color:var(--text-muted);font-weight:600">⏳ Belum waktunya</span>'
+  };
+  const listBelum = document.getElementById('agListBelum');
+  listBelum.innerHTML = (data.belumMengajar || []).map(g => `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface)">
+        <div style="font-weight:700;font-size:.86rem">${esc(g.namaGuru)}</div>
+        <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">${esc(g.kelas)} · ${esc(g.mapel)} · Jam ${esc(g.jamMulai || '-')}–${esc(g.jamSelesai || '-')}</div>
+        <div style="margin-top:6px;font-size:.75rem">${labelStatusWaktu[g.statusWaktu] || ''}</div>
+      </div>`).join('');
+  document.getElementById('agKosongBelum').style.display = (data.belumMengajar || []).length ? 'none' : '';
 }
 
 async function verifikasiTanpaKartu() {

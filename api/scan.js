@@ -4,7 +4,9 @@ const {
   isHariLibur, isHariKerja, getSemesterAktif, getJamSetting,
   getJamPulangEfektif, cekIzinPiket, verifyPassword,
   // ── TAMBAHAN BARU (perbaikan keamanan) ──
-  generateKioskToken, verifyKioskToken, checkRateLimit, getClientIp
+  generateKioskToken, verifyKioskToken, checkRateLimit, getClientIp,
+  // ── TAMBAHAN BARU (perbaikan performa scan siswa) ──
+  fetchJamPulangOverride, computeJamPulangEfektif
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -322,11 +324,20 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   // ===========================================================================
 
   // ── VALIDASI JAM OPERASIONAL UNTUK GURU & SISWA ──
-  const jamSetting = await getJamSetting();
+  // PERBAIKAN PERFORMA: sebelumnya getJamSetting() dan getJamPulangEfektif()
+  // di-await BERURUTAN, padahal query pengaturan_hari_kerja di dalam
+  // getJamPulangEfektif() sama sekali tidak butuh hasil getJamSetting() --
+  // jamSetting cuma dipakai belakangan sebagai fallback (lihat
+  // computeJamPulangEfektif() di _db.js). Sekarang keduanya di-Promise.all()
+  // supaya cuma menunggu SATU kali round-trip, bukan dua kali berurutan.
+  const [jamSetting, jamPulangOverride] = await Promise.all([
+    getJamSetting(),
+    fetchJamPulangOverride(hari)
+  ]);
   const jamMulai       = jamSetting['JAM_DATANG_MULAI']   || '06:00';
   // Jam pulang efektif hari ini (override per-hari kalau ada, atau ikut
   // nilai global) — dipakai berulang di fungsi ini, dihitung sekali saja.
-  const jamPulangHariIni = await getJamPulangEfektif(hari, jamSetting);
+  const jamPulangHariIni = computeJamPulangEfektif(jamSetting, jamPulangOverride);
   const jamSelesaiOp   = jamPulangHariIni.jamPulangSelesai;
 
   if (jam < jamMulai || jam > jamSelesaiOp) {
@@ -474,13 +485,37 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   }
 
   // ── 3. CEK APAKAH QR SISWA ──────────────────────────────────────
-  // Cek ada guru piket dulu
-  const { data: sesiList } = await supabase
-    .from('sesi_piket')
-    .select('*')
-    .eq('tanggal', today)
-    .order('jam_scan');
+  // PERBAIKAN PERFORMA (INTI dari perbaikan kecepatan scan siswa):
+  // sebelumnya 4 query di bawah ini (sesi_piket, isHariLibur,
+  // getSemesterAktif, cari siswa) di-await SATU PER SATU secara
+  // berurutan, padahal SATU PUN dari keempatnya tidak butuh hasil query
+  // yang lain -- keempatnya independen. Pencarian siswa juga sebelumnya
+  // dilakukan bertahap (query by id, BARU kalau kosong query by nisn),
+  // padahal keduanya bisa langsung dijalankan bersamaan sekalian (query
+  // ekstra ini nyaris tanpa biaya tambahan karena tetap dalam satu
+  // round-trip paralel yang sama).
+  //
+  // Sekarang SEMUA query ini dijalankan lewat Promise.all() -- total
+  // waktu tunggu jadi sama dengan query PALING LAMBAT di antara mereka
+  // (bukan JUMLAH kelimanya). Urutan pengecekan/pesan error di bawah
+  // TETAP SAMA PERSIS seperti sebelumnya (guru piket -> libur -> semester
+  // -> siswa ditemukan -> siswa aktif), cuma cara AMBIL datanya yang
+  // berubah jadi paralel.
+  const [
+    { data: sesiList },
+    cekLibur,
+    semester,
+    { data: siswaById },
+    { data: siswaByNisn }
+  ] = await Promise.all([
+    supabase.from('sesi_piket').select('*').eq('tanggal', today).order('jam_scan'),
+    isHariLibur(today),
+    getSemesterAktif(),
+    supabase.from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status').eq('id', id).maybeSingle(),
+    supabase.from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status').eq('nisn', id).maybeSingle()
+  ]);
 
+  // Cek ada guru piket dulu
   if (!sesiList || sesiList.length === 0) {
     return {
       success: false,
@@ -490,12 +525,10 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   }
 
   // Cek libur
-  const cekLibur = await isHariLibur(today);
   if (cekLibur.libur)
     return { success: false, tipe: 'siswa', message: `Hari ini libur: ${cekLibur.keterangan}` };
 
   // Cek semester
-  const semester = await getSemesterAktif();
   if (!semester)
     return { success: false, tipe: 'siswa', message: 'Tidak ada semester aktif' };
 
@@ -516,14 +549,7 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   const namaGuru = guruPiketAktif.nama_guru;
   const idGuru   = guruPiketAktif.id_guru;
 
-  // Cari siswa by ID atau NISN
-  const { data: siswaById } = await supabase
-    .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
-    .eq('id', id).maybeSingle();
-  const { data: siswaByNisn } = siswaById ? { data: null } : await supabase
-    .from('siswa').select('id,nisn,nama,kelas,jenis_kelamin,status')
-    .eq('nisn', id).maybeSingle();
-
+  // Siswa (by ID atau NISN) sudah diambil bersamaan di Promise.all di atas.
   const siswa = siswaById || siswaByNisn;
   if (!siswa) return { success: false, tipe: 'siswa', message: 'Siswa tidak ditemukan' };
   if (siswa.status !== 'Aktif') return { success: false, tipe: 'siswa', message: 'Siswa tidak aktif' };

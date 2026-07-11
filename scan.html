@@ -237,70 +237,85 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .scanner-mode.pulang{color:#7C3AED}
 
 /* ── SWITCH ON/OFF DATANG-PULANG — gaya tombol 3D (dalam sidebar kiri) ── */
-.mode-switch-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
+/* ── SWITCH ON/OFF DATANG-PULANG — REDESAIN (11 Juli 2026, revisi ke-2) ──
+   Sebelumnya switch ini ukurannya cukup besar (168px tinggi) dengan gaya
+   3D krem/pastel. Sekarang dibuat jauh lebih RINGKAS (supaya ruang di
+   panel kamera bisa dipakai memperbesar lingkaran kamera) dan gayanya
+   diubah jadi "dark glass + neon glow" yang terasa lebih modern/
+   futuristik, sekaligus lebih jelas keterjelasannya sebagai tombol yang
+   BISA DIKLIK (border menyala, ada glow pulsing di knob aktif). Nama
+   class & struktur HTML TIDAK berubah sama sekali, jadi seluruh JS
+   (setMode(), toggle .active, dst.) tetap jalan tanpa modifikasi. */
+.mode-switch-hint{
+  font-size:.68rem;font-weight:600;color:var(--text-muted);
+  text-align:center;line-height:1.35;max-width:172px;margin:0 auto;
+}
+.mode-switch-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .mode-switch{
-  /* PERBAIKAN TATA LETAK (11 Juli 2026): tinggi SEBELUMNYA dipatok fixed
-     168px, tidak peduli seberapa terbatas tinggi layar -- sama seperti
-     perbaikan .scanner-visual di atas, sekarang ikut menyesuaikan tinggi
-     viewport (vh) supaya otomatis lebih ringkas di layar pendek. */
-  position:relative;width:100%;max-width:172px;height:clamp(112px,16vh,168px);
-  background:linear-gradient(160deg,#EEF2FF,#DCE3F7);
-  border-radius:28px;padding:7px;
+  position:relative;width:100%;max-width:150px;height:clamp(84px,11vh,120px);
+  background:linear-gradient(160deg,#0F172A,#1E293B);
+  border-radius:24px;padding:6px;
   display:flex;flex-direction:column;gap:4px;
   box-shadow:
-    inset 0 3px 8px rgba(30,41,59,0.14),
-    inset 0 -2px 5px rgba(255,255,255,0.7),
-    0 1px 0 rgba(255,255,255,0.9);
-  border:1px solid rgba(30,41,59,0.06);
+    inset 0 2px 6px rgba(0,0,0,0.4),
+    inset 0 -1px 2px rgba(255,255,255,0.05),
+    0 8px 20px -8px rgba(15,23,42,0.5);
+  border:1px solid rgba(148,163,184,0.18);
 }
-/* "cekungan" tempat tombol duduk, menegaskan efek 3D masuk ke dalam */
+/* Garis tepi tipis menyala mengikuti warna mode aktif -- efek "neon" */
+.mode-switch::after{
+  content:'';position:absolute;inset:-1px;border-radius:24px;
+  padding:1px;pointer-events:none;
+  background:linear-gradient(160deg,rgba(52,211,153,0.5),rgba(139,92,246,0.5));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:.55;
+}
+/* "cekungan" tempat tombol duduk, menegaskan efek masuk ke dalam */
 .mode-switch::before{
-  content:'';position:absolute;inset:7px;border-radius:22px;
-  box-shadow:inset 0 2px 5px rgba(30,41,59,0.10);
+  content:'';position:absolute;inset:6px;border-radius:19px;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,0.35);
   pointer-events:none;z-index:0;
 }
 .mode-switch-knob{
-  position:absolute;left:7px;top:7px;
-  width:calc(100% - 14px);height:calc(50% - 9px);
-  border-radius:22px;
-  background:linear-gradient(160deg,#FCD34D 0%,var(--gold) 48%,#34D399 100%);
+  position:absolute;left:6px;top:6px;
+  width:calc(100% - 12px);height:calc(50% - 8px);
+  border-radius:19px;
+  background:linear-gradient(160deg,#6EE7B7 0%,#10B981 55%,#059669 100%);
   box-shadow:
-    0 10px 20px -6px rgba(245,158,11,0.55),
-    0 3px 6px rgba(30,41,59,0.18),
-    inset 0 2px 2px rgba(255,255,255,0.6),
-    inset 0 -5px 7px rgba(30,41,59,0.2),
-    0 0 0 1px rgba(245,158,11,0.35);
+    0 0 16px 2px rgba(16,185,129,0.55),
+    0 4px 10px -2px rgba(0,0,0,0.4),
+    inset 0 1px 1px rgba(255,255,255,0.5),
+    inset 0 -4px 6px rgba(0,0,0,0.25);
   transition:transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s,background .3s;
+  animation:knobGlowPulse 2.6s ease-in-out infinite;
   z-index:0;pointer-events:none;
 }
-.mode-switch-knob::before{
-  content:'';position:absolute;top:3px;left:10%;right:10%;height:40%;
-  border-radius:50%/60%;
-  background:linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0));
-  pointer-events:none;
+@keyframes knobGlowPulse{
+  0%,100%{filter:brightness(1)}
+  50%{filter:brightness(1.12)}
 }
 .mode-switch[data-mode="pulang"] .mode-switch-knob{
   transform:translateY(calc(100% + 4px));
-  background:linear-gradient(160deg,#C4B5FD 0%,var(--purple) 48%,#7C3AED 100%);
+  background:linear-gradient(160deg,#C4B5FD 0%,#8B5CF6 55%,#6D28D9 100%);
   box-shadow:
-    0 10px 20px -6px rgba(139,92,246,0.55),
-    0 3px 6px rgba(30,41,59,0.18),
-    inset 0 2px 2px rgba(255,255,255,0.55),
-    inset 0 -5px 7px rgba(30,41,59,0.2),
-    0 0 0 1px rgba(139,92,246,0.35);
+    0 0 16px 2px rgba(139,92,246,0.55),
+    0 4px 10px -2px rgba(0,0,0,0.4),
+    inset 0 1px 1px rgba(255,255,255,0.45),
+    inset 0 -4px 6px rgba(0,0,0,0.25);
 }
 .mode-switch-opt{
   position:relative;z-index:1;flex:1;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   border:none;background:transparent;cursor:pointer;font-family:inherit;
-  border-radius:22px;color:var(--text-muted);font-weight:700;
+  border-radius:19px;color:rgba(226,232,240,0.55);font-weight:700;
   transition:color .25s,transform .15s;
 }
 .mode-switch-opt:active{transform:scale(.95)}
-.mode-switch-icon{font-size:1.5rem;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.12))}
-.mode-switch-txt{font-size:.82rem;letter-spacing:.2px}
-.mode-switch-opt.datang.active{color:#fff;text-shadow:0 1px 2px rgba(30,41,59,0.25)}
-.mode-switch-opt.pulang.active{color:#fff;text-shadow:0 1px 2px rgba(30,41,59,0.25)}
+.mode-switch-icon{font-size:1.15rem;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.mode-switch-txt{font-size:.72rem;letter-spacing:.2px}
+.mode-switch-opt.datang.active{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.4)}
+.mode-switch-opt.pulang.active{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.4)}
 
 /* ── TOMBOL ABSEN KELAS (BARU) ──────────────────────────────────────
    Pintu masuk eksplisit ke Mode Verifikasi Kelas: guru klik dulu,
@@ -310,9 +325,9 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
    pernah tercampur/mengganggu toggle Datang/Pulang di device lain
    (atau di device yang sama saat dipakai bergantian). */
 .btn-absen-kelas{
-  width:100%;max-width:172px;padding:14px 10px;border:none;border-radius:16px;
+  width:100%;max-width:150px;padding:12px 10px;border:none;border-radius:16px;
   background:linear-gradient(160deg,#818CF8,#4F46E5);
-  color:#fff;font-weight:700;font-size:.9rem;font-family:inherit;cursor:pointer;
+  color:#fff;font-weight:700;font-size:.85rem;font-family:inherit;cursor:pointer;
   box-shadow:0 6px 16px -6px rgba(79,70,229,0.55),inset 0 1px 1px rgba(255,255,255,.35);
   transition:transform .15s;
 }
@@ -334,21 +349,23 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 }
 
 /* ── KAMERA BULAT DENGAN FRAME SCANNER AI ── */
-/* PERBAIKAN TATA LETAK (11 Juli 2026): ukuran lingkaran kamera SEBELUMNYA
-   cuma dipatok dari LEBAR layar (21vw, maksimum 270px) -- padahal yang
-   sering jadi kendala di layar laptop/monitor yang browsernya tidak
-   fullscreen adalah TINGGI (vertical space), bukan lebar. Di layar lebar
-   tapi pendek, 21vw gampang kena batas atas 270px, sementara ruang
-   vertikal yang tersisa untuk pesan-pesan di bawah kamera (tips silau,
-   status absensi datang/pulang, tombol "Input Tanpa Kartu") jadi kurang
-   -- makanya harus discroll atau layarnya diperkecil dulu. Sekarang
-   ukurannya juga dibatasi oleh vh (tinggi viewport) supaya otomatis
-   MENGECIL kalau tinggi layar terbatas, tanpa perlu diubah manual. */
+/* PERBAIKAN TATA LETAK (11 Juli 2026, revisi ke-2): ukuran sebelumnya
+   (clamp 120-240px) ternyata dianggap terlalu kecil oleh pengguna --
+   lingkaran kamera ini elemen paling penting di panel scan, jadi
+   diperbesar lagi signifikan (clamp 200-320px). Supaya tetap tidak
+   mendorong pesan-pesan lain di bawahnya keluar layar, ruang yang
+   dibutuhkan diambil dari toggle Datang/Pulang yang sekarang dibuat
+   jauh lebih ringkas (lihat .mode-switch di bawah) -- walau secara
+   teknis toggle itu ada di kolom sidebar terpisah, membuatnya lebih
+   kecil tetap konsisten dengan permintaan "kamera besar, tombol kecil".
+   Basis ukuran tetap gabungan vw & vh (bukan cuma vw) supaya otomatis
+   menyesuaikan tinggi layar yang tersedia dan tidak memaksa scroll di
+   layar pendek. */
 .scanner-visual{
   position:relative;
-  width:clamp(120px,min(21vw,17vh),240px);
+  width:clamp(200px,min(24vw,32vh),320px);
   aspect-ratio:1/1;
-  margin:clamp(8px,1.6vh,20px) auto;
+  margin:clamp(10px,1.8vh,22px) auto;
 }
 .scanner-visual::before{
   content:'';position:absolute;inset:-46px;border-radius:50%;
@@ -995,6 +1012,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
     <!-- Switch ON/OFF Datang (atas) / Pulang (bawah) -->
     <div class="mode-switch-wrap">
+      <!-- Teks bantuan -- supaya guru langsung paham switch di bawah ini
+           BISA DIKLIK (bukan cuma indikator status), bukan cuma
+           mengandalkan gaya visualnya saja. Sengaja diletakkan DI DALAM
+           .mode-switch-wrap (bukan di luar) supaya ikut tersembunyi saat
+           mode "Absen Kelas" aktif (lihat baris yang menyembunyikan
+           .mode-switch-wrap di JS) -- kalau di luar, teks ini akan tetap
+           terlihat sendirian walau switch-nya sudah disembunyikan. -->
+      <div class="mode-switch-hint">👆 Tekan tombol Datang atau Pulang sesuai kebutuhan.</div>
       <div class="mode-switch" id="modeSwitch" data-mode="datang">
         <div class="mode-switch-knob"></div>
         <button type="button" class="mode-switch-opt datang active" id="btnDatang" onclick="setMode('datang')">
@@ -1101,9 +1126,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         </div>
       </div>
 
+      <!-- Teks bantuan -- supaya siswa/guru yang kartunya hilang langsung
+           tahu ada jalan alternatif tanpa perlu mencari-cari sendiri. -->
+      <div style="margin-top:12px;font-size:.74rem;font-weight:600;color:var(--text-muted);text-align:center;line-height:1.4">
+        🪪 Siswa lupa kartu? Klik menu di bawah ini.
+      </div>
       <!-- Tombol input kehadiran tanpa kartu (kartu hilang/rusak/ketinggalan) -->
       <button id="btnTanpaKartu" onclick="bukaModalTanpaKartu()"
-        style="margin-top:10px;width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;background:var(--surface);color:var(--text-muted);font-size:.82rem;font-weight:700;cursor:pointer;transition:.2s;font-family:inherit"
+        style="margin-top:6px;width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;background:var(--surface);color:var(--text-muted);font-size:.82rem;font-weight:700;cursor:pointer;transition:.2s;font-family:inherit"
         onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary-dark)'"
         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
         📝 Input Kehadiran Tanpa Kartu
@@ -1365,7 +1395,7 @@ const PER_COOLDOWN   = 30000;
 // disimpan -- cuma "sidik wajah" berupa 128 angka), tampilkan sapaan.
 //
 // GANTI nama di bawah ini sesuai keinginan:
-const NAMA_PEMBUAT = 'Tasrif, Si pembuat saya'; // contoh: 'Pak Budi', 'Kak Rina', dst.
+const NAMA_PEMBUAT = 'Tasrif, Si Pembuat saya'; // contoh: 'Pak Budi', 'Kak Rina', dst.
 
 // Beberapa variasi pesan supaya tidak monoton kalau muncul berkali-kali
 // di hari yang sama -- dipilih acak tiap kali cocok.

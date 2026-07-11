@@ -53,6 +53,9 @@ module.exports = async (req, res) => {
     if (action === 'adminGetRingkasanMaster') return res.json(await adminGetRingkasanMaster(params));
     if (action === 'adminGetStatusPerangkat') return res.json(await adminGetStatusPerangkat(params));
     if (action === 'adminGetAktivitasTerbaru') return res.json(await adminGetAktivitasTerbaru(params));
+    // Dipakai admin & kepsek (lihat findAksesKesehatanSistem) -- satu
+    // action untuk 2 dashboard, tidak perlu duplikasi adminCek.../ cek...
+    if (action === 'cekKesehatanSistem') return res.json(await cekKesehatanSistem(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -277,4 +280,218 @@ async function adminGetAktivitasTerbaru({ token }) {
   feed.sort((a, b) => b.urut.localeCompare(a.urut));
 
   return { success: true, aktivitas: feed.slice(0, 25) };
+}
+
+// ════════════════════════════════════════════════════════════════
+// CEK KESEHATAN SISTEM (BARU) — dipakai admin & kepsek, murni ON-DEMAND
+// (tidak ada job/polling otomatis apapun -- fungsi ini hanya jalan saat
+// action ini dipanggil, yaitu saat tombol "Cek Kesehatan Sistem" ditekan
+// di admin-monitor.html / monitor.html, sesuai permintaan supaya tidak
+// membebani aplikasi kalau menunya tidak dibuka).
+//
+// LATAR: kalau guru piket beralasan "kendala sistem/tidak bisa buka
+// aplikasi" atas keterlambatannya, admin/kepsek butuh cara mengecek
+// klaim itu tanpa harus buka Supabase manual. Fitur ini menggabungkan
+// 2 sumber bukti OBJEKTIF (bukan opini/alasan manual siapa pun):
+//   1. Riwayat heartbeat kiosk (perangkat_status_log) -- celah waktu
+//      yang tidak wajar antar heartbeat = indikasi kiosk offline/mati
+//      di jam tersebut.
+//   2. Status insiden RESMI dari penyedia layanan (Vercel & Supabase)
+//      pada rentang waktu yang sama -- ini bukti pihak ketiga yang
+//      tidak bisa direkayasa siapa pun di sekolah.
+// PENTING (jujur ke pengguna): ini INDIKASI/sinyal, bukan bukti mutlak.
+// Kiosk yang memang sengaja dimatikan di luar jam sekolah juga akan
+// muncul sebagai "celah", jadi tetap perlu penilaian manusia.
+
+async function findAksesKesehatanSistem(token) {
+  // Dua jalur token yang diizinkan: kepsek (guru.qr_token, role kepsek)
+  // ATAU admin (admin.qr_token) -- sama seperti pola getInfo/adminGetInfo
+  // di atas, tapi digabung di satu action supaya bisa dipanggil dari
+  // monitor.html (kepsek) maupun admin-monitor.html (admin) tanpa
+  // duplikasi action.
+  const kepsek = await findKepsekByToken(token);
+  if (kepsek) return { ok: true, peran: 'kepsek', nama: kepsek.nama };
+  const admin = await findAdminByToken(token);
+  if (admin) return { ok: true, peran: 'admin', nama: admin.nama };
+  return { ok: false };
+}
+
+function hitungRentangWaktu(rentang, semesterAktif) {
+  const now = new Date();
+  let mulai;
+  switch (rentang) {
+    case 'jam':    mulai = new Date(now.getTime() - 6 * 60 * 60 * 1000); break;       // 6 jam terakhir
+    case 'hari':   mulai = new Date(now); mulai.setHours(0, 0, 0, 0); break;          // sejak 00:00 hari ini
+    case 'minggu': mulai = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;  // 7 hari terakhir
+    case 'bulan':  mulai = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break; // 30 hari terakhir
+    case 'semester': {
+      if (semesterAktif && semesterAktif.tanggal_mulai) {
+        mulai = new Date(semesterAktif.tanggal_mulai + 'T00:00:00');
+      } else {
+        mulai = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // fallback: 90 hari kalau tidak ada semester aktif
+      }
+      break;
+    }
+    default: mulai = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  }
+  return { mulai, selesai: now };
+}
+
+// Ambang celah dianggap "kemungkinan gangguan": heartbeat normal tiap
+// ~30 detik (lihat kirimHeartbeat() di scan.html), jadi celah > 5 menit
+// tanpa heartbeat cukup jelas menandakan kiosk offline/mati/gangguan --
+// bukan cuma jeda wajar antar heartbeat biasa.
+const AMBANG_GANGGUAN_DETIK = 5 * 60;
+// Celah yang dianggap layak ditampilkan (biar tidak penuh gangguan super
+// singkat yang tidak relevan untuk konteks "guru telat scan").
+const CELAH_MINIMAL_DITAMPILKAN_MENIT = 5;
+
+async function deteksiGangguanPerangkat(mulaiISO, selesaiISO) {
+  const { data: rows, error } = await supabase
+    .from('perangkat_status_log')
+    .select('device_id,label,created_at')
+    .gte('created_at', mulaiISO).lte('created_at', selesaiISO)
+    .order('device_id', { ascending: true })
+    .order('created_at', { ascending: true })
+    .limit(20000); // batas aman, cukup untuk rentang semester dgn beberapa device
+
+  if (error) return { gangguan: [], totalHeartbeat: 0, totalPerangkat: 0, error: error.message };
+
+  const perDevice = new Map();
+  (rows || []).forEach(r => {
+    if (!perDevice.has(r.device_id)) perDevice.set(r.device_id, { label: r.label || 'Perangkat Scan', waktu: [] });
+    perDevice.get(r.device_id).waktu.push(new Date(r.created_at).getTime());
+  });
+
+  const gangguan = [];
+  perDevice.forEach((info, deviceId) => {
+    const w = info.waktu;
+    for (let i = 1; i < w.length; i++) {
+      const celahDetik = (w[i] - w[i - 1]) / 1000;
+      if (celahDetik >= AMBANG_GANGGUAN_DETIK) {
+        const durasiMenit = Math.round(celahDetik / 60);
+        if (durasiMenit >= CELAH_MINIMAL_DITAMPILKAN_MENIT) {
+          gangguan.push({
+            deviceId, label: info.label,
+            mulai: new Date(w[i - 1]).toISOString(),
+            selesai: new Date(w[i]).toISOString(),
+            durasiMenit
+          });
+        }
+      }
+    }
+  });
+  gangguan.sort((a, b) => b.durasiMenit - a.durasiMenit);
+
+  return {
+    gangguan: gangguan.slice(0, 100),
+    totalHeartbeat: (rows || []).length,
+    totalPerangkat: perDevice.size
+  };
+}
+
+// Bucket jumlah heartbeat per rentang waktu, untuk grafik aktivitas
+// sederhana di frontend (bukan grafik rumit -- cukup untuk terlihat
+// "kapan ada aktivitas, kapan sepi/kosong").
+function buatTimelineHeartbeat(mulai, selesai, jumlahBucketTarget = 16) {
+  const totalMs = selesai.getTime() - mulai.getTime();
+  const bucketMs = Math.max(60 * 1000, Math.ceil(totalMs / jumlahBucketTarget));
+  const jumlahBucket = Math.min(60, Math.ceil(totalMs / bucketMs)); // batas atas 60 bucket biar tidak berat
+  return { bucketMs, jumlahBucket };
+}
+
+// Insiden resmi dari status page Vercel & Supabase (statuspage.io,
+// endpoint publik, tidak butuh API key). Best-effort murni: kalau gagal
+// fetch (mis. rate limit atau layanan status itu sendiri lambat),
+// jangan gagalkan seluruh hasil cek kesehatan -- cukup tandai kosong.
+async function ambilInsidenEksternal(mulai, selesai) {
+  const sumberList = [
+    { nama: 'Vercel (hosting aplikasi)', url: 'https://www.vercel-status.com/api/v2/incidents.json' },
+    { nama: 'Supabase (database)', url: 'https://status.supabase.com/api/v2/incidents.json' }
+  ];
+
+  const hasil = await Promise.all(sumberList.map(async (sumber) => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(sumber.url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const insidenList = data.incidents || [];
+      return insidenList
+        .filter(inc => {
+          const waktuInsiden = new Date(inc.created_at || inc.updated_at).getTime();
+          return waktuInsiden >= mulai.getTime() && waktuInsiden <= selesai.getTime();
+        })
+        .map(inc => ({
+          sumber: sumber.nama,
+          judul: inc.name,
+          dampak: inc.impact || 'none', // none|minor|major|critical
+          status: inc.status,
+          mulai: inc.created_at,
+          shortlink: inc.shortlink || null
+        }));
+    } catch (e) {
+      return []; // best-effort, diamkan
+    }
+  }));
+
+  return hasil.flat().sort((a, b) => new Date(b.mulai) - new Date(a.mulai)).slice(0, 30);
+}
+
+async function cekKesehatanSistem({ token, rentang }) {
+  const akses = await findAksesKesehatanSistem(token);
+  if (!akses.ok) return { success: false, message: 'Kode QR tidak valid untuk membuka Cek Kesehatan Sistem' };
+
+  const rentangValid = ['jam', 'hari', 'minggu', 'bulan', 'semester'];
+  if (!rentangValid.includes(rentang)) return { success: false, message: 'Rentang harus salah satu dari: jam, hari, minggu, bulan, semester' };
+
+  const { data: semesterRows } = await supabase
+    .from('semester').select('tanggal_mulai,tanggal_selesai').eq('aktif', true).limit(1);
+  const semesterAktif = (semesterRows && semesterRows[0]) || null;
+
+  const { mulai, selesai } = hitungRentangWaktu(rentang, semesterAktif);
+  const mulaiISO = mulai.toISOString();
+  const selesaiISO = selesai.toISOString();
+
+  const [{ gangguan, totalHeartbeat, totalPerangkat }, insidenEksternal] = await Promise.all([
+    deteksiGangguanPerangkat(mulaiISO, selesaiISO),
+    ambilInsidenEksternal(mulai, selesai)
+  ]);
+
+  const { bucketMs, jumlahBucket } = buatTimelineHeartbeat(mulai, selesai);
+
+  // Timeline dihitung dari baris yang sama (query ringan tambahan,
+  // hanya created_at) supaya grafik & deteksi gangguan konsisten dari
+  // sumber data yang sama.
+  const { data: timelineRows } = await supabase
+    .from('perangkat_status_log')
+    .select('created_at')
+    .gte('created_at', mulaiISO).lte('created_at', selesaiISO)
+    .limit(20000);
+
+  const buckets = new Array(jumlahBucket).fill(0);
+  (timelineRows || []).forEach(r => {
+    const idx = Math.min(jumlahBucket - 1, Math.floor((new Date(r.created_at).getTime() - mulai.getTime()) / bucketMs));
+    if (idx >= 0) buckets[idx]++;
+  });
+  const timeline = buckets.map((jumlah, i) => ({
+    waktu: new Date(mulai.getTime() + i * bucketMs).toISOString(),
+    jumlah
+  }));
+
+  return {
+    success: true,
+    rentang, mulai: mulaiISO, selesai: selesaiISO,
+    ringkasan: {
+      totalHeartbeat,
+      totalPerangkat,
+      totalGangguanTerdeteksi: gangguan.length,
+      totalInsidenEksternal: insidenEksternal.length
+    },
+    timeline,
+    gangguanTerdeteksi: gangguan,
+    insidenEksternal
+  };
 }

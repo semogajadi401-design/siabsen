@@ -1289,10 +1289,23 @@ function deviceLabelOtomatis() {
   return `${browser}${os ? ' • ' + os : ''}`;
 }
 
+// BARU (perbaikan keamanan): token sesi kiosk berumur pendek, didapat dari
+// balasan getStatus() (lihat checkStatus() di bawah) dan wajib disertakan
+// di setiap panggilan scanKartu/inputTanpaKartu/batchSync -- lihat catatan
+// lengkap di generateKioskToken()/verifyKioskToken() di api/_db.js.
+let _kioskToken = null;
+
 async function api(endpoint, action, params={}) {
+  const body = {action, ...params};
+  // Sisipkan otomatis untuk endpoint scan & sync -- kedua endpoint ini
+  // memverifikasi kioskToken di server sebelum memproses aksi yang
+  // membuat catatan hadir (scanKartu, inputTanpaKartu, batchSync).
+  if ((endpoint === 'scan' || endpoint === 'sync') && _kioskToken) {
+    body.kioskToken = _kioskToken;
+  }
   const r = await fetch(`${API}/api/${endpoint}`, {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action,...params})
+    body: JSON.stringify(body)
   });
   return r.json();
 }
@@ -2295,6 +2308,15 @@ async function checkStatus() {
   }
   try {
     const r = await api('scan','getStatus');
+
+    // BARU (perbaikan keamanan): simpan kioskToken terbaru dari server,
+    // dipakai otomatis oleh api() di setiap panggilan scanKartu/
+    // inputTanpaKartu/batchSync berikutnya. getStatus() dipanggil di
+    // awal (init) dan setiap 10 detik (lihat setInterval di init()),
+    // jadi token ini praktis selalu segar sebelum kiosk dipakai scan.
+    if (r.success && r.kioskToken) {
+      _kioskToken = r.kioskToken;
+    }
 
     // ── SINKRON STATUS GURU DARI SERVER ──────────────────────────
     if (r.success) {

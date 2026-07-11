@@ -621,6 +621,95 @@ function verifySesiToken(idAbsensiMengajar, token) {
   return crypto.timingSafeEqual(a, b);
 }
 
+// ── KIOSK TOKEN (BARU — perbaikan keamanan) ────────────────────────
+// LATAR BELAKANG: scanKartu() di api/scan.js (dan alur offline-nya di
+// api/sync.js) sebelumnya menerima siapa saja yang tahu/menebak `id`
+// atau `nisn` siswa — keduanya BUKAN rahasia (nisn tercetak di rapor,
+// id bisa bocor lewat endpoint laporan seperti rekapHarian). Karena
+// endpoint ini publik (dipanggil dari kiosk TANPA login), siapa pun di
+// internet yang tahu id/nisn seorang siswa bisa memalsukan catatan
+// hadir/pulang lewat panggilan API langsung (curl/Postman), tanpa
+// pernah berada di sekolah maupun menyentuh kartu fisik.
+//
+// PERBAIKAN: halaman kiosk (scan.html) memanggil getStatus() setiap
+// kali dimuat DAN setiap 10 detik selagi terbuka (lihat checkStatus()
+// di scan.html) — setiap balasannya sekarang menyertakan `kioskToken`,
+// sebuah HMAC yang dihasilkan dari "jendela waktu" saat ini (bukan dari
+// data apapun yang dikirim klien, jadi tidak perlu disimpan di DB).
+// scanKartu() WAJIB menerima kioskToken yang masih berlaku sebelum
+// memproses scan apapun. Ini TIDAK 100% membuktikan kehadiran fisik
+// (siapa pun yang membuka scan.html di browser tetap bisa melihat
+// tokennya di Network tab), TAPI menutup jalur serangan yang paling
+// mudah & realistis: panggilan API buta dari luar tanpa pernah memuat
+// halaman kiosk sama sekali. Jendela token sengaja pendek (2 menit) dan
+// menerima jendela saat ini + jendela sebelumnya (total toleransi
+// hingga ~4 menit) supaya tidak terganggu jeda refresh/loading normal.
+const KIOSK_TOKEN_WINDOW_MS = 2 * 60 * 1000; // 2 menit per jendela
+
+function getKioskSecret() {
+  return process.env.KIOSK_SESSION_SECRET
+    || process.env.SESI_MENGAJAR_SECRET
+    || process.env.SUPABASE_SERVICE_KEY
+    || '';
+}
+
+function kioskTokenUntukJendela(bucket) {
+  return crypto.createHmac('sha256', getKioskSecret())
+    .update('KIOSK|' + bucket)
+    .digest('hex')
+    .slice(0, 32); // dipendekkan -- ini token sesi berumur pendek, bukan kunci kriptografi jangka panjang
+}
+
+function generateKioskToken() {
+  const bucket = Math.floor(Date.now() / KIOSK_TOKEN_WINDOW_MS);
+  return kioskTokenUntukJendela(bucket);
+}
+
+function verifyKioskToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  const bucket = Math.floor(Date.now() / KIOSK_TOKEN_WINDOW_MS);
+  const kandidat = [kioskTokenUntukJendela(bucket), kioskTokenUntukJendela(bucket - 1)];
+  return kandidat.some(exp => {
+    const a = Buffer.from(token);
+    const b = Buffer.from(exp);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
+}
+
+// ── RATE LIMITER GENERIK (BARU — perbaikan keamanan) ────────────────
+// Sama filosofinya dengan rate limiter login di api/auth.js (in-memory
+// per instance serverless -- bukan solusi sempurna lintas banyak
+// instance Vercel paralel, tapi jauh lebih baik daripada tidak ada
+// pembatasan sama sekali). Dipakai bersama oleh api/scan.js (action
+// scanKartu/inputTanpaKartu) dan api/sync.js (action batchSync) untuk
+// membatasi berapa kali satu alamat IP boleh memanggil endpoint yang
+// bisa membuat catatan hadir, supaya percobaan tebak-tebakan id/nisn
+// atau spam sinkronisasi dari luar tidak bisa dilakukan tanpa batas.
+const _rateLimitStore = new Map(); // key -> { count, windowStart }
+
+function checkRateLimit(key, { maxRequest = 30, windowMs = 60 * 1000 } = {}) {
+  const now = Date.now();
+  const rec = _rateLimitStore.get(key);
+  if (!rec || now - rec.windowStart > windowMs) {
+    _rateLimitStore.set(key, { count: 1, windowStart: now });
+    return { allowed: true };
+  }
+  rec.count += 1;
+  if (rec.count > maxRequest) {
+    const retryAfterSec = Math.ceil((windowMs - (now - rec.windowStart)) / 1000);
+    return { allowed: false, retryAfterSec };
+  }
+  return { allowed: true };
+}
+
+// Ambil alamat IP pemanggil dari header proxy Vercel (x-forwarded-for),
+// fallback ke koneksi socket langsung kalau header tidak ada.
+function getClientIp(req) {
+  const fwd = req.headers && req.headers['x-forwarded-for'];
+  if (fwd) return String(fwd).split(',')[0].trim();
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
 async function resolveGuruIdFromToken(token) {
   if (!token) return null;
   const { data } = await supabase
@@ -861,7 +950,10 @@ module.exports = {
   cekIzinPiket, resolveGuruIdFromToken,
   cekJadwalMengajarSaatIni,
   generateSesiToken, verifySesiToken,
-  ringkasanLiveHariIni, ringkasanRekapPeriode
+  ringkasanLiveHariIni, ringkasanRekapPeriode,
+  // ── TAMBAHAN BARU (perbaikan keamanan: kiosk token & rate limit) ──
+  generateKioskToken, verifyKioskToken,
+  checkRateLimit, getClientIp
 };
 async function requireAdminToken(token) {
   if (!token) return false;

@@ -167,9 +167,9 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .scanner-stage{
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:18px;padding:20px 22px;
+  border-radius:18px;padding:clamp(12px,2vh,20px) clamp(14px,2vw,22px);
   box-shadow:var(--shadow-soft);
-  display:flex;flex-direction:column;align-items:center;gap:10px;
+  display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.2vh,10px);
   height:100%;min-height:0;overflow-y:auto;
 }
 .scanner-stage::-webkit-scrollbar{width:4px}
@@ -239,7 +239,11 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 /* ── SWITCH ON/OFF DATANG-PULANG — gaya tombol 3D (dalam sidebar kiri) ── */
 .mode-switch-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
 .mode-switch{
-  position:relative;width:100%;max-width:172px;height:168px;
+  /* PERBAIKAN TATA LETAK (11 Juli 2026): tinggi SEBELUMNYA dipatok fixed
+     168px, tidak peduli seberapa terbatas tinggi layar -- sama seperti
+     perbaikan .scanner-visual di atas, sekarang ikut menyesuaikan tinggi
+     viewport (vh) supaya otomatis lebih ringkas di layar pendek. */
+  position:relative;width:100%;max-width:172px;height:clamp(112px,16vh,168px);
   background:linear-gradient(160deg,#EEF2FF,#DCE3F7);
   border-radius:28px;padding:7px;
   display:flex;flex-direction:column;gap:4px;
@@ -330,11 +334,21 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 }
 
 /* ── KAMERA BULAT DENGAN FRAME SCANNER AI ── */
+/* PERBAIKAN TATA LETAK (11 Juli 2026): ukuran lingkaran kamera SEBELUMNYA
+   cuma dipatok dari LEBAR layar (21vw, maksimum 270px) -- padahal yang
+   sering jadi kendala di layar laptop/monitor yang browsernya tidak
+   fullscreen adalah TINGGI (vertical space), bukan lebar. Di layar lebar
+   tapi pendek, 21vw gampang kena batas atas 270px, sementara ruang
+   vertikal yang tersisa untuk pesan-pesan di bawah kamera (tips silau,
+   status absensi datang/pulang, tombol "Input Tanpa Kartu") jadi kurang
+   -- makanya harus discroll atau layarnya diperkecil dulu. Sekarang
+   ukurannya juga dibatasi oleh vh (tinggi viewport) supaya otomatis
+   MENGECIL kalau tinggi layar terbatas, tanpa perlu diubah manual. */
 .scanner-visual{
   position:relative;
-  width:clamp(170px,21vw,270px);
+  width:clamp(120px,min(21vw,17vh),240px);
   aspect-ratio:1/1;
-  margin:20px auto;
+  margin:clamp(8px,1.6vh,20px) auto;
 }
 .scanner-visual::before{
   content:'';position:absolute;inset:-46px;border-radius:50%;
@@ -1351,7 +1365,7 @@ const PER_COOLDOWN   = 30000;
 // disimpan -- cuma "sidik wajah" berupa 128 angka), tampilkan sapaan.
 //
 // GANTI nama di bawah ini sesuai keinginan:
-const NAMA_PEMBUAT = 'Tasrif, Si Pencipta Saya'; // contoh: 'Pak Budi', 'Kak Rina', dst.
+const NAMA_PEMBUAT = 'Tasrif, Si pembuat saya'; // contoh: 'Pak Budi', 'Kak Rina', dst.
 
 // Beberapa variasi pesan supaya tidak monoton kalau muncul berkali-kali
 // di hari yang sama -- dipilih acak tiap kali cocok.
@@ -1371,7 +1385,7 @@ const PESAN_IDLE_PEMBUAT = [
   `☕ Masih di situ aja, ${NAMA_PEMBUAT}? Santai dulu gapapa~`,
   `🚀 Kode boleh istirahat, tapi semangatnya jangan, ya!`,
   `🛠️ Sistem ini masih jalan berkat ${NAMA_PEMBUAT}. Mantap!`,
-  `🌤️ Bagaimana kondisi anda hari ini ${NAMA_PEMBUAT}? .`,
+  `🌤️ Cuaca hari ini cerah, secerah kode tanpa bug (semoga).`,
   `🎯 Fokusmu keren, tapi jangan lupa istirahat mata sejenak.`,
   `💡 Ide bagus sering muncul pas lagi santai kayak gini.`,
   `🔥 Tetap semangat, ${NAMA_PEMBUAT}! Kamu inspirasi buat sistem ini.`,

@@ -1,7 +1,9 @@
 const {
   supabase, generateID, setCors, getJamSetting,
   todayStr, jamSekarang, hariIni, tambahMenit,
-  isHariLibur, isHariKerja, getSemesterAktif, requireAdminToken
+  isHariLibur, isHariKerja, getSemesterAktif, requireAdminToken,
+  // ── TAMBAHAN BARU (perbaikan keamanan) ──
+  resolveGuruIdFromToken
 } = require('./_db');
 
 // PENTING — DIPERBAIKI: 'datang' dan 'pulang' SEBELUMNYA terbuka tanpa
@@ -26,14 +28,42 @@ const {
 // di tempat lain. Kalau butuh endpoint scan, pakai api/scan.js.
 const AKSI_TERKUNCI = new Set(['resetAbsensi', 'datang', 'pulang']);
 
+// AKSI_BACA_TERBATAS (BARU — perbaikan keamanan): rekapHarian/rekapBulanan/
+// rekapBulananRange mengembalikan `idSiswa` DAN `nisn` mentah untuk seluruh
+// siswa pada rentang tanggal yang diminta -- sebelumnya endpoint ini SAMA
+// SEKALI tidak butuh login apapun, jadi siapa saja di internet bisa:
+//   1. Memanggil rekapBulanan tanpa login untuk mengumpulkan idSiswa/nisn
+//      seluruh siswa sekolah, lalu
+//   2. Memakai id/nisn itu untuk memalsukan scan kehadiran (celah ini
+//      sekarang juga ditutup terpisah lewat kioskToken di api/scan.js,
+//      tapi membocorkan idSiswa+nisn semua siswa ke publik tetap masalah
+//      privasi tersendiri walau celah scan-nya sudah ditutup).
+// Endpoint ini TIDAK dikunci seketat AKSI_TERKUNCI di atas (yang wajib
+// adminToken) karena akun Kepala Sekolah (role terpisah, tanpa adminToken)
+// memang perlu membaca laporan ini sebagai pengawas -- pola yang sama
+// dipakai api/kehadiran.js & api/settings.js. Jadi cukup salah satu:
+// adminToken ATAU guruToken (siapa pun staf yang sudah login), TIDAK
+// terbuka untuk publik yang belum login sama sekali.
+const AKSI_BACA_TERBATAS = new Set(['rekapHarian', 'rekapBulanan', 'rekapBulananRange']);
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, adminToken, ...params } = req.body || {};
+  const { action, adminToken, guruToken, ...params } = req.body || {};
 
   if (AKSI_TERKUNCI.has(action)) {
     const valid = await requireAdminToken(adminToken);
     if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  }
+
+  if (AKSI_BACA_TERBATAS.has(action)) {
+    const adminValid = await requireAdminToken(adminToken);
+    if (!adminValid) {
+      const guruIdTerverifikasi = guruToken ? await resolveGuruIdFromToken(guruToken) : null;
+      if (!guruIdTerverifikasi) {
+        return res.status(401).json({ success: false, message: 'Sesi tidak valid. Silakan login untuk membuka laporan ini.' });
+      }
+    }
   }
 
   try {

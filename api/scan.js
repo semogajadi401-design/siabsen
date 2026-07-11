@@ -65,6 +65,7 @@ module.exports = async (req, res) => {
     if (action === 'getStatus')       return res.json(await getStatus());
     if (action === 'scanKartu')       return res.json(await scanKartu(params));
     if (action === 'getLogHariIni')   return res.json(await getLogHariIni(params));
+    if (action === 'getAktivitasGuruHariIni') return res.json(await getAktivitasGuruHariIni());
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
@@ -845,6 +846,105 @@ async function getLogHariIni({ kelas }) {
     totalIzinSakit: izinSakit.length,
     totalBelum: belumHadir.length,
     hadir, izinSakit, belumHadir
+  };
+}
+
+// ── CEK AKTIVITAS GURU HARI INI (BARU) ────────────────────────────
+// Dipanggil dari tombol "Cek Aktivitas Guru" di scan.html (persis di
+// bawah tombol "Absen Kelas"). Publik/read-only seperti getLogHariIni
+// di atas -- tidak butuh kioskToken karena tidak membuat/mengubah data
+// apapun, cuma meringkas: guru mana yang SUDAH mengajar (+ berapa siswa
+// sudah terverifikasi di sesi itu, dari kolom
+// absensi_mengajar.jumlah_siswa_terverifikasi -- lihat schema.sql), dan
+// guru mana yang jadwalnya hari ini tapi BELUM tercatat mengajar sama
+// sekali (dibedakan lagi: belum waktunya / sedang berlangsung tapi
+// belum discan / sudah lewat jamnya tapi belum discan -- supaya guru
+// piket bisa langsung tahu siapa yang perlu ditindaklanjuti).
+async function getAktivitasGuruHariIni() {
+  const today = todayStr();
+  const hari  = hariIni();
+  const jamNow = jamSekarang();
+
+  const cekLibur = await isHariLibur(today);
+  const hariAktif = !cekLibur.libur && await isHariKerja(hari);
+
+  const [
+    { data: jadwalHariIni },
+    { data: jamPelajaranHariIni },
+    { data: absensiMengajarHariIni }
+  ] = await Promise.all([
+    supabase.from('jadwal_mengajar')
+      .select('id,id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
+      .eq('hari', hari),
+    supabase.from('jam_pelajaran')
+      .select('jam_ke,jam_mulai,jam_selesai')
+      .eq('hari', hari).order('jam_ke'),
+    supabase.from('absensi_mengajar')
+      .select('id_jadwal_mengajar,nama_guru,kelas,mapel,jam_scan,status,jumlah_siswa_terverifikasi,status_verifikasi')
+      .eq('tanggal', today)
+  ]);
+
+  const jpMap = {};
+  (jamPelajaranHariIni || []).forEach(j => { jpMap[j.jam_ke] = j; });
+  const tercatatMap = {};
+  (absensiMengajarHariIni || []).forEach(a => { tercatatMap[a.id_jadwal_mengajar] = a; });
+
+  const sudahMengajar  = [];
+  const belumMengajar  = [];
+
+  (jadwalHariIni || []).forEach(j => {
+    const jpMulai   = jpMap[j.jam_ke_mulai];
+    const jpSelesai = jpMap[j.jam_ke_selesai] || jpMulai;
+    const jamMulai   = jpMulai   ? jpMulai.jam_mulai     : null;
+    const jamSelesai = jpSelesai ? jpSelesai.jam_selesai : null;
+
+    const tercatat = tercatatMap[j.id];
+    if (tercatat) {
+      sudahMengajar.push({
+        namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel,
+        jamMulai, jamSelesai,
+        jamScan: tercatat.jam_scan,
+        statusAbsen: tercatat.status,                                   // 'Hadir' | 'Telat'
+        jumlahSiswaTerverifikasi: tercatat.jumlah_siswa_terverifikasi || 0,
+        statusVerifikasi: tercatat.status_verifikasi || 'Perlu Ditinjau' // 'Perlu Ditinjau' | 'Terverifikasi'
+      });
+      return;
+    }
+
+    // Belum tercatat -- tentukan status waktunya supaya guru piket tahu
+    // mana yang masih wajar (belum waktunya) vs perlu ditindaklanjuti
+    // (jam pelajarannya sudah lewat tapi belum ada catatan mengajar).
+    let statusWaktu = 'belum-waktunya';
+    if (jamMulai && jamSelesai) {
+      if (jamNow > jamSelesai) statusWaktu = 'terlewat';
+      else if (jamNow >= jamMulai) statusWaktu = 'berlangsung';
+    }
+    belumMengajar.push({
+      namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel,
+      jamMulai, jamSelesai, statusWaktu
+    });
+  });
+
+  // Urutkan: yang paling perlu perhatian (terlewat) tampil duluan.
+  const urutanStatus = { terlewat: 0, berlangsung: 1, 'belum-waktunya': 2 };
+  belumMengajar.sort((a, b) => (urutanStatus[a.statusWaktu] - urutanStatus[b.statusWaktu]) || (a.jamMulai || '').localeCompare(b.jamMulai || ''));
+  sudahMengajar.sort((a, b) => (a.jamScan || '').localeCompare(b.jamScan || ''));
+
+  const totalSiswaTerverifikasi = sudahMengajar.reduce((sum, g) => sum + (g.jumlahSiswaTerverifikasi || 0), 0);
+
+  return {
+    success: true,
+    tanggal: today, hari, jamSekarang: jamNow,
+    hariSekolah: hariAktif,
+    keteranganLibur: cekLibur.libur ? (cekLibur.keterangan || 'Hari libur') : null,
+    ringkasan: {
+      totalSesi: (jadwalHariIni || []).length,
+      totalSudahMengajar: sudahMengajar.length,
+      totalBelumMengajar: belumMengajar.length,
+      totalSiswaTerverifikasi
+    },
+    sudahMengajar,
+    belumMengajar
   };
 }
 

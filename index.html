@@ -2947,17 +2947,14 @@ async function downloadAllKartuGuruPDF() {
 
     // Capture semua kartu (depan+belakang) — diproses 4 per batch secara
     // paralel supaya cepat, sama pola dengan bulk download kartu siswa.
-    const BATCH_SIZE = Math.max(4, Math.min(8, navigator.hardwareConcurrency || 4));
     const cards = await runInBatches(guruList, async (g, i) => {
       const front = document.getElementById('kartuGuruPrint_bulk_' + i);
       const back  = document.getElementById('kartuGuruBack_bulk_' + i);
       const fixedWidth = front.offsetWidth;
-      const [cfCanvas, cbCanvas] = await Promise.all([
-        captureKartu(front, fixedWidth),
-        back ? captureKartu(back, fixedWidth) : Promise.resolve(null)
-      ]);
+      const cfCanvas = await captureKartu(front, fixedWidth, 2);
+      const cbCanvas = back ? await captureKartu(back, fixedWidth, 2) : null;
       return { cfCanvas, cbCanvas };
-    }, BATCH_SIZE);
+    }, 4);
 
     const { jsPDF } = window.jspdf;
 
@@ -4247,10 +4244,10 @@ async function runInBatches(items, worker, batchSize = 4) {
   return results;
 }
 
-async function captureKartu(element, forceWidth) {
+async function captureKartu(element, forceWidth, scale = 3) {
   const w = forceWidth || element.offsetWidth;
   const canvas = await html2canvas(element, {
-    scale: 3,
+    scale,
     useCORS: true,
     allowTaint: true,
     backgroundColor: '#ffffff',
@@ -4360,17 +4357,17 @@ async function downloadAllKartuPDF() {
     // untuk kelas isi 40 siswa, versi lama melakukan 80 kali render
     // html2canvas (depan+belakang) SATU PER SATU secara berurutan.
     const validWraps = Array.from(wraps).filter(w => w.querySelector('.student-card-print'));
-    const BATCH_SIZE = Math.max(4, Math.min(8, navigator.hardwareConcurrency || 4));
     const cards = await runInBatches(validWraps, async (wrap) => {
       const front = wrap.querySelector('.student-card-print');
       const back  = wrap.querySelector('.student-card-back');
       const fixedWidth = front.offsetWidth;
-      const [cfCanvas, cbCanvas] = await Promise.all([
-        captureKartu(front, fixedWidth),
-        back ? captureKartu(back, fixedWidth) : Promise.resolve(null)
-      ]);
+      // scale 2 (bukan 3) khusus untuk PDF massal -- kartu akhirnya dikecilkan
+      // ke 8.5cm & di-JPEG-kan juga, jadi selisih tajam nyaris tak terlihat,
+      // tapi kerja render per kartu jauh lebih ringan (4x pixel, bukan 9x).
+      const cfCanvas = await captureKartu(front, fixedWidth, 2);
+      const cbCanvas = back ? await captureKartu(back, fixedWidth, 2) : null;
       return { cfCanvas, cbCanvas };
-    }, BATCH_SIZE);
+    }, 4);
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'cm', format: [PAGE_W, PAGE_H] });
 

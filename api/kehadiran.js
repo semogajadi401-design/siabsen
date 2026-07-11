@@ -28,6 +28,16 @@ const {
 // tetap terbuka.
 const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan']);
 
+// AKSI_BACA_TERBATAS (BARU — perbaikan keamanan): getSiswaKehadiran &
+// rekapKeteranganRange mengembalikan `idSiswa` DAN `nisn` mentah untuk
+// seluruh siswa -- sebelumnya terbuka tanpa login sama sekali (niatnya
+// supaya Kepala Sekolah bisa baca laporan tanpa adminToken), tapi itu
+// juga berarti SIAPA SAJA di internet bisa memanennya. Sekarang tetap
+// tidak mewajibkan adminToken (supaya kepsek tetap bisa akses), tapi
+// WAJIB minimal login sebagai staf (admin ATAU guru/kepsek lewat
+// guruToken) -- pola yang sama dengan perbaikan di api/absensi.js.
+const AKSI_BACA_TERBATAS = new Set(['getSiswaKehadiran', 'rekapKeteranganRange']);
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -54,6 +64,13 @@ module.exports = async (req, res) => {
       if (!guruValid) {
         return res.status(401).json({ success: false, message: 'Sesi tidak valid. Hanya admin atau guru piket hari ini yang bisa mengubah keterangan.' });
       }
+    }
+  }
+
+  if (AKSI_BACA_TERBATAS.has(action)) {
+    const adminValid = await requireAdminToken(adminToken);
+    if (!adminValid && !guruIdTerverifikasi) {
+      return res.status(401).json({ success: false, message: 'Sesi tidak valid. Silakan login untuk membuka laporan ini.' });
     }
   }
 

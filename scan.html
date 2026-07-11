@@ -154,6 +154,12 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 @media(max-width:900px){
   .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
   .side-rail .scan-title{flex:1 1 100%}
+  /* Grup tombol Absen Kelas + Cek Aktivitas Guru dipaksa jadi baris
+     TERSENDIRI (flex-basis 100%) alih-alih ikut berebut ruang di baris
+     yang sama dengan mode-switch-wrap -- itu penyebab tombol/teks
+     tampak berantakan/tersembunyi di HP setelah tombol kedua
+     ditambahkan (lihat .aksi-kelas-wrap di bawah). */
+  .aksi-kelas-wrap{flex:1 1 100%}
 }
 
 /* ── KOLOM KANAN — kamera & statistik/daftar berdampingan, tidak perlu scroll ── */
@@ -323,9 +329,13 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
    nyala sebagai efek samping scan kartu guru di halaman utama), supaya
    device ini dari awal "berniat" untuk verifikasi kelas dan tidak
    pernah tercampur/mengganggu toggle Datang/Pulang di device lain
-   (atau di device yang sama saat dipakai bergantian). */
+   (atau di device yang sama saat dipakai bergantian).
+   Dibungkus .aksi-kelas-wrap bersama tombol Cek Aktivitas Guru di
+   bawah -- lihat catatan lengkap di situ soal kenapa keduanya TIDAK
+   lagi diberi width/max-width sendiri-sendiri. */
+.aksi-kelas-wrap{display:flex;flex-direction:column;gap:8px;width:100%;max-width:150px}
 .btn-absen-kelas{
-  width:100%;max-width:150px;padding:12px 10px;border:none;border-radius:16px;
+  width:100%;padding:12px 10px;border:none;border-radius:16px;
   background:linear-gradient(160deg,#818CF8,#4F46E5);
   color:#fff;font-weight:700;font-size:.85rem;font-family:inherit;cursor:pointer;
   box-shadow:0 6px 16px -6px rgba(79,70,229,0.55),inset 0 1px 1px rgba(255,255,255,.35);
@@ -337,7 +347,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
    Sama-sama di bawah tombol Absen Kelas, tapi warna beda (teal) supaya
    jelas ini cuma buka ringkasan read-only, bukan mulai sesi absen. */
 .btn-cek-aktivitas-guru{
-  width:100%;max-width:150px;margin-top:8px;padding:12px 10px;border:none;border-radius:16px;
+  width:100%;padding:12px 10px;border:none;border-radius:16px;
   background:linear-gradient(160deg,#5EEAD4,#0D9488);
   color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
   box-shadow:0 6px 16px -6px rgba(13,148,136,0.55),inset 0 1px 1px rgba(255,255,255,.35);
@@ -346,8 +356,19 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .btn-cek-aktivitas-guru:active{transform:scale(.96)}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
-  .btn-absen-kelas{max-width:184px}
-  .btn-cek-aktivitas-guru{max-width:184px}
+  /* PERBAIKAN TATA LETAK MOBILE: sebelumnya tombol Absen Kelas & Cek
+     Aktivitas Guru masing-masing punya width:100% sendiri -- di
+     .side-rail yang jadi flex BARIS (lihat media query di atas), itu
+     bikin browser menghitung width:100% sebagai "lebar penuh baris"
+     lalu dipotong oleh max-width, jadi tiap tombol berebut ruang
+     dengan mode-switch-wrap dan wrap tidak beraturan/terpotong di HP
+     -- makin parah begitu tombol kedua ditambahkan.
+     Sekarang .aksi-kelas-wrap dipaksa jadi baris SENDIRI (flex:1 1 100%
+     di media query .side-rail di atas), dan di sini isinya diubah jadi
+     baris (dua tombol berdampingan, berbagi lebar rata lewat flex:1)
+     supaya rapi dan tidak ada yang tersembunyi. */
+  .aksi-kelas-wrap{flex-direction:row;max-width:none;gap:10px}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru{flex:1 1 0;width:auto}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -359,6 +380,11 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
     transform:translateX(calc(100% + 4px));
   }
   .mode-switch-opt{flex-direction:row;gap:6px}
+  /* Di layar sangat sempit, dua tombol berdampingan jadi terlalu
+     sempit untuk teks "Cek Aktivitas Guru" -- tumpuk vertikal saja
+     supaya teks & ikon tetap jelas terbaca, bukan terpotong. */
+  .aksi-kelas-wrap{flex-direction:column}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru{width:100%}
 }
 
 /* ── KAMERA BULAT DENGAN FRAME SCANNER AI ── */
@@ -1047,24 +1073,31 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       <span class="scanner-mode datang" id="modeLabel">☀️ Mode Datang</span>
     </div>
 
-    <!-- Tombol Absen Kelas (BARU) -- pintu masuk eksplisit ke Mode
-         Verifikasi Kelas, terpisah dari toggle Datang/Pulang di atas.
-         Klik dulu, baru scan kartu guru (lihat mulaiAbsenKelas()) --
-         supaya siswa yang absen Datang/Pulang di device lain (atau di
-         device ini sendiri sebelum tombol ini diklik) tidak pernah
-         "kesenggol" masuk mode verifikasi secara tidak sengaja. -->
-    <button type="button" class="btn-absen-kelas" id="btnAbsenKelas" onclick="mulaiAbsenKelas()">
-      📚 Absen Kelas
-    </button>
+    <!-- Grup tombol Absen Kelas + Cek Aktivitas Guru -- dibungkus
+         .aksi-kelas-wrap supaya keduanya diperlakukan sebagai SATU unit
+         tata letak (rapi baik di sidebar desktop maupun saat side-rail
+         berubah jadi baris di HP -- lihat catatan lengkap di CSS
+         .aksi-kelas-wrap). -->
+    <div class="aksi-kelas-wrap">
+      <!-- Tombol Absen Kelas (BARU) -- pintu masuk eksplisit ke Mode
+           Verifikasi Kelas, terpisah dari toggle Datang/Pulang di atas.
+           Klik dulu, baru scan kartu guru (lihat mulaiAbsenKelas()) --
+           supaya siswa yang absen Datang/Pulang di device lain (atau di
+           device ini sendiri sebelum tombol ini diklik) tidak pernah
+           "kesenggol" masuk mode verifikasi secara tidak sengaja. -->
+      <button type="button" class="btn-absen-kelas" id="btnAbsenKelas" onclick="mulaiAbsenKelas()">
+        📚 Absen Kelas
+      </button>
 
-    <!-- Tombol Cek Aktivitas Guru (BARU) -- ringkasan read-only, tidak
-         menyentuh proses scan sama sekali: siapa guru yang sudah
-         mengajar hari ini (+ berapa siswa sudah diverifikasi di sesi
-         itu), dan siapa yang jadwalnya hari ini tapi belum mengajar.
-         Lihat getAktivitasGuruHariIni() di api/scan.js. -->
-    <button type="button" class="btn-cek-aktivitas-guru" id="btnCekAktivitasGuru" onclick="bukaModalAktivitasGuru()">
-      👨‍🏫 Cek Aktivitas Guru
-    </button>
+      <!-- Tombol Cek Aktivitas Guru (BARU) -- ringkasan read-only, tidak
+           menyentuh proses scan sama sekali: siapa guru yang sudah
+           mengajar hari ini (+ berapa siswa sudah diverifikasi di sesi
+           itu), dan siapa yang jadwalnya hari ini tapi belum mengajar.
+           Lihat getAktivitasGuruHariIni() di api/scan.js. -->
+      <button type="button" class="btn-cek-aktivitas-guru" id="btnCekAktivitasGuru" onclick="bukaModalAktivitasGuru()">
+        👨‍🏫 Cek Aktivitas Guru
+      </button>
+    </div>
 
   </div>
 

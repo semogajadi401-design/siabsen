@@ -547,7 +547,40 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .scan-flash.warning{background:rgba(251,191,36,0.94)}
 .scan-flash.guru{background:rgba(79,70,229,0.94)}
 .scan-flash-icon{font-size:2.5rem}
-.scan-flash-text{font-size:.95rem;font-weight:700;text-align:center;padding:0 20px}
+
+/* ── BANNER PESAN HASIL SCAN (BARU) ─────────────────────────────────
+   Lihat catatan HTML di #scanFlashBanner soal kenapa ini dipisah dari
+   .scan-flash yang di dalam lingkaran kamera. position:fixed relatif ke
+   VIEWPORT (bukan ke induk manapun), jadi tidak mungkin ter-clip oleh
+   overflow:hidden/auto di ancestor manapun (mis. .scanner-stage yang
+   overflow-y:auto) -- beda dengan versi lama yang nempel di dalam
+   lingkaran kamera. Lebar dibatasi (max-width) tapi TIDAK dipaksa satu
+   baris (white-space:pre-line, bukan nowrap) supaya pesan panjang bisa
+   turun ke baris berikutnya alih-alih terpotong/meluber ke luar layar. */
+#scanFlashBanner{
+  position:fixed;left:50%;top:50%;z-index:9998;
+  transform:translate(-50%,-50%) scale(.94);
+  display:flex;align-items:flex-start;gap:10px;
+  max-width:min(88vw,380px);
+  padding:16px 20px;border-radius:18px;
+  color:#fff;font-weight:700;font-size:.92rem;line-height:1.5;
+  text-align:left;white-space:pre-line;overflow-wrap:break-word;
+  box-shadow:0 20px 44px -12px rgba(0,0,0,.55);
+  opacity:0;pointer-events:none;
+  transition:opacity .25s ease,transform .25s ease;
+}
+#scanFlashBanner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#scanFlashBanner.success{background:rgba(5,150,105,0.96)}
+#scanFlashBanner.error{background:rgba(225,29,72,0.96)}
+/* Warna warning ASLI (rgba(251,191,36) -- kuning terang) dipertahankan
+   untuk .scan-flash (kilatan warna di lingkaran kamera, sudah biasa
+   dilihat pengguna), tapi di sini dibuat lebih GELAP -- teks putih di
+   atas kuning terang kontrasnya rendah dan justru ikut bikin "sebagian
+   teks tidak terbaca" kalau harus dibaca lebih dari sekilas. */
+#scanFlashBanner.warning{background:rgba(180,83,9,0.96)}
+#scanFlashBanner.guru{background:rgba(79,70,229,0.96)}
+.scan-flash-banner-icon{font-size:1.4rem;line-height:1.3;flex-shrink:0}
+.scan-flash-banner-text{flex:1;min-width:0}
 
 /* Status bar / hasil scan terakhir */
 .last-result{
@@ -760,7 +793,16 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   border:1px solid var(--border);
   border-radius:14px;padding:10px 18px;
   font-size:.85rem;font-weight:600;color:var(--text);
-  animation:toastIn .3s ease;white-space:nowrap;
+  animation:toastIn .3s ease;
+  /* PERBAIKAN "sebagian teks tidak terbaca": white-space:nowrap
+     sebelumnya memaksa toast selalu satu baris -- di layar HP yang
+     sempit, pesan yang panjang jadi meluber ke luar batas layar
+     (bagian yang keluar itu yang "tidak terbaca"). Sekarang teks boleh
+     turun ke baris berikutnya (white-space:normal + overflow-wrap),
+     dibatasi lebar maksimum supaya tetap rapi & tidak mepet ke tepi
+     layar di HP sempit. */
+  white-space:normal;max-width:min(86vw,360px);overflow-wrap:break-word;
+  text-align:center;
   box-shadow:var(--shadow-card);
 }
 @keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -963,6 +1005,21 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 </head>
 <body>
 <div id="toastWrap"></div>
+
+<!-- PERBAIKAN "pesan panjang tidak terbaca": pesan hasil scan (showFlash())
+     sebelumnya ditampilkan sebagai teks DI DALAM lingkaran kamera, yang
+     di-clip jadi bentuk bulat (overflow:hidden + border-radius:50% di
+     .scanner-wrap) -- pesan yang butuh 2-3 baris jadi terpotong di
+     bagian yang jatuh di luar lingkaran (sudut kotak yang "hilang" kalau
+     dibulatkan). Banner ini DITARUH DI LUAR struktur kamera (position:
+     fixed relatif ke layar, bukan ke .scanner-visual), jadi tidak pernah
+     ikut ter-clip apa pun bentuk/ukuran kameranya. Kontennya diisi lewat
+     JS oleh showFlash() -- lihat hitungDurasiBacaFlash() di sana untuk
+     durasi tampil yang otomatis lebih lama untuk pesan yang lebih panjang. -->
+<div id="scanFlashBanner">
+  <span class="scan-flash-banner-icon" id="flashBannerIcon"></span>
+  <span class="scan-flash-banner-text" id="flashBannerText"></span>
+</div>
 
 <!-- OFFLINE TOP BAR -->
 <div id="offlineBar">
@@ -1258,7 +1315,6 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
           <video id="scanVideo" autoplay playsinline muted></video>
           <div class="scan-flash" id="scanFlash">
             <div class="scan-flash-icon" id="flashIcon"></div>
-            <div class="scan-flash-text" id="flashText"></div>
           </div>
           <canvas id="scanCanvas" style="display:none"></canvas>
         </div>
@@ -2016,6 +2072,15 @@ const MAX_TOAST_TAMPIL = 3;
 
 function toast(msg, dur=3000) {
   const wrap = document.getElementById('toastWrap');
+
+  // PERBAIKAN "pesan panjang keburu hilang": dur yang dikirim tiap
+  // pemanggil toast() cuma DEFAULT/dur minimum yang masuk akal untuk
+  // pesan pendek -- untuk pesan yang ternyata panjang, waktu itu sering
+  // tidak cukup untuk selesai dibaca. Di sini dur dari pemanggil
+  // diperlakukan sebagai batas BAWAH (minimum), dan otomatis diperlebar
+  // kalau teksnya panjang -- lihat hitungDurasiBacaFlash() (dipakai
+  // bersama dengan showFlash() supaya rumusnya konsisten satu tempat).
+  dur = Math.max(dur, hitungDurasiBacaFlash(msg));
 
   // Dedup: pesan yang sama sedang tampil -> jangan buat elemen baru,
   // cukup reset timer supaya tetap kelihatan (bukan kelihatan "dobel").
@@ -3767,15 +3832,46 @@ async function simpanTanpaKartuOffline() {
 }
 
 // ── FLASH ────────────────────────────────────────────────────────
+// PERBAIKAN "pesan panjang tidak sempat terbaca": dulu SEMUA pesan
+// (pendek maupun panjang) disembunyikan lagi setelah waktu TETAP 2
+// detik, padahal beberapa pesan hasil scan cukup panjang (mis. nama +
+// info jadwal mengajar 2 baris) -- 2 detik jelas tidak cukup untuk itu.
+// Durasi sekarang dihitung dari PANJANG TEKS: makin panjang pesannya,
+// makin lama dia tetap tampil, supaya guru sempat membaca sampai
+// selesai. Estimasi kasarnya ~14 karakter/detik (sedikit lebih lambat
+// dari kecepatan baca rata-rata orang dewasa supaya ada margin aman),
+// dengan batas bawah 2 detik (pesan pendek tidak perlu berubah) dan
+// batas atas 8 detik (supaya tidak terasa "macet" kalau ada pesan yang
+// memang sangat panjang).
+function hitungDurasiBacaFlash(text) {
+  const ms = 2000 + String(text || '').length * 70;
+  return Math.min(Math.max(ms, 2000), 8000);
+}
+
+let _flashBannerHideTimer = null;
 function showFlash(type, icon, text) {
-  const el   = document.getElementById('scanFlash');
-  const ico  = document.getElementById('flashIcon');
-  const txt  = document.getElementById('flashText');
+  // Kilatan warna + ikon di dalam lingkaran kamera -- TETAP seperti
+  // semula (durasi tetap 2 detik, cuma efek "pop" sekilas), tapi teksnya
+  // TIDAK lagi ditaruh di sini (lihat catatan di HTML #scanFlashBanner
+  // soal kenapa: teks di dalam lingkaran yang di-clip bulat gampang
+  // terpotong kalau lebih dari beberapa kata).
+  const el  = document.getElementById('scanFlash');
+  const ico = document.getElementById('flashIcon');
   ico.textContent = icon;
-  txt.textContent = text;
   el.className = `scan-flash show ${type}`;
   setTimeout(() => { el.className = 'scan-flash'; }, 2000);
   playBeep(type);
+
+  // Banner teks penuh -- terpisah, tidak ter-clip, durasi dihitung dari
+  // panjang teks lewat hitungDurasiBacaFlash() di atas.
+  const banner = document.getElementById('scanFlashBanner');
+  if (banner) {
+    document.getElementById('flashBannerIcon').textContent = icon;
+    document.getElementById('flashBannerText').textContent = text;
+    banner.className = `show ${type}`;
+    clearTimeout(_flashBannerHideTimer);
+    _flashBannerHideTimer = setTimeout(() => { banner.className = ''; }, hitungDurasiBacaFlash(text));
+  }
 }
 
 // ── COOLDOWN BAR ─────────────────────────────────────────────────

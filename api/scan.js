@@ -291,12 +291,24 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   // sekali. Sengaja dicek DI SINI, SEBELUM validasi jam operasional di
   // bawah, supaya kartu kepsek juga tidak ikut tertahan jam absensi seperti
   // guru/siswa (sama seperti QR admin yang juga dicek sebelum validasi jam).
+  // PERBAIKAN PERFORMA: hasil query guru di sini (guruCard) SEKARANG DISIMPAN
+  // di variabel luar dan dipakai ulang di langkah 2 (CEK APAKAH QR GURU) di
+  // bawah, BUKAN di-query ulang dari nol. Sebelumnya setiap kartu guru yang
+  // discan (dan bukan kepsek) memicu DUA query persis ke tabel `guru` dengan
+  // `id` yang sama -- satu di sini untuk cek apakah ini kartu kepsek, satu
+  // lagi nanti (langkah 2) untuk ambil data guru dipakai logika piket/
+  // mengajar. select() di sini sudah mencakup semua kolom yang dibutuhkan
+  // langkah 2 (id, nama, jabatan, status, role), jadi query kedua yang lama
+  // dihapus sama sekali -- tidak ada logika/hasil yang berubah, cuma sumber
+  // datanya dipakai ulang.
+  let guruCard = null;
   if (id.startsWith('GR')) {
     const { data: calonKepsek } = await supabase
       .from('guru')
       .select('id, nama, jabatan, username, status, role, qr_token')
       .eq('id', id)
       .maybeSingle();
+    guruCard = calonKepsek;
 
     if (calonKepsek && calonKepsek.role === 'kepsek') {
       if (calonKepsek.status !== 'Aktif') {
@@ -388,11 +400,11 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
 
   // ── 2. CEK APAKAH QR GURU ───────────────────────────────────────
   if (id.startsWith('GR')) {
-    const { data: guru } = await supabase
-      .from('guru')
-      .select('id,nama,jabatan,status,role')
-      .eq('id', id)
-      .maybeSingle();
+    // PERBAIKAN PERFORMA: pakai ulang guruCard dari langkah 1c di atas
+    // (query tabel `guru` dengan id yang sama persis), BUKAN query ulang.
+    // guruCard sudah pasti sudah diisi (atau null) di titik ini karena
+    // kita masuk cabang id.startsWith('GR') yang sama seperti di 1c.
+    const guru = guruCard;
 
     if (!guru) return { success: false, message: 'Guru tidak ditemukan', tipe: 'guru' };
     if (guru.status !== 'Aktif') return { success: false, message: 'Akun guru tidak aktif', tipe: 'guru' };
@@ -422,8 +434,13 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       // "identitas guru selalu diverifikasi server, bukan lewat klaim
       // klien" -- di kiosk ini, verifikasinya lewat pencocokan id kartu
       // ke tabel guru, sama seperti jalur piket yang sudah ada.
+      // PERBAIKAN PERFORMA: jamSetting kirim yang SUDAH diambil di atas
+      // (Promise.all validasi jam operasional), supaya scanSesiMengajar
+      // di mengajar.js tidak query ulang tabel pengaturan dari nol untuk
+      // nilai yang sama persis (TOLERANSI_MENGAJAR_MENIT dibaca dari objek
+      // yang sama). Lihat parameter jamSetting (opsional) di scanSesiMengajar.
       const hasil = await scanSesiMengajarInternal({
-        guruIdTerverifikasi: guru.id, tanggal: today, jam, hari
+        guruIdTerverifikasi: guru.id, tanggal: today, jam, hari, jamSetting
       });
       return {
         ...hasil,

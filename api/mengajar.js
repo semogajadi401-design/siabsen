@@ -390,6 +390,23 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
   const { data: siswa } = await supabase.from('siswa').select('id,nisn,nama,kelas').eq('id', idSiswa).maybeSingle();
   if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
 
+  // PERBAIKAN BUG (verifikasi tidak memfilter kelas): SEBELUMNYA siswa dari
+  // KELAS MANAPUN langsung diterima & dihitung sebagai kehadiran untuk
+  // sesi kelas ini, selama ID-nya valid -- tidak ada pengecekan sama
+  // sekali terhadap sesi.kelas (kelas yang sedang diajar guru itu). Guru
+  // yang salah/keliru scan kartu siswa dari kelas lain (atau siswa iseng
+  // menyodorkan kartunya sendiri walau bukan kelas yang sedang diajar)
+  // akan ikut tercatat terverifikasi hadir di mapel/kelas yang bukan
+  // kelasnya -- merusak rekap kehadiran. Sekarang ditolak tegas di sini,
+  // SEBELUM sempat insert ke kehadiran_siswa_mapel, dengan pesan yang
+  // jelas supaya guru langsung tahu kartu siapa yang salah scan.
+  if (siswa.kelas !== sesi.kelas) {
+    return {
+      success: false,
+      message: `${siswa.nama} bukan siswa kelas ${sesi.kelas} (kelasnya: ${siswa.kelas || '-'}). Verifikasi ditolak -- pastikan hanya scan kartu siswa kelas ${sesi.kelas}.`
+    };
+  }
+
   const id = generateID('KS');
   const { error } = await supabase.from('kehadiran_siswa_mapel').insert({
     id, id_absensi_mengajar: idAbsensiMengajar, id_siswa: idSiswa,

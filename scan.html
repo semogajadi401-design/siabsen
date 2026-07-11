@@ -2966,6 +2966,19 @@ const SCAN_MAKS_LEBAR = 640;
 let _scanGagalBerturut = 0;
 const SCAN_HINT_SETELAH = 45; // ± 1.5 detik di 30fps sebelum kasih tips
 
+// PERBAIKAN KECEPATAN (hindari kerja dobel): requestAnimationFrame bisa
+// terpanggil lebih sering (mis. 60x/detik di layar 60Hz, bahkan lebih di
+// HP 90/120Hz) daripada frame BARU yang benar-benar dikirim kamera
+// (biasanya ~30x/detik). Tanpa penanda ini, sebagian pemanggilan
+// scanLoop() memproses ulang frame video yang PERSIS SAMA dengan
+// panggilan sebelumnya -- drawImage+getImageData+jsQR dikerjakan lagi
+// untuk gambar yang belum berubah sama sekali, membuang sebagian besar
+// kerja CPU per detik tanpa manfaat. video.currentTime hanya berubah
+// kalau kamera sudah menyajikan frame baru, jadi ini cara murah untuk
+// melewati frame yang belum berganti -- TANPA mengubah cara scanLoop()
+// dipanggil dari tempat lain di file ini (tetap requestAnimationFrame).
+let _scanLastVideoTime = -1;
+
 // ── KONFIRMASI HASIL DECODE (anti salah-baca kamera kualitas rendah) ──
 // Webcam laptop (fixed-focus, resolusi rendah, sering agak buram) kadang
 // membuat jsQR "berhasil" decode tapi hasilnya SALAH di beberapa karakter
@@ -3015,6 +3028,16 @@ function scanLoop() {
   if (!video.readyState || video.readyState < 2) {
     scanAnimFrame = requestAnimationFrame(scanLoop); return;
   }
+
+  // Lewati frame ini kalau kamera belum menyajikan gambar baru (lihat
+  // catatan di deklarasi _scanLastVideoTime di atas). Reset ke -1 di
+  // sini tidak diperlukan -- perbandingan angka currentTime tetap benar
+  // walau scanLoop() sempat berhenti/pause karena _scanBeratPaused, dsb.
+  if (video.currentTime === _scanLastVideoTime) {
+    scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+  _scanLastVideoTime = video.currentTime;
 
   const vw = video.videoWidth, vh = video.videoHeight;
   const skala = vw > SCAN_MAKS_LEBAR ? SCAN_MAKS_LEBAR / vw : 1;

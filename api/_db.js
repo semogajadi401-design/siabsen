@@ -421,21 +421,52 @@ async function getSemesterAktif() {
 // Pengaturan Jam (jam_setting). SEMUA tempat yang butuh jam pulang hari
 // ini (getStatus, scanKartu, sync offline, scan.html) WAJIB lewat fungsi
 // ini supaya tidak ada yang "ketinggalan" baca jam global secara terpisah.
-async function getJamPulangEfektif(namaHari, jamSetting) {
-  const globalMulai   = (jamSetting && jamSetting['JAM_PULANG_MULAI'])   || '14:00';
-  const globalSelesai = (jamSetting && jamSetting['JAM_PULANG_SELESAI']) || '16:00';
-
+// ── DIPISAH (perbaikan performa) ──────────────────────────────────
+// getJamPulangEfektif() aslinya SATU fungsi yang query dulu baru gabung
+// ke default global. Masalahnya: query pengaturan_hari_kerja di sini
+// SEBENARNYA tidak butuh isi jamSetting sama sekali (jamSetting cuma
+// dipakai belakangan, sebagai nilai fallback di JS) -- tapi karena
+// tergabung dalam satu fungsi, pemanggil yang juga butuh getJamSetting()
+// (semua pemanggil, karena jamSetting adalah parameternya) selalu
+// terpaksa await getJamSetting() SELESAI dulu baru bisa mulai query ini,
+// padahal keduanya bisa jalan BERSAMAAN.
+//
+// Sekarang dipecah jadi 2:
+//   1. fetchJamPulangOverride(namaHari) -- query mentah saja, tidak butuh
+//      jamSetting, jadi bisa di-Promise.all() bareng getJamSetting().
+//   2. computeJamPulangEfektif(jamSetting, overrideRow) -- PURE, tidak ada
+//      query sama sekali, cuma logika gabung override vs default global.
+// getJamPulangEfektif(namaHari, jamSetting) TETAP ADA sebagai pembungkus
+// (panggil 1 lalu 2) supaya SEMUA pemanggil lama (getStatus, sync.js, dst)
+// tidak perlu diubah sama sekali. Yang butuh performa lebih (scanKartu di
+// scan.js) tinggal panggil fetchJamPulangOverride() sendiri di dalam
+// Promise.all miliknya, lalu computeJamPulangEfektif() untuk gabungnya --
+// aturan gabungnya TETAP hanya ada di SATU tempat (computeJamPulangEfektif),
+// tidak diduplikasi, jadi tidak ada risiko drift seperti yang diwanti-wanti
+// di komentar atas fungsi ini sebelumnya.
+async function fetchJamPulangOverride(namaHari) {
   const { data } = await supabase
     .from('pengaturan_hari_kerja')
     .select('jam_pulang_mulai, jam_pulang_selesai')
     .eq('hari', namaHari)
     .maybeSingle();
+  return data || null;
+}
+
+function computeJamPulangEfektif(jamSetting, overrideRow) {
+  const globalMulai   = (jamSetting && jamSetting['JAM_PULANG_MULAI'])   || '14:00';
+  const globalSelesai = (jamSetting && jamSetting['JAM_PULANG_SELESAI']) || '16:00';
 
   return {
-    jamPulangMulai:   (data && data.jam_pulang_mulai)   ? data.jam_pulang_mulai   : globalMulai,
-    jamPulangSelesai: (data && data.jam_pulang_selesai) ? data.jam_pulang_selesai : globalSelesai,
-    override: !!(data && (data.jam_pulang_mulai || data.jam_pulang_selesai))
+    jamPulangMulai:   (overrideRow && overrideRow.jam_pulang_mulai)   ? overrideRow.jam_pulang_mulai   : globalMulai,
+    jamPulangSelesai: (overrideRow && overrideRow.jam_pulang_selesai) ? overrideRow.jam_pulang_selesai : globalSelesai,
+    override: !!(overrideRow && (overrideRow.jam_pulang_mulai || overrideRow.jam_pulang_selesai))
   };
+}
+
+async function getJamPulangEfektif(namaHari, jamSetting) {
+  const overrideRow = await fetchJamPulangOverride(namaHari);
+  return computeJamPulangEfektif(jamSetting, overrideRow);
 }
 
 // ── SEBUTAN BAPAK/IBU BERDASARKAN JENIS KELAMIN GURU ─────────────
@@ -947,6 +978,8 @@ module.exports = {
   // ── TAMBAHAN BARU ──
   isHariLibur, isHariKerja, getHariKerjaSettings, getSemesterAktif,
   requireAdminToken, getJamPulangEfektif, isGuruPiketHariIni,
+  // ── TAMBAHAN BARU (perbaikan performa scan) ──
+  fetchJamPulangOverride, computeJamPulangEfektif,
   cekIzinPiket, resolveGuruIdFromToken,
   cekJadwalMengajarSaatIni,
   generateSesiToken, verifySesiToken,

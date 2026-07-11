@@ -2953,10 +2953,37 @@ function handleScanResult(result, data, now) {
       // guru bisa lanjut scan kartu siswa satu-satu (sub-langkah 3).
       const namaGuru = (result.guru && result.guru.nama) || '';
       const infoJadwal = result.jadwal ? `${result.jadwal.mapel} - ${result.jadwal.kelas}` : '';
-      showFlash('guru', '📚', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
-      toast('✅ ' + result.message);
-      if (result.idAbsensiMengajar) {
-        mulaiModeVerifikasi(result);
+
+      // PERBAIKAN BUG (guru bisa Absen Kelas berkali-kali tanpa batas):
+      // SEBELUMNYA begitu result.idAbsensiMengajar ada -- BAIK untuk sesi
+      // BARU maupun sesi yang sudah pernah tercatat & SUDAH TERVERIFIKASI
+      // hari ini (result.sudahScan true, result.statusVerifikasi ===
+      // 'Terverifikasi') -- kode selalu masuk mulaiModeVerifikasi() lagi
+      // dari nol. Guru yang menekan "Absen Kelas" lalu scan kartu sendiri
+      // berulang kali untuk kelas & jam yang SAMA terus-menerus dibukakan
+      // mode verifikasi, seolah kelas itu belum pernah diverifikasi --
+      // padahal sesinya sudah selesai & sudah cukup siswa terverifikasi.
+      // Sekarang: kalau sesi sudah tercatat DAN statusnya sudah
+      // 'Terverifikasi', JANGAN buka mode verifikasi lagi -- cukup
+      // info-kan ke guru bahwa sesi ini sudah selesai. Kalau sudah
+      // tercatat tapi BELUM cukup siswa (statusVerifikasi masih 'Perlu
+      // Ditinjau'), tetap dibuka seperti biasa -- itu memang perlu supaya
+      // guru bisa melanjutkan scan siswa yang belum sampai ambang minimal.
+      if (result.sudahScan && result.statusVerifikasi === 'Terverifikasi') {
+        showFlash('guru', '✅', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
+        toast(`✅ Absen kelas ${infoJadwal || 'ini'} sudah tercatat & terverifikasi (${result.jumlahSiswaTerverifikasi || 0} siswa) hari ini. Tidak perlu discan ulang.`, 5000);
+        // Sesi tidak jadi dibuka -- pastikan overlay Absen Kelas (yang
+        // sudah dibuka di mulaiAbsenKelas() sebelum kartu guru discan)
+        // ikut ditutup, karena modeVerifikasiBox (yang biasanya jadi jalan
+        // keluarnya lewat tombol "Selesai Verifikasi") tidak pernah tampil
+        // di jalur ini.
+        tutupOverlayAbsenKelas();
+      } else {
+        showFlash('guru', '📚', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
+        toast('✅ ' + result.message);
+        if (result.idAbsensiMengajar) {
+          mulaiModeVerifikasi(result);
+        }
       }
     } else {
       const isLate   = result.status === 'Terlambat';

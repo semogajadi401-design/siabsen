@@ -439,11 +439,31 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       // masuk ke server) — koreksi ke jam yang lebih awal karena itu yang
       // benar-benar terjadi lebih dulu.
       if (jam < absenHariIni.jam_pulang) {
-        const { error: fixError } = await supabase.from('absensi').update({
-          jam_pulang: jam, status_pulang: 'Pulang',
-          nama_guru_piket: namaGP, id_guru_piket: idGP
-        }).eq('id', absenHariIni.id);
+        // PERBAIKAN RACE CONDITION: `.eq('jam_pulang', absenHariIni.jam_pulang)`
+        // ditambahkan sebagai guard optimistic-concurrency -- UPDATE ini
+        // hanya benar-benar mengenai baris kalau nilai jam_pulang di database
+        // MASIH SAMA PERSIS dengan yang kita baca barusan (absenHariIni).
+        // Tanpa ini, kalau ADA proses sync lain yang sudah lebih dulu
+        // mengoreksi/mengubah baris yang sama di antara SELECT dan UPDATE,
+        // kita bisa menimpanya secara buta dengan nilai yang sudah basi.
+        // Kasus ini sangat jarang (perlu 2 proses sync offline untuk siswa
+        // yang sama, keduanya di rentang waktu sepersekian detik), tapi
+        // kalau memang kalah race di sini, item ini ditandai TIDAK permanen
+        // -- percobaan sync berikutnya (otomatis dari device) akan membaca
+        // ulang nilai terbaru dan mengevaluasi lagi dari situ.
+        const { data: koreksiUpdated, error: fixError } = await supabase
+          .from('absensi')
+          .update({
+            jam_pulang: jam, status_pulang: 'Pulang',
+            nama_guru_piket: namaGP, id_guru_piket: idGP
+          })
+          .eq('id', absenHariIni.id)
+          .eq('jam_pulang', absenHariIni.jam_pulang)
+          .select('jam_pulang');
         if (fixError) return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal mengoreksi jam pulang: ' + fixError.message };
+        if (!koreksiUpdated || koreksiUpdated.length === 0) {
+          return { success: false, permanent: false, tipe: 'siswa', message: `${siswa.nama} - jam pulang berubah di perangkat lain, dicoba lagi di sinkron berikutnya` };
+        }
         return {
           success: true, tipe: 'siswa', status: 'Pulang',
           message: `${siswa.nama} - jam pulang dikoreksi ke ${jam} (scan offline lebih awal)`,
@@ -453,11 +473,27 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       return { success: false, permanent: true, tipe: 'siswa', message: `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}` };
     }
 
-    const { error: updError } = await supabase.from('absensi').update({
-      jam_pulang: jam, status_pulang: 'Pulang',
-      nama_guru_piket: namaGP, id_guru_piket: idGP
-    }).eq('id', absenHariIni.id);
+    // PERBAIKAN RACE CONDITION: sama seperti di api/scan.js (jalur online) --
+    // `.is('jam_pulang', null)` memastikan UPDATE ini hanya mengenai baris
+    // kalau jam_pulang MASIH kosong PERSIS SAAT dieksekusi database, bukan
+    // cuma saat absenHariIni dibaca di atas. Kalau perangkat/proses sync
+    // lain sudah menang duluan, `.select()` mengembalikan array kosong dan
+    // item ini ditandai TIDAK permanen supaya sync berikutnya mengevaluasi
+    // ulang (bisa saja lalu masuk ke jalur "koreksi jam lebih awal" di atas
+    // kalau jam offline ini ternyata lebih awal dari yang barusan menang).
+    const { data: pulangUpdated, error: updError } = await supabase
+      .from('absensi')
+      .update({
+        jam_pulang: jam, status_pulang: 'Pulang',
+        nama_guru_piket: namaGP, id_guru_piket: idGP
+      })
+      .eq('id', absenHariIni.id)
+      .is('jam_pulang', null)
+      .select('jam_pulang');
     if (updError) return { success: false, permanent: false, tipe: 'siswa', message: 'Gagal simpan: ' + updError.message };
+    if (!pulangUpdated || pulangUpdated.length === 0) {
+      return { success: false, permanent: false, tipe: 'siswa', message: `${siswa.nama} - jam pulang sudah tercatat di perangkat lain, dicoba lagi di sinkron berikutnya` };
+    }
 
     return {
       success: true, tipe: 'siswa', status: 'Pulang',

@@ -6287,8 +6287,14 @@ async function loadRekapMengajar() {
   tbody.innerHTML = result.rincian.map(function(r, i) {
     // Tombol Izin/Sakit cuma relevan untuk sesi yang masih Alpa (belum ada
     // catatan sama sekali) -- kalau sudah Hadir/Telat/Izin/Sakit tidak perlu
-    // diubah lagi dari sini.
-    var aksi = r.status === 'Alpa' ? '<button class="btn btn-outline btn-sm" onclick="openModalKeteranganMengajar(' + i + ')">📝 Izin/Sakit</button>' : '-';
+    // diubah lagi dari sini. Tombol ini juga sengaja DISEMBUNYIKAN untuk
+    // akun kepsek: server (api/mengajar.js -> inputKeteranganMengajar)
+    // cuma mengizinkan admin/TU atau guru yang bersangkutan sendiri yang
+    // boleh mengisi keterangan ini -- kepsek memang tidak diberi wewenang
+    // itu. Sebelumnya tombol tetap tampil ke kepsek walau begitu, jadi
+    // kalau diklik selalu berakhir error "Hanya admin atau guru yang
+    // bersangkutan..." -- tombol yang terlihat bisa dipakai padahal tidak.
+    var aksi = (r.status === 'Alpa' && APP.user.role !== 'kepsek') ? '<button class="btn btn-outline btn-sm" onclick="openModalKeteranganMengajar(' + i + ')">📝 Izin/Sakit</button>' : '-';
     return '<tr><td data-label="Tanggal">' + r.tanggal + '</td><td data-label="Hari">' + r.hari + '</td><td data-label="Kelas"><span class="badge badge-primary">' + esc(r.kelas) + '</span></td><td data-label="Mapel">' + esc(r.mapel) + '</td><td data-label="Jam Ke">Ke-' + r.jamKeMulai + (r.jamKeSelesai!==r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '') + '</td>'
       + '<td data-label="Status"><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span></td>'
       + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' : '-') + '</td>'

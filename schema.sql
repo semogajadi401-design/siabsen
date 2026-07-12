@@ -241,6 +241,23 @@ CREATE TABLE IF NOT EXISTS keterangan_mengajar (
 );
 CREATE INDEX IF NOT EXISTS idx_keteranganmengajar_tanggal ON keterangan_mengajar(tanggal);
 
+-- ── ALUR PERSETUJUAN IZIN/SAKIT (approval workflow) ──────────────
+-- Sebelumnya kolom di atas langsung dihitung final begitu disimpan, tanpa
+-- verifikasi apa pun -- baik diinput admin/TU maupun oleh guru sendiri untuk
+-- dirinya. Kolom-kolom baru ini menambahkan alur persetujuan KHUSUS untuk
+-- laporan yang diinput guru sendiri (diinput_oleh = 'guru'): status default
+-- jadi 'Menunggu Persetujuan' dan baru dihitung final di rekap
+-- (getRekapKehadiranGuru) setelah disetujui akun Kepala Sekolah (role
+-- 'kepsek'). Laporan yang diinput admin/TU tetap langsung 'Disetujui'
+-- (admin dianggap sudah melakukan verifikasi manual sebelum menginput).
+ALTER TABLE keterangan_mengajar ADD COLUMN IF NOT EXISTS status_persetujuan TEXT NOT NULL DEFAULT 'Disetujui';
+-- Nilai valid: 'Menunggu Persetujuan' | 'Disetujui' | 'Ditolak'
+ALTER TABLE keterangan_mengajar ADD COLUMN IF NOT EXISTS bukti_url TEXT; -- foto/scan surat sakit/izin, base64 data-URL
+ALTER TABLE keterangan_mengajar ADD COLUMN IF NOT EXISTS disetujui_oleh TEXT REFERENCES guru(id); -- id akun kepsek yang memutuskan
+ALTER TABLE keterangan_mengajar ADD COLUMN IF NOT EXISTS disetujui_pada TIMESTAMPTZ;
+ALTER TABLE keterangan_mengajar ADD COLUMN IF NOT EXISTS catatan_penolakan TEXT; -- alasan kepsek kalau ditolak
+CREATE INDEX IF NOT EXISTS idx_keteranganmengajar_statuspersetujuan ON keterangan_mengajar(status_persetujuan);
+
 -- ─── TABEL STATUS PERANGKAT (heartbeat kiosk scan, untuk Dashboard Admin) ──
 -- Diisi lewat upsert onConflict:'device_id' (lihat heartbeat() di
 -- api/sync.js), jadi 1 baris = 1 perangkat, terus diperbarui -- bukan
@@ -399,7 +416,8 @@ INSERT INTO jam_setting (kunci, nilai, deskripsi) VALUES
   ('TELP_SEKOLAH',       '', 'Telepon Sekolah'),
   ('EMAIL_SEKOLAH',      '', 'Email Sekolah'),
   ('LOGO_URL',           '', 'URL Logo Sekolah'),
-  ('RESET_ABSENSI_TERAKHIR', '', 'Timestamp ISO kapan riwayat absensi terakhir kali dihapus total (lewat Reset Absensi "Hapus Semua" atau Reset Total). Dipakai api/sync.js untuk menolak item antrian offline yang direkam SEBELUM waktu ini, supaya data lama yang baru sinkron belakangan tidak "menghidupkan kembali" riwayat yang sudah sengaja dihapus admin.')
+  ('RESET_ABSENSI_TERAKHIR', '', 'Timestamp ISO kapan riwayat absensi terakhir kali dihapus total (lewat Reset Absensi "Hapus Semua" atau Reset Total). Dipakai api/sync.js untuk menolak item antrian offline yang direkam SEBELUM waktu ini, supaya data lama yang baru sinkron belakangan tidak "menghidupkan kembali" riwayat yang sudah sengaja dihapus admin.'),
+  ('BUKTI_IZIN_SAKIT_WAJIB', 'opsional', 'Apakah guru WAJIB melampirkan bukti (foto surat sakit/izin) saat menginput izin/sakit untuk dirinya sendiri. Nilai: "wajib" atau "opsional". Hanya berlaku untuk laporan yang diinput guru sendiri -- admin/TU tetap boleh input tanpa lampiran.')
 ON CONFLICT (kunci) DO NOTHING;
 
 -- ─── ADMIN DEFAULT (password: admin123) ────────────────────

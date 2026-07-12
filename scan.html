@@ -1107,6 +1107,10 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:1.7rem;
 }
+.splash-ring-icon img{
+  width:56%;height:56%;object-fit:contain;border-radius:50%;
+  background:#fff;padding:4px;
+}
 .splash-title{
   font-family:var(--font-display);font-weight:800;font-size:1.15rem;
   letter-spacing:.2px;margin-bottom:4px;
@@ -1172,7 +1176,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   <div class="splash-card">
     <div class="splash-ring-wrap">
       <div class="splash-ring"></div>
-      <div class="splash-ring-icon">📷</div>
+      <div class="splash-ring-icon" id="splashIcon">🏫</div>
     </div>
     <div class="splash-title">Menyiapkan Kios Absensi</div>
     <div class="splash-sub">Mohon tunggu sebentar...</div>
@@ -2852,6 +2856,17 @@ async function init() {
         if (logo) {
           const el = document.getElementById('headerLogo');
           el.innerHTML = `<img src="${logo}" alt="Logo">`;
+          // Tampilkan logo sekolah yang sama di ikon splash (gantikan
+          // fallback 🏫), supaya splash terasa "milik sekolah ini",
+          // bukan generik. Kalau logo gagal dimuat (URL rusak/terhapus),
+          // biarkan fallback 🏫 tetap tampil -- jangan sampai splash
+          // rusak/kosong hanya karena gambar logo gagal.
+          const iconEl = document.getElementById('splashIcon');
+          if (iconEl) {
+            const imgTest = new Image();
+            imgTest.onload = () => { iconEl.innerHTML = `<img src="${logo}" alt="Logo sekolah">`; };
+            imgTest.src = logo;
+          }
         }
       }
     } catch(e) {}

@@ -2294,14 +2294,19 @@ function loadKelasLocal() {
 // Gabungkan kelas dari DB (data siswa) + kelas manual admin
 async function loadAndMergeKelas() {
   // Ambil kelas unik dari siswa di DB
+  // PERBAIKAN (bug dropdown Kelas lambat/kosong -- lihat #jmKelas di
+  // modal Tambah/Edit Jadwal Mengajar): SEBELUMNYA baris ini memanggil
+  // api('siswa','getAll', {activeOnly:true, kelas:''}) -- mengambil
+  // SELURUH kolom SEMUA siswa aktif (termasuk data pribadi & memicu
+  // backfill riwayat_token) hanya untuk mengambil nama kelasnya saja.
+  // Di sekolah dengan banyak siswa & koneksi lemah, ini bisa lambat
+  // sekali, dan selama proses itu belum selesai, dropdown kelas
+  // (termasuk #jmKelas) tetap kosong. Sekarang pakai getKelasList()
+  // (api/siswa.js) yang cuma ambil kolom `kelas`, jauh lebih ringan.
   let dbKelas = [];
   try {
-    const r = await api('siswa', 'getAll', { activeOnly: true, kelas: '' });
-    if (r.success) {
-      const set = new Set();
-      r.data.forEach(s => { if(s.kelas && s.kelas.trim()) set.add(s.kelas.trim()); });
-      dbKelas = Array.from(set);
-    }
+    const r = await api('siswa', 'getKelasList');
+    if (r.success) dbKelas = r.data || [];
   } catch(e) {}
 
   // Gabung dengan kelas manual
@@ -5821,6 +5826,18 @@ async function loadHalamanJadwalMengajar() {
     return;
   }
 
+  // PERBAIKAN (bug dropdown Kelas kosong di modal Tambah Jadwal
+  // Mengajar): SEBELUMNYA halaman ini TIDAK PERNAH memuat/mengisi ulang
+  // #jmKelas -- dropdown itu hanya terisi kalau APP.kelasList kebetulan
+  // sudah dimuat lebih dulu lewat alur lain (mis. auto-login sesi
+  // tersimpan, atau admin sempat membuka menu Data Siswa/Manajemen Kelas
+  // duluan). Admin yang login manual lalu LANGSUNG membuka menu ini
+  // mendapati #jmKelas kosong sama sekali. Sekarang selalu dimuat ulang
+  // di sini (pakai getKelasList() yang ringan -- lihat loadAndMergeKelas)
+  // supaya dropdown selalu terisi & terbaru, apapun jalur masuknya.
+  await loadAndMergeKelas();
+  populateKelasDropdowns();
+
   populateFilterHariMengajar();
   await loadGuruDropdownMengajar();
   await loadJamPelajaranSemua();
@@ -6047,6 +6064,11 @@ function openModalJadwalMengajar() {
   document.getElementById('jmHari').selectedIndex = 0;
   document.getElementById('jmJamMulai').value = '';
   document.getElementById('jmJamSelesai').value = '';
+  // Insurance tambahan (murah, tanpa round-trip server -- cuma pakai
+  // APP.kelasList yang sudah di-cache): jaga-jaga kalau kelas baru
+  // ditambahkan dari tab/perangkat lain setelah halaman ini pertama
+  // dimuat, dropdown tetap terbaru saat modal ini dibuka.
+  populateKelasDropdowns();
   document.getElementById('jmKelas').selectedIndex = 0;
   document.getElementById('jmMapel').value = '';
   openModal('modalJadwalMengajar');

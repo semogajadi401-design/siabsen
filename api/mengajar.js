@@ -424,7 +424,7 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
   if (siswa.kelas !== sesi.kelas) {
     return {
       success: false,
-      message: `${siswa.nama} bukan siswa kelas ${sesi.kelas} (kelasnya: ${siswa.kelas || '-'}). Verifikasi ditolak -- pastikan hanya scan kartu siswa kelas ${sesi.kelas}.`
+      message: `${siswa.nama} adalah siswa kelas ${siswa.kelas || '-'} (Tidak sesuai - Verifikasi ditolak)`
     };
   }
 

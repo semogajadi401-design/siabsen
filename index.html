@@ -551,9 +551,24 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   .piket-day{flex-direction:column;align-items:flex-start;gap:8px}
   .piket-day select{max-width:100%!important;width:100%!important}
   /* dashboard grid jadi 1 kolom di hp */
+  /* PERBAIKAN (BARU): SEBELUMNYA cuma grid TERAKHIR (Persentase Kehadiran +
+     Absensi Terkini) yang dipaksa 1 kolom lewat :last-child di bawah --
+     grid KEDUA (Piket Hari Ini + Jam Sekarang), yang juga dirender
+     berdampingan 2 kolom, kelewat tidak kena aturan ini, jadi masih
+     sempit-sempitan di HP. Ditandai lewat :nth-child(2) di sini (bukan
+     :last-child yang sudah dipakai grid terakhir, dan bukan class umum
+     supaya .stats-grid yang MEMANG sengaja 2 kolom di HP tidak ikut
+     kena/dipaksa 1 kolom). Halaman dashboard ini dipakai bareng oleh akun
+     admin dan kepsek (menu 'Ringkasan Sekolah'). */
+  #page-dashboard>div:nth-child(2){grid-template-columns:1fr!important}
   #page-dashboard>div:last-child{grid-template-columns:1fr!important}
   #page-sekolah .card-body>div{grid-template-columns:1fr!important}
   #page-pengaturan .card-body>div{grid-template-columns:1fr!important}
+  /* PERBAIKAN (BARU): dua grafik di Evaluasi Kehadiran (dipakai admin &
+     kepsek) sebelumnya tetap berdampingan 2 kolom di HP -- canvas jadi
+     kecil sekali dan sulit dibaca. Sekarang ditumpuk 1 kolom di layar
+     sempit. */
+  #evalGrafikWrap{grid-template-columns:1fr!important}
 
   /* PERBAIKAN TAMPILAN MOBILE (BARU): tabel data yang kolomnya banyak (mis.
      Kehadiran Hari Ini, Rekap Harian, Rekap Kehadiran Mengajar, Riwayat
@@ -892,7 +907,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="card">
             <div class="card-header"><h3>📋 Absensi Terkini</h3></div>
             <div class="card-body" style="padding:0">
-              <div class="table-responsive"><table>
+              <div class="table-responsive"><table class="table-card-mobile">
                 <thead><tr><th>Nama</th><th>Kelas</th><th>Jam</th><th>Status</th></tr></thead>
                 <tbody id="dashRecentAbsen"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada absensi</td></tr></tbody>
               </table></div>
@@ -1167,7 +1182,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <button class="btn btn-primary btn-sm" onclick="loadRekapHarian()">🔍 Tampilkan</button>
                 <button class="btn btn-success btn-sm" onclick="exportExcel()">📊 Excel</button>
               </div>
-              <div class="table-responsive"><table>
+              <div class="table-responsive"><table class="table-card-mobile">
                 <thead><tr><th>No</th><th>NISN</th><th>Nama</th><th>Kelas</th><th>Jam Datang</th><th>Status</th><th>Jam Pulang</th><th>Guru Piket</th></tr></thead>
                 <tbody id="rekapHarianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih tanggal dan klik Tampilkan</td></tr></tbody>
               </table></div>
@@ -1182,7 +1197,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <div class="form-group" style="margin:0"><label>Kelas</label><select id="rekapKelasFilter" class="form-control"><option value="">Semua Kelas</option></select></div>
                 <button class="btn btn-primary btn-sm" onclick="loadRekapBulanan()">🔍 Tampilkan</button>
               </div>
-              <div class="table-responsive"><table>
+              <div class="table-responsive"><table class="table-card-mobile">
                 <thead><tr><th>No</th><th>NISN</th><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Pulang</th></tr></thead>
                 <tbody id="rekapBulananBody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih periode</td></tr></tbody>
               </table></div>
@@ -1541,7 +1556,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             <!-- Tabel Ranking -->
             <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🏆 Ranking Kehadiran Siswa</h4>
             <div class="table-responsive">
-              <table>
+              <table class="table-card-mobile">
                 <thead>
                   <tr><th>Rank</th><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Sakit</th><th>Izin</th><th>Alpha</th><th>% Hadir</th></tr>
                 </thead>
@@ -1572,7 +1587,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               jadwalnya sendiri.
             </div>
             <div class="table-responsive">
-              <table>
+              <table class="table-card-mobile">
                 <thead>
                   <tr><th>Nama Guru</th><th>Hadir Tepat</th><th>Digantikan</th><th>Kosong</th><th>Jadi Pengganti</th></tr>
                 </thead>
@@ -2591,10 +2606,10 @@ async function loadDashboard() {
         document.getElementById('dashRecentAbsen').innerHTML = d.absenTerkini
           .slice(0, 5)
           .map(a => `<tr>
-            <td><div style="font-weight:600;font-size:.85rem">${esc(a.nama)}</div></td>
-            <td><span class="badge badge-primary">${a.kelas}</span></td>
-            <td style="font-size:.82rem">${a.jamDatang}</td>
-            <td><span class="badge ${a.status === 'Hadir' ? 'badge-success' : 'badge-warning'}">${a.status}</span></td>
+            <td data-label="Nama"><div style="font-weight:600;font-size:.85rem">${esc(a.nama)}</div></td>
+            <td data-label="Kelas"><span class="badge badge-primary">${a.kelas}</span></td>
+            <td data-label="Jam" style="font-size:.82rem">${a.jamDatang}</td>
+            <td data-label="Status"><span class="badge ${a.status === 'Hadir' ? 'badge-success' : 'badge-warning'}">${a.status}</span></td>
           </tr>`).join('');
       }
       
@@ -3609,11 +3624,11 @@ async function loadKepsekPiket() {
     if (!r.success) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">${r.message||'Gagal memuat laporan'}</td></tr>`; return; }
     if (!r.data.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada jadwal piket / data piket bulan ini</td></tr>'; return; }
     tbody.innerHTML = r.data.map(g => `<tr>
-        <td style="font-weight:600">${esc(g.namaGuru)}</td>
-        <td><span class="badge badge-success">${g.hadirTepat}</span></td>
-        <td>${g.digantikan ? `<span class="badge badge-warning">${g.digantikan}</span>` : 0}</td>
-        <td>${g.tanpaPiketSamaSekali ? `<span class="badge badge-danger">${g.tanpaPiketSamaSekali}</span>` : 0}</td>
-        <td>${g.jadiPengganti ? `<span class="badge badge-primary">${g.jadiPengganti}</span>` : 0}</td>
+        <td data-label="Nama Guru" style="font-weight:600">${esc(g.namaGuru)}</td>
+        <td data-label="Hadir Tepat"><span class="badge badge-success">${g.hadirTepat}</span></td>
+        <td data-label="Digantikan">${g.digantikan ? `<span class="badge badge-warning">${g.digantikan}</span>` : 0}</td>
+        <td data-label="Kosong">${g.tanpaPiketSamaSekali ? `<span class="badge badge-danger">${g.tanpaPiketSamaSekali}</span>` : 0}</td>
+        <td data-label="Jadi Pengganti">${g.jadiPengganti ? `<span class="badge badge-primary">${g.jadiPengganti}</span>` : 0}</td>
       </tr>`).join('');
   } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Gagal memuat laporan</td></tr>'; }
 }
@@ -3858,7 +3873,7 @@ async function loadRekapHarian(){
   // Filter per kelas jika dipilih
   const filtered = kelas ? result.data.filter(d=>d.kelas===kelas) : result.data;
   if(!filtered.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk kelas ini</td></tr>';return;}
-  tbody.innerHTML=filtered.map((d,i)=>`<tr><td>${i+1}</td><td><code>${d.nisn}</code></td><td>${esc(d.nama)}</td><td><span class="badge badge-primary">${d.kelas}</span></td><td>${d.jamDatang||'-'}</td><td><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td><td>${d.jamPulang||'-'}</td><td>${esc(d.namaGuruPiket||'-')}</td></tr>`).join('');
+  tbody.innerHTML=filtered.map((d,i)=>`<tr><td data-label="No">${i+1}</td><td data-label="NISN"><code>${d.nisn}</code></td><td data-label="Nama">${esc(d.nama)}</td><td data-label="Kelas"><span class="badge badge-primary">${d.kelas}</span></td><td data-label="Jam Datang">${d.jamDatang||'-'}</td><td data-label="Status"><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td><td data-label="Jam Pulang">${d.jamPulang||'-'}</td><td data-label="Guru Piket">${esc(d.namaGuruPiket||'-')}</td></tr>`).join('');
 }
 
 async function loadRekapBulanan(){
@@ -3866,7 +3881,7 @@ async function loadRekapBulanan(){
   const result=await api('absensi','rekapBulanan',{bulan,tahun,kelas});
   const tbody=document.getElementById('rekapBulananBody');
   if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data</td></tr>';return;}
-  tbody.innerHTML=result.data.map((d,i)=>`<tr><td>${i+1}</td><td><code>${d.nisn}</code></td><td>${esc(d.nama)}</td><td><span class="badge badge-primary">${d.kelas}</span></td><td><span class="badge badge-success">${d.hadir}</span></td><td><span class="badge badge-warning">${d.terlambat}</span></td><td><span class="badge badge-primary">${d.pulang}</span></td></tr>`).join('');
+  tbody.innerHTML=result.data.map((d,i)=>`<tr><td data-label="No">${i+1}</td><td data-label="NISN"><code>${d.nisn}</code></td><td data-label="Nama">${esc(d.nama)}</td><td data-label="Kelas"><span class="badge badge-primary">${d.kelas}</span></td><td data-label="Hadir"><span class="badge badge-success">${d.hadir}</span></td><td data-label="Terlambat"><span class="badge badge-warning">${d.terlambat}</span></td><td data-label="Pulang"><span class="badge badge-primary">${d.pulang}</span></td></tr>`).join('');
 }
 
 async function loadRekapHarianGuru(){
@@ -5618,15 +5633,15 @@ async function loadEvaluasi() {
       const pct      = total > 0 ? Math.round((s.hadir + s.terlambat) / total * 100) : 0;
       const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
       return `<tr>
-        <td><strong>${i+1}</strong></td>
-        <td>${esc(s.nama)}</td>
-        <td><span class="badge badge-primary">${s.kelas}</span></td>
-        <td><span class="badge badge-success">${s.hadir}</span></td>
-        <td><span class="badge badge-warning">${s.terlambat}</span></td>
-        <td><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
-        <td><span class="badge badge-primary">${s.izin}</span></td>
-        <td><span class="badge badge-danger">${s.alpha}</span></td>
-        <td><strong style="color:${pctColor}">${pct}%</strong></td>
+        <td data-label="Rank"><strong>${i+1}</strong></td>
+        <td data-label="Nama">${esc(s.nama)}</td>
+        <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
+        <td data-label="Hadir"><span class="badge badge-success">${s.hadir}</span></td>
+        <td data-label="Terlambat"><span class="badge badge-warning">${s.terlambat}</span></td>
+        <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
+        <td data-label="Izin"><span class="badge badge-primary">${s.izin}</span></td>
+        <td data-label="Alpha"><span class="badge badge-danger">${s.alpha}</span></td>
+        <td data-label="% Hadir"><strong style="color:${pctColor}">${pct}%</strong></td>
       </tr>`;
     }).join('');
   }

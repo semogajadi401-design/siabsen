@@ -48,7 +48,12 @@ const scanSesiMengajarInternal = require('./mengajar').scanSesiMengajar;
 // perbaikan ini, siapa pun yang tahu endpoint-nya bisa menebak password
 // guru piket berkali-kali tanpa batas lewat jalur ini, melewati
 // penguncian yang sudah ada di jalur login resmi.
-const AKSI_BUTUH_KIOSK_TOKEN = new Set(['scanKartu', 'inputTanpaKartu', 'verifikasiGuruPiket']);
+// TAMBAHAN BARU: absenKelasUsername (verifikasi username+password guru
+// sebagai pengganti scan kartu di mode "Absen Kelas", lihat fungsinya di
+// bawah) memeriksa password guru sama seperti verifikasiGuruPiket, jadi
+// ikut dilindungi kioskToken + rate limit yang sama -- kalau tidak, ini
+// jadi jalur baru untuk menebak password guru tanpa batas.
+const AKSI_BUTUH_KIOSK_TOKEN = new Set(['scanKartu', 'inputTanpaKartu', 'verifikasiGuruPiket', 'absenKelasUsername']);
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -80,6 +85,7 @@ module.exports = async (req, res) => {
     if (action === 'getAktivitasGuruHariIni') return res.json(await getAktivitasGuruHariIni());
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
+    if (action === 'absenKelasUsername')  return res.json(await absenKelasUsername(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -781,6 +787,60 @@ async function verifikasiGuruPiket({ username, password }) {
   const cek = await cekGuruPiketHariIni(username, password);
   if (!cek.ok) return { success: false, message: cek.message };
   return { success: true, guru: cek.guru };
+}
+
+// ── CEK PASSWORD GURU (GENERIK, TANPA SYARAT PIKET) ──────────────────
+// BARU: dipakai khusus oleh absenKelasUsername() di bawah. BEDA dari
+// cekGuruPiketHariIni() -- fungsi itu MEWAJIBKAN guru sudah tercatat di
+// sesi_piket hari ini (tabel piket harian), yang tidak relevan untuk
+// Absen Kelas (mengajar per jam pelajaran, dicek lewat jadwal_mengajar,
+// bukan jadwal piket). Di sini hanya membuktikan identitas & status akun
+// aktif -- validasi "apakah memang ada jadwal mengajar jam ini" tetap
+// sepenuhnya di scanKartu()/scanSesiMengajarInternal(), TIDAK diduplikasi
+// di sini, supaya aturannya selalu sama persis dengan jalur scan kartu
+// fisik.
+async function cekPasswordGuru(username, password) {
+  if (!username) return { ok: false, message: 'Username wajib diisi' };
+  if (!password) return { ok: false, message: 'Password wajib diisi' };
+
+  const { data: guru } = await supabase
+    .from('guru')
+    .select('id,nama,username,status,password,role')
+    .eq('username', username.trim())
+    .maybeSingle();
+
+  if (!guru) return { ok: false, message: 'Username atau password salah' };
+  if (guru.status !== 'Aktif') return { ok: false, message: 'Akun guru tidak aktif' };
+
+  const cekPass = await verifyPassword(password, guru.password);
+  if (!cekPass.valid) return { ok: false, message: 'Username atau password salah' };
+
+  // Akun Kepala Sekolah tidak boleh tercatat sebagai absen mengajar --
+  // sama seperti aturan guruRole yang sudah dicek di scanKartu() lewat
+  // cekIzinPiket() untuk jalur piket. scanKartu() sendiri sebetulnya akan
+  // tetap login-kan kartu "GR..." milik kepsek sebagai tipe 'guru_login'
+  // (lihat poin 1c) APAPUN pilihan yang dikirim -- jadi baris ini murni
+  // mempercepat pesan errornya di sini, bukan satu-satunya penjaga.
+  if (guru.role === 'kepsek') {
+    return { ok: false, message: 'Akun Kepala Sekolah tidak bisa dipakai untuk Absen Kelas.' };
+  }
+
+  return { ok: true, guru: { id: guru.id, nama: guru.nama } };
+}
+
+// ── ABSEN KELAS LEWAT USERNAME (BARU) ─────────────────────────────────
+// Pengganti scan kartu fisik guru di mode "Absen Kelas" (scan.html ->
+// #menungguAbsenKelasBox -> "🪪 Tidak bawa kartu?"), untuk guru yang lupa/
+// ketinggalan kartunya. Sengaja TIDAK menulis ulang validasi jadwal
+// mengajar/jam operasional/dsb di sini -- begitu identitas guru terbukti
+// lewat password, langsung panggil scanKartu() yang SAMA PERSIS dipakai
+// jalur scan kartu fisik (identifier = guru.id, pilihan:'mengajar'),
+// supaya kedua jalur selalu berperilaku identik dan aturan baru di
+// scanKartu() otomatis berlaku juga di sini tanpa perlu disalin manual.
+async function absenKelasUsername({ username, password, mode }) {
+  const cek = await cekPasswordGuru(username, password);
+  if (!cek.ok) return { success: false, message: cek.message };
+  return scanKartu({ identifier: cek.guru.id, mode, pilihan: 'mengajar' });
 }
 
 // ── INPUT KEHADIRAN TANPA KARTU ───────────────────────────────────

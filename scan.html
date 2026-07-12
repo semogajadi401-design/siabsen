@@ -2535,8 +2535,8 @@ async function submitAkUserForm() {
     const result = await api('scan', 'absenKelasUsername', { username, password, mode: scanMode });
 
     // Sama seperti cabang di processScanGuruAbsenKelas() -- akun Kepsek
-    // (atau akun non-guru-mapel lain yang lolos password) tidak boleh
-    // ikut masuk sebagai absen mengajar lewat jalur ini.
+    // (atau akun non-guru-mapel lain) tidak boleh ikut masuk sebagai
+    // absen mengajar lewat jalur ini.
     if (result.tipe === 'guru_login') {
       errEl.textContent = 'Akun ini bukan akun guru mapel biasa. Gunakan akun guru yang jadwalnya mengajar jam ini.';
       errEl.style.display = 'block';
@@ -2787,9 +2787,24 @@ async function processScanSiswaVerifikasi(data) {
   // Kartu guru (GR...) atau QR lain yang kepencet saat mode verifikasi
   // aktif -- bukan error fatal, cukup kasih tahu supaya guru scan kartu
   // siswa atau tekan "Kirim Verifikasi".
-  if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|') || isKartuRiwayatUrl(raw) || isKartuMonitorUrl(raw)) {
+  if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|') || isKartuMonitorUrl(raw)) {
     showFlash('warning','⚠️','Itu bukan kartu siswa');
     toast('⚠️ Sedang Mode Verifikasi Kelas. Scan kartu siswa, atau tekan "Kirim Verifikasi" dulu.');
+    resumeScanSetelahJeda();
+    return;
+  }
+  // PERBAIKAN BUG (pesan salah "Itu bukan kartu siswa" padahal itu MEMANG
+  // kartu siswa): QR halaman BELAKANG kartu siswa (buat cek riwayat
+  // kehadiran, lihat isKartuRiwayatUrl) SEBELUMNYA digabung ke pengecekan
+  // di atas dan dianggap "bukan kartu siswa" sama sekali -- padahal ini
+  // kartu siswa yang sama, cuma sisi/halamannya salah (sama seperti kartu
+  // guru yang kebalik, lihat pesan serupa di processScanGuruAbsenKelas()).
+  // Sekarang dipisah dengan pesan yang akurat: guru diarahkan balik ke
+  // QR DEPAN kartu, bukan disuruh mencari "kartu siswa" seolah kartu yang
+  // dipegangnya salah orang.
+  if (isKartuRiwayatUrl(raw)) {
+    showFlash('warning','🙃','Kartunya kebalik!');
+    toast('🙃😄 Itu QR halaman BELAKANG kartu siswa (buat cek riwayat kehadiran) — kartunya kebalik! Balik dulu ke halaman DEPAN untuk verifikasi kehadiran.', 4500);
     resumeScanSetelahJeda();
     return;
   }

@@ -74,6 +74,28 @@ const handler = async (req, res) => {
     }
     if (action === 'hapusKeteranganMengajar') return res.json(await hapusKeteranganMengajar(params));
 
+    // ── PERSETUJUAN IZIN/SAKIT — KHUSUS AKUN KEPSEK ──────────────────
+    // Sesuai keputusan: "hanya akun kepsek yang akan menyetujui itu" --
+    // BUKAN admin, jadi ketiga action ini sengaja TIDAK dimasukkan ke
+    // AKSI_ADMIN_SAJA (yang menerima adminToken), melainkan diverifikasi
+    // manual di sini lewat roleTerverifikasi (berasal dari guruToken).
+    if (action === 'setujuiKeteranganMengajar') {
+      if (roleTerverifikasi !== 'kepsek')
+        return res.status(401).json({ success: false, message: 'Hanya akun Kepala Sekolah yang bisa menyetujui izin/sakit.' });
+      return res.json(await setujuiKeteranganMengajar({ ...params, idKepsek: guruIdTerverifikasi }));
+    }
+    if (action === 'tolakKeteranganMengajar') {
+      if (roleTerverifikasi !== 'kepsek')
+        return res.status(401).json({ success: false, message: 'Hanya akun Kepala Sekolah yang bisa menolak izin/sakit.' });
+      return res.json(await tolakKeteranganMengajar({ ...params, idKepsek: guruIdTerverifikasi }));
+    }
+    if (action === 'getKeteranganMenungguPersetujuan') {
+      const adminValid = await requireAdminToken(adminToken);
+      if (!adminValid && roleTerverifikasi !== 'kepsek')
+        return res.status(401).json({ success: false, message: 'Hanya admin atau akun Kepala Sekolah yang bisa melihat daftar ini.' });
+      return res.json(await getKeteranganMenungguPersetujuan(params));
+    }
+
     if (action === 'resetSemua')            return res.json(await resetSemua());
 
     if (action === 'getRekapKehadiranGuru') {
@@ -489,11 +511,30 @@ async function selesaiVerifikasi({ idAbsensiMengajar, sesiToken }) {
 // ════════════════════════════════════════════════════════════════
 // KETERANGAN MENGAJAR (Izin / Sakit — manual, oleh admin/TU atau guru)
 // ════════════════════════════════════════════════════════════════
-async function inputKeteranganMengajar({ idJadwalMengajar, idGuru, tanggal, jenis, keterangan, diinputOleh }) {
+// PENTING (alur persetujuan): kalau yang menginput adalah guru sendiri
+// (diinputOleh === 'guru'), status_persetujuan dimulai sebagai 'Menunggu
+// Persetujuan' -- BELUM dihitung final sebagai Izin/Sakit di rekap sampai
+// disetujui akun kepsek (lihat getRekapKehadiranGuru). Kalau admin/TU yang
+// menginput, dianggap sudah diverifikasi manual sehingga langsung
+// 'Disetujui', PERSIS seperti perilaku lama (tidak ada perubahan untuk
+// alur admin). Wajib/opsionalnya lampiran bukti diatur admin lewat
+// jam_setting BUKTI_IZIN_SAKIT_WAJIB, dan HANYA berlaku untuk guru sendiri.
+async function inputKeteranganMengajar({ idJadwalMengajar, idGuru, tanggal, jenis, keterangan, diinputOleh, buktiUrl }) {
   if (!idJadwalMengajar || !tanggal || !jenis)
     return { success: false, message: 'Jadwal, tanggal, dan jenis wajib diisi' };
   if (!['Izin', 'Sakit'].includes(jenis))
     return { success: false, message: 'Jenis harus Izin atau Sakit' };
+
+  const olehGuruSendiri = diinputOleh === 'guru';
+
+  if (olehGuruSendiri) {
+    const jamSetting = await getJamSetting();
+    const wajibBukti = (jamSetting.BUKTI_IZIN_SAKIT_WAJIB || 'opsional') === 'wajib';
+    if (wajibBukti && !buktiUrl)
+      return { success: false, message: 'Bukti (foto surat sakit/izin) wajib dilampirkan. Hubungi admin kalau tidak bisa upload.' };
+  }
+
+  const statusPersetujuan = olehGuruSendiri ? 'Menunggu Persetujuan' : 'Disetujui';
 
   const { data: existing } = await supabase
     .from('keterangan_mengajar').select('id')
@@ -501,18 +542,33 @@ async function inputKeteranganMengajar({ idJadwalMengajar, idGuru, tanggal, jeni
 
   if (existing) {
     const { error } = await supabase.from('keterangan_mengajar')
-      .update({ jenis, keterangan: keterangan || '', diinput_oleh: diinputOleh || '' })
+      .update({
+        jenis, keterangan: keterangan || '', diinput_oleh: diinputOleh || '',
+        bukti_url: buktiUrl || null, status_persetujuan: statusPersetujuan,
+        disetujui_oleh: null, disetujui_pada: null, catatan_penolakan: null
+      })
       .eq('id', existing.id);
     if (error) return { success: false, message: error.message };
-    return { success: true, message: 'Keterangan berhasil diperbarui' };
+    return {
+      success: true,
+      message: olehGuruSendiri
+        ? 'Keterangan berhasil diperbarui, menunggu persetujuan Kepala Sekolah'
+        : 'Keterangan berhasil diperbarui'
+    };
   }
 
   const { error } = await supabase.from('keterangan_mengajar').insert({
     id: generateID('KM'), id_jadwal_mengajar: idJadwalMengajar, id_guru: idGuru || null,
-    tanggal, jenis, keterangan: keterangan || '', diinput_oleh: diinputOleh || ''
+    tanggal, jenis, keterangan: keterangan || '', diinput_oleh: diinputOleh || '',
+    bukti_url: buktiUrl || null, status_persetujuan: statusPersetujuan
   });
   if (error) return { success: false, message: error.message };
-  return { success: true, message: 'Keterangan berhasil disimpan' };
+  return {
+    success: true,
+    message: olehGuruSendiri
+      ? 'Keterangan berhasil disimpan, menunggu persetujuan Kepala Sekolah'
+      : 'Keterangan berhasil disimpan'
+  };
 }
 
 async function hapusKeteranganMengajar({ id }) {
@@ -520,6 +576,69 @@ async function hapusKeteranganMengajar({ id }) {
   const { error } = await supabase.from('keterangan_mengajar').delete().eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Keterangan berhasil dihapus' };
+}
+
+// ── PERSETUJUAN IZIN/SAKIT OLEH KEPSEK ────────────────────────────
+async function setujuiKeteranganMengajar({ id, idKepsek }) {
+  if (!id) return { success: false, message: 'ID keterangan wajib diisi' };
+  const { data: existing } = await supabase.from('keterangan_mengajar').select('id,status_persetujuan').eq('id', id).maybeSingle();
+  if (!existing) return { success: false, message: 'Keterangan tidak ditemukan' };
+  if (existing.status_persetujuan !== 'Menunggu Persetujuan')
+    return { success: false, message: 'Keterangan ini sudah diproses sebelumnya (' + existing.status_persetujuan + ')' };
+
+  const { error } = await supabase.from('keterangan_mengajar').update({
+    status_persetujuan: 'Disetujui', disetujui_oleh: idKepsek || null,
+    disetujui_pada: new Date().toISOString(), catatan_penolakan: null
+  }).eq('id', id);
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: 'Izin/sakit disetujui' };
+}
+
+async function tolakKeteranganMengajar({ id, idKepsek, catatan }) {
+  if (!id) return { success: false, message: 'ID keterangan wajib diisi' };
+  const { data: existing } = await supabase.from('keterangan_mengajar').select('id,status_persetujuan').eq('id', id).maybeSingle();
+  if (!existing) return { success: false, message: 'Keterangan tidak ditemukan' };
+  if (existing.status_persetujuan !== 'Menunggu Persetujuan')
+    return { success: false, message: 'Keterangan ini sudah diproses sebelumnya (' + existing.status_persetujuan + ')' };
+
+  const { error } = await supabase.from('keterangan_mengajar').update({
+    status_persetujuan: 'Ditolak', disetujui_oleh: idKepsek || null,
+    disetujui_pada: new Date().toISOString(), catatan_penolakan: catatan || ''
+  }).eq('id', id);
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: 'Izin/sakit ditolak. Sesi ini akan tercatat sebagai Alpa pada rekap kehadiran guru.' };
+}
+
+// Daftar semua laporan izin/sakit (dari guru sendiri) yang masih menunggu
+// keputusan kepsek -- dipakai halaman "Persetujuan Izin/Sakit". Sengaja
+// tidak difilter per guru (kepsek perlu lihat semua guru), diurutkan
+// terlama dulu supaya yang sudah lama menunggu tidak tenggelam.
+async function getKeteranganMenungguPersetujuan({ status } = {}) {
+  const statusFilter = status || 'Menunggu Persetujuan';
+  const { data, error } = await supabase
+    .from('keterangan_mengajar').select('*, jadwal_mengajar(kelas,mapel,hari,jam_ke_mulai,jam_ke_selesai), guru(nama)')
+    .eq('status_persetujuan', statusFilter)
+    .eq('diinput_oleh', 'guru')
+    .order('tanggal', { ascending: true });
+  if (error) return { success: false, message: error.message };
+  return {
+    success: true,
+    data: (data || []).map(k => ({
+      id: k.id,
+      idGuru: k.id_guru,
+      namaGuru: k.guru ? k.guru.nama : '-',
+      tanggal: k.tanggal,
+      jenis: k.jenis,
+      keterangan: k.keterangan,
+      buktiUrl: k.bukti_url,
+      kelas: k.jadwal_mengajar ? k.jadwal_mengajar.kelas : '-',
+      mapel: k.jadwal_mengajar ? k.jadwal_mengajar.mapel : '-',
+      hari: k.jadwal_mengajar ? k.jadwal_mengajar.hari : '-',
+      jamKeMulai: k.jadwal_mengajar ? k.jadwal_mengajar.jam_ke_mulai : null,
+      jamKeSelesai: k.jadwal_mengajar ? k.jadwal_mengajar.jam_ke_selesai : null,
+      diajukanPada: k.created_at
+    }))
+  };
 }
 
 // ── RESET SEMUA DATA JADWAL & ABSENSI MENGAJAR ────────────────────
@@ -583,7 +702,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
   if (!jadwalGuru || jadwalGuru.length === 0) {
     return {
       success: true, guru: { id: guru.id, nama: guru.nama }, bulan: bl, tahun: th,
-      totalSesiTerjadwal: 0, totalHadir: 0, totalTelat: 0, totalIzin: 0, totalSakit: 0, totalAlpa: 0,
+      totalSesiTerjadwal: 0, totalHadir: 0, totalTelat: 0, totalIzin: 0, totalSakit: 0, totalAlpa: 0, totalMenunggu: 0,
       persentaseKehadiran: null, rincian: [], tren: [],
       message: 'Guru ini belum punya jadwal mengajar.'
     };
@@ -638,7 +757,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
   const keteranganMap = {};
   (keteranganBulan || []).forEach(k => { keteranganMap[`${k.id_jadwal_mengajar}|${k.tanggal}`] = k; });
 
-  let totalSesiTerjadwal = 0, totalHadir = 0, totalTelat = 0, totalIzin = 0, totalSakit = 0, totalAlpa = 0;
+  let totalSesiTerjadwal = 0, totalHadir = 0, totalTelat = 0, totalIzin = 0, totalSakit = 0, totalAlpa = 0, totalMenunggu = 0;
   const rincian = [];
   const trenMap = {}; // per tanggal: { hadir, telat, izin, sakit, alpa }
 
@@ -661,15 +780,29 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
       const ket = keteranganMap[key];
       trenMap[tanggal] = trenMap[tanggal] || { hadir: 0, telat: 0, izin: 0, sakit: 0, alpa: 0 };
 
+      // PENTING (alur persetujuan): keterangan izin/sakit yang diinput GURU
+      // SENDIRI belum tentu final -- statusnya bisa 'Menunggu Persetujuan'
+      // (belum diputuskan kepsek, JANGAN dihitung sebagai Izin/Sakit ATAUPUN
+      // Alpa dulu), 'Ditolak' (dihitung Alpa, karena kepsek menganggap
+      // laporannya tidak valid), atau 'Disetujui' (dihitung Izin/Sakit
+      // seperti biasa). Keterangan yang diinput admin/TU statusnya sudah
+      // langsung 'Disetujui' sejak awal (lihat inputKeteranganMengajar),
+      // jadi perilaku lama untuk jalur admin tidak berubah sama sekali.
       let statusFinal;
       if (absen) {
         statusFinal = absen.status === 'Telat' ? 'Telat' : 'Hadir';
         if (statusFinal === 'Telat') { totalTelat++; trenMap[tanggal].telat++; }
         else { totalHadir++; trenMap[tanggal].hadir++; }
-      } else if (ket) {
+      } else if (ket && ket.status_persetujuan === 'Menunggu Persetujuan') {
+        statusFinal = 'Menunggu Persetujuan';
+        totalMenunggu++;
+      } else if (ket && ket.status_persetujuan === 'Disetujui') {
         statusFinal = ket.jenis;
         if (ket.jenis === 'Izin') { totalIzin++; trenMap[tanggal].izin++; }
         else { totalSakit++; trenMap[tanggal].sakit++; }
+      } else if (ket && ket.status_persetujuan === 'Ditolak') {
+        statusFinal = 'Alpa';
+        totalAlpa++; trenMap[tanggal].alpa++;
       } else {
         statusFinal = 'Alpa';
         totalAlpa++; trenMap[tanggal].alpa++;
@@ -683,7 +816,10 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
         jamScan: absen ? absen.jam_scan : null,
         statusVerifikasi: absen ? absen.status_verifikasi : null,
         jumlahSiswaTerverifikasi: absen ? absen.jumlah_siswa_terverifikasi : null,
-        keteranganText: ket ? ket.keterangan : null
+        keteranganText: ket ? ket.keterangan : null,
+        statusPersetujuan: ket ? ket.status_persetujuan : null,
+        buktiUrl: ket ? ket.bukti_url : null,
+        catatanPenolakan: ket ? ket.catatan_penolakan : null
       });
     }
   }
@@ -697,7 +833,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
     success: true,
     guru: { id: guru.id, nama: guru.nama },
     bulan: bl, tahun: th,
-    totalSesiTerjadwal, totalHadir, totalTelat, totalIzin, totalSakit, totalAlpa,
+    totalSesiTerjadwal, totalHadir, totalTelat, totalIzin, totalSakit, totalAlpa, totalMenunggu,
     persentaseKehadiran,
     rincian: rincian.sort((a, b) => a.tanggal < b.tanggal ? 1 : -1), // terbaru dulu
     tren: Object.keys(trenMap).sort().map(tgl => ({ tanggal: tgl, ...trenMap[tgl] }))

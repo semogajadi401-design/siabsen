@@ -1,19 +1,40 @@
 // api/guru.js — CRUD Data Guru
-const { supabase, hashPassword, encryptPassword, decryptPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, generateGuruQrToken, generateGuruQrTokenBatch } = require('./_db');
+const { supabase, hashPassword, encryptPassword, decryptPassword, generateID, generateUsername, generatePassword, setCors, requireAdminToken, resolveGuruIdFromToken, generateGuruQrToken, generateGuruQrTokenBatch } = require('./_db');
 
 // Semua aksi di file ini mengubah/menghapus data master guru, jadi semuanya
 // wajib login admin. Hanya dipanggil dari index.html (dashboard admin),
 // tidak dipakai scan.html, jadi aman dikunci semua.
+//
+// PENGECUALIAN: action 'getAll' juga dipanggil dari dashboard Kepala
+// Sekolah (menu "Rekap Kehadiran Guru", untuk mengisi dropdown nama guru
+// mapel). Kepsek login lewat tabel `guru`, bukan tabel `admin`, jadi
+// sesinya TIDAK punya adminToken -- yang dikirim frontend adalah
+// guruToken. Sebelumnya action ini cuma menerima adminToken, sehingga
+// request dari akun kepsek selalu ditolak (401) dan dropdown-nya selalu
+// kosong walau data guru di akun admin sudah terisi. Sekarang 'getAll'
+// menerima juga guruToken, ASALKAN pemilik token itu guru aktif dengan
+// role 'kepsek' -- guru biasa tetap tidak boleh mengakses daftar guru.
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const { action, adminToken, ...params } = req.body || {};
-
-  const valid = await requireAdminToken(adminToken);
-  if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+  const { action, adminToken, guruToken, ...params } = req.body || {};
 
   try {
-    if (action === 'getAll')        return res.json(await getAll(params));
+    if (action === 'getAll') {
+      const isAdmin = await requireAdminToken(adminToken);
+      if (isAdmin) return res.json(await getAll(params));
+
+      const isKepsek = await requireKepsekToken(guruToken);
+      if (isKepsek) return res.json(await getAllRingkasUntukKepsek(params));
+
+      return res.status(401).json({ success: false, message: 'Sesi tidak valid. Silakan login ulang.' });
+    }
+
+    // Aksi lain di bawah ini mengubah/menghapus data master guru --
+    // tetap dikunci admin-only seperti semula.
+    const valid = await requireAdminToken(adminToken);
+    if (!valid) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+
     if (action === 'tambah')        return res.json(await tambah(params));
     if (action === 'edit')          return res.json(await edit(params));
     if (action === 'hapus')         return res.json(await hapus(params));
@@ -24,6 +45,39 @@ module.exports = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
+
+// ── VALIDASI TOKEN: harus guru aktif DENGAN role kepsek ───────────
+// Pola sama seperti findKepsekByToken di api/monitor.js -- guruToken
+// (qr_token guru) HARUS cocok dengan baris guru yang statusnya Aktif
+// dan role-nya persis 'kepsek', bukan sekadar token guru mana pun.
+async function requireKepsekToken(token) {
+  const idGuru = await resolveGuruIdFromToken(token);
+  if (!idGuru) return false;
+  const { data } = await supabase.from('guru').select('role,status').eq('id', idGuru).maybeSingle();
+  return !!(data && data.role === 'kepsek' && data.status === 'Aktif');
+}
+
+// ── Versi TERBATAS untuk kepsek ─────────────────────────────────
+// Dropdown "Rekap Kehadiran Guru" cuma butuh id & nama guru untuk
+// ditampilkan. getAll() versi admin menyertakan password guru yang
+// didekripsi (untuk cetak kartu identitas) serta data pribadi lain
+// (no_hp, email, alamat, username) -- itu TIDAK boleh bocor ke akun
+// kepsek, jadi sengaja dibuat query terpisah yang cuma mengambil
+// kolom yang aman ditampilkan ke kepsek.
+async function getAllRingkasUntukKepsek({ activeOnly }) {
+  let q = supabase.from('guru')
+    .select('id,nama,jabatan,status,role')
+    .order('nama');
+  if (activeOnly === true || activeOnly === 'true') q = q.eq('status', 'Aktif');
+  const { data, error } = await q;
+  if (error) return { success: false, message: error.message };
+  return {
+    success: true,
+    data: (data || []).map(g => ({
+      id: g.id, nama: g.nama, jabatan: g.jabatan, status: g.status, role: g.role || 'guru'
+    }))
+  };
+}
 
 async function getAll({ activeOnly }) {
   let q = supabase.from('guru')

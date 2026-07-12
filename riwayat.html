@@ -398,9 +398,15 @@ function render(r) {
   const listHTML = r.riwayat.length ? r.riwayat.map(item => {
     const cls = statusClass(item.statusDatang);
     const d = new Date(item.tanggal + 'T00:00:00');
+    // PERBAIKAN KEAMANAN (XSS): `keterangan` adalah teks bebas yang diisi
+    // manual oleh admin/guru piket (mis. saat menandai siswa Sakit/Izin).
+    // Halaman ini PUBLIK (dibuka lewat scan QR kartu siswa, tanpa login),
+    // jadi teks ini WAJIB di-esc() sebelum masuk innerHTML -- sama seperti
+    // pola yang sudah dipakai di tab "Per Mapel" (esc(item.mapel),
+    // esc(infoText)) sedikit di bawah. Sebelumnya luput di tab "Harian" ini.
     const jamText = item.jamDatang
       ? `Datang ${item.jamDatang}${item.jamPulang ? ' • Pulang ' + item.jamPulang : ''}`
-      : (item.keterangan || '-');
+      : esc(item.keterangan || '-');
     return `
       <div class="riwayat-item ${cls}">
         <div class="tgl-box">
@@ -408,10 +414,10 @@ function render(r) {
           <div class="m">${BULAN_NAMA[d.getMonth()].substring(0,3)}</div>
         </div>
         <div class="info">
-          <div class="hari">${item.hari || HARI_SINGKAT_FULL(d)}</div>
+          <div class="hari">${esc(item.hari || HARI_SINGKAT_FULL(d))}</div>
           <div class="jam">${jamText}</div>
         </div>
-        <div class="badge-status ${cls}">${item.statusDatang}</div>
+        <div class="badge-status ${cls}">${esc(item.statusDatang)}</div>
       </div>`;
   }).join('') : `<div class="empty-note">Tidak ada data untuk filter yang dipilih.</div>`;
 

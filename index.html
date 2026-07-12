@@ -1420,7 +1420,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div style="border:2px solid var(--border);border-radius:14px;padding:20px">
                 <div style="font-size:2rem;margin-bottom:10px">📋</div>
                 <h4 style="font-size:.95rem;font-weight:700;margin-bottom:8px">Riwayat Absensi</h4>
-                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus data absensi (+ data sakit/izin, dan riwayat sesi piket bila reset semua kelas) berdasarkan kelas atau semua kelas sekaligus.</p>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">Hapus data absensi (+ data sakit/izin siswa, izin/sakit guru mengajar beserta buktinya, dan riwayat sesi piket bila reset semua kelas) berdasarkan kelas atau semua kelas sekaligus.</p>
                 <button class="btn btn-danger btn-sm" onclick="openResetAbsensi()">🗑 Reset Absensi</button>
               </div>
               <!-- Reset Siswa -->
@@ -5016,7 +5016,7 @@ async function eksekusiResetTotal() {
   // reset di backend idempotent (hapus baris yang sudah tidak ada tidak
   // menghasilkan error).
   const steps = [
-    { label: 'Riwayat absensi, sakit/izin, sesi piket & absensi mengajar', call: () => api('absensi', 'resetAbsensi', { semua: true }) },
+    { label: 'Riwayat absensi, sakit/izin siswa, sesi piket, absensi & izin/sakit mengajar', call: () => api('absensi', 'resetAbsensi', { semua: true }) },
     { label: 'Data siswa',                                call: () => api('siswa', 'resetSemua', {}) },
     { label: 'Jadwal mengajar & jam pelajaran',           call: () => api('mengajar', 'resetSemua', {}) },
     { label: 'Data guru & jadwal piket',                  call: () => api('guru', 'resetSemua', {}) },

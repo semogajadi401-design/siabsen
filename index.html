@@ -844,6 +844,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-item color-amber" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Guru</span></div>
       <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('kepsekPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Kepatuhan Piket Guru</span></div>
+      <div class="nav-item color-amber" id="kepsekPersetujuanNavItem" onclick="showPage('kepsekPersetujuan')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><span>Persetujuan Izin/Sakit</span> <span id="kepsekPersetujuanBadge" class="badge badge-danger" style="display:none;margin-left:4px"></span></div>
     </div>
     <div class="sidebar-footer">
       <div class="user-badge">
@@ -1155,6 +1156,21 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <input type="text" id="set_KODE_RAHASIA_ADMIN" class="form-control" placeholder="Contoh: admin123">
               </div>
             </div>
+            <div style="margin-top:24px;padding-top:20px;border-top:2px solid var(--border)">
+              <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">📝 Izin/Sakit Mengajar (Diinput Guru Sendiri)</h4>
+              <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px;line-height:1.6">
+                Mengatur apakah guru WAJIB melampirkan bukti (foto surat sakit/izin) saat menginput
+                izin/sakit untuk dirinya sendiri. Laporan tetap harus disetujui akun Kepala Sekolah
+                terlepas dari pengaturan ini. Tidak berlaku untuk input oleh admin/TU.
+              </div>
+              <div class="form-group" style="max-width:320px">
+                <label>Lampiran Bukti</label>
+                <select class="form-control" id="set_BUKTI_IZIN_SAKIT_WAJIB">
+                  <option value="opsional">Opsional</option>
+                  <option value="wajib">Wajib</option>
+                </select>
+              </div>
+            </div>
             <div style="margin-top:24px;display:flex;gap:10px">
               <button class="btn btn-primary" onclick="savePengaturan()">💾 Simpan</button>
               <button class="btn btn-outline" onclick="loadPengaturan()">↺ Reset</button>
@@ -1316,6 +1332,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 </div>
                 <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
                   <div style="font-size:1.5rem;font-weight:800" id="rmAlpa">0</div><div style="font-size:.78rem;color:var(--text-muted)">Alpa</div>
+                </div>
+                <div style="flex:1;min-width:110px;background:#FFF8E1;border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800;color:#F57F17" id="rmMenunggu">0</div><div style="font-size:.78rem;color:var(--text-muted)">Menunggu Persetujuan</div>
                 </div>
                 <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
                   <div style="font-size:1.5rem;font-weight:800" id="rmTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)">Total Sesi</div>
@@ -1593,6 +1612,32 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 </thead>
                 <tbody id="kepsekPiketBody">
                   <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KEPSEK: PERSETUJUAN IZIN/SAKIT MENGAJAR -->
+      <div class="page" id="page-kepsekPersetujuan">
+        <div class="card">
+          <div class="card-header"><h3>✅ Persetujuan Izin/Sakit Mengajar</h3>
+            <button class="btn btn-outline btn-sm" onclick="loadKepsekPersetujuan()">🔄 Refresh</button>
+          </div>
+          <div class="card-body">
+            <div style="background:var(--primary-pale);border:1px solid var(--primary);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:.82rem;line-height:1.6">
+              ℹ️ Daftar laporan Izin/Sakit yang diajukan <b>guru sendiri</b> dan masih menunggu keputusan Anda.
+              Laporan yang diinput admin/TU tidak muncul di sini (sudah otomatis disetujui). Setujui atau tolak
+              berdasarkan bukti yang dilampirkan (kalau ada).
+            </div>
+            <div class="table-responsive">
+              <table class="table-card-mobile">
+                <thead>
+                  <tr><th>Guru</th><th>Tanggal</th><th>Kelas / Mapel</th><th>Jenis</th><th>Keterangan</th><th>Bukti</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="kepsekPersetujuanBody">
+                  <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2104,12 +2149,38 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-body">
       <input type="hidden" id="kmIdJadwal"><input type="hidden" id="kmIdGuru"><input type="hidden" id="kmTanggal">
       <p id="kmInfo" style="margin-bottom:14px;color:var(--text-muted);font-size:.85rem"></p>
+      <div id="kmPersetujuanInfo" style="display:none;background:var(--primary-pale);border:1px solid var(--primary);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:.8rem;line-height:1.5">
+        ℹ️ Karena Anda menginput untuk diri sendiri, laporan ini akan berstatus <b>Menunggu Persetujuan</b>
+        sampai disetujui Kepala Sekolah.
+      </div>
       <div class="form-group"><label>Jenis</label><select class="form-control" id="kmJenis"><option value="Izin">Izin</option><option value="Sakit">Sakit</option></select></div>
       <div class="form-group"><label>Keterangan (opsional)</label><textarea class="form-control" id="kmKeterangan" rows="2"></textarea></div>
+      <div class="form-group" id="kmBuktiGroup">
+        <label id="kmBuktiLabel">Bukti (foto surat sakit/izin)</label>
+        <input type="file" class="form-control" id="kmBuktiFile" accept="image/*,.pdf">
+        <div id="kmBuktiPreview" style="margin-top:8px"></div>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Format gambar atau PDF, maksimal ±2MB.</div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalKeteranganMengajar')">Batal</button>
-      <button class="btn btn-primary" onclick="simpanKeteranganMengajar()">💾 Simpan</button>
+      <button class="btn btn-primary" id="kmBtnSimpan" onclick="simpanKeteranganMengajar()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Halaman Kepsek: Persetujuan Izin/Sakit -->
+<div class="modal-backdrop" id="modalTolakKeterangan">
+  <div class="modal">
+    <div class="modal-header"><h3>❌ Tolak Izin/Sakit</h3><button class="modal-close" onclick="closeModal('modalTolakKeterangan')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="tkId">
+      <p style="margin-bottom:12px;color:var(--text-muted);font-size:.85rem">Sesi ini akan tercatat sebagai <b>Alpa</b> pada rekap kehadiran guru yang bersangkutan.</p>
+      <div class="form-group"><label>Alasan Penolakan</label><textarea class="form-control" id="tkCatatan" rows="3" placeholder="Contoh: tidak ada bukti/surat yang sesuai"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalTolakKeterangan')">Batal</button>
+      <button class="btn btn-danger" onclick="konfirmasiTolakKeterangan()">Tolak</button>
     </div>
   </div>
 </div>
@@ -2495,6 +2566,14 @@ function setupUserUI(user) {
   document.getElementById('adminNav').style.display = user.role==='admin'?'block':'none';
   document.getElementById('guruNav').style.display = user.role==='guru'?'block':'none';
   document.getElementById('kepsekNav').style.display = user.role==='kepsek'?'block':'none';
+  // Muat jumlah laporan izin/sakit yang menunggu persetujuan kepsek supaya
+  // langsung tampil sebagai badge notifikasi di menu, tanpa perlu kepsek
+  // membuka halamannya dulu untuk tahu ada yang perlu ditindaklanjuti.
+  if (user.role === 'kepsek') {
+    api('mengajar', 'getKeteranganMenungguPersetujuan').then(r => {
+      if (r.success) perbaruiBadgePersetujuan(r.data.length);
+    });
+  }
 
   // Menu 'Kehadiran Hari Ini' di akun guru cuma boleh tampil kalau guru ini
   // BENAR-BENAR scan kartu piket hari ini (sesi_piket), bukan sekadar
@@ -2530,9 +2609,9 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
@@ -3770,10 +3849,10 @@ async function hapusLibur(dateStr){ if(!confirm('Hapus hari libur ini?'))return;
 // ── PENGATURAN ───────────────────────────────────────────────────
 async function loadPengaturan(){
   const r=await api('settings','getJamSetting');
-  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
+  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN','BUKTI_IZIN_SAKIT_WAJIB'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||'';}); }
 }
 async function savePengaturan(){
-  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN'];
+  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN','BUKTI_IZIN_SAKIT_WAJIB'];
   const settings={};
   keys.forEach(k=>{const el=document.getElementById('set_'+k);if(el)settings[k]=el.value;});
   const r=await api('settings','updateJamSetting',{settings});
@@ -6290,6 +6369,7 @@ async function loadRekapMengajar() {
   document.getElementById('rmIzin').textContent = result.totalIzin;
   document.getElementById('rmSakit').textContent = result.totalSakit;
   document.getElementById('rmAlpa').textContent = result.totalAlpa;
+  document.getElementById('rmMenunggu').textContent = result.totalMenunggu || 0;
   document.getElementById('rmTotalSesi').textContent = result.totalSesiTerjadwal;
 
   const ctx = document.getElementById('rmPieChart');
@@ -6312,26 +6392,35 @@ async function loadRekapMengajar() {
   const tbody = document.getElementById('rmRincianBody');
   if (!result.rincian.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada sesi pada periode ini</td></tr>'; return; }
   window._rmRincian = result.rincian;
-  const badgeMap = { Hadir: 'badge-success', Telat: 'badge-warning', Izin: 'badge-primary', Sakit: 'badge-primary', Alpa: 'badge-danger' };
+  const badgeMap = { Hadir: 'badge-success', Telat: 'badge-warning', Izin: 'badge-primary', Sakit: 'badge-primary', Alpa: 'badge-danger', 'Menunggu Persetujuan': 'badge-warning' };
   tbody.innerHTML = result.rincian.map(function(r, i) {
     // Tombol Izin/Sakit cuma relevan untuk sesi yang masih Alpa (belum ada
-    // catatan sama sekali) -- kalau sudah Hadir/Telat/Izin/Sakit tidak perlu
-    // diubah lagi dari sini. Tombol ini juga sengaja DISEMBUNYIKAN untuk
-    // akun kepsek: server (api/mengajar.js -> inputKeteranganMengajar)
-    // cuma mengizinkan admin/TU atau guru yang bersangkutan sendiri yang
-    // boleh mengisi keterangan ini -- kepsek memang tidak diberi wewenang
-    // itu. Sebelumnya tombol tetap tampil ke kepsek walau begitu, jadi
-    // kalau diklik selalu berakhir error "Hanya admin atau guru yang
-    // bersangkutan..." -- tombol yang terlihat bisa dipakai padahal tidak.
+    // catatan sama sekali) -- kalau sudah Hadir/Telat/Izin/Sakit/Menunggu
+    // Persetujuan tidak perlu diubah lagi dari sini. Tombol ini juga
+    // sengaja DISEMBUNYIKAN untuk akun kepsek: server (api/mengajar.js ->
+    // inputKeteranganMengajar) cuma mengizinkan admin/TU atau guru yang
+    // bersangkutan sendiri yang boleh mengisi keterangan ini -- kepsek
+    // memang tidak diberi wewenang itu (kepsek menyetujui/menolak lewat
+    // halaman "Persetujuan Izin/Sakit", bukan dari sini). Sebelumnya tombol
+    // tetap tampil ke kepsek walau begitu, jadi kalau diklik selalu
+    // berakhir error "Hanya admin atau guru yang bersangkutan..." --
+    // tombol yang terlihat bisa dipakai padahal tidak.
     var aksi = (r.status === 'Alpa' && APP.user.role !== 'kepsek') ? '<button class="btn btn-outline btn-sm" onclick="openModalKeteranganMengajar(' + i + ')">📝 Izin/Sakit</button>' : '-';
+    // Kalau statusnya Alpa TAPI ada catatanPenolakan, berarti Alpa ini
+    // hasil PENOLAKAN kepsek (bukan Alpa murni karena tidak lapor sama
+    // sekali) -- tampilkan alasannya biar guru tahu kenapa ditolak.
+    var ketInfo = '';
+    if (r.status === 'Alpa' && r.catatanPenolakan) {
+      ketInfo = '<div style="font-size:.72rem;color:var(--danger,#C62828);margin-top:4px">✕ Ditolak: ' + esc(r.catatanPenolakan) + '</div>';
+    }
     return '<tr><td data-label="Tanggal">' + r.tanggal + '</td><td data-label="Hari">' + r.hari + '</td><td data-label="Kelas"><span class="badge badge-primary">' + esc(r.kelas) + '</span></td><td data-label="Mapel">' + esc(r.mapel) + '</td><td data-label="Jam Ke">Ke-' + r.jamKeMulai + (r.jamKeSelesai!==r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '') + '</td>'
-      + '<td data-label="Status"><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span></td>'
+      + '<td data-label="Status"><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span>' + ketInfo + '</td>'
       + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' : '-') + '</td>'
       + '<td data-label="Aksi">' + aksi + '</td></tr>';
   }).join('');
 }
 
-function openModalKeteranganMengajar(idx) {
+async function openModalKeteranganMengajar(idx) {
   const r = (window._rmRincian||[])[idx]; if (!r) return;
   const idGuru = APP.user.role === 'guru' ? APP.user.id : (document.getElementById('rmGuru')?.value || '');
   document.getElementById('kmIdJadwal').value = r.idJadwalMengajar;
@@ -6340,16 +6429,131 @@ function openModalKeteranganMengajar(idx) {
   document.getElementById('kmInfo').textContent = r.tanggal + ' • ' + r.hari + ' • Kelas ' + r.kelas + ' • ' + r.mapel;
   document.getElementById('kmJenis').value = 'Izin';
   document.getElementById('kmKeterangan').value = '';
+  document.getElementById('kmBuktiFile').value = '';
+  document.getElementById('kmBuktiPreview').innerHTML = '';
+
+  // Kalau yang mengisi adalah GURU SENDIRI (bukan admin), laporan ini akan
+  // masuk alur persetujuan kepsek -- tampilkan info status & cek
+  // pengaturan admin soal wajib/opsionalnya lampiran bukti. Kalau admin
+  // yang mengisi (mewakili guru), tidak perlu alur persetujuan sama
+  // sekali (perilaku lama tetap berlaku untuk admin).
+  const isGuruSendiri = APP.user.role === 'guru';
+  document.getElementById('kmPersetujuanInfo').style.display = isGuruSendiri ? 'block' : 'none';
+  const buktiInput = document.getElementById('kmBuktiFile');
+  const buktiLabel = document.getElementById('kmBuktiLabel');
+  if (isGuruSendiri) {
+    const set = await api('settings', 'getJamSetting');
+    const wajib = set.success && set.data.BUKTI_IZIN_SAKIT_WAJIB === 'wajib';
+    buktiInput.required = wajib;
+    buktiLabel.textContent = wajib ? 'Bukti (foto surat sakit/izin) — Wajib' : 'Bukti (foto surat sakit/izin) — Opsional';
+  } else {
+    buktiInput.required = false;
+    buktiLabel.textContent = 'Bukti (foto surat sakit/izin) — Opsional';
+  }
   openModal('modalKeteranganMengajar');
 }
+
+// Membaca file yang dipilih user jadi base64 data-URL, supaya bisa
+// dikirim langsung sebagai teks lewat body JSON (sama seperti pola
+// LOGO_URL/kartu identitas di halaman lain -- tidak ada endpoint upload
+// biner terpisah di backend ini). Dibatasi ±2MB di sisi klien supaya
+// tidak membuat baris database jadi terlalu besar.
+function bacaFileSebagaiBase64(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    if (file.size > 2 * 1024 * 1024) return reject(new Error('Ukuran file maksimal 2MB'));
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Gagal membaca file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function simpanKeteranganMengajar() {
   const idJadwalMengajar = document.getElementById('kmIdJadwal').value;
   const idGuru = document.getElementById('kmIdGuru').value;
   const tanggal = document.getElementById('kmTanggal').value;
   const jenis = document.getElementById('kmJenis').value;
   const keterangan = document.getElementById('kmKeterangan').value.trim();
-  const result = await api('mengajar', 'inputKeteranganMengajar', { idJadwalMengajar, idGuru, tanggal, jenis, keterangan });
-  if (result.success) { toast(result.message, 'success'); closeModal('modalKeteranganMengajar'); loadRekapMengajar(); } else toast(result.message, 'error');
+  const fileInput = document.getElementById('kmBuktiFile');
+  const file = fileInput.files && fileInput.files[0];
+
+  if (fileInput.required && !file) { toast('Bukti wajib dilampirkan sesuai pengaturan admin', 'error'); return; }
+
+  const btn = document.getElementById('kmBtnSimpan');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    let buktiUrl = null;
+    if (file) buktiUrl = await bacaFileSebagaiBase64(file);
+    const result = await api('mengajar', 'inputKeteranganMengajar', { idJadwalMengajar, idGuru, tanggal, jenis, keterangan, buktiUrl });
+    if (result.success) { toast(result.message, 'success'); closeModal('modalKeteranganMengajar'); loadRekapMengajar(); } else toast(result.message, 'error');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Simpan';
+  }
+}
+
+// ── KEPSEK: PERSETUJUAN IZIN/SAKIT MENGAJAR ───────────────────────
+async function loadKepsekPersetujuan() {
+  const tbody = document.getElementById('kepsekPersetujuanBody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>';
+  const result = await api('mengajar', 'getKeteranganMenungguPersetujuan');
+  if (!result.success) { toast(result.message, 'error'); return; }
+  window._kepsekPersetujuanData = result.data;
+  perbaruiBadgePersetujuan(result.data.length);
+  if (!result.data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada laporan yang menunggu persetujuan 🎉</td></tr>';
+    return;
+  }
+  tbody.innerHTML = result.data.map(function(k, i) {
+    const bukti = k.buktiUrl
+      ? (k.buktiUrl.startsWith('data:application/pdf')
+          ? '<a href="' + k.buktiUrl + '" target="_blank" rel="noopener">📄 Lihat PDF</a>'
+          : '<a href="' + k.buktiUrl + '" target="_blank" rel="noopener"><img src="' + k.buktiUrl + '" style="max-width:60px;max-height:60px;border-radius:6px;border:1px solid var(--border)"></a>')
+      : '<span style="color:var(--text-muted)">Tidak ada</span>';
+    return '<tr>'
+      + '<td data-label="Guru">' + esc(k.namaGuru) + '</td>'
+      + '<td data-label="Tanggal">' + k.tanggal + ' • ' + esc(k.hari) + '</td>'
+      + '<td data-label="Kelas / Mapel"><span class="badge badge-primary">' + esc(k.kelas) + '</span> ' + esc(k.mapel) + '</td>'
+      + '<td data-label="Jenis"><span class="badge badge-primary">' + esc(k.jenis) + '</span></td>'
+      + '<td data-label="Keterangan">' + (k.keterangan ? esc(k.keterangan) : '<span style="color:var(--text-muted)">-</span>') + '</td>'
+      + '<td data-label="Bukti">' + bukti + '</td>'
+      + '<td data-label="Aksi"><div style="display:flex;gap:6px;flex-wrap:wrap">'
+      + '<button class="btn btn-success btn-sm" onclick="setujuiPersetujuan(' + i + ')">✔ Setujui</button>'
+      + '<button class="btn btn-danger btn-sm" onclick="openModalTolakKeterangan(' + i + ')">✕ Tolak</button>'
+      + '</div></td></tr>';
+  }).join('');
+}
+
+function perbaruiBadgePersetujuan(jumlah) {
+  const badge = document.getElementById('kepsekPersetujuanBadge');
+  if (!badge) return;
+  if (jumlah > 0) { badge.textContent = jumlah; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
+}
+
+async function setujuiPersetujuan(idx) {
+  const k = (window._kepsekPersetujuanData||[])[idx]; if (!k) return;
+  if (!confirm('Setujui ' + k.jenis + ' untuk ' + k.namaGuru + ' tanggal ' + k.tanggal + '?')) return;
+  const result = await api('mengajar', 'setujuiKeteranganMengajar', { id: k.id });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) loadKepsekPersetujuan();
+}
+
+function openModalTolakKeterangan(idx) {
+  const k = (window._kepsekPersetujuanData||[])[idx]; if (!k) return;
+  document.getElementById('tkId').value = k.id;
+  document.getElementById('tkCatatan').value = '';
+  openModal('modalTolakKeterangan');
+}
+
+async function konfirmasiTolakKeterangan() {
+  const id = document.getElementById('tkId').value;
+  const catatan = document.getElementById('tkCatatan').value.trim();
+  const result = await api('mengajar', 'tolakKeteranganMengajar', { id, catatan });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) { closeModal('modalTolakKeterangan'); loadKepsekPersetujuan(); }
 }
 </script>
 </body>

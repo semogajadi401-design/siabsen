@@ -5863,8 +5863,15 @@ function populateFilterHariMengajar() {
 async function loadGuruDropdownMengajar() {
   const result = await api('guru', 'getAll', { activeOnly: true });
   if (!result.success) return;
-  window._guruListMengajar = result.data;
-  const opts = result.data.map(g => `<option value="${g.id}">${esc(g.nama)}</option>`).join('');
+  // PERBAIKAN: akun Kepala Sekolah (role 'kepsek') tidak boleh muncul di
+  // dropdown Guru menu Jadwal/Rekap Mengajar -- kepsek memang tidak
+  // pernah punya jadwal mengajar (lihat juga penolakan tegas di
+  // api/scan.js/api/mengajar.js untuk role ini). Sebelumnya dropdown ini
+  // menampilkan SEMUA guru aktif tanpa filter role, jadi kepsek ikut
+  // terdaftar sebagai pilihan walau tidak pernah bisa benar-benar dipakai.
+  const guruMengajar = result.data.filter(g => g.role !== 'kepsek');
+  window._guruListMengajar = guruMengajar;
+  const opts = guruMengajar.map(g => `<option value="${g.id}">${esc(g.nama)}</option>`).join('');
   const selFilter = document.getElementById('jmFilterGuru');
   if (selFilter) selFilter.innerHTML = '<option value="">Semua Guru</option>' + opts;
   const selModal = document.getElementById('jmGuru');

@@ -38,7 +38,17 @@ const scanSesiMengajarInternal = require('./mengajar').scanSesiMengajar;
 //      mencoba scan per menit, supaya percobaan tebak-tebak id/nisn
 //      (brute force) tetap tidak praktis walau kioskToken-nya entah
 //      bagaimana bocor/dipakai ulang dalam jendela waktu yang sama.
-const AKSI_BUTUH_KIOSK_TOKEN = new Set(['scanKartu', 'inputTanpaKartu']);
+//
+// PERBAIKAN KEAMANAN (BARU): verifikasiGuruPiket ditambahkan ke daftar
+// ini juga. Aksi ini memanggil cekGuruPiketHariIni(username, password) --
+// SAMA PERSIS fungsi pengecekan password yang dipakai inputTanpaKartu --
+// tapi sebelumnya TIDAK ikut dilindungi kioskToken/rate limit di sini,
+// padahal fungsi login utama (api/auth.js -> login()) punya penguncian
+// percobaan gagal per-username (lihat percobaanLogin di sana). Tanpa
+// perbaikan ini, siapa pun yang tahu endpoint-nya bisa menebak password
+// guru piket berkali-kali tanpa batas lewat jalur ini, melewati
+// penguncian yang sudah ada di jalur login resmi.
+const AKSI_BUTUH_KIOSK_TOKEN = new Set(['scanKartu', 'inputTanpaKartu', 'verifikasiGuruPiket']);
 
 module.exports = async (req, res) => {
   setCors(res);

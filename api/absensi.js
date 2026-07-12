@@ -343,6 +343,14 @@ async function dashboard() {
 // BARU: absensi_mengajar & kehadiran_siswa_mapel (pasangan absensi untuk
 // fitur "Jadwal Mengajar" di api/mengajar.js) ikut dibersihkan juga,
 // dengan cakupan yang sama (semua kelas / per-kelas) seperti absensi biasa.
+// BARU LAGI: keterangan_mengajar (izin/sakit guru mengajar -- termasuk
+// status persetujuan kepsek & file bukti yang diupload) SEBELUMNYA TIDAK
+// ikut dibersihkan sama sekali, padahal "pasangan"-nya (absensi_mengajar)
+// sudah ikut. Akibatnya setelah Reset Absensi, rekap kehadiran guru jadi
+// tidak konsisten (absensi_mengajar sudah kosong tapi keterangan_mengajar
+// lama masih ada dan tetap dihitung Izin/Sakit), dan laporan yang masih
+// "Menunggu Persetujuan" tetap nyangkut di halaman Persetujuan kepsek
+// walau sesi absensinya sendiri sudah dianggap dihapus admin.
 async function resetAbsensi({ kelas, semua }) {
   if (semua) {
     const { error: e0 } = await supabase.from('keterangan_absensi').delete().neq('id', 'x');
@@ -366,6 +374,9 @@ async function resetAbsensi({ kelas, semua }) {
     const { error: e1c } = await supabase.from('absensi_mengajar').delete().neq('id', 'x');
     if (e1c) return { success: false, message: 'Gagal hapus riwayat absensi mengajar: ' + e1c.message };
 
+    const { error: e1d } = await supabase.from('keterangan_mengajar').delete().neq('id', 'x');
+    if (e1d) return { success: false, message: 'Gagal hapus keterangan izin/sakit mengajar: ' + e1d.message };
+
     const { error } = await supabase.from('absensi').delete().neq('id', 'x');
     if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
 
@@ -386,7 +397,7 @@ async function resetAbsensi({ kelas, semua }) {
 
     return {
       success: true,
-      message: 'Seluruh riwayat absensi, data sakit/izin, riwayat sesi piket, dan riwayat absensi/verifikasi mengajar berhasil dihapus'
+      message: 'Seluruh riwayat absensi, data sakit/izin, riwayat sesi piket, dan riwayat absensi/verifikasi/izin-sakit mengajar berhasil dihapus'
         + (eTs ? ' (peringatan: gagal mencatat waktu reset untuk proteksi sinkronisasi offline — ' + eTs.message + ')' : '')
     };
   }
@@ -406,7 +417,21 @@ async function resetAbsensi({ kelas, semua }) {
   const { error: e0c } = await supabase.from('absensi_mengajar').delete().in('kelas', kelas);
   if (e0c) return { success: false, message: 'Gagal hapus riwayat absensi mengajar: ' + e0c.message };
 
+  // BARU: keterangan_mengajar TIDAK punya kolom `kelas` sendiri (beda dari
+  // absensi_mengajar/kehadiran_siswa_mapel) -- kelasnya cuma bisa diketahui
+  // lewat jadwal_mengajar yang ditunjuk id_jadwal_mengajar. Jadi cari dulu
+  // ID jadwal mengajar untuk kelas-kelas ini, baru hapus keterangan yang
+  // menunjuk ke ID-ID itu.
+  const { data: jadwalKelasTerkait, error: eJadwal } = await supabase
+    .from('jadwal_mengajar').select('id').in('kelas', kelas);
+  if (eJadwal) return { success: false, message: 'Gagal membaca jadwal mengajar kelas terkait: ' + eJadwal.message };
+  const idJadwalKelasTerkait = (jadwalKelasTerkait || []).map(j => j.id);
+  if (idJadwalKelasTerkait.length) {
+    const { error: e0d } = await supabase.from('keterangan_mengajar').delete().in('id_jadwal_mengajar', idJadwalKelasTerkait);
+    if (e0d) return { success: false, message: 'Gagal hapus keterangan izin/sakit mengajar: ' + e0d.message };
+  }
+
   const { error } = await supabase.from('absensi').delete().in('kelas', kelas);
   if (error) return { success: false, message: 'Gagal reset absensi: ' + error.message };
-  return { success: true, message: `Riwayat absensi, data sakit/izin, dan riwayat absensi/verifikasi mengajar kelas ${kelas.join(', ')} berhasil dihapus` };
+  return { success: true, message: `Riwayat absensi, data sakit/izin, dan riwayat absensi/verifikasi/izin-sakit mengajar kelas ${kelas.join(', ')} berhasil dihapus` };
 }

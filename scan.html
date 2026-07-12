@@ -1063,6 +1063,60 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 #akCameraSlot{display:flex;justify-content:center}
 #akCameraSlot .scanner-visual{margin:6px auto}
 
+/* ── BANNER MERAH BERKEDIP (BARU) ──────────────────────────────────
+   Dipakai di dua titik alur Absen Kelas supaya guru SELALU tahu persis
+   apa yang harus dilakukan berikutnya, tanpa perlu menebak dari teks
+   status kecil yang sudah ada:
+     1. #menungguAbsenKelasBox -- sebelum kartu guru discan/username
+        dimasukkan ("Silahkan scan kartu anda atau masukkan username").
+     2. #modeVerifikasiBox -- setelah jadwal mengajar tervalidasi,
+        menunggu kartu SISWA ("Silahkan scan kartu siswa"). Banner ini
+        otomatis ikut hilang saat keluarModeVerifikasi() menyembunyikan
+        seluruh #modeVerifikasiBox (dipanggil dari selesaiModeVerifikasi()
+        begitu guru menekan "Kirim Verifikasi") -- TIDAK butuh JS
+        tambahan apapun karena banner ini anak elemen dari box tsb.
+   Warna & animasi background (bukan cuma opacity teks seperti
+   .blink-text) sengaja dibuat lebih mencolok karena ini instruksi
+   AKSI ("lakukan ini sekarang"), bukan sekadar status info. */
+@keyframes akBannerBlink{
+  0%,100%{background:#DC2626;box-shadow:0 0 0 0 rgba(220,38,38,.45)}
+  50%{background:#EF4444;box-shadow:0 0 0 7px rgba(220,38,38,0)}
+}
+.ak-alert-banner{
+  animation:akBannerBlink 1.15s ease-in-out infinite;
+  color:#fff;font-weight:800;font-size:.82rem;line-height:1.35;
+  padding:10px 14px;border-radius:10px;text-align:center;
+  margin-bottom:10px;
+}
+
+/* ── FORM "Tidak bawa kartu?" DI DALAM #menungguAbsenKelasBox (BARU) ──
+   Sengaja diletakkan INLINE di dalam box yang sama (bukan modal
+   terpisah seperti #modalTanpaKartu), supaya guru yang lupa bawa kartu
+   tidak perlu keluar dari overlay Absen Kelas sama sekali. */
+.ak-toggle-user-btn{
+  padding:10px 14px;border:1.5px dashed var(--border);border-radius:8px;
+  background:var(--surface);color:var(--text-muted);
+  font-weight:700;font-size:.78rem;cursor:pointer;white-space:nowrap;
+  font-family:inherit;transition:.2s;
+}
+.ak-toggle-user-btn:hover{border-color:var(--primary);color:var(--primary-dark)}
+.ak-user-form{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
+.ak-user-form input{
+  width:100%;padding:11px 13px;border:1.5px solid var(--border);
+  border-radius:9px;font-size:.86rem;font-family:inherit;
+}
+.ak-user-form input+input{margin-top:8px}
+.ak-user-form .ak-user-err{
+  display:none;color:var(--danger);font-size:.76rem;margin-top:6px;
+  padding:7px 9px;background:var(--danger-soft);border-radius:7px;
+}
+.ak-user-form button{
+  width:100%;margin-top:10px;padding:12px;border:none;border-radius:9px;
+  background:var(--primary);color:#fff;font-weight:700;font-size:.85rem;
+  cursor:pointer;font-family:inherit;
+}
+.ak-user-form button:disabled{opacity:.6;cursor:default}
+
 /* ── OFFLINE BADGE (header) ── */
 .offline-badge{
   display:none;align-items:center;gap:5px;
@@ -1245,6 +1299,10 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          alur admin/guru/siswa datang-pulang biasa. -->
     <div class="guru-status ada-guru" id="modeVerifikasiBox" style="display:none">
       <div class="guru-label">📚 Mode Verifikasi Kelas</div>
+      <!-- Banner berkedip (BARU) -- otomatis hilang bersama seluruh box ini
+           saat guru menekan "Kirim Verifikasi" (lihat selesaiModeVerifikasi()
+           -> keluarModeVerifikasi()), tidak perlu logika show/hide sendiri. -->
+      <div class="ak-alert-banner">🔴 Silahkan scan kartu siswa</div>
       <div id="modeVerifikasiContent" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <div>
           <div id="verifikasiMapelKelas" style="font-weight:700"></div>
@@ -1263,10 +1321,41 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          mulaiAbsenKelas()/batalAbsenKelas()). -->
     <div class="guru-status ada-guru" id="menungguAbsenKelasBox" style="display:none">
       <div class="guru-label">📚 Absen Kelas</div>
+      <!-- Banner berkedip (BARU) -- ditutup lagi lewat resetAkUserForm()
+           (dipanggil dari batalAbsenKelas()/mulaiAbsenKelas()) supaya
+           tidak "nyangkut" tampil kalau guru sempat buka form username
+           lalu batal. -->
+      <div class="ak-alert-banner">🔴 Silahkan scan kartu anda atau masukkan username</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <div style="font-size:.88rem">⏳ Menunggu scan kartu guru...</div>
-        <button type="button" onclick="batalAbsenKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
-          ✖ Batal
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="ak-toggle-user-btn" id="akToggleUserBtn" onclick="toggleAkUserForm()">
+            🪪 Tidak bawa kartu?
+          </button>
+          <button type="button" onclick="batalAbsenKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+            ✖ Batal
+          </button>
+        </div>
+      </div>
+
+      <!-- Form username/password (BARU) -- pengganti scan kartu fisik untuk
+           guru yang lupa/ketinggalan kartu. Tersembunyi default, dibuka lewat
+           toggleAkUserForm(). Hasil verifikasi dikirim ke server lewat aksi
+           'absenKelasUsername' (api/scan.js), yang MEMANGGIL ULANG scanKartu()
+           persis seperti jalur scan fisik -- semua validasi jadwal mengajar,
+           jam operasional, dsb TIDAK ditulis ulang, cuma identitasnya saja
+           yang dibuktikan lewat password alih-alih kartu. -->
+      <div class="ak-user-form" id="akUserForm" style="display:none">
+        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:8px">
+          Masukkan <strong>username dan password akun Anda</strong> sebagai pengganti scan kartu.
+        </div>
+        <input type="text" id="akUsername" placeholder="Username guru..." autocomplete="username"
+          onkeyup="if(event.key==='Enter')document.getElementById('akPassword').focus()">
+        <input type="password" id="akPassword" placeholder="Password..." autocomplete="current-password"
+          onkeyup="if(event.key==='Enter')submitAkUserForm()">
+        <div class="ak-user-err" id="akUserError"></div>
+        <button type="button" id="akUserSubmitBtn" onclick="submitAkUserForm()">
+          Masuk &amp; Absen Kelas
         </button>
       </div>
     </div>
@@ -1745,7 +1834,7 @@ let _kioskToken = null;
 // AKSI_BUTUH_KIOSK_TOKEN di api/scan.js), supaya percobaan tebak-tebak
 // password guru piket lewat mode "Tanpa Kartu" ikut terkena rate limit
 // yang sama seperti scanKartu/inputTanpaKartu, bukan tanpa batas.
-const _aksiButuhToken = new Set(['scanKartu', 'inputTanpaKartu', 'batchSync', 'verifikasiGuruPiket']);
+const _aksiButuhToken = new Set(['scanKartu', 'inputTanpaKartu', 'batchSync', 'verifikasiGuruPiket', 'absenKelasUsername']);
 let _kioskTokenPromise = null;
 
 async function pastikanKioskToken() {
@@ -2369,6 +2458,7 @@ function mulaiAbsenKelas() {
   menungguAbsenKelas = true;
   document.getElementById('btnAbsenKelas').style.display = 'none';
   document.getElementById('menungguAbsenKelasBox').style.display = '';
+  resetAkUserForm();
   bukaOverlayAbsenKelas();
   toast('📷 Arahkan kartu GURU ke kamera untuk mulai Absen Kelas.', 3500);
 }
@@ -2378,9 +2468,98 @@ function batalAbsenKelas() {
   menungguAbsenKelas = false;
   document.getElementById('btnAbsenKelas').style.display = '';
   document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+  resetAkUserForm();
   tutupOverlayAbsenKelas();
   scanCooldown = false;
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// ── FORM "Tidak bawa kartu?" (BARU) — pengganti scan kartu guru lewat
+// username/password, khusus di dalam #menungguAbsenKelasBox. Dipanggil
+// dari toggleAkUserForm()/submitAkUserForm() di bawah. ──────────────
+function resetAkUserForm() {
+  const form = document.getElementById('akUserForm');
+  const btn  = document.getElementById('akToggleUserBtn');
+  const err  = document.getElementById('akUserError');
+  const uEl  = document.getElementById('akUsername');
+  const pEl  = document.getElementById('akPassword');
+  if (form) form.style.display = 'none';
+  if (btn)  btn.textContent = '🪪 Tidak bawa kartu?';
+  if (err)  { err.style.display = 'none'; err.textContent = ''; }
+  if (uEl)  uEl.value = '';
+  if (pEl)  pEl.value = '';
+}
+
+function toggleAkUserForm() {
+  const form = document.getElementById('akUserForm');
+  const btn  = document.getElementById('akToggleUserBtn');
+  if (!form) return;
+  const sedangTampil = form.style.display !== 'none';
+  form.style.display = sedangTampil ? 'none' : '';
+  if (btn) btn.textContent = sedangTampil ? '🪪 Tidak bawa kartu?' : '🔽 Sembunyikan';
+  if (!sedangTampil) {
+    const uEl = document.getElementById('akUsername');
+    if (uEl) uEl.focus();
+  }
+}
+
+let _akUserSubmitting = false;
+// Dikirim ke server lewat aksi 'absenKelasUsername' (api/scan.js), yang
+// membuktikan identitas guru lewat username+password lalu MEMANGGIL ULANG
+// scanKartu({identifier: guru.id, pilihan:'mengajar'}) persis seperti
+// jalur scan kartu fisik (processScanGuruAbsenKelas() di atas) — semua
+// validasi jadwal mengajar/jam operasional/dsb sama persis, tidak ada
+// yang ditulis ulang di sini. Hasilnya diproses lewat handleScanResult()
+// yang sama juga, supaya UI (mode verifikasi, toast, dsb) konsisten
+// dengan hasil scan kartu.
+async function submitAkUserForm() {
+  if (_akUserSubmitting) return;
+  const errEl = document.getElementById('akUserError');
+  const username = document.getElementById('akUsername').value.trim();
+  const password = document.getElementById('akPassword').value;
+  errEl.style.display = 'none';
+
+  if (!username) { errEl.textContent = 'Username wajib diisi'; errEl.style.display = 'block'; return; }
+  if (!password) { errEl.textContent = 'Password wajib diisi'; errEl.style.display = 'block'; return; }
+  if (!isOnline) {
+    errEl.textContent = 'Input username hanya bisa dipakai saat online. Coba scan kartu, atau tunggu koneksi kembali lalu coba lagi.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  _akUserSubmitting = true;
+  const btn = document.getElementById('akUserSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Memproses...'; }
+
+  try {
+    const result = await api('scan', 'absenKelasUsername', { username, password, mode: scanMode });
+
+    // Sama seperti cabang di processScanGuruAbsenKelas() -- akun Kepsek
+    // (atau akun non-guru-mapel lain yang lolos password) tidak boleh
+    // ikut masuk sebagai absen mengajar lewat jalur ini.
+    if (result.tipe === 'guru_login') {
+      errEl.textContent = 'Akun ini bukan akun guru mapel biasa. Gunakan akun guru yang jadwalnya mengajar jam ini.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    if (result.success) {
+      menungguAbsenKelas = false;
+      document.getElementById('btnAbsenKelas').style.display = '';
+      document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+      resetAkUserForm();
+      handleScanResult(result, `AK_USER|${username}|${Date.now()}`, Date.now());
+    } else {
+      errEl.textContent = result.message || 'Gagal memproses. Coba lagi.';
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Gagal terhubung ke server. Cek koneksi lalu coba lagi.';
+    errEl.style.display = 'block';
+  } finally {
+    _akUserSubmitting = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Masuk & Absen Kelas'; }
+  }
 }
 
 // Overlay layar-penuh "Absen Kelas" (BARU) -- membuat mode ini terasa

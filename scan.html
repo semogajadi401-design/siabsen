@@ -1076,9 +1076,118 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   padding:1px 6px;font-size:.65rem;font-weight:800;min-width:18px;text-align:center;
 }
 
+/* ── SPLASH / PROGRESS PENYIAPAN AWAL ──────────────────────────────
+   Menampilkan tahap NYATA dari init() (lihat pemanggilan tandaiSplash()
+   di script init()) supaya pengguna paham kenapa halaman terasa "diam"
+   sesaat setelah dibuka -- bukan animasi dekoratif kosong, tiap baris di
+   sini menyala persis saat langkah aslinya benar-benar selesai. */
+#splashOverlay{
+  position:fixed;inset:0;z-index:9999;
+  background:linear-gradient(160deg,#0B3B2E 0%,#0F172A 100%);
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .5s ease,visibility .5s ease;
+}
+#splashOverlay.hide{opacity:0;visibility:hidden;pointer-events:none}
+.splash-card{
+  width:min(360px,86vw);text-align:center;color:#fff;
+  animation:splashIn .5s ease;
+}
+@keyframes splashIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.splash-ring-wrap{
+  position:relative;width:84px;height:84px;margin:0 auto 22px;
+}
+.splash-ring{
+  width:100%;height:100%;border-radius:50%;
+  border:4px solid rgba(16,185,129,0.2);
+  border-top-color:var(--primary);
+  animation:splashSpin 1s linear infinite;
+}
+@keyframes splashSpin{to{transform:rotate(360deg)}}
+.splash-ring-icon{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:1.7rem;
+}
+.splash-title{
+  font-family:var(--font-display);font-weight:800;font-size:1.15rem;
+  letter-spacing:.2px;margin-bottom:4px;
+}
+.splash-sub{
+  font-size:.78rem;color:rgba(255,255,255,.55);margin-bottom:22px;
+}
+.splash-steps{
+  text-align:left;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:14px;padding:6px 14px;
+}
+.splash-step{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 2px;font-size:.82rem;font-weight:600;
+  color:rgba(255,255,255,.4);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  transition:color .3s ease;
+}
+.splash-step:last-child{border-bottom:none}
+.splash-step.active{color:#fff}
+.splash-step.done{color:rgba(255,255,255,.85)}
+.splash-step-icon{
+  width:20px;height:20px;flex:0 0 20px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid rgba(255,255,255,.2);position:relative;
+}
+.splash-step.active .splash-step-icon{border-color:var(--primary)}
+.splash-step.active .splash-step-icon::after{
+  content:'';position:absolute;inset:-2px;border-radius:50%;
+  border:2px solid transparent;border-top-color:var(--primary);
+  animation:splashSpin .7s linear infinite;
+}
+.splash-step.done .splash-step-icon{
+  border-color:var(--primary);background:var(--primary);
+}
+.splash-step.done .splash-step-icon::before{
+  content:'✓';color:#0B3B2E;font-size:.7rem;font-weight:900;
+}
+.splash-bar-wrap{
+  margin-top:18px;height:5px;border-radius:99px;
+  background:rgba(255,255,255,.1);overflow:hidden;
+}
+.splash-bar{
+  height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--primary),#34D399);
+  width:0%;transition:width .4s ease;
+}
+.splash-hint{
+  margin-top:14px;font-size:.7rem;color:rgba(255,255,255,.4);
+  min-height:1em;
+}
+
 </style>
 </head>
 <body>
+<!-- ── SPLASH / PROGRESS PENYIAPAN AWAL ──────────────────────────────
+     Ditutup otomatis oleh sembunyikanSplash() di script init() begitu
+     semua tahap asli (server, kamera, pengaturan, data kehadiran, sync)
+     selesai -- atau paling lama SPLASH_BATAS_WAKTU_MS supaya kios tidak
+     pernah "terjebak" di balik overlay ini walau ada 1 tahap yang macet. -->
+<div id="splashOverlay">
+  <div class="splash-card">
+    <div class="splash-ring-wrap">
+      <div class="splash-ring"></div>
+      <div class="splash-ring-icon">📷</div>
+    </div>
+    <div class="splash-title">Menyiapkan Kios Absensi</div>
+    <div class="splash-sub">Mohon tunggu sebentar...</div>
+    <div class="splash-steps" id="splashSteps">
+      <div class="splash-step" data-step="server"><div class="splash-step-icon"></div><span>Menyambungkan ke server</span></div>
+      <div class="splash-step" data-step="camera"><div class="splash-step-icon"></div><span>Menyiapkan kamera</span></div>
+      <div class="splash-step" data-step="settings"><div class="splash-step-icon"></div><span>Memuat pengaturan sekolah</span></div>
+      <div class="splash-step" data-step="kehadiran"><div class="splash-step-icon"></div><span>Memuat data kehadiran hari ini</span></div>
+      <div class="splash-step" data-step="sync"><div class="splash-step-icon"></div><span>Menyinkronkan data tersisa</span></div>
+    </div>
+    <div class="splash-bar-wrap"><div class="splash-bar" id="splashBar"></div></div>
+    <div class="splash-hint" id="splashHint">&nbsp;</div>
+  </div>
+</div>
+
 <div id="toastWrap"></div>
 
 <!-- PERBAIKAN "pesan panjang tidak terbaca": pesan hasil scan (showFlash())
@@ -2664,6 +2773,52 @@ function keluarModeVerifikasi() {
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
 
+// ── SPLASH / PROGRESS PENYIAPAN AWAL ────────────────────────────────
+// Menandai tahap init() yang BENAR-BENAR selesai (bukan animasi hiasan
+// berjalan sendiri) -- lihat pemanggilan tandaiSplashSelesai()/
+// tandaiSplashAktif() yang disisipkan di init() di bawah, tepat di titik
+// masing-masing proses aslinya mulai/selesai.
+const SPLASH_URUTAN = ['server','camera','settings','kehadiran','sync'];
+// Jaring pengaman: kalau ada 1 tahap yang macet total (jaringan sangat
+// buruk, dll), splash tetap DIPAKSA tertutup setelah batas waktu ini
+// supaya kios tidak pernah terjebak di baliknya -- kamera & tombol utama
+// harus selalu bisa dipakai walau sebagian data masih menyusul di
+// belakang layar.
+const SPLASH_BATAS_WAKTU_MS = 9000;
+let _splashSelesai = new Set();
+let _splashDitutup = false;
+let _splashTimeoutId = null;
+
+function tandaiSplashAktif(key) {
+  if (_splashDitutup) return;
+  const el = document.querySelector(`.splash-step[data-step="${key}"]`);
+  if (el && !el.classList.contains('done')) el.classList.add('active');
+}
+
+function tandaiSplashSelesai(key) {
+  if (_splashDitutup) return;
+  _splashSelesai.add(key);
+  const el = document.querySelector(`.splash-step[data-step="${key}"]`);
+  if (el) { el.classList.remove('active'); el.classList.add('done'); }
+  const bar = document.getElementById('splashBar');
+  if (bar) bar.style.width = (_splashSelesai.size / SPLASH_URUTAN.length * 100) + '%';
+  if (_splashSelesai.size >= SPLASH_URUTAN.length) sembunyikanSplash();
+}
+
+function sembunyikanSplash() {
+  if (_splashDitutup) return;
+  _splashDitutup = true;
+  if (_splashTimeoutId) { clearTimeout(_splashTimeoutId); _splashTimeoutId = null; }
+  const overlay = document.getElementById('splashOverlay');
+  if (overlay) overlay.classList.add('hide');
+}
+
+_splashTimeoutId = setTimeout(() => {
+  const hint = document.getElementById('splashHint');
+  if (hint && !_splashDitutup) hint.textContent = 'Sebagian data masih dimuat di latar belakang...';
+  sembunyikanSplash();
+}, SPLASH_BATAS_WAKTU_MS);
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function init() {
   // PERBAIKAN KECEPATAN MUAT: sebelumnya startScanner() (minta akses
@@ -2673,10 +2828,12 @@ async function init() {
   // Kamera sama sekali tidak butuh data-data itu, jadi sekarang diminta
   // SEGERA di awal, paralel dengan proses lain, supaya user langsung
   // lihat preview kamera tanpa menunggu jaringan.
-  startScanner();
+  tandaiSplashAktif('camera');
+  startScanner().finally(() => tandaiSplashSelesai('camera'));
 
   // Load settings + siswa (buat dropdown kelas) — jalan paralel, tidak
   // lagi berantai satu-satu, dan tidak menahan proses lain.
+  tandaiSplashAktif('settings');
   (async () => {
     try {
       const r = await api('settings','getJamSetting');
@@ -2698,6 +2855,7 @@ async function init() {
         }
       }
     } catch(e) {}
+    tandaiSplashSelesai('settings');
   })();
   (async () => {
     try {
@@ -2714,7 +2872,9 @@ async function init() {
   })();
 
   // Ping server dulu untuk cek koneksi nyata sebelum checkStatus
+  tandaiSplashAktif('server');
   await pingServer();
+  tandaiSplashSelesai('server');
   // PENTING: updateOnlineStatus() normalnya hanya terpanggil saat ada
   // TRANSISI online<->offline (lihat pingServer()), jadi kalau halaman ini
   // pertama kali dibuka SAAT SUDAH OFFLINE, tidak ada transisi yang
@@ -2732,16 +2892,20 @@ async function init() {
       : '📝 Input Kehadiran Tanpa Kartu <span style="opacity:.7">📴 offline</span>';
   }
 
-  // Cek status hari ini
+  // Cek status hari ini + load log pertama kali -- ini biasanya tahap
+  // yang paling terasa "lama" (lihat step 'kehadiran'), karena query-nya
+  // paling berat dan baru jalan setelah pingServer() selesai.
+  tandaiSplashAktif('kehadiran');
   await checkStatus();
-
-  // Load log pertama kali
   if (isOnline) await loadLog();
+  tandaiSplashSelesai('kehadiran');
 
   // Update badge & tawarkan sync untuk data offline sisa dari sesi
   // sebelumnya (mis. halaman ditutup/reload sebelum sempat sync).
+  tandaiSplashAktif('sync');
   await updateOfflineBadge();
   if (isOnline) await checkAndSync();
+  tandaiSplashSelesai('sync');
 
   // Auto refresh — hanya jika online
   setInterval(() => { if (isOnline) loadLog(); }, REFRESH_LOG_MS);

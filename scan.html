@@ -1627,7 +1627,12 @@ let _kioskToken = null;
 // token belum ada saat mau dipakai, kita TUNGGU dulu satu getStatus()
 // (atau numpang ke fetch yang sedang berjalan kalau sudah ada) sebelum
 // request sesungguhnya dikirim -- bukan langsung gagal.
-const _aksiButuhToken = new Set(['scanKartu', 'inputTanpaKartu', 'batchSync']);
+// PERBAIKAN KEAMANAN (BARU): verifikasiGuruPiket ditambahkan juga --
+// server sekarang mewajibkan kioskToken untuk aksi ini juga (lihat
+// AKSI_BUTUH_KIOSK_TOKEN di api/scan.js), supaya percobaan tebak-tebak
+// password guru piket lewat mode "Tanpa Kartu" ikut terkena rate limit
+// yang sama seperti scanKartu/inputTanpaKartu, bukan tanpa batas.
+const _aksiButuhToken = new Set(['scanKartu', 'inputTanpaKartu', 'batchSync', 'verifikasiGuruPiket']);
 let _kioskTokenPromise = null;
 
 async function pastikanKioskToken() {

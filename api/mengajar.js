@@ -616,7 +616,7 @@ async function tolakKeteranganMengajar({ id, idKepsek, catatan }) {
 async function getKeteranganMenungguPersetujuan({ status } = {}) {
   const statusFilter = status || 'Menunggu Persetujuan';
   const { data, error } = await supabase
-    .from('keterangan_mengajar').select('*, jadwal_mengajar(kelas,mapel,hari,jam_ke_mulai,jam_ke_selesai), guru(nama)')
+    .from('keterangan_mengajar').select('*, jadwal_mengajar(kelas,mapel,hari,jam_ke_mulai,jam_ke_selesai), guru!id_guru(nama)')
     .eq('status_persetujuan', statusFilter)
     .eq('diinput_oleh', 'guru')
     .order('tanggal', { ascending: true });

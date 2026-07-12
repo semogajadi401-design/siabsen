@@ -34,6 +34,19 @@ module.exports = async (req, res) => {
       const isAdmin = await requireAdminToken(adminToken);
       return res.json(await getAll(params, isAdmin));
     }
+    // TAMBAHAN BARU (perbaikan performa + bug dropdown Kelas kosong):
+    // dropdown kelas di berbagai form admin (termasuk "Kelas" di modal
+    // Tambah/Edit Jadwal Mengajar) SEBELUMNYA diisi lewat getAll() penuh
+    // (SEMUA kolom SEMUA siswa aktif -- termasuk alamat, no HP ortu,
+    // riwayat_token -- plus ikut memicu backfill riwayat_token untuk
+    // siswa yang belum bertoken di setiap panggilan). Untuk sekadar
+    // daftar NAMA KELAS UNIK, ini jauh lebih berat dari yang dibutuhkan
+    // -- lambat terutama di koneksi lemah, dan array kelas baru
+    // benar-benar siap dipakai SETELAH seluruh payload besar itu
+    // selesai di-fetch & diproses. getKelasList() di bawah cuma
+    // mengambil kolom `kelas` saja, tanpa ikut memicu backfill token
+    // apapun.
+    if (action === 'getKelasList') return res.json(await getKelasList());
     if (action === 'tambah')      return res.json(await tambah(params));
     if (action === 'edit')        return res.json(await edit(params));
     if (action === 'hapus')       return res.json(await hapus(params));
@@ -125,6 +138,28 @@ async function getAll({ activeOnly, kelas }, isAdmin) {
       noHpOrtu: s.no_hp_ortu, alamat: s.alamat, status: s.status,
       riwayatToken: s.riwayat_token
     }))
+  };
+}
+
+// ── DAFTAR KELAS UNIK (BARU, RINGAN) ──────────────────────────────
+// Dipakai index.html (loadAndMergeKelas -> populateKelasDropdowns) untuk
+// mengisi SEMUA dropdown "Kelas" di admin, termasuk #jmKelas di modal
+// Tambah/Edit Jadwal Mengajar. Cuma select kolom `kelas` siswa aktif,
+// lalu dedup di server -- jauh lebih ringan & cepat daripada getAll()
+// penuh yang sebelumnya dipakai untuk keperluan ini.
+async function getKelasList() {
+  const { data, error } = await supabase
+    .from('siswa')
+    .select('kelas')
+    .eq('status', 'Aktif');
+  if (error) return { success: false, message: error.message };
+
+  const set = new Set();
+  (data || []).forEach(s => { if (s.kelas && s.kelas.trim()) set.add(s.kelas.trim()); });
+
+  return {
+    success: true,
+    data: Array.from(set).sort((a, b) => a.localeCompare(b, 'id'))
   };
 }
 

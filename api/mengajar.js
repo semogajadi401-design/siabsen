@@ -13,7 +13,7 @@
 const {
   supabase, generateID, setCors, todayStr, jamSekarang, hariIni,
   tambahMenit, isHariLibur, isHariKerja, requireAdminToken,
-  resolveGuruIdFromToken, getJamSetting,
+  resolveGuruIdFromToken, getJamSetting, getSemesterAktif,
   generateSesiToken, verifySesiToken
 } = require('./_db');
 
@@ -596,7 +596,33 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
   const jumlahHariDiBulan = new Date(th, bl, 0).getDate();
   const awalBulan = `${th}-${String(bl).padStart(2,'0')}-01`;
   const akhirBulan = `${th}-${String(bl).padStart(2,'0')}-${String(jumlahHariDiBulan).padStart(2,'0')}`;
-  const batasAkhir = akhirBulan < today ? akhirBulan : today; // jangan hitung tanggal yang belum lewat
+  let batasAwal = awalBulan;
+  let batasAkhir = akhirBulan < today ? akhirBulan : today; // jangan hitung tanggal yang belum lewat
+
+  // PERBAIKAN: sesi HANYA mungkin ada di dalam periode semester (di luar itu
+  // scan absen memang ditolak sistem -- lihat absensi.js/scan.js/sync.js).
+  // Sebelumnya rekap ini mulai menghitung dari tanggal 1 di bulan itu tanpa
+  // peduli semester baru mulai tanggal berapa, sehingga hari-hari sebelum
+  // semester aktif (yang memang tidak mungkin diabsen) ikut dihitung sebagai
+  // sesi terjadwal dan salah jatuh sebagai "Alpa". Sempitkan rentang ke
+  // irisan dengan semester yang berlaku pada bulan tsb.
+  const { data: semesterOverlap } = await supabase
+    .from('semester').select('tanggal_mulai,tanggal_selesai')
+    .lte('tanggal_mulai', akhirBulan).gte('tanggal_selesai', awalBulan);
+  if (semesterOverlap && semesterOverlap.length > 0) {
+    const tglMulaiSemester = semesterOverlap
+      .map(s => String(s.tanggal_mulai).substring(0, 10))
+      .sort()[0];
+    const tglSelesaiSemester = semesterOverlap
+      .map(s => String(s.tanggal_selesai).substring(0, 10))
+      .sort().slice(-1)[0];
+    if (tglMulaiSemester > batasAwal) batasAwal = tglMulaiSemester;
+    if (tglSelesaiSemester < batasAkhir) batasAkhir = tglSelesaiSemester;
+  } else {
+    // Tidak ada semester yang mencakup bulan ini sama sekali -> tidak ada
+    // sesi yang seharusnya terjadi (sistem menolak absen tanpa semester aktif).
+    batasAwal = akhirBulan; batasAkhir = awalBulan; // range kosong (awal > akhir)
+  }
 
   // Ambil sekali semua absensi_mengajar & keterangan_mengajar guru ini dalam
   // rentang bulan, supaya tidak query per-tanggal (bisa puluhan kali).
@@ -618,7 +644,8 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
 
   for (let d = 1; d <= jumlahHariDiBulan; d++) {
     const tanggal = `${th}-${String(bl).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    if (tanggal > batasAkhir) break; // belum terjadi
+    if (tanggal < batasAwal) continue; // sebelum semester mulai -> belum ada sesi
+    if (tanggal > batasAkhir) break; // belum terjadi / sudah lewat akhir semester
 
     const cekLibur = await isHariLibur(tanggal);
     if (cekLibur.libur) continue; // hari libur dikecualikan sama sekali

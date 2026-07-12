@@ -554,6 +554,48 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   #page-dashboard>div:last-child{grid-template-columns:1fr!important}
   #page-sekolah .card-body>div{grid-template-columns:1fr!important}
   #page-pengaturan .card-body>div{grid-template-columns:1fr!important}
+
+  /* PERBAIKAN TAMPILAN MOBILE (BARU): tabel data yang kolomnya banyak (mis.
+     Kehadiran Hari Ini, Rekap Harian, Rekap Kehadiran Mengajar, Riwayat
+     Piket Saya di akun guru) SEBELUMNYA tetap dirender sebagai tabel lebar
+     biasa -- karena thead th pakai white-space:nowrap dan kolomnya 4-8
+     buah, hasilnya lebih lebar dari layar HP, jadi sebagian kolom (termasuk
+     Nama siswa/guru) "terpotong" di tepi layar dan baru kelihatan kalau
+     tabelnya digeser ke samping.
+     Sekarang, KHUSUS tabel yang ditandai class .table-card-mobile, tampilan
+     di layar sempit ini diubah jadi daftar KARTU (satu <tr> = satu kartu,
+     tiap <td> jadi baris label:nilai lewat atribut data-label yang sudah
+     disisipkan di JS saat render, lihat loadKehadiran()/loadRekapHarianGuru()/
+     loadRekapMengajar()/loadRiwayatPiketSaya()). Tabel LAIN yang tidak
+     ditandai class ini (mis. tabel-tabel di menu admin lain) tetap seperti
+     semula -- sengaja dibatasi ke halaman yang diminta dirapikan supaya
+     risiko perubahan tetap kecil. Di layar besar (>600px) semua ini tidak
+     berubah sama sekali, tetap tabel biasa seperti sebelumnya. */
+  .table-card-mobile thead{display:none}
+  .table-card-mobile,.table-card-mobile tbody,.table-card-mobile tr{display:block;width:100%}
+  .table-card-mobile tr{
+    border:1px solid var(--border);border-radius:10px;
+    margin-bottom:10px;padding:4px 14px;background:var(--surface)
+  }
+  .table-card-mobile tr:last-child{margin-bottom:0}
+  .table-card-mobile td{
+    display:block;padding:8px 0;border-bottom:1px dashed var(--border);
+    white-space:normal
+  }
+  .table-card-mobile td:last-child{border-bottom:none}
+  .table-card-mobile td::before{
+    content:attr(data-label);display:block;margin-bottom:2px;
+    font-weight:700;color:var(--text-muted);
+    font-size:.68rem;text-transform:uppercase;letter-spacing:.4px
+  }
+  /* Kolom "No" tidak perlu ditampilkan sebagai kartu -- urutan kartu yang
+     sudah bertumpuk vertikal sudah cukup jelas tanpa nomor urut. */
+  .table-card-mobile td[data-label="No"]{display:none}
+  /* Baris placeholder (mis. "Memuat...", "Tidak ada data", "Pilih tanggal")
+     pakai colspan tanpa data-label -- biarkan rata tengah biasa, tanpa
+     border-dash & tanpa label kosong. */
+  .table-card-mobile td[colspan]{border-bottom:none;text-align:center;padding:20px 0}
+  .table-card-mobile td[colspan]::before{content:none}
 }
 @media(max-width:400px){
   .stats-grid{grid-template-columns:1fr}
@@ -1214,7 +1256,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div class="form-group" style="margin:0"><label>Tanggal</label><input type="date" id="rekapTanggalGuru" class="form-control"></div>
               <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="loadRekapHarianGuru()">Tampilkan</button>
             </div>
-            <div class="table-responsive"><table>
+            <div class="table-responsive"><table class="table-card-mobile">
               <thead><tr><th>No</th><th>Nama</th><th>Kelas</th><th>Datang</th><th>Status</th><th>Pulang</th></tr></thead>
               <tbody id="rekapGuruBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih tanggal</td></tr></tbody>
             </table></div>
@@ -1267,7 +1309,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div style="display:flex;justify-content:center;margin-bottom:24px">
                 <canvas id="rmPieChart" width="220" height="220"></canvas>
               </div>
-              <div class="table-responsive"><table>
+              <div class="table-responsive"><table class="table-card-mobile">
                 <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Jam Ke</th><th>Status</th><th>Verifikasi</th><th>Aksi</th></tr></thead>
                 <tbody id="rmRincianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
               </table></div>
@@ -1317,7 +1359,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               </div>
             </div>
             <div class="table-responsive">
-              <table>
+              <table class="table-card-mobile">
                 <thead>
                   <tr><th>Tanggal</th><th>Hari</th><th>Status</th><th>Keterangan</th></tr>
                 </thead>
@@ -1424,7 +1466,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 ❌ Belum Hadir <span id="khBelumCount" class="badge badge-danger">0</span>
               </h4>
               <div class="table-responsive">
-                <table>
+                <table class="table-card-mobile">
                   <thead>
                     <tr>
                       <th>No</th><th>Nama</th><th>Kelas</th>
@@ -1443,7 +1485,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 ✅ Sudah Hadir <span id="khHadirCount" class="badge badge-success">0</span>
               </h4>
               <div class="table-responsive">
-                <table>
+                <table class="table-card-mobile">
                   <thead>
                     <tr>
                       <th>No</th><th>Nama</th><th>Kelas</th>
@@ -3832,7 +3874,7 @@ async function loadRekapHarianGuru(){
   const result=await api('absensi','rekapHarian',{tanggal});
   const tbody=document.getElementById('rekapGuruBody');
   if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data</td></tr>';return;}
-  tbody.innerHTML=result.data.map((d,i)=>`<tr><td>${i+1}</td><td>${esc(d.nama)}</td><td><span class="badge badge-primary">${d.kelas}</span></td><td>${d.jamDatang||'-'}</td><td><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td><td>${d.jamPulang||'-'}</td></tr>`).join('');
+  tbody.innerHTML=result.data.map((d,i)=>`<tr><td data-label="No">${i+1}</td><td data-label="Nama">${esc(d.nama)}</td><td data-label="Kelas"><span class="badge badge-primary">${d.kelas}</span></td><td data-label="Datang">${d.jamDatang||'-'}</td><td data-label="Status"><span class="badge ${d.statusDatang==='Hadir'?'badge-success':d.statusDatang==='Terlambat'?'badge-warning':'badge-gray'}">${d.statusDatang||'-'}</span></td><td data-label="Pulang">${d.jamPulang||'-'}</td></tr>`).join('');
 }
 function exportExcel(){ toast('Fitur export Excel: gunakan screenshot atau print halaman','info',5000); }
 
@@ -4608,10 +4650,10 @@ async function loadRiwayatPiketSaya() {
       else if (d.status === 'kosong')     ket = 'Tidak ada guru yang scan piket hari itu';
       else if (d.status === 'pengganti')  ket = `Menggantikan ${d.digantikanUntuk || 'guru lain'}${d.jamScan ? ' (jam ' + d.jamScan + ')' : ''}`;
       return `<tr>
-        <td>${d.tanggal}</td>
-        <td>${d.hari}</td>
-        <td><span class="badge ${st.badge}">${st.label}</span></td>
-        <td style="font-size:.82rem">${ket}</td>
+        <td data-label="Tanggal">${d.tanggal}</td>
+        <td data-label="Hari">${d.hari}</td>
+        <td data-label="Status"><span class="badge ${st.badge}">${st.label}</span></td>
+        <td data-label="Keterangan" style="font-size:.82rem">${ket}</td>
       </tr>`;
     }).join('');
   } catch(e) {
@@ -5249,12 +5291,12 @@ async function loadKehadiran() {
            </div>`
         : `<button class="btn btn-warning btn-xs" onclick="openModalKeterangan('${s.id}','${esc(s.nama)}','${s.kelas}','','')">📝 Input</button>`;
       return `<tr>
-        <td>${i + 1}</td>
-        <td><div style="font-weight:600">${esc(s.nama)}</div></td>
-        <td><span class="badge badge-primary">${s.kelas}</span></td>
-        <td>${statusBadge}</td>
-        <td>${ketText}</td>
-        <td>${aksiBtn}</td>
+        <td data-label="No">${i + 1}</td>
+        <td data-label="Nama"><div style="font-weight:600">${esc(s.nama)}</div></td>
+        <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
+        <td data-label="Status">${statusBadge}</td>
+        <td data-label="Keterangan">${ketText}</td>
+        <td data-label="Aksi">${aksiBtn}</td>
       </tr>`;
     }).join('');
   }
@@ -5265,12 +5307,12 @@ async function loadKehadiran() {
     hadirBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada siswa yang hadir</td></tr>';
   } else {
     hadirBody.innerHTML = hadir.map((s, i) => `<tr>
-      <td>${i + 1}</td>
-      <td><div style="font-weight:600">${esc(s.nama)}</div></td>
-      <td><span class="badge badge-primary">${s.kelas}</span></td>
-      <td>${s.jamDatang || '-'}</td>
-      <td><span class="badge ${s.statusDatang === 'Hadir' ? 'badge-success' : 'badge-warning'}">${s.statusDatang}</span></td>
-      <td>${s.jamPulang || '-'}</td>
+      <td data-label="No">${i + 1}</td>
+      <td data-label="Nama"><div style="font-weight:600">${esc(s.nama)}</div></td>
+      <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
+      <td data-label="Jam Datang">${s.jamDatang || '-'}</td>
+      <td data-label="Status"><span class="badge ${s.statusDatang === 'Hadir' ? 'badge-success' : 'badge-warning'}">${s.statusDatang}</span></td>
+      <td data-label="Jam Pulang">${s.jamPulang || '-'}</td>
     </tr>`).join('');
   }
 }
@@ -6232,10 +6274,10 @@ async function loadRekapMengajar() {
     // catatan sama sekali) -- kalau sudah Hadir/Telat/Izin/Sakit tidak perlu
     // diubah lagi dari sini.
     var aksi = r.status === 'Alpa' ? '<button class="btn btn-outline btn-sm" onclick="openModalKeteranganMengajar(' + i + ')">📝 Izin/Sakit</button>' : '-';
-    return '<tr><td>' + r.tanggal + '</td><td>' + r.hari + '</td><td><span class="badge badge-primary">' + esc(r.kelas) + '</span></td><td>' + esc(r.mapel) + '</td><td>Ke-' + r.jamKeMulai + (r.jamKeSelesai!==r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '') + '</td>'
-      + '<td><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span></td>'
-      + '<td>' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' : '-') + '</td>'
-      + '<td>' + aksi + '</td></tr>';
+    return '<tr><td data-label="Tanggal">' + r.tanggal + '</td><td data-label="Hari">' + r.hari + '</td><td data-label="Kelas"><span class="badge badge-primary">' + esc(r.kelas) + '</span></td><td data-label="Mapel">' + esc(r.mapel) + '</td><td data-label="Jam Ke">Ke-' + r.jamKeMulai + (r.jamKeSelesai!==r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '') + '</td>'
+      + '<td data-label="Status"><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span></td>'
+      + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' : '-') + '</td>'
+      + '<td data-label="Aksi">' + aksi + '</td></tr>';
   }).join('');
 }
 

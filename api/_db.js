@@ -557,10 +557,17 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
     .select('id_guru')
     .eq('tanggal', today);
 
-  if (sesiHariIni && sesiHariIni.length > 0) {
+  // PERBAIKAN: dulu di sini dicek "apakah ADA sesi piket hari ini?" (>0),
+  // jadi begitu 1 dari beberapa guru piket terjadwal datang, slot guru
+  // LAIN yang belum datang ikut tertutup untuk pengganti -- padahal
+  // slotnya sendiri masih kosong. Sekarang dibandingkan ke JUMLAH yang
+  // dijadwalkan (idTerjadwal.length), supaya sekolah dengan >1 guru piket
+  // tetap membuka slot pengganti untuk siapa pun yang belum tercatat,
+  // sampai semua slot terjadwal terisi.
+  if (sesiHariIni && sesiHariIni.length >= idTerjadwal.length) {
     return {
       boleh: false,
-      message: 'Guru piket hari ini sudah tercatat. Slot pengganti tidak dibuka lagi.'
+      message: 'Piket hari ini sudah lengkap, semua guru piket sudah tercatat.'
     };
   }
 

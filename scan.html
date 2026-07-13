@@ -3154,6 +3154,9 @@ async function checkStatus() {
         const guruTerakhir = r.guruPiket[r.guruPiket.length - 1];
         simpanGuruOffline(guruTerakhir.nama_guru, guruTerakhir.id_guru, guruTerakhir.jam_scan);
       }
+      // BARU: cache jadwal piket hari ini, dipakai absenPiketOffline() untuk
+      // peringatan dini kalau nanti koneksi putus -- lihat simpanJadwalPiketCache().
+      simpanJadwalPiketCache(r);
     }
     // ─────────────────────────────────────────────────────────────
 
@@ -3947,6 +3950,27 @@ function tampilkanKonfirmasiPiket(result, rawData) {
   document.getElementById('modalKonfirmasiPiket').style.display = 'flex';
 }
 
+// BARU: versi OFFLINE dari modal konfirmasi pengganti di atas. Dipicu dari
+// absenPiketOffline() kalau cache jadwal_piket lokal bilang guru yang scan
+// BUKAN piket terjadwal hari ini. Tidak ada request ke server sama sekali
+// di sini -- murni tanya di layar, jawabannya (Ya/Tidak) ikut disimpan
+// bersama data offline, dan DICEK ULANG server (cekIzinPiket) saat sync
+// nanti -- lihat simpanPiketKeAntrianOffline() & konfirmasiPiketOffline di
+// api/sync.js.
+function tampilkanKonfirmasiPiketOffline(identifier, tanggal, jam, hari, namaTerjadwalArr) {
+  pauseScanBerat();
+  const teksNama = (namaTerjadwalArr && namaTerjadwalArr.length)
+    ? namaTerjadwalArr.join(' / ')
+    : 'guru piket terjadwal';
+  _pendingKonfirmasiPiket = { offline: true, identifier, tanggal, jam, hari };
+  document.getElementById('konfirmasiPiketText').textContent =
+    `📴 Sedang offline. Anda bukan guru piket terjadwal hari ini (jadwalnya: ${teksNama}). ` +
+    `Simpan sebagai piket PENGGANTI? Ini akan dicek ulang oleh server saat sinkronisasi -- ` +
+    `bisa saja tetap ditolak nanti kalau ternyata slotnya sudah terisi guru lain duluan.`;
+  document.getElementById('btnBatalKonfirmasiPiket').textContent = 'Batal';
+  document.getElementById('modalKonfirmasiPiket').style.display = 'flex';
+}
+
 function tutupModalKonfirmasiPiket() {
   document.getElementById('modalKonfirmasiPiket').style.display = 'none';
   _pendingKonfirmasiPiket = null;
@@ -3956,14 +3980,28 @@ function tutupModalKonfirmasiPiket() {
 }
 
 function batalKonfirmasiPiket() {
-  toast('Dibatalkan — tidak menggantikan guru piket.');
+  const pendingOffline = _pendingKonfirmasiPiket && _pendingKonfirmasiPiket.offline;
+  toast(pendingOffline ? 'Dibatalkan — kartu tidak disimpan.' : 'Dibatalkan — tidak menggantikan guru piket.');
   tutupModalKonfirmasiPiket();
 }
 
 async function yaKonfirmasiPiket() {
   if (!_pendingKonfirmasiPiket) return tutupModalKonfirmasiPiket();
-  const { identifier } = _pendingKonfirmasiPiket;
+  const pending = _pendingKonfirmasiPiket;
   document.getElementById('modalKonfirmasiPiket').style.display = 'none';
+  _pendingKonfirmasiPiket = null;
+
+  // BARU: kalau modal ini dipicu offline (lihat tampilkanKonfirmasiPiketOffline
+  // di atas), tidak ada server untuk diajak bicara -- simpan langsung ke
+  // antrian lokal dengan flag konfirmasiPiketOffline:true. Server yang akan
+  // cek ulang kuota & memutuskan final saat sinkronisasi nanti (lihat
+  // cekIzinPiket + processSingleScan di api/sync.js), bukan diputuskan di sini.
+  if (pending.offline) {
+    await simpanPiketKeAntrianOffline(pending.identifier, pending.tanggal, pending.jam, pending.hari, true);
+    return;
+  }
+
+  const { identifier } = pending;
   try {
     const result = await api('scan', 'scanKartu', {
       identifier, mode: scanMode, konfirmasiPiket: true
@@ -3973,7 +4011,6 @@ async function yaKonfirmasiPiket() {
     toast('❌ Gagal konfirmasi. Cek koneksi internet lalu scan ulang.');
     resumeScanSetelahJeda();
   }
-  _pendingKonfirmasiPiket = null;
 }
 
 // ── ABSEN PIKET OFFLINE (kartu guru discan di kamera utama, offline) ──
@@ -3991,12 +4028,42 @@ async function absenPiketOffline(identifier, tanggal, jam, hari) {
     resumeScanSetelahJeda();
     return;
   }
+
+  // BARU: cek cache jadwal piket (diisi checkStatus() saat terakhir online,
+  // lihat simpanJadwalPiketCache()). Kalau cache-nya ADA, untuk HARI INI
+  // (bukan sisa cache basi dari hari lain), dan ada guru terjadwal (>0),
+  // dan guru yang scan TIDAK ada di daftar itu -> ini kemungkinan besar
+  // pengganti, tanya dulu di layar SEBELUM disimpan (lihat
+  // tampilkanKonfirmasiPiketOffline). Kalau cache tidak ada/basi, tidak
+  // bisa dipastikan apa-apa -- lanjutkan seperti biasa tanpa modal (fail
+  // open), keputusan final tetap ada di server saat sync seperti sebelumnya.
+  const cache = getCachedJadwalPiket();
+  if (cache && cache.tanggal === tanggal && cache.idTerjadwal.length > 0 && !cache.idTerjadwal.includes(identifier)) {
+    tampilkanKonfirmasiPiketOffline(identifier, tanggal, jam, hari, cache.namaTerjadwal);
+    return;
+  }
+
+  await simpanPiketKeAntrianOffline(identifier, tanggal, jam, hari, false);
+}
+
+// BARU: logika "simpan ke antrian" yang sebelumnya ada langsung di dalam
+// absenPiketOffline() dipindah ke sini, supaya dipakai bersama oleh jalur
+// normal (guru terjadwal / cache tidak ada) DAN jalur setelah guru
+// menekan "Ya" di modal konfirmasi pengganti offline (yaKonfirmasiPiket()).
+// konfirmasiPiketOffline:true ikut dikirim ke server saat sync -- lihat
+// penanganannya di processSingleScan() / api/sync.js.
+async function simpanPiketKeAntrianOffline(identifier, tanggal, jam, hari, konfirmasiPiketOffline) {
   simpanGuruOffline('(menunggu sync)', identifier, jam);
-  const scanData = { identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru' };
+  const scanData = {
+    identifier, mode: scanMode, tanggal, jam, hari, namaCache: identifier, tipe: 'guru',
+    konfirmasiPiketOffline
+  };
   try {
     await simpanKeAntrian(scanData);
-    showFlash('guru','👤','Guru Tercatat Offline (Piket)');
-    toast('📴 Guru piket tersimpan offline — akan dikirim saat internet aktif');
+    showFlash('guru','👤', konfirmasiPiketOffline ? 'Piket Pengganti Tercatat Offline' : 'Guru Tercatat Offline (Piket)');
+    toast(konfirmasiPiketOffline
+      ? '📴 Tersimpan sebagai piket PENGGANTI (offline) — status final dicek ulang saat sinkronisasi'
+      : '📴 Guru piket tersimpan offline — akan dikirim saat internet aktif');
     updateOfflineBadge();
   } catch (e) {
     hapusGuruOffline();
@@ -4698,6 +4765,35 @@ function getGuruOffline() {
 
 function hapusGuruOffline() {
   localStorage.removeItem(GURU_OFFLINE_KEY);
+}
+
+// ── CACHE JADWAL PIKET HARI INI (untuk peringatan dini saat offline) ──
+// Diisi checkStatus() tiap kali berhasil online (lihat pemanggilan
+// simpanJadwalPiketCache(r) di sana). PENTING: ini CUMA cache bantu UX di
+// device -- keputusan final boleh/tidaknya seorang guru jadi piket/
+// pengganti TETAP ditentukan server oleh cekIzinPiket() (api/_db.js) saat
+// sync, bukan oleh cache ini. Cache bisa saja basi kalau device lama tidak
+// online; itu ditangani dengan mengecek field `tanggal`-nya cocok hari ini
+// sebelum dipakai (lihat pemanggilnya di absenPiketOffline()).
+const JADWAL_PIKET_CACHE_KEY = 'siabsen_jadwal_piket_cache';
+
+function simpanJadwalPiketCache(r) {
+  try {
+    localStorage.setItem(JADWAL_PIKET_CACHE_KEY, JSON.stringify({
+      tanggal: r.tanggal,
+      idTerjadwal: (r.jadwalPiketHariIni || []).map(j => j.id_guru),
+      namaTerjadwal: (r.jadwalPiketHariIni || []).map(j => j.nama_guru)
+    }));
+  } catch (e) { /* localStorage penuh/nonaktif -- abaikan, cache ini opsional */ }
+}
+
+function getCachedJadwalPiket() {
+  try {
+    const raw = localStorage.getItem(JADWAL_PIKET_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 // ── AMBIL SNAPSHOT LOG LOKAL (untuk checklist "Tanpa Kartu" offline) ──

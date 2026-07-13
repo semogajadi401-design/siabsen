@@ -194,7 +194,7 @@ async function batchSync({ items }) {
 //   3. Tidak ada pengecekan hari libur & periode semester aktif, sehingga
 //      scan yang terjadi offline saat libur/luar semester tetap bisa masuk
 //      ke database walau scan online untuk kasus yang sama akan ditolak.
-async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru, metode, waktuSimpan }) {
+async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGuru, idGuru, metode, waktuSimpan, konfirmasiPiketOffline }) {
   // metodeFinal: item "scan QR" tidak mengirim field metode sama sekali
   // (default 'QR-OFFLINE' seperti sebelumnya), tapi item dari fitur "Input
   // Tanpa Kartu" offline (lihat simpanTanpaKartuOffline() di scan.html)
@@ -277,17 +277,29 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     // kondisi jadwal yang berlaku persis saat scan itu terjadi.
     const izin = await cekIzinPiket({ guruId: guru.id, guruRole: guru.role, hari, today: tanggal, jam });
 
+    let pengganti = false;
+
     if (!izin.boleh) {
-      // Kasus "perluKonfirmasi" (guru pengganti yang butuh klik "Ya/Tidak")
-      // SENGAJA TIDAK diotomatis-terima di jalur sync. Konfirmasi itu
-      // memang ada untuk mencegah salah scan/dua device offline yang
-      // sama-sama merekam guru pengganti berbeda lolos berdua. Guru yang
-      // benar-benar ingin jadi pengganti harus scan ulang saat online
-      // supaya bisa menekan tombol konfirmasinya secara real-time.
-      const pesan = izin.perluKonfirmasi
-        ? `${izin.message} (Konfirmasi ini tidak bisa dilakukan lewat sinkronisasi offline — scan ulang kartu guru saat sudah online.)`
-        : izin.message;
-      return { success: false, permanent: true, tipe: 'guru', message: pesan };
+      // Kasus "perluKonfirmasi" (guru pengganti yang butuh klik "Ya/Tidak"):
+      // SEBELUMNYA selalu ditolak di jalur sync, guru diminta scan ulang
+      // online -- ini yang membuat siswa nyangkut/hilang kalau device baru
+      // online lagi setelah sekolah sudah tutup (tidak ada lagi yang bisa
+      // scan ulang). SEKARANG: kalau guru sudah menekan "Ya" saat offline
+      // (dicatat scan.html sebagai konfirmasiPiketOffline:true, berdasarkan
+      // cache jadwal_piket lokal), konfirmasi itu dipercaya -- TAPI
+      // kuotanya baru saja dicek ULANG oleh cekIzinPiket() di atas terhadap
+      // data sesi_piket SERVER SAAT INI (bukan cache device yang bisa
+      // basi), jadi tetap tidak mungkin 2 device offline berbeda
+      // sama-sama lolos untuk slot yang sama -- siapa yang sync duluan
+      // yang menang, yang belakangan otomatis ditolak di bawah ini.
+      if (izin.perluKonfirmasi && konfirmasiPiketOffline) {
+        pengganti = true;
+      } else {
+        const pesan = izin.perluKonfirmasi
+          ? `${izin.message} (Konfirmasi ini tidak bisa dilakukan lewat sinkronisasi offline — scan ulang kartu guru saat sudah online.)`
+          : izin.message;
+        return { success: false, permanent: true, tipe: 'guru', message: pesan };
+      }
     }
 
     const { data: sudahScan } = await supabase
@@ -337,7 +349,9 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
 
     return {
       success: true, tipe: 'guru',
-      message: `${guru.nama} tercatat sebagai guru piket (${jam})`
+      message: pengganti
+        ? `${guru.nama} tercatat sebagai guru piket PENGGANTI (dikonfirmasi offline, ${jam})`
+        : `${guru.nama} tercatat sebagai guru piket (${jam})`
     };
   }
 

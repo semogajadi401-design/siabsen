@@ -261,7 +261,8 @@ async function dashboard() {
     { data: absenHariIni },
     { data: ketHariIni },
     jamSetting,
-    piket
+    piket,
+    { data: siswaKelas }
   ] = await Promise.all([
     supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
     supabase.from('guru').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
@@ -270,8 +271,24 @@ async function dashboard() {
       .eq('tanggal', today),
     supabase.from('keterangan_absensi').select('id_siswa, status').eq('tanggal', today),
     getJamSetting(),
-    supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari)
+    supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari),
+    // BARU: jumlah siswa per kelas, dipakai kartu "Jumlah Siswa per Kelas"
+    // di dashboard (admin & kepsek) dan halaman beranda guru. Cuma select
+    // kolom kelas siswa Aktif lalu di-group di JS -- seringan
+    // getKelasList() di api/siswa.js, supaya tidak menambah beban berarti
+    // ke endpoint dashboard yang publik/sering dipanggil.
+    supabase.from('siswa').select('kelas').eq('status', 'Aktif')
   ]);
+
+  const jumlahPerKelas = {};
+  (siswaKelas || []).forEach(s => {
+    const k = (s.kelas || '').trim();
+    if (!k) return;
+    jumlahPerKelas[k] = (jumlahPerKelas[k] || 0) + 1;
+  });
+  const siswaPerKelas = Object.keys(jumlahPerKelas)
+    .sort((a, b) => a.localeCompare(b, 'id'))
+    .map(k => ({ kelas: k, jumlah: jumlahPerKelas[k] }));
 
   const hadirHariIni     = (absenHariIni || []).filter(a =>
     a.status_datang === 'Hadir' || a.status_datang === 'Terlambat'
@@ -329,7 +346,8 @@ async function dashboard() {
         namaGuru: p.nama_guru, jabatan: p.jabatan
       })),
       hariIni: hari,
-      absenTerkini
+      absenTerkini,
+      siswaPerKelas
     }
   };
 }

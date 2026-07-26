@@ -1662,6 +1662,25 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       </button>
     </div>
 
+    <!-- ══════ OVERLAY: RIWAYAT / DASHBOARD KEPSEK (dibuka via QR) ══════
+         PENTING: ini dibuka sebagai IFRAME DI DALAM scan.html, BUKAN
+         window.location.href atau window.open(). Alasannya:
+         - window.location.href = pindah halaman penuh -> scan.html unload
+           total (kamera mati, model face-api hilang) -> pas ditutup harus
+           reinit dari nol lagi (splash lama).
+         - window.open() (tab baru) SEHARUSNYA aman, tapi ternyata di
+           banyak tablet/kios browser open() dianggap popup KARENA
+           dipanggil dari loop scan kamera (bukan klik user langsung) ->
+           diblokir diam-diam, jadi tidak jalan.
+         Solusi yang benar-benar tidak butuh reload sama sekali: tampilkan
+         halaman riwayat/monitor sebagai iframe full-screen DI ATAS
+         scan.html. scan.html sendiri tidak pernah unload -- kamera & model
+         tetap hidup di baliknya. Menutup overlay ini cuma display:none +
+         kosongkan src iframe -> instan, tanpa reinit apa pun. -->
+    <div id="overlayEksternal" style="display:none;position:fixed;inset:0;z-index:100000;background:#000">
+      <iframe id="frameEksternal" title="Halaman eksternal" style="width:100%;height:100%;border:0;background:#fff"></iframe>
+    </div>
+
     <!-- ══════ MODAL: INPUT TANPA KARTU ══════ -->
     <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
       <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:420px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
@@ -3491,6 +3510,24 @@ function resumeScanSetelahJeda(ms = WARN_COOLDOWN_MS) {
   }, ms);
 }
 
+// ══════ Overlay iframe untuk QR riwayat / dashboard kepsek ══════
+// Dipanggil dari bukaKartuRiwayat() / bukaKartuMonitor(). Halaman
+// riwayat.html / monitor.html sendiri yang memanggil tutupOverlayEksternal()
+// ini lewat window.parent saat tombol "Tutup" dipencet (lihat
+// tutupDanKembaliKeScan() di riwayat.html & monitor.html) -- aman karena
+// satu origin (sama-sama domain vercel app ini).
+function bukaOverlayEksternal(url) {
+  document.getElementById('frameEksternal').src = url;
+  document.getElementById('overlayEksternal').style.display = 'block';
+}
+function tutupOverlayEksternal() {
+  document.getElementById('overlayEksternal').style.display = 'none';
+  // Kosongkan src supaya halaman di dalam iframe (dan koneksi/timer-nya)
+  // benar-benar berhenti, bukan cuma disembunyikan.
+  document.getElementById('frameEksternal').src = 'about:blank';
+  resumeScanSetelahJeda();
+}
+
 function scanLoop() {
   if (!scanActive) return;
   if (_scanBeratPaused) { scanAnimFrame = requestAnimationFrame(scanLoop); return; }
@@ -3681,7 +3718,9 @@ function bukaKartuMonitor(data) {
   showFlash('guru', '👑', 'Membuka dashboard...');
   toast('👑 Ini QR dashboard Kepala Sekolah — membuka halamannya...');
   scanCooldown = false;
-  setTimeout(() => { window.location.href = data.trim(); }, 600);
+  // Sama seperti bukaKartuRiwayat() -- overlay di dalam halaman, bukan
+  // tab baru / pindah halaman.
+  setTimeout(() => { bukaOverlayEksternal(data.trim()); }, 600);
 }
 
 function bukaKartuRiwayat(data) {
@@ -3703,7 +3742,10 @@ function bukaKartuRiwayat(data) {
   showFlash('guru', '📖', 'Membuka riwayat...');
   toast('📖 Ini QR riwayat kehadiran — membuka halamannya...');
   scanCooldown = false;
-  setTimeout(() => { window.location.href = data.trim(); }, 600);
+  // Tampilkan sebagai overlay DI DALAM scan.html (bukan tab baru / pindah
+  // halaman) -- lihat catatan panjang di overlayEksternal soal kenapa
+  // window.open() tidak bisa diandalkan di sini.
+  setTimeout(() => { bukaOverlayEksternal(data.trim()); }, 600);
 }
 
 async function processQR(data) {

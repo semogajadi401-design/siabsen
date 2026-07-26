@@ -2163,6 +2163,54 @@ document.addEventListener('keydown', function(e) {
     }
   }
 }, true);
+
+// ── TEKAN & TAHAN DI BINGKAI KAMERA (jalur admin khusus HP) ──────────
+// Kode rahasia ketikan di atas mengandalkan keyboard FISIK yang
+// mengirim event keydown ke document -- di laptop ini jalan normal,
+// tapi di HP keyboard virtual sering tidak mengirim keydown per-huruf
+// ke document saat tidak ada input manapun yang fokus, jadi kode
+// rahasia itu TIDAK PERNAH ke-trigger di HP. Sebagai jalur pengganti
+// khusus layar sentuh: tekan & tahan di dalam bingkai kamera
+// (.scanner-visual) selama HOLD_ADMIN_MS otomatis diarahkan ke halaman
+// login admin ('/'), sama seperti hasil kode rahasia ketikan.
+// Sengaja pakai syarat yang SAMA (_kodeRahasiaAdmin harus sudah diisi
+// admin lewat menu Pengaturan Jam) supaya konsisten: kalau admin belum
+// mengatur kode rahasia sama sekali, TIDAK ada jalur rahasia baru yang
+// otomatis muncul di HP.
+(function() {
+  const HOLD_ADMIN_MS = 3000;
+  let holdTimer = null;
+  let toastTimer = null;
+
+  function batalTahanAdmin() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+  }
+
+  function mulaiTahanAdmin(e) {
+    if (!_kodeRahasiaAdmin) return; // fitur nonaktif kalau admin belum atur kode
+    // Jangan trigger kalau yang disentuh tombol (mis. ganti kamera).
+    if (e.target.closest && e.target.closest('button')) return;
+    batalTahanAdmin();
+    // Sedikit feedback halus di detik ke-2 supaya pengguna yang salah
+    // sentuh tahu ada sesuatu terjadi (bukan diam-diam pindah halaman).
+    toastTimer = setTimeout(function() {
+      toast('🔑 Tahan sebentar lagi untuk masuk halaman login admin…', 1200);
+    }, 2000);
+    holdTimer = setTimeout(function() {
+      batalTahanAdmin();
+      window.location.href = '/';
+    }, HOLD_ADMIN_MS);
+  }
+
+  const target = document.querySelector('.scanner-visual');
+  if (!target) return;
+  target.addEventListener('pointerdown', mulaiTahanAdmin);
+  target.addEventListener('pointerup', batalTahanAdmin);
+  target.addEventListener('pointerleave', batalTahanAdmin);
+  target.addEventListener('pointercancel', batalTahanAdmin);
+})();
+
 const scannedHistory = {};
 const PER_COOLDOWN   = 30000;
 

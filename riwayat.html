@@ -286,6 +286,20 @@ function tombolTutupHTML() {
   return `<button class="btn-close" onclick="tutupDanKembaliKeScan()">✖ Tutup dan kembali ke halaman scan</button>`;
 }
 function tutupDanKembaliKeScan() {
+  // PERBAIKAN: halaman ini sekarang dibuka sebagai IFRAME di dalam
+  // scan.html (lihat overlayEksternal di scan.html), bukan tab/halaman
+  // terpisah. Jadi cukup panggil fungsi tutup overlay milik parent --
+  // scan.html tidak pernah unload, tidak perlu reinit kamera/model sama
+  // sekali, langsung kembali ke tampilan scan yang sudah siap.
+  // window.parent aman diakses langsung (bukan lewat postMessage) karena
+  // satu origin dengan scan.html.
+  if (window.parent && window.parent !== window && typeof window.parent.tutupOverlayEksternal === 'function') {
+    window.parent.tutupOverlayEksternal();
+    return;
+  }
+  // Fallback: kalau halaman ini dibuka LANGSUNG (bukan lewat overlay
+  // kios scan.html -- misal QR discan pakai kamera bawaan HP), tidak ada
+  // parent untuk diajak "tutup", jadi tetap pindah ke /scan seperti biasa.
   window.location.href = window.location.origin + '/scan';
 }
 

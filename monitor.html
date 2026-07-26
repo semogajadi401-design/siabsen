@@ -162,6 +162,13 @@ function tombolTutupHTML() {
   return `<button class="btn-close" onclick="tutupDanKembaliKeScan()">✖ Tutup dan kembali ke halaman scan</button>`;
 }
 function tutupDanKembaliKeScan() {
+  // Sama seperti riwayat.html: halaman ini dibuka sebagai iframe di
+  // dalam scan.html (overlayEksternal), jadi cukup panggil fungsi tutup
+  // milik parent -- tidak ada reload/reinit sama sekali.
+  if (window.parent && window.parent !== window && typeof window.parent.tutupOverlayEksternal === 'function') {
+    window.parent.tutupOverlayEksternal();
+    return;
+  }
   window.location.href = window.location.origin + '/scan';
 }
 

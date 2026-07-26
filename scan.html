@@ -731,6 +731,76 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .stat-num{font-family:var(--font-display);font-size:1.45rem;font-weight:800;line-height:1}
 .stat-label{font-size:.62rem;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
 
+/* ── CHART KEHADIRAN (BARU) ──────────────────────────────────────────
+   Widget diagram persentase kehadiran hari ini (Datang/Pulang/Izin/
+   Sakit/Belum + rincian per kelas). Elemennya HANYA ADA SATU di DOM
+   (#chartKehadiranWidget) -- dipindah-pindah via JS antara dua "slot"
+   (#chartAnchorDesktop di side-rail kiri, bawah tombol Cek Aktivitas
+   Guru; #chartAnchorMobile di log-panel, bawah baris statistik) sesuai
+   lebar layar. Lihat posisikanChartKehadiran() di script bawah.
+   - Di layar lebar (>900px): ring + legend + rincian per kelas semua
+     langsung tampil (area sidebar cukup luas).
+   - Di HP (<=900px): HANYA ring + judul singkat yang tampil (ringkas,
+     tidak makan tempat) -- legend & rincian per kelas disembunyikan
+     lewat CSS (.ck-legend/.ck-pulang-bar/.ck-detail-kelas) dan baru
+     ditampilkan di modal #modalChartKehadiran saat widget di-tap. */
+.chart-kehadiran{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;padding:14px;
+  box-shadow:var(--shadow-soft);
+  display:flex;flex-direction:column;gap:10px;
+}
+.ck-header{display:flex;align-items:center;gap:10px;cursor:pointer;background:none;border:none;width:100%;text-align:left;font-family:inherit;padding:0}
+.ck-ring-wrap{flex-shrink:0;line-height:0}
+.ck-ring-wrap svg{display:block}
+.ck-ring-pct{
+  position:relative;
+}
+.ck-header-text{flex:1;min-width:0}
+.ck-title{font-size:.8rem;font-weight:800;color:var(--text)}
+.ck-sub{font-size:.72rem;color:var(--text-muted);margin-top:2px;font-weight:600}
+.ck-sub b{color:var(--primary-dark)}
+.ck-chevron{font-size:1.3rem;color:var(--text-muted);flex-shrink:0}
+@media(min-width:901px){
+  .ck-chevron{display:none}
+  .ck-header{cursor:default}
+}
+
+.ck-legend{display:none;flex-wrap:wrap;gap:6px 12px}
+.ck-legend-item{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:var(--text-muted)}
+.ck-legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ck-legend-item b{color:var(--text);font-weight:800}
+
+.ck-pulang-bar{display:none}
+.ck-pulang-row{display:flex;align-items:center;justify-content:space-between;font-size:.72rem;font-weight:700;color:var(--text-muted);margin-bottom:4px}
+.ck-pulang-row b{color:#0D9488}
+.ck-pulang-track{height:6px;border-radius:4px;background:#EEF2FA;overflow:hidden}
+.ck-pulang-fill{height:100%;background:linear-gradient(90deg,#5EEAD4,#0D9488);border-radius:4px;transition:width .3s}
+
+.ck-detail-kelas{display:none;flex-direction:column;gap:10px;max-height:260px;overflow-y:auto;padding-top:2px;border-top:1px dashed var(--border);margin-top:2px}
+.ck-detail-kelas::-webkit-scrollbar{width:4px}
+.ck-detail-kelas::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.ck-kelas-row{display:flex;flex-direction:column;gap:4px}
+.ck-kelas-top{display:flex;align-items:center;justify-content:space-between;font-size:.74rem}
+.ck-kelas-label{font-weight:800;color:var(--text)}
+.ck-kelas-pct{font-weight:700;color:var(--primary-dark)}
+.ck-kelas-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:#EEF2FA}
+.ck-kelas-bar>div{height:100%}
+.ck-kelas-detail{font-size:.66rem;color:var(--text-muted);font-weight:600;line-height:1.4}
+
+@media(min-width:901px){
+  .ck-legend{display:flex}
+  .ck-pulang-bar{display:block}
+  .ck-detail-kelas{display:flex}
+}
+@media(max-width:900px){
+  /* Di HP widget-nya dipindah ke bawah baris statistik (lihat JS) --
+     jangan sampai ambil area sebesar di desktop, cukup ring kecil +
+     judul saja, sisanya ada di modal saat di-tap. */
+  .chart-kehadiran{padding:12px}
+}
+
 /* Filter kelas */
 .filter-row{
   display:flex;align-items:center;gap:8px;flex-shrink:0;
@@ -1498,6 +1568,12 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       </button>
     </div>
 
+    <!-- Slot desktop untuk widget diagram kehadiran (BARU) -- diisi via JS
+         oleh posisikanChartKehadiran(), lihat catatan lengkap di CSS
+         .chart-kehadiran. Di layar >900px widget dipindah ke sini,
+         tampil penuh (ring + legend + rincian per kelas) langsung. -->
+    <div id="chartAnchorDesktop"></div>
+
   </div>
 
   <!-- ══════ MODAL: AKTIVITAS GURU HARI INI ══════ -->
@@ -1547,6 +1623,32 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: DETAIL DIAGRAM KEHADIRAN (BARU) ══════
+       Dibuka lewat tap widget ringkas #chartKehadiranWidget (khusus HP,
+       lihat CSS .ck-chevron/.ck-header). Isinya rincian lengkap yang di
+       desktop sudah langsung kelihatan di sidebar (ring besar, legend,
+       + rincian per kelas) -- lihat renderChartKehadiran() di script. -->
+  <div id="modalChartKehadiran" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:440px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-weight:800;font-size:.98rem">📊 Kehadiran Hari Ini</div>
+        <button onclick="tutupModalChartKehadiran()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="ckmRingWrap" style="flex-shrink:0;line-height:0"></div>
+          <div style="flex:1;min-width:0">
+            <div id="ckmSubText" style="font-size:.82rem;font-weight:700;color:var(--text-muted)">Memuat data...</div>
+          </div>
+        </div>
+        <div class="ck-legend" id="ckmLegend" style="display:flex"></div>
+        <div class="ck-pulang-bar" id="ckmPulangBar" style="display:block"></div>
+        <div style="font-weight:800;font-size:.82rem;color:var(--text);border-top:1px dashed var(--border);padding-top:10px">🏫 Rincian per Kelas</div>
+        <div class="ck-detail-kelas" id="ckmKelasList" style="display:flex;max-height:none;border-top:none;margin-top:0;padding-top:0"></div>
+      </div>
     </div>
   </div>
 
@@ -1750,12 +1852,36 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       </div>
     </div>
 
+    <!-- Slot HP untuk widget diagram kehadiran (BARU) -- diisi via JS oleh
+         posisikanChartKehadiran(). Di layar <=900px widget dipindah ke
+         sini, persis di bawah baris statistik (Hadir/Izin-Sakit/Belum/
+         Total), tapi tampil ringkas saja (lihat CSS .chart-kehadiran). -->
+    <div id="chartAnchorMobile"></div>
+
+    <!-- Widget diagram kehadiran (BARU) -- satu-satunya instance di DOM,
+         lokasinya dipindah antara #chartAnchorDesktop / #chartAnchorMobile
+         sesuai lebar layar. Isinya diisi oleh renderChartKehadiran() di
+         script bawah. -->
+    <div id="chartKehadiranWidget" class="chart-kehadiran">
+      <button type="button" class="ck-header" id="ckHeader" onclick="bukaModalChartKehadiran()">
+        <div class="ck-ring-wrap" id="ckRingWrap"></div>
+        <div class="ck-header-text">
+          <div class="ck-title">📊 Kehadiran Hari Ini</div>
+          <div class="ck-sub" id="ckSubText">Memuat data...</div>
+        </div>
+        <div class="ck-chevron">›</div>
+      </button>
+      <div class="ck-legend" id="ckLegend"></div>
+      <div class="ck-pulang-bar" id="ckPulangBar"></div>
+      <div class="ck-detail-kelas" id="ckKelasList"></div>
+    </div>
+
     <!-- Filter -->
     <div class="filter-row">
       <select id="filterKelas" onchange="loadLog()">
         <option value="">Semua Kelas</option>
       </select>
-      <button class="btn-refresh" onclick="loadLog()">🔄</button>
+      <button class="btn-refresh" onclick="loadLog();loadChartKehadiran()">🔄</button>
     </div>
 
     <!-- Tabs -->
@@ -3126,6 +3252,7 @@ async function init() {
   tandaiSplashAktif('kehadiran');
   await checkStatus();
   if (isOnline) await loadLog();
+  if (isOnline) loadChartKehadiran(); // diagram kehadiran (BARU) -- tidak perlu ditunggu (await), tidak menghalangi splash
   tandaiSplashSelesai('kehadiran');
 
   // Update badge & tawarkan sync untuk data offline sisa dari sesi
@@ -3137,6 +3264,7 @@ async function init() {
 
   // Auto refresh — hanya jika online
   setInterval(() => { if (isOnline) loadLog(); }, REFRESH_LOG_MS);
+  setInterval(() => { if (isOnline) loadChartKehadiran(); }, REFRESH_LOG_MS); // diagram kehadiran (BARU)
   setInterval(() => { if (isOnline) checkStatus(); }, REFRESH_STATUS_MS);
 }
 
@@ -4728,6 +4856,227 @@ function renderLog() {
     }).join('');
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ── DIAGRAM KEHADIRAN HARI INI (BARU) ────────────────────────────
+// Widget ring donut + rincian per kelas, lihat catatan lengkap di CSS
+// .chart-kehadiran dan di markup #chartKehadiranWidget. Sengaja pakai
+// SATU permintaan tersendiri (BUKAN numpang hasil loadLog()) supaya
+// datanya SELALU utuh semua kelas, terlepas dropdown #filterKelas
+// sedang memfilter satu kelas tertentu untuk daftar di bawahnya.
+// ══════════════════════════════════════════════════════════════════
+const CK_WARNA = {
+  hadir: '#10B981',   // hijau -- sama seperti .stat-box.green
+  izin:  '#6366F1',   // indigo -- kelompok "izin" (dipisah dari sakit)
+  sakit: '#8B5CF6',   // ungu -- kelompok "sakit"
+  belum: '#D97706',   // oranye -- sama seperti .stat-box.orange
+  pulang:'#0D9488'    // teal -- sama seperti tombol Cek Aktivitas Guru
+};
+
+let _chartKehadiranData = null;
+let _loadChartInFlight  = false;
+
+async function loadChartKehadiran() {
+  if (_loadChartInFlight) return;
+  _loadChartInFlight = true;
+  try {
+    // kelas:'' sengaja SELALU kosong -- lihat catatan di atas fungsi ini.
+    const r = await api('scan', 'getLogHariIni', { kelas: '' });
+    if (!r.success) return;
+    _chartKehadiranData = agregasiChartKehadiran(r);
+    renderChartKehadiran(_chartKehadiranData);
+  } catch (e) {
+    // Diam-diam gagal (mis. offline) -- widget cukup menampilkan data
+    // terakhir yang berhasil dimuat, tidak perlu toast error tambahan
+    // (sudah ada indikator offline sendiri di bagian lain halaman).
+  } finally {
+    _loadChartInFlight = false;
+  }
+}
+
+// Ubah hasil mentah getLogHariIni (hadir[]/izinSakit[]/belumHadir[])
+// jadi ringkasan total + rincian per kelas yang siap dipakai untuk
+// menggambar ring & daftar kelas.
+function agregasiChartKehadiran(r) {
+  const kelasMap = {};
+  function getKelas(k) {
+    const key = k || '-';
+    if (!kelasMap[key]) kelasMap[key] = { kelas: key, total: 0, hadir: 0, pulang: 0, izin: 0, sakit: 0, belum: 0 };
+    return kelasMap[key];
+  }
+
+  (r.hadir || []).forEach(s => {
+    const k = getKelas(s.kelas);
+    k.total++; k.hadir++;
+    if (s.jamPulang) k.pulang++;
+  });
+  (r.izinSakit || []).forEach(s => {
+    const k = getKelas(s.kelas);
+    k.total++;
+    if (String(s.status || '').toLowerCase().indexOf('sakit') !== -1) k.sakit++;
+    else k.izin++;
+  });
+  (r.belumHadir || []).forEach(s => {
+    const k = getKelas(s.kelas);
+    k.total++; k.belum++;
+  });
+
+  const totalHadir  = (r.hadir || []).length;
+  const totalPulang = (r.hadir || []).filter(s => s.jamPulang).length;
+  const totalIzin   = (r.izinSakit || []).filter(s => String(s.status||'').toLowerCase().indexOf('sakit')===-1).length;
+  const totalSakit  = (r.izinSakit || []).filter(s => String(s.status||'').toLowerCase().indexOf('sakit')!==-1).length;
+  const totalBelum  = (r.belumHadir || []).length;
+  const total       = r.totalSiswa || (totalHadir + totalIzin + totalSakit + totalBelum) || 0;
+
+  const kelasList = Object.values(kelasMap).sort((a, b) => {
+    const na = parseFloat(a.kelas), nb = parseFloat(b.kelas);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+    return String(a.kelas).localeCompare(String(b.kelas));
+  });
+
+  return { total, totalHadir, totalPulang, totalIzin, totalSakit, totalBelum, kelasList };
+}
+
+// Ring donut SVG multi-segmen (Hadir/Izin/Sakit/Belum) -- tanpa library
+// eksternal, cukup beberapa <circle> dengan stroke-dasharray, supaya
+// tetap ringan & jalan offline seperti bagian lain halaman ini.
+function svgRingKehadiran(data, size) {
+  const stroke = Math.round(size * 0.13);
+  const r  = (size - stroke) / 2;
+  const c  = 2 * Math.PI * r;
+  const cx = size / 2, cy = size / 2;
+  const total = data.total || 1;
+  const segmen = [
+    { v: data.totalHadir, warna: CK_WARNA.hadir },
+    { v: data.totalIzin,  warna: CK_WARNA.izin  },
+    { v: data.totalSakit, warna: CK_WARNA.sakit },
+    { v: data.totalBelum, warna: CK_WARNA.belum }
+  ];
+  let offset = 0;
+  let circles = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#EEF2FA" stroke-width="${stroke}"/>`;
+  segmen.forEach(seg => {
+    if (!seg.v) return;
+    const frac = seg.v / total;
+    const len  = c * frac;
+    circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.warna}" stroke-width="${stroke}"
+      stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
+    offset += len;
+  });
+  const pct = total ? Math.round(data.totalHadir / total * 100) : 0;
+  const fontPct = Math.round(size * 0.22);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    ${circles}
+    <text x="${cx}" y="${cy + fontPct*0.32}" text-anchor="middle" font-size="${fontPct}" font-weight="800"
+      font-family="Poppins,Inter,sans-serif" fill="${CK_WARNA.hadir}">${pct}%</text>
+  </svg>`;
+}
+
+function ckLegendHTML(data) {
+  const item = (warna, label, jumlah) =>
+    `<div class="ck-legend-item"><span class="ck-legend-dot" style="background:${warna}"></span>${label} <b>${jumlah}</b></div>`;
+  return item(CK_WARNA.hadir, 'Datang', data.totalHadir)
+       + item(CK_WARNA.izin,  'Izin',   data.totalIzin)
+       + item(CK_WARNA.sakit, 'Sakit',  data.totalSakit)
+       + item(CK_WARNA.belum, 'Belum',  data.totalBelum);
+}
+
+function ckPulangBarHTML(data) {
+  const total = data.total || 1;
+  const pct = Math.round(data.totalPulang / total * 100);
+  return `<div class="ck-pulang-row"><span>🏠 Sudah Pulang</span><b>${data.totalPulang}/${total} (${pct}%)</b></div>
+    <div class="ck-pulang-track"><div class="ck-pulang-fill" style="width:${pct}%"></div></div>`;
+}
+
+function ckKelasListHTML(data) {
+  if (!data.kelasList.length) {
+    return `<div style="font-size:.74rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada data kelas.</div>`;
+  }
+  return data.kelasList.map(k => {
+    const total = k.total || 1;
+    const pHadir = k.hadir / total * 100, pIzin = k.izin / total * 100,
+          pSakit = k.sakit / total * 100, pBelum = k.belum / total * 100;
+    const pctHadir = Math.round(k.hadir / total * 100);
+    return `<div class="ck-kelas-row">
+      <div class="ck-kelas-top"><span class="ck-kelas-label">Kelas ${esc(k.kelas)}</span><span class="ck-kelas-pct">${pctHadir}% hadir</span></div>
+      <div class="ck-kelas-bar">
+        <div style="width:${pHadir}%;background:${CK_WARNA.hadir}"></div>
+        <div style="width:${pIzin}%;background:${CK_WARNA.izin}"></div>
+        <div style="width:${pSakit}%;background:${CK_WARNA.sakit}"></div>
+        <div style="width:${pBelum}%;background:${CK_WARNA.belum}"></div>
+      </div>
+      <div class="ck-kelas-detail">${k.hadir} hadir${k.pulang ? ` (${k.pulang} pulang)` : ''} • ${k.izin} izin • ${k.sakit} sakit • ${k.belum} belum • ${total} siswa</div>
+    </div>`;
+  }).join('');
+}
+
+// Mengisi widget ringkas (#chartKehadiranWidget, dipindah ke sidebar
+// desktop atau bawah stats-row di HP) SEKALIGUS isi modal detail
+// (#modalChartKehadiran) -- keduanya dari data yang sama, supaya modal
+// selalu siap tampil instan begitu widget di-tap di HP, tanpa fetch ulang.
+function renderChartKehadiran(data) {
+  const subTxt = data.total
+    ? `<b>${data.totalHadir}</b> dari ${data.total} siswa sudah datang hari ini`
+    : 'Belum ada data siswa.';
+
+  const ringWrap = document.getElementById('ckRingWrap');
+  if (ringWrap) ringWrap.innerHTML = svgRingKehadiran(data, 56);
+  const sub = document.getElementById('ckSubText');
+  if (sub) sub.innerHTML = subTxt;
+  const legend = document.getElementById('ckLegend');
+  if (legend) legend.innerHTML = ckLegendHTML(data);
+  const pulangBar = document.getElementById('ckPulangBar');
+  if (pulangBar) pulangBar.innerHTML = ckPulangBarHTML(data);
+  const kelasList = document.getElementById('ckKelasList');
+  if (kelasList) kelasList.innerHTML = ckKelasListHTML(data);
+
+  // Salinan yang sama untuk isi modal (dipakai khusus di HP).
+  const ringWrapM = document.getElementById('ckmRingWrap');
+  if (ringWrapM) ringWrapM.innerHTML = svgRingKehadiran(data, 84);
+  const subM = document.getElementById('ckmSubText');
+  if (subM) subM.innerHTML = subTxt;
+  const legendM = document.getElementById('ckmLegend');
+  if (legendM) legendM.innerHTML = ckLegendHTML(data);
+  const pulangBarM = document.getElementById('ckmPulangBar');
+  if (pulangBarM) pulangBarM.innerHTML = ckPulangBarHTML(data);
+  const kelasListM = document.getElementById('ckmKelasList');
+  if (kelasListM) kelasListM.innerHTML = ckKelasListHTML(data);
+}
+
+function bukaModalChartKehadiran() {
+  // Di desktop rincian sudah langsung kelihatan di sidebar, modal tetap
+  // boleh dibuka (tidak mengganggu) tapi fungsinya memang untuk HP --
+  // lihat .ck-chevron/.ck-header yang disembunyikan lewat CSS di layar
+  // lebar supaya terasa tidak bisa "diklik" secara visual.
+  const m = document.getElementById('modalChartKehadiran');
+  if (m) m.style.display = 'flex';
+}
+function tutupModalChartKehadiran() {
+  const m = document.getElementById('modalChartKehadiran');
+  if (m) m.style.display = 'none';
+}
+
+// Pindahkan #chartKehadiranWidget ke slot yang sesuai lebar layar --
+// lihat catatan panjang soal ini di CSS .chart-kehadiran. appendChild
+// pada node yang sudah ada di DOM otomatis MEMINDAHKANNYA (bukan
+// menduplikasi), jadi aman dipanggil berkali-kali (mis. tiap resize).
+const CK_MEDIA_MOBILE = window.matchMedia('(max-width:900px)');
+function posisikanChartKehadiran() {
+  const widget = document.getElementById('chartKehadiranWidget');
+  if (!widget) return;
+  const target = CK_MEDIA_MOBILE.matches
+    ? document.getElementById('chartAnchorMobile')
+    : document.getElementById('chartAnchorDesktop');
+  if (target && widget.parentElement !== target) target.appendChild(widget);
+}
+// Pasang listener perubahan breakpoint (bukan cuma 'resize' polos, supaya
+// tidak menjalankan appendChild berulang-ulang tiap piksel saat resize).
+if (CK_MEDIA_MOBILE.addEventListener) {
+  CK_MEDIA_MOBILE.addEventListener('change', posisikanChartKehadiran);
+} else if (CK_MEDIA_MOBILE.addListener) {
+  CK_MEDIA_MOBILE.addListener(posisikanChartKehadiran); // fallback Safari lama
+}
+posisikanChartKehadiran();
 
 // ── BEEP ─────────────────────────────────────────────────────────
 function playBeep(type) {

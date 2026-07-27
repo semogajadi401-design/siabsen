@@ -26,7 +26,7 @@ const {
 // api/settings.js: hanya action yang MENGUBAH/MENGHAPUS data
 // (inputKeterangan, hapusKeterangan) yang dikunci; action baca (laporan)
 // tetap terbuka.
-const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan']);
+const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan', 'updateKeteranganTerlambat']);
 
 // AKSI_BACA_TERBATAS (BARU — perbaikan keamanan): getSiswaKehadiran &
 // rekapKeteranganRange mengembalikan `idSiswa` DAN `nisn` mentah untuk
@@ -81,6 +81,7 @@ module.exports = async (req, res) => {
     if (action === 'getSiswaKehadiran')    return res.json(await getSiswaKehadiran(params));
     if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params, adminValid));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
+    if (action === 'updateKeteranganTerlambat') return res.json(await updateKeteranganTerlambat(params, adminValid));
     if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
     // (BARU) Dipakai halaman Evaluasi Kehadiran (semester) untuk menghitung
     // % kehadiran & jumlah Alpha yang BENAR -- lihat catatan di
@@ -201,7 +202,13 @@ async function getSiswaKehadiran({ kelas, tanggal }) {
         statusDatang: absen.status_datang,
         jamPulang:    absen.jam_pulang    || null,
         statusPulang: absen.status_pulang || null,
-        idAbsen: absen.id
+        idAbsen: absen.id,
+        // (BARU) Catatan alasan terlambat (kolom `keterangan` di tabel
+        // absensi, sudah ada di database tapi belum pernah dipakai) --
+        // dipakai guru piket/admin untuk mencatat alasan siswa terlambat
+        // (mis. "ban bocor", "urus adik sakit") vs terlambat biasa,
+        // lihat updateKeteranganTerlambat() di bawah.
+        keteranganTerlambat: absen.keterangan || ''
       });
     } else if (ket) {
       belumHadir.push({
@@ -345,6 +352,39 @@ async function hapusKeterangan({ idKeterangan }) {
     .from('keterangan_absensi').delete().eq('id', idKeterangan);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Keterangan berhasil dihapus' };
+}
+
+// ── UPDATE KETERANGAN TERLAMBAT (BARU) ───────────────────────────
+// Sebelumnya tidak ada cara mencatat ALASAN siswa terlambat -- status
+// "Terlambat" cuma angka/badge tanpa konteks, padahal alasannya bisa
+// macam-macam (urusan mendadak vs memang malas berangkat) dan berguna
+// buat wali kelas/BK menindaklanjuti. Kolom `keterangan` di tabel
+// `absensi` sudah ada dari awal tapi belum pernah dipakai untuk ini.
+// Otorisasi mengikuti pola yang SAMA PERSIS dengan inputKeterangan:
+// admin bebas untuk tanggal berapa pun; guru piket HANYA untuk baris
+// absensi hari ini (wewenangnya tidak meluas ke hari lain -- sesuai
+// permintaan: begitu hari berganti, guru piket kemarin sudah tidak
+// piket lagi hari ini, jadi menu-nya otomatis tidak muncul; kalau mau
+// dikoreksi belakangan, harus admin).
+async function updateKeteranganTerlambat({ idAbsen, keterangan }, isAdmin) {
+  if (!idAbsen) return { success: false, message: 'ID absen wajib diisi' };
+
+  const { data: absen } = await supabase
+    .from('absensi').select('id,tanggal,status_datang').eq('id', idAbsen).maybeSingle();
+  if (!absen) return { success: false, message: 'Data absensi tidak ditemukan' };
+
+  if (absen.status_datang !== 'Terlambat')
+    return { success: false, message: 'Keterangan ini hanya berlaku untuk siswa berstatus Terlambat' };
+
+  const today = todayStr();
+  if (absen.tanggal !== today && !isAdmin) {
+    return { success: false, message: 'Hanya admin yang bisa mengubah keterangan terlambat untuk tanggal selain hari ini' };
+  }
+
+  const { error } = await supabase
+    .from('absensi').update({ keterangan: keterangan || '' }).eq('id', idAbsen);
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: 'Keterangan terlambat berhasil disimpan' };
 }
 
 // ── REKAP KETERANGAN RANGE (untuk evaluasi semester) ─────────────

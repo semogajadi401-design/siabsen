@@ -5686,11 +5686,19 @@ async function loadEvaluasi() {
   }
 
   // Ambil semua data sekaligus
-  const [absenResult, ketResult, siswaResult] = await Promise.all([
+  // PERBAIKAN BUG: sebelumnya jumlah hari sekolah efektif tidak pernah
+  // diambil, jadi Alpha tidak pernah dihitung dan % Kehadiran hanya
+  // dibagi dengan (hadir+terlambat+sakit+izin) -- bukan total hari
+  // sekolah -- sehingga selalu tampak 100% kalau tidak ada data
+  // sakit/izin/terlambat, walau banyak siswa Alpha. Sekarang ambil juga
+  // jumlahHariSekolah supaya Alpha & persentase bisa dihitung benar.
+  const [absenResult, ketResult, siswaResult, hariResult] = await Promise.all([
     api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai, kelas }),
     api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai, kelas }),
-    api('siswa', 'getAll', { activeOnly: true, kelas })
+    api('siswa', 'getAll', { activeOnly: true, kelas }),
+    api('kehadiran', 'getJumlahHariSekolah', { tanggalMulai, tanggalSelesai })
   ]);
+  const jumlahHariSekolah = hariResult?.success ? (hariResult.jumlahHariSekolah || 0) : 0;
 
   if (!siswaResult.success) {
     toast('Gagal memuat data siswa', 'error');
@@ -5726,6 +5734,13 @@ async function loadEvaluasi() {
     });
   }
 
+  // PERBAIKAN BUG: hitung Alpha per siswa = jumlah hari sekolah efektif
+  // dalam periode ini dikurangi (hadir+terlambat+sakit+izin) siswa itu.
+  // Sebelumnya field .alpha ini tidak pernah diisi (selalu 0).
+  Object.values(siswaMap).forEach(s => {
+    s.alpha = Math.max(0, jumlahHariSekolah - s.hadir - s.terlambat - s.sakit - s.izin);
+  });
+
   const allSiswa = Object.values(siswaMap);
 
   // Hitung total
@@ -5733,15 +5748,24 @@ async function loadEvaluasi() {
   const totTerlambat = allSiswa.reduce((a,b) => a + b.terlambat, 0);
   const totSakit     = allSiswa.reduce((a,b) => a + b.sakit, 0);
   const totIzin      = allSiswa.reduce((a,b) => a + b.izin, 0);
-  const totAll       = totHadir + totTerlambat + totSakit + totIzin;
-  const persen       = totAll > 0 ? Math.round((totHadir + totTerlambat) / totAll * 100) : 0;
+  const totAlpha     = allSiswa.reduce((a,b) => a + b.alpha, 0);
+  // PERBAIKAN BUG: penyebut % kehadiran sebelumnya cuma
+  // (hadir+terlambat+sakit+izin) -- Alpha (siswa yang tidak absen DAN
+  // tidak ada keterangan) tidak pernah masuk hitungan, jadi kalau tidak
+  // ada sakit/izin/terlambat, persentase selalu 100% walau banyak yang
+  // Alpha. Sekarang penyebutnya total "kemungkinan hadir" = jumlah hari
+  // sekolah efektif x jumlah siswa, sama seperti pola di
+  // ringkasanRekapPeriode() (_db.js).
+  const totalKemungkinanHadir = jumlahHariSekolah * allSiswa.length;
+  const persen = totalKemungkinanHadir > 0
+    ? Math.round((totHadir + totTerlambat) / totalKemungkinanHadir * 100) : 0;
 
   // Update kartu statistik
   document.getElementById('evalTotalHadir').textContent     = totHadir;
   document.getElementById('evalTotalTerlambat').textContent = totTerlambat;
   document.getElementById('evalTotalSakit').textContent     = totSakit;
   document.getElementById('evalTotalIzin').textContent      = totIzin;
-  document.getElementById('evalTotalAlpha').textContent     = '—';
+  document.getElementById('evalTotalAlpha').textContent     = totAlpha;
   document.getElementById('evalPersen').textContent         = persen + '%';
 
   // Urutkan berdasarkan kehadiran tertinggi

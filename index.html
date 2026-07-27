@@ -1545,6 +1545,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                     <tr>
                       <th>No</th><th>Nama</th><th>Kelas</th>
                       <th>Jam Datang</th><th>Status</th><th>Jam Pulang</th>
+                      <th>Keterangan</th><th>Aksi</th>
                     </tr>
                   </thead>
                   <tbody id="khHadirBody">
@@ -1881,6 +1882,31 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalKeterangan')">Batal</button>
       <button class="btn btn-primary" onclick="submitKeterangan()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+<!-- Modal Keterangan Terlambat (BARU) -->
+<div class="modal-backdrop" id="modalKeteranganTerlambat">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>⏰ Alasan Terlambat</h3>
+      <button class="modal-close" onclick="closeModal('modalKeteranganTerlambat')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:10px;background:var(--primary-pale);border-radius:8px;margin-bottom:16px">
+        <div style="font-weight:700" id="ktNamaSiswa">—</div>
+      </div>
+      <input type="hidden" id="ktIdAbsen">
+      <div class="form-group">
+        <label>Alasan Terlambat (opsional)</label>
+        <textarea id="ktKeterangan" class="form-control" rows="3"
+          placeholder="Contoh: ban bocor di jalan, bangun kesiangan, dll -- boleh dikosongkan"
+          style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalKeteranganTerlambat')">Batal</button>
+      <button class="btn btn-primary" onclick="submitKeteranganTerlambat()">💾 Simpan</button>
     </div>
   </div>
 </div>
@@ -5479,16 +5505,54 @@ async function loadKehadiran() {
   // Tabel sudah hadir
   const hadirBody = document.getElementById('khHadirBody');
   if (!hadir.length) {
-    hadirBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada siswa yang hadir</td></tr>';
+    hadirBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada siswa yang hadir</td></tr>';
   } else {
-    hadirBody.innerHTML = hadir.map((s, i) => `<tr>
+    hadirBody.innerHTML = hadir.map((s, i) => {
+      // (BARU) Kolom Keterangan + tombol Aksi -- hanya untuk siswa
+      // Terlambat, tempat mencatat alasan terlambat (opsional).
+      const ketText = s.statusDatang === 'Terlambat'
+        ? (s.keteranganTerlambat
+            ? `<span style="font-size:.8rem">${esc(s.keteranganTerlambat)}</span>`
+            : `<span style="font-size:.8rem;color:var(--text-muted)">—</span>`)
+        : `<span style="font-size:.8rem;color:var(--text-muted)">-</span>`;
+      const aksiBtn = s.statusDatang === 'Terlambat'
+        ? `<button class="btn btn-outline btn-xs" onclick="openModalKeteranganTerlambat('${s.idAbsen}','${esc(s.nama)}','${esc(s.keteranganTerlambat||'')}')">✏️ ${s.keteranganTerlambat ? 'Edit' : 'Isi'} Alasan</button>`
+        : '-';
+      return `<tr>
       <td data-label="No">${i + 1}</td>
       <td data-label="Nama"><div style="font-weight:600">${esc(s.nama)}</div></td>
       <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
       <td data-label="Jam Datang">${s.jamDatang || '-'}</td>
       <td data-label="Status"><span class="badge ${s.statusDatang === 'Hadir' ? 'badge-success' : 'badge-warning'}">${s.statusDatang}</span></td>
       <td data-label="Jam Pulang">${s.jamPulang || '-'}</td>
-    </tr>`).join('');
+      <td data-label="Keterangan">${ketText}</td>
+      <td data-label="Aksi">${aksiBtn}</td>
+    </tr>`;
+    }).join('');
+  }
+}
+
+// (BARU) Modal ringkas untuk mencatat/mengubah alasan siswa Terlambat.
+// Opsional -- boleh dikosongkan. Otorisasi (guru piket hanya untuk hari
+// ini, admin bebas tanggal) diperiksa di server (updateKeteranganTerlambat,
+// api/kehadiran.js), bukan di sini -- ini cuma UI-nya.
+function openModalKeteranganTerlambat(idAbsen, nama, keteranganSaatIni) {
+  document.getElementById('ktIdAbsen').value = idAbsen;
+  document.getElementById('ktNamaSiswa').textContent = nama;
+  document.getElementById('ktKeterangan').value = keteranganSaatIni || '';
+  openModal('modalKeteranganTerlambat');
+}
+
+async function submitKeteranganTerlambat() {
+  const idAbsen = document.getElementById('ktIdAbsen').value;
+  const keterangan = document.getElementById('ktKeterangan').value;
+  const idGuru = APP.user?.role === 'guru' ? APP.user.id : undefined;
+
+  const result = await api('kehadiran', 'updateKeteranganTerlambat', { idAbsen, keterangan, idGuru });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) {
+    closeModal('modalKeteranganTerlambat');
+    loadKehadiran();
   }
 }
 

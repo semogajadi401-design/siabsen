@@ -88,7 +88,27 @@ module.exports = async (req, res) => {
       const { tanggalMulai, tanggalSelesai } = params;
       if (!tanggalMulai || !tanggalSelesai)
         return res.json({ success: false, message: 'tanggalMulai dan tanggalSelesai wajib diisi' });
-      const jumlahHariSekolah = await hitungJumlahHariSekolah(tanggalMulai, tanggalSelesai);
+      // PERBAIKAN BUG: tanggalSelesai yang dikirim frontend adalah akhir
+      // SEMESTER (mis. Desember), bukan hari ini -- kalau dipakai apa
+      // adanya, hari-hari di masa depan yang belum terjadi (dan jelas
+      // belum ada datanya) ikut dihitung sebagai "hari sekolah", membuat
+      // Alpha meledak dan % Kehadiran anjlok padahal semester baru
+      // berjalan beberapa hari. Batasi hitungan hanya sampai KEMARIN --
+      // bukan sampai hari ini juga, karena hari berjalan belum tentu
+      // selesai jam absennya saat laporan ini dibuka (mis. dicek jam
+      // 05:41 pagi, sebelum jam masuk 06:30 -- semua siswa masih akan
+      // tampak "Alpha" untuk hari yang belum benar-benar berjalan).
+      const kemarin = new Date(Date.now() + 8 * 60 * 60 * 1000); // WITA, sama seperti witaNow() di _db.js
+      kemarin.setUTCDate(kemarin.getUTCDate() - 1);
+      const kemarinStr = kemarin.toISOString().split('T')[0];
+      const efektifSelesai = tanggalSelesai > kemarinStr ? kemarinStr : tanggalSelesai;
+
+      if (tanggalMulai > efektifSelesai) {
+        // Semester belum mulai / baru mulai hari ini -- belum ada satu
+        // pun hari yang "selesai" untuk dievaluasi.
+        return res.json({ success: true, jumlahHariSekolah: 0 });
+      }
+      const jumlahHariSekolah = await hitungJumlahHariSekolah(tanggalMulai, efektifSelesai);
       return res.json({ success: true, jumlahHariSekolah });
     }
     // Dipakai frontend (guruNav) untuk tahu apakah menu "Kehadiran Hari Ini"

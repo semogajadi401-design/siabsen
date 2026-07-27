@@ -51,6 +51,10 @@ module.exports = async (req, res) => {
   // disisipkan otomatis oleh helper api() di frontend) lewat
   // resolveGuruIdFromToken() -- lihat _db.js.
   const guruIdTerverifikasi = guruToken ? await resolveGuruIdFromToken(guruToken) : null;
+  // (BARU) Dipindah ke scope luar supaya bisa diteruskan ke inputKeterangan()
+  // -- dipakai untuk membatasi input keterangan tanggal LAMPAU hanya untuk
+  // admin (lihat catatan di fungsi inputKeterangan di bawah).
+  const adminValid = await requireAdminToken(adminToken);
 
   if (AKSI_TERKUNCI.has(action)) {
     // Dua jalur yang diizinkan:
@@ -58,7 +62,6 @@ module.exports = async (req, res) => {
     //   2. Guru yang BENAR-BENAR piket hari ini (sesi_piket), dan identitas
     //      guru itu sendiri sudah dibuktikan lewat guruToken di atas --
     //      bukan sekadar idGuru yang diklaim klien.
-    const adminValid = await requireAdminToken(adminToken);
     if (!adminValid) {
       const guruValid = guruIdTerverifikasi && await isGuruPiketHariIni(guruIdTerverifikasi);
       if (!guruValid) {
@@ -68,7 +71,6 @@ module.exports = async (req, res) => {
   }
 
   if (AKSI_BACA_TERBATAS.has(action)) {
-    const adminValid = await requireAdminToken(adminToken);
     if (!adminValid && !guruIdTerverifikasi) {
       return res.status(401).json({ success: false, message: 'Sesi tidak valid. Silakan login untuk membuka laporan ini.' });
     }
@@ -77,7 +79,7 @@ module.exports = async (req, res) => {
   try {
     if (action === 'getStatusHariIni')     return res.json(await getStatusHariIni());
     if (action === 'getSiswaKehadiran')    return res.json(await getSiswaKehadiran(params));
-    if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params));
+    if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params, adminValid));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
     if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
     // (BARU) Dipakai halaman Evaluasi Kehadiran (semester) untuk menghitung
@@ -272,11 +274,34 @@ async function getSiswaKehadiran({ kelas, tanggal }) {
 // upsert tetap menjamin hasil akhirnya SATU baris per siswa+tanggal --
 // yang "kalah" otomatis jadi UPDATE ke baris yang "menang", bukan insert
 // baris baru.
-async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh }) {
+// (BARU) Sebelumnya fungsi ini SELALU memakai tanggal HARI INI
+// (todayStr()) secara hardcode -- tidak ada cara untuk admin menginput/
+// mengoreksi keterangan sakit/izin untuk tanggal yang SUDAH LEWAT.
+// Akibatnya kalau ada siswa yang terlanjur tercatat Alpha di hari
+// sebelumnya (mis. guru piket lupa/gagal menginput saat itu), tidak ada
+// jalan untuk memperbaikinya lagi selamanya -- padahal keterangan_absensi
+// tidak punya validasi "harus hari ini" sama sekali di level database.
+// Sekarang menerima `tanggal` opsional (default: hari ini kalau kosong).
+// PENTING (keamanan/otorisasi): guru piket HANYA berwenang untuk hari
+// dia terverifikasi piket (lihat isGuruPiketHariIni di pengecekan
+// AKSI_TERKUNCI atas) -- wewenang itu tidak boleh otomatis meluas ke
+// tanggal LAIN hanya karena dia piket hari ini. Jadi request dengan
+// `tanggal` selain hari ini HANYA diizinkan kalau pemanggilnya admin
+// (adminValid) -- diperiksa lewat parameter `isAdmin` yang dikirim dari
+// pengecekan otorisasi di atas, BUKAN dipercaya dari body/klien.
+async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh, tanggal }, isAdmin) {
   if (!idSiswa || !status)
     return { success: false, message: 'ID siswa dan status wajib diisi' };
 
   const today = todayStr();
+  const tglTarget = tanggal || today;
+
+  if (tglTarget !== today && !isAdmin) {
+    return { success: false, message: 'Hanya admin yang bisa menginput/mengubah keterangan untuk tanggal selain hari ini' };
+  }
+  if (tglTarget > today) {
+    return { success: false, message: 'Tidak bisa menginput keterangan untuk tanggal yang belum terjadi' };
+  }
 
   const { data: siswa } = await supabase
     .from('siswa').select('nisn,nama,kelas').eq('id', idSiswa).maybeSingle();
@@ -288,7 +313,7 @@ async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh }) {
   // UNIQUE constraint di bawah).
   const { data: existing } = await supabase
     .from('keterangan_absensi')
-    .select('id').eq('id_siswa', idSiswa).eq('tanggal', today).maybeSingle();
+    .select('id').eq('id_siswa', idSiswa).eq('tanggal', tglTarget).maybeSingle();
 
   const { error } = await supabase
     .from('keterangan_absensi')
@@ -298,7 +323,7 @@ async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh }) {
       nisn:         siswa.nisn,
       nama_siswa:   siswa.nama,
       kelas:        siswa.kelas,
-      tanggal:      today,
+      tanggal:      tglTarget,
       status,
       keterangan:   keterangan  || '',
       diinput_oleh: diinputOleh || ''

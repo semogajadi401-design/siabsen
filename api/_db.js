@@ -993,8 +993,48 @@ module.exports = {
   ringkasanLiveHariIni, ringkasanRekapPeriode,
   // ── TAMBAHAN BARU (perbaikan keamanan: kiosk token & rate limit) ──
   generateKioskToken, verifyKioskToken,
-  checkRateLimit, getClientIp
+  checkRateLimit, getClientIp,
+  // ── TAMBAHAN BARU (perbaikan bug: % Kehadiran Evaluasi Semester) ──
+  hitungJumlahHariSekolah
 };
+
+// ── HITUNG JUMLAH HARI SEKOLAH EFEKTIF DALAM RENTANG TANGGAL BEBAS ──
+// (BARU) Sebelumnya logika "jumlah hari sekolah dalam rentang" cuma ada
+// inline di dalam ringkasanRekapPeriode() (khusus rentang 'minggu'/'bulan'
+// relatif ke hari ini). Halaman "Evaluasi Kehadiran" (semester) butuh
+// hitungan yang sama tapi untuk rentang tanggal BEBAS (tanggal mulai/
+// selesai semester) -- makanya dipisah jadi fungsi sendiri yang bisa
+// dipakai ulang, dan dipakai kehadiran.js untuk action baru
+// 'getJumlahHariSekolah'. Menghitung: untuk tiap tanggal di rentang,
+// hari itu dianggap "hari sekolah" kalau nama harinya aktif di
+// pengaturan_hari_kerja DAN tanggal itu tidak ada di tabel hari_kerja
+// (kalender hari libur).
+async function hitungJumlahHariSekolah(tanggalMulai, tanggalSelesai) {
+  const [
+    { data: liburRows },
+    { data: hariKerjaSetting }
+  ] = await Promise.all([
+    supabase.from('hari_kerja').select('tanggal').gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai),
+    supabase.from('pengaturan_hari_kerja').select('*')
+  ]);
+
+  const liburSet = new Set((liburRows || []).map(r => String(r.tanggal).substring(0, 10)));
+  const hariAktifMap = {};
+  (hariKerjaSetting || []).forEach(h => { hariAktifMap[h.hari] = h.aktif; });
+  const namaHariArr = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+  let jumlahHariSekolah = 0;
+  const cur = new Date(tanggalMulai + 'T00:00:00Z');
+  const akhir = new Date(tanggalSelesai + 'T00:00:00Z');
+  while (cur <= akhir) {
+    const tgl = cur.toISOString().substring(0, 10);
+    const namaHari = namaHariArr[cur.getUTCDay()];
+    const aktif = hariAktifMap.hasOwnProperty(namaHari) ? hariAktifMap[namaHari] : false;
+    if (aktif && !liburSet.has(tgl)) jumlahHariSekolah++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return jumlahHariSekolah;
+}
 async function requireAdminToken(token) {
   if (!token) return false;
   // Sengaja TIDAK pakai .maybeSingle() di sini: kalau suatu saat ada lebih

@@ -2,7 +2,7 @@
 const {
   supabase, generateID, setCors, todayStr, hariIni,
   isHariLibur, isHariKerja, requireAdminToken, isGuruPiketHariIni,
-  resolveGuruIdFromToken
+  resolveGuruIdFromToken, hitungJumlahHariSekolah
 } = require('./_db');
 
 // CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
@@ -80,6 +80,17 @@ module.exports = async (req, res) => {
     if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
     if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
+    // (BARU) Dipakai halaman Evaluasi Kehadiran (semester) untuk menghitung
+    // % kehadiran & jumlah Alpha yang BENAR -- lihat catatan di
+    // hitungJumlahHariSekolah() (_db.js) dan loadEvaluasi() (index.html).
+    // Tidak membocorkan data siswa individual, jadi tidak perlu login.
+    if (action === 'getJumlahHariSekolah') {
+      const { tanggalMulai, tanggalSelesai } = params;
+      if (!tanggalMulai || !tanggalSelesai)
+        return res.json({ success: false, message: 'tanggalMulai dan tanggalSelesai wajib diisi' });
+      const jumlahHariSekolah = await hitungJumlahHariSekolah(tanggalMulai, tanggalSelesai);
+      return res.json({ success: true, jumlahHariSekolah });
+    }
     // Dipakai frontend (guruNav) untuk tahu apakah menu "Kehadiran Hari Ini"
     // perlu ditampilkan: true hanya kalau guru YANG SEDANG LOGIN (dibuktikan
     // lewat guruToken) ada di sesi_piket hari ini, terlepas dari jadwal_piket

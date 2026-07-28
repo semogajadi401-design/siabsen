@@ -1632,6 +1632,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       <span>📴 Offline</span>
       <span class="badge-count" id="offlineCount">0</span>
     </div>
+    <button class="btn-fullscreen" id="btnPetunjuk" onclick="bukaPetunjukGuru()" title="Petunjuk untuk Guru">❓</button>
     <button class="btn-fullscreen" id="btnFullscreen" onclick="toggleFullscreen()" title="Layar penuh">⛶</button>
   </div>
 </div>
@@ -1725,6 +1726,74 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          tampil penuh (ring + legend + rincian per kelas) langsung. -->
     <div id="chartAnchorDesktop"></div>
 
+  </div>
+
+  <!-- ══════ MODAL: PETUNJUK UNTUK GURU (BARU) ══════
+       Dibuka lewat tombol ❓ kecil di header (lihat #btnPetunjuk) --
+       sengaja ditaruh di header (bukan di tengah panggung kamera) supaya
+       tidak mengganggu tata letak scan yang sudah ada, tapi tetap gampang
+       ditemukan oleh guru mana pun: guru piket ATAUPUN bukan guru piket,
+       karena isinya mencakup kedua peran. Konten yang SAMA (isi & ID
+       modal sama-sama #modalPetunjukGuru dst. dengan gaya berbeda sesuai
+       sistem modal masing-masing file) juga ditaruh di index.html supaya
+       guru yang membuka lewat akun dashboard-nya melihat petunjuk yang
+       konsisten. -->
+  <div id="modalPetunjukGuru" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-weight:800;font-size:.98rem">📖 Petunjuk untuk Guru</div>
+        <button onclick="tutupPetunjukGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:16px;font-size:.85rem;line-height:1.55">
+
+        <div>
+          <div style="font-weight:800;margin-bottom:6px">🕒 1. Absen Datang / Pulang (setiap hari)</div>
+          <div style="color:var(--text-muted)">
+            Berlaku untuk SEMUA guru, baik piket maupun bukan.<br>
+            • Pilih tombol <b>☀️ Datang</b> (pagi) atau <b>🌙 Pulang</b> (sore) di sisi kiri layar.<br>
+            • Arahkan QR halaman <b>DEPAN</b> kartu Anda ke kamera.<br>
+            • Tunggu sampai muncul tanda ✅ dan nama Anda di layar.
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:800;margin-bottom:6px">🛡️ 2. Kalau Anda kebetulan Guru Piket hari ini</div>
+          <div style="color:var(--text-muted)">
+            Tidak ada tombol khusus -- cukup scan seperti langkah Absen Datang di atas.<br>
+            • Status Anda otomatis tercatat, muncul di kotak "👤 Guru Piket Hari Ini".<br>
+            • Kalau guru piket terjadwal belum scan dan Anda scan duluan, akan muncul konfirmasi <i>"Jadi guru piket pengganti?"</i> -- pilih Ya kalau memang bersedia menggantikan.
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:800;margin-bottom:6px">📚 3. Absen Kehadiran Mengajar (per jam pelajaran)</div>
+          <div style="color:var(--text-muted)">
+            • Tekan tombol <b>📚 Absen Kelas</b>.<br>
+            • Scan QR halaman <b>DEPAN</b> kartu Anda untuk memulai sesi mengajar.<br>
+            • Sistem otomatis mencocokkan dengan jadwal mengajar Anda hari ini.<br>
+            • Siswa di kelas itu lalu scan kartunya satu per satu supaya tercatat hadir di mapel Anda.
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:800;margin-bottom:6px">📋 4. Edit Kehadiran Siswa (khusus Guru Piket)</div>
+          <div style="color:var(--text-muted)">
+            • Tekan tombol <b>📋 Edit Kehadiran Siswa (Guru Piket)</b>.<br>
+            • Scan QR halaman <b>BELAKANG</b> kartu Anda (bukan depan!).<br>
+            • Hanya guru piket hari itu yang bisa mengubah keterangan Sakit/Izin/Terlambat/Pulang Cepat siswa.
+          </div>
+        </div>
+
+        <div style="background:var(--bg);border-radius:10px;padding:12px 14px">
+          <div style="font-weight:800;margin-bottom:6px">🔄 Ingat: Depan vs Belakang Kartu</div>
+          <div style="color:var(--text-muted)">
+            • QR <b>DEPAN</b> kartu → Absen Datang/Pulang & Absen Kelas (mengajar)<br>
+            • QR <b>BELAKANG</b> kartu → Login Dashboard & Edit Kehadiran Siswa (piket)
+          </div>
+        </div>
+
+      </div>
+    </div>
   </div>
 
   <!-- ══════ MODAL: AKTIVITAS GURU HARI INI ══════ -->
@@ -4959,6 +5028,22 @@ async function buildChecklistFromCache() {
 
 function tutupModalTanpaKartu() {
   document.getElementById('modalTanpaKartu').style.display = 'none';
+  resumeScanBerat();
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// ══════ PETUNJUK UNTUK GURU (BARU) — modal statis, isinya tidak perlu
+// data dari server sama sekali, jadi cukup pauseScanBerat()/
+// resumeScanBerat() saja (sama pola dengan modal Aktivitas Guru di atas)
+// supaya kamera tidak terus memproses frame sia-sia selagi guru membaca
+// petunjuk. Boleh dibuka kapan saja, termasuk saat menunggu kartu di
+// mode Absen Kelas/Kelola Piket, karena read-only murni. ══════
+function bukaPetunjukGuru() {
+  pauseScanBerat();
+  document.getElementById('modalPetunjukGuru').style.display = 'flex';
+}
+function tutupPetunjukGuru() {
+  document.getElementById('modalPetunjukGuru').style.display = 'none';
   resumeScanBerat();
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }

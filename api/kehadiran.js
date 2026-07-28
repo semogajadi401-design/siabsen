@@ -26,7 +26,15 @@ const {
 // api/settings.js: hanya action yang MENGUBAH/MENGHAPUS data
 // (inputKeterangan, hapusKeterangan) yang dikunci; action baca (laporan)
 // tetap terbuka.
-const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan', 'updateKeteranganTerlambat']);
+const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan', 'updateKeteranganTerlambat', 'tandaiPulangCepat', 'batalkanPulangCepat']);
+
+// STATUS_PULANG_CEPAT (BARU) -- daftar status yang boleh dipakai untuk
+// menandai siswa yang SUDAH HADIR lalu dipulangkan lebih awal (sakit/
+// izin mendadak di tengah hari). Sama persis dengan pilihan status yang
+// sudah ada di modal inputKeterangan (dropdown Sakit/Izin/Urusan
+// Keluarga/Izin Lainnya) -- kasusnya sama (hadir → dijemput mendadak),
+// jadi digeneralisir ke 4 status ini, bukan cuma "Sakit".
+const STATUS_PULANG_CEPAT = new Set(['Sakit', 'Izin', 'Urusan Keluarga', 'Izin Lainnya']);
 
 // AKSI_BACA_TERBATAS (BARU — perbaikan keamanan): getSiswaKehadiran &
 // rekapKeteranganRange mengembalikan `idSiswa` DAN `nisn` mentah untuk
@@ -82,6 +90,11 @@ module.exports = async (req, res) => {
     if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params, adminValid));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
     if (action === 'updateKeteranganTerlambat') return res.json(await updateKeteranganTerlambat(params, adminValid));
+    // (BARU) Tandai siswa yang SUDAH HADIR sebagai pulang cepat (sakit/
+    // izin mendadak) -- lihat tandaiPulangCepat() di bawah untuk detail
+    // validasi & otorisasi.
+    if (action === 'tandaiPulangCepat')    return res.json(await tandaiPulangCepat(params, adminValid));
+    if (action === 'batalkanPulangCepat')  return res.json(await batalkanPulangCepat(params, adminValid));
     if (action === 'rekapKeteranganRange') return res.json(await rekapKeteranganRange(params));
     // (BARU) Dipakai halaman Evaluasi Kehadiran (semester) untuk menghitung
     // % kehadiran & jumlah Alpha yang BENAR -- lihat catatan di
@@ -195,6 +208,14 @@ async function getSiswaKehadiran({ kelas, tanggal }) {
     const ket   = ketMap[s.id];
 
     if (absen && absen.jam_datang) {
+      // (BARU) Apakah siswa ini sudah ditandai "pulang cepat" (sakit/izin
+      // mendadak setelah sempat hadir) -- dibedakan dari absen pulang
+      // NORMAL lewat status_pulang: 'Pulang' = pulang biasa, salah satu
+      // dari STATUS_PULANG_CEPAT = dipulangkan lebih awal karena sakit/
+      // izin. Dikirim sebagai field terpisah supaya frontend tidak perlu
+      // menebak-nebak dari nilai status_pulang mentah.
+      const statusPulangCepat = absen.status_pulang && STATUS_PULANG_CEPAT.has(absen.status_pulang)
+        ? absen.status_pulang : null;
       hadir.push({
         id: s.id, nisn: s.nisn, nama: s.nama,
         kelas: s.kelas, jenisKelamin: s.jenis_kelamin,
@@ -208,7 +229,15 @@ async function getSiswaKehadiran({ kelas, tanggal }) {
         // dipakai guru piket/admin untuk mencatat alasan siswa terlambat
         // (mis. "ban bocor", "urus adik sakit") vs terlambat biasa,
         // lihat updateKeteranganTerlambat() di bawah.
-        keteranganTerlambat: absen.keterangan || ''
+        keteranganTerlambat: absen.keterangan || '',
+        // (BARU) Info pulang cepat -- null kalau siswa belum/tidak
+        // dipulangkan lebih awal (jam_pulang masih kosong ATAU sudah
+        // absen pulang NORMAL di jam pulang resmi).
+        pulangCepat: statusPulangCepat ? {
+          status: statusPulangCepat,
+          jam: absen.jam_pulang,
+          keterangan: absen.keterangan_pulang_cepat || ''
+        } : null
       });
     } else if (ket) {
       belumHadir.push({
@@ -239,13 +268,18 @@ async function getSiswaKehadiran({ kelas, tanggal }) {
     ['Izin','Urusan Keluarga','Izin Lainnya'].includes(b.status)
   ).length;
   const totalAlpha     = belumHadir.filter(b => b.status === 'Alpha').length;
+  // (BARU) Dihitung TERPISAH dari totalSakit/totalIzin di atas (yang
+  // menghitung siswa yang memang TIDAK datang dari awal) -- ini
+  // menghitung siswa yang SEMPAT hadir lalu dipulangkan lebih awal,
+  // sesuai concern awal fitur ini supaya dua angka itu tidak tertukar.
+  const totalPulangCepat = hadir.filter(h => h.pulangCepat).length;
 
   return {
     success: true,
     tanggal: tgl,
     statistik: {
       totalSiswa, totalHadir, totalTerlambat,
-      totalSakit, totalIzin, totalAlpha,
+      totalSakit, totalIzin, totalAlpha, totalPulangCepat,
       totalBelumHadir: belumHadir.length
     },
     hadir,
@@ -385,6 +419,103 @@ async function updateKeteranganTerlambat({ idAbsen, keterangan }, isAdmin) {
     .from('absensi').update({ keterangan: keterangan || '' }).eq('id', idAbsen);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Keterangan terlambat berhasil disimpan' };
+}
+
+// ── TANDAI PULANG CEPAT (BARU) ───────────────────────────────────
+// Dipakai saat siswa yang SUDAH HADIR ternyata sakit/izin di tengah hari
+// (mis. jam 10 pagi) dan harus dipulangkan sebelum jam pulang resmi dan
+// sebelum dia sempat absen pulang sendiri. Menyimpan status + keterangan
+// WAJIB (supaya jelas alasannya, sesuai permintaan) dan jam manual (jam
+// guru piket menginput, BUKAN otomatis jam server -- sengaja, karena
+// guru piket bisa saja baru sempat input belakangan padahal siswa sudah
+// dipulangkan dari tadi; frontend yang mem-prefill jam sekarang tapi
+// tetap bisa diedit).
+//
+// Otorisasi mengikuti pola YANG SAMA PERSIS dengan updateKeteranganTerlambat:
+// admin bebas tanggal berapa pun; guru piket HANYA untuk baris absensi
+// hari ini (wewenangnya sudah diverifikasi di AKSI_TERKUNCI di atas via
+// isGuruPiketHariIni, tapi itu cuma membuktikan dia piket HARI INI --
+// tidak otomatis memberi wewenang ke tanggal lampau kalau baris absen
+// yang mau diubah ternyata bukan hari ini).
+async function tandaiPulangCepat({ idAbsen, status, keterangan, jam, diinputOleh, idGuru }, isAdmin) {
+  if (!idAbsen) return { success: false, message: 'ID absen wajib diisi' };
+  if (!status || !STATUS_PULANG_CEPAT.has(status))
+    return { success: false, message: 'Status tidak valid. Pilih Sakit/Izin/Urusan Keluarga/Izin Lainnya' };
+  if (!keterangan || !keterangan.trim())
+    return { success: false, message: 'Keterangan wajib diisi supaya jelas alasannya' };
+  if (!jam) return { success: false, message: 'Jam wajib diisi' };
+
+  const { data: absen } = await supabase
+    .from('absensi').select('id,tanggal,jam_datang,jam_pulang,nama_siswa').eq('id', idAbsen).maybeSingle();
+  if (!absen) return { success: false, message: 'Data absensi tidak ditemukan' };
+  if (!absen.jam_datang)
+    return { success: false, message: 'Siswa ini belum absen datang, gunakan menu Input Keterangan biasa' };
+
+  const today = todayStr();
+  if (absen.tanggal !== today && !isAdmin) {
+    return { success: false, message: 'Hanya admin yang bisa menandai pulang cepat untuk tanggal selain hari ini' };
+  }
+  if (absen.jam_pulang) {
+    return { success: false, message: `${absen.nama_siswa} sudah tercatat pulang pukul ${absen.jam_pulang}, tidak bisa ditandai pulang cepat lagi` };
+  }
+  // Jam pulang cepat tidak boleh lebih awal dari jam datang siswa itu
+  // sendiri -- pengaman dasar supaya input manual guru piket tidak salah
+  // ketik jam yang tidak masuk akal (mis. "sakit" jam sebelum dia datang).
+  if (jam < absen.jam_datang) {
+    return { success: false, message: `Jam tidak valid: tidak boleh lebih awal dari jam datang (${absen.jam_datang})` };
+  }
+
+  const updatePayload = {
+    jam_pulang: jam,
+    status_pulang: status,
+    keterangan_pulang_cepat: keterangan.trim()
+  };
+  // Hanya timpa nama/ID guru piket kalau memang diketahui siapa yang
+  // menandai -- kalau kosong (mis. admin, atau guru piket tidak
+  // mengirimkannya), JANGAN ditimpa jadi kosong supaya nama guru piket
+  // yang sudah tercatat saat siswa absen datang tidak hilang.
+  if (diinputOleh) updatePayload.nama_guru_piket = diinputOleh;
+  if (idGuru)       updatePayload.id_guru_piket   = idGuru;
+
+  const { error } = await supabase
+    .from('absensi')
+    .update(updatePayload)
+    .eq('id', idAbsen)
+    .is('jam_pulang', null); // pengaman race condition, sama pola dengan scan.js
+  if (error) return { success: false, message: error.message };
+
+  return {
+    success: true,
+    message: `${absen.nama_siswa} ditandai ${status} (pulang cepat) pukul ${jam}`
+  };
+}
+
+// ── BATALKAN PULANG CEPAT (BARU) ─────────────────────────────────
+// Untuk koreksi kalau guru piket salah tandai. HANYA boleh membatalkan
+// baris yang status_pulang-nya memang salah satu STATUS_PULANG_CEPAT --
+// sengaja TIDAK mengizinkan membatalkan absen pulang NORMAL ('Pulang')
+// lewat action ini, supaya tombol ini tidak disalahgunakan untuk
+// menghapus riwayat pulang biasa siswa.
+async function batalkanPulangCepat({ idAbsen }, isAdmin) {
+  if (!idAbsen) return { success: false, message: 'ID absen wajib diisi' };
+
+  const { data: absen } = await supabase
+    .from('absensi').select('id,tanggal,status_pulang,nama_siswa').eq('id', idAbsen).maybeSingle();
+  if (!absen) return { success: false, message: 'Data absensi tidak ditemukan' };
+  if (!absen.status_pulang || !STATUS_PULANG_CEPAT.has(absen.status_pulang))
+    return { success: false, message: 'Baris ini bukan status pulang cepat' };
+
+  const today = todayStr();
+  if (absen.tanggal !== today && !isAdmin) {
+    return { success: false, message: 'Hanya admin yang bisa membatalkan pulang cepat untuk tanggal selain hari ini' };
+  }
+
+  const { error } = await supabase
+    .from('absensi')
+    .update({ jam_pulang: null, status_pulang: null, keterangan_pulang_cepat: null })
+    .eq('id', idAbsen);
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: `Penandaan pulang cepat ${absen.nama_siswa} dibatalkan` };
 }
 
 // ── REKAP KETERANGAN RANGE (untuk evaluasi semester) ─────────────

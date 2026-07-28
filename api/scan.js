@@ -6,7 +6,9 @@ const {
   // ── TAMBAHAN BARU (perbaikan keamanan) ──
   generateKioskToken, verifyKioskToken, checkRateLimit, getClientIp,
   // ── TAMBAHAN BARU (perbaikan performa scan siswa) ──
-  fetchJamPulangOverride, computeJamPulangEfektif
+  fetchJamPulangOverride, computeJamPulangEfektif,
+  // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
+  tanggalBesok, hariBesok
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -83,6 +85,13 @@ module.exports = async (req, res) => {
     if (action === 'scanKartu')       return res.json(await scanKartu(params));
     if (action === 'getLogHariIni')   return res.json(await getLogHariIni(params));
     if (action === 'getAktivitasGuruHariIni') return res.json(await getAktivitasGuruHariIni());
+    // BARU: jadwal & guru piket BESOK -- dipakai tab "Besok" di modal
+    // "Cek Aktivitas Guru" (selagi jam operasional), dan di panel Rekap
+    // Harian (bagian "📅 Jadwal Besok") begitu jam operasional sudah
+    // berakhir, supaya guru yang buka aplikasi malam hari tetap bisa
+    // lihat jadwal & piket besok. Read-only, publik, sama seperti
+    // getAktivitasGuruHariIni() di atas.
+    if (action === 'getJadwalBesok')      return res.json(await getJadwalBesok());
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     if (action === 'absenKelasUsername')  return res.json(await absenKelasUsername(params));
@@ -1154,6 +1163,75 @@ async function getAktivitasGuruHariIni() {
     },
     sudahMengajar,
     belumMengajar
+  };
+}
+
+// ── JADWAL BESOK (BARU) ────────────────────────────────────────────
+// Dipakai tab "📅 Besok" di modal "Cek Aktivitas Guru" (selagi jam
+// operasional masih berjalan), dan bagian "📅 Jadwal Besok" di panel
+// Rekap Harian scan.html begitu jam operasional hari ini sudah berakhir
+// -- supaya guru yang membuka aplikasi malam hari tetap bisa melihat
+// siapa guru piket besok dan jadwal mengajar besok, tanpa perlu
+// menunggu sampai besok paginya. Read-only/publik seperti
+// getAktivitasGuruHariIni() -- TIDAK ada status "sudah/belum mengajar"
+// di sini karena itu baru berarti kalau harinya sudah berjalan.
+async function getJadwalBesok() {
+  const besok     = tanggalBesok();
+  const hariBsk   = hariBesok();
+
+  const cekLibur  = await isHariLibur(besok);
+  const hariAktif = !cekLibur.libur && await isHariKerja(hariBsk);
+
+  // Kalau besok bukan hari sekolah (libur kalender ATAU memang tidak
+  // aktif di Pengaturan Hari Kerja), tidak perlu query jadwal sama
+  // sekali -- langsung kembalikan status liburnya saja.
+  if (!hariAktif) {
+    return {
+      success: true,
+      tanggal: besok, hari: hariBsk,
+      hariSekolah: false,
+      keteranganLibur: cekLibur.libur ? (cekLibur.keterangan || 'Hari libur') : `${hariBsk} bukan hari sekolah`,
+      guruPiket: [],
+      jadwalMengajar: []
+    };
+  }
+
+  const [
+    { data: jadwalPiketBesok },
+    { data: jadwalMengajarBesok },
+    { data: jamPelajaranBesok }
+  ] = await Promise.all([
+    supabase.from('jadwal_piket')
+      .select('id_guru,nama_guru')
+      .eq('hari', hariBsk),
+    supabase.from('jadwal_mengajar')
+      .select('id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
+      .eq('hari', hariBsk),
+    supabase.from('jam_pelajaran')
+      .select('jam_ke,jam_mulai,jam_selesai')
+      .eq('hari', hariBsk).order('jam_ke')
+  ]);
+
+  const jpMap = {};
+  (jamPelajaranBesok || []).forEach(j => { jpMap[j.jam_ke] = j; });
+
+  const jadwalMengajar = (jadwalMengajarBesok || []).map(j => {
+    const jpMulai   = jpMap[j.jam_ke_mulai];
+    const jpSelesai = jpMap[j.jam_ke_selesai] || jpMulai;
+    return {
+      namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel,
+      jamMulai:   jpMulai   ? jpMulai.jam_mulai     : null,
+      jamSelesai: jpSelesai ? jpSelesai.jam_selesai : null
+    };
+  }).sort((a, b) => (a.jamMulai || '').localeCompare(b.jamMulai || ''));
+
+  return {
+    success: true,
+    tanggal: besok, hari: hariBsk,
+    hariSekolah: true,
+    keteranganLibur: null,
+    guruPiket: (jadwalPiketBesok || []).map(g => ({ namaGuru: g.nama_guru })),
+    jadwalMengajar
   };
 }
 

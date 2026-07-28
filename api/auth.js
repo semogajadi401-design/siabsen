@@ -165,6 +165,22 @@ async function changePassword({ username, oldPassword, newPassword }) {
   if (!newPassword || String(newPassword).trim().length < 6)
     return { success: false, message: 'Password baru minimal 6 karakter' };
 
+  // PERBAIKAN KEAMANAN: sebelumnya endpoint ini TIDAK dibatasi rate limit
+  // sama sekali, padahal ia membuktikan identitas lewat oldPassword --
+  // persis seperti login(). Tanpa batasan ini, siapa pun yang tahu sebuah
+  // username (tidak rahasia) bisa menebak oldPassword tanpa batas lewat
+  // endpoint ini, melewati kuncian 5x-percobaan yang sudah ada di jalur
+  // login resmi, dan kalau berhasil bisa mengambil alih akun (termasuk
+  // akun admin) dengan mengganti passwordnya. Sekarang memakai rate
+  // limiter yang SAMA PERSIS (per-username) dengan login().
+  const cek = cekRateLimit(username);
+  if (!cek.boleh) {
+    return {
+      success: false,
+      message: `Terlalu banyak percobaan gagal. Coba lagi dalam ${cek.sisaMenit} menit.`
+    };
+  }
+
   const { data: adm } = await supabase
     .from('admin').select('*')
     .eq('username', username).single();
@@ -172,6 +188,7 @@ async function changePassword({ username, oldPassword, newPassword }) {
   if (adm) {
     const cekPass = await verifyPassword(oldPassword, adm.password);
     if (cekPass.valid) {
+      resetPercobaan(username);
       await supabase.from('admin')
         .update({ password: await hashPassword(newPassword) }).eq('username', username);
       return { success: true, message: 'Password berhasil diubah' };
@@ -185,11 +202,13 @@ async function changePassword({ username, oldPassword, newPassword }) {
   if (guru) {
     const cekPass = await verifyPassword(oldPassword, guru.password);
     if (cekPass.valid) {
+      resetPercobaan(username);
       await supabase.from('guru')
         .update({ password: await hashPassword(newPassword) }).eq('username', username);
       return { success: true, message: 'Password berhasil diubah' };
     }
   }
 
+  catatPercobaanGagal(username);
   return { success: false, message: 'Password lama tidak sesuai' };
 }

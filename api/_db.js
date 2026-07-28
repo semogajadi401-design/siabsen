@@ -358,6 +358,23 @@ function hariIni() {
   return days[witaNow().getDay()];
 }
 
+// ── TANGGAL & NAMA HARI BESOK (BARU) ──────────────────────────────
+// Dipakai fitur "Jadwal Besok" (tab di modal Cek Aktivitas Guru selagi
+// jam operasional, dan bagian "📅 Jadwal Besok" di panel Rekap Harian
+// begitu jam operasional sudah berakhir) -- lihat getJadwalBesok() di
+// api/scan.js. Ambil besok dengan cara yang SAMA seperti witaNow()
+// (offset WITA), lalu tambah 1 hari, supaya konsisten dengan todayStr()/
+// hariIni() dan tidak salah zona waktu dekat tengah malam.
+function tanggalBesok() {
+  const besok = new Date(witaNow().getTime() + 24 * 60 * 60 * 1000);
+  return besok.toISOString().split('T')[0];
+}
+function hariBesok() {
+  const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const besok = new Date(witaNow().getTime() + 24 * 60 * 60 * 1000);
+  return days[besok.getDay()];
+}
+
 // ── TAMBAH MENIT KE STRING JAM "HH:MM" (untuk toleransi keterlambatan) ──
 function tambahMenit(jamStr, menit) {
   const [h, m] = String(jamStr).split(':').map(Number);
@@ -1014,7 +1031,9 @@ module.exports = {
   generateKioskToken, verifyKioskToken,
   checkRateLimit, getClientIp,
   // ── TAMBAHAN BARU (perbaikan bug: % Kehadiran Evaluasi Semester) ──
-  hitungJumlahHariSekolah
+  hitungJumlahHariSekolah,
+  // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
+  tanggalBesok, hariBesok
 };
 
 // ── HITUNG JUMLAH HARI SEKOLAH EFEKTIF DALAM RENTANG TANGGAL BEBAS ──

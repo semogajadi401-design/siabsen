@@ -6603,13 +6603,13 @@ async function hapusPengecualianHari() {
   else toast(result.message, 'error');
 }
 
-// ── JADWAL MENGAJAR (dikelompokkan per kelas, BARU) ──────────────────
-// SEBELUMNYA: satu <table> panjang berisi SEMUA baris jadwal dari semua
-// kelas tercampur jadi satu (urutan apa adanya dari server) -- makin
-// banyak jadwal, makin terasa seperti "daftar panjang" yang susah
-// dibaca. Sekarang dikelompokkan per kelas: satu mini-tabel per kelas
-// (diurutkan Hari lalu Jam Ke), supaya jadwal pelajaran tiap kelas
-// langsung terlihat rapi & terpisah, tidak bercampur dengan kelas lain.
+// ── JADWAL MENGAJAR (tabel jadwal pelajaran, BARU) ────────────────────
+// SEBELUMNYA: satu tabel per kelas (10 kelas = 10 tabel terpisah, semua
+// hari digabung DI DALAM tabel masing-masing kelas). Sekarang jadi SATU
+// tabel jadwal pelajaran saja: baris = Hari + Jam Ke (semua hari
+// digabung jadi satu tempat, tidak dipisah-pisah per kelas), kolom =
+// satu kolom per kelas (10 kelas = 10 kolom). Isi tiap sel = mapel +
+// guru yang mengajar kelas itu pada hari & jam tersebut.
 async function loadJadwalMengajar() {
   const idGuru = document.getElementById('jmFilterGuru')?.value || '';
   const hari = document.getElementById('jmFilterHari')?.value || '';
@@ -6624,21 +6624,11 @@ async function loadJadwalMengajar() {
   const URUTAN_HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
   const urutHari = h => { const i = URUTAN_HARI.indexOf(h); return i === -1 ? 99 : i; };
 
-  // Kelompokkan baris jadwal per kelas.
-  const grup = {};
-  result.data.forEach(j => {
-    const k = j.kelas || '(Tanpa Kelas)';
-    (grup[k] = grup[k] || []).push(j);
-  });
-
-  // Urutan kelas: ikut urutan APP.kelasList (konsisten dengan menu
-  // Manajemen Kelas) supaya kelas 7A tampil sebelum 7B dst, bukan
-  // alfabetis mentah yang bisa salah urut (mis. "Kelas 10" sebelum
-  // "Kelas 2"). Kelas yang tidak/tidak-lagi ada di APP.kelasList
-  // (mis. sudah dihapus tapi jadwalnya belum) ditaruh di akhir,
-  // diurutkan alfabet supaya tetap rapi.
+  // Kolom: satu per kelas yang muncul di data, diurutkan ikut
+  // APP.kelasList (konsisten dengan Manajemen Kelas) supaya 7A sebelum
+  // 7B dst, bukan alfabetis mentah.
   const urutanKelas = APP.kelasList || [];
-  const semuaKelas = Object.keys(grup).sort((a, b) => {
+  const semuaKelas = Array.from(new Set(result.data.map(j => j.kelas || '(Tanpa Kelas)'))).sort((a, b) => {
     const ia = urutanKelas.indexOf(a), ib = urutanKelas.indexOf(b);
     if (ia !== -1 && ib !== -1) return ia - ib;
     if (ia !== -1) return -1;
@@ -6646,36 +6636,52 @@ async function loadJadwalMengajar() {
     return a.localeCompare(b);
   });
 
-  container.innerHTML = semuaKelas.map(kelas => {
-    const rows = grup[kelas].slice().sort((a, b) => {
-      const dh = urutHari(a.hari) - urutHari(b.hari);
-      if (dh !== 0) return dh;
-      return (Number(a.jamKeMulai) || 0) - (Number(b.jamKeMulai) || 0);
-    });
-    const rowsHtml = rows.map(j => `<tr>
-      <td>${esc(j.hari)}</td>
-      <td>${j.jamKeMulai===j.jamKeSelesai ? `Ke-${j.jamKeMulai}` : `Ke-${j.jamKeMulai} s/d Ke-${j.jamKeSelesai}`}</td>
-      <td>${esc(j.namaGuru)}</td>
-      <td>${esc(j.mapel)}</td>
-      <td><div style="display:flex;gap:6px">
-        <button class="btn btn-outline btn-sm" onclick="editJadwalMengajarUI('${j.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="hapusJadwalMengajarUI('${j.id}')">🗑</button>
-      </div></td>
-    </tr>`).join('');
-    return `
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-header" style="padding:12px 16px">
-          <h4 style="font-size:.92rem;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
-            <span class="badge badge-primary">${esc(kelas)}</span>
-            <span style="font-weight:600;color:var(--text-muted);font-size:.78rem">${rows.length} jadwal</span>
-          </h4>
-        </div>
-        <div class="table-responsive"><table>
-          <thead><tr><th style="width:110px">Hari</th><th style="width:150px">Jam Ke</th><th>Guru</th><th>Mapel</th><th style="width:90px">Aksi</th></tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table></div>
-      </div>`;
+  // Baris: satu per kombinasi Hari + Jam Ke Mulai -- SEMUA hari
+  // digabung jadi satu tabel, jadi tinggal urut Hari lalu Jam Ke.
+  const barisMap = {};
+  result.data.forEach(j => {
+    const key = j.hari + '|' + j.jamKeMulai;
+    if (!barisMap[key]) barisMap[key] = { hari: j.hari, jamKeMulai: j.jamKeMulai };
+  });
+  const semuaBaris = Object.values(barisMap).sort((a, b) => {
+    const dh = urutHari(a.hari) - urutHari(b.hari);
+    if (dh !== 0) return dh;
+    return (Number(a.jamKeMulai) || 0) - (Number(b.jamKeMulai) || 0);
+  });
+
+  // Index cepat "hari|jamKeMulai|kelas" -> daftar jadwal yang cocok,
+  // dipakai untuk mengisi tiap sel tabel.
+  const cellIndex = {};
+  result.data.forEach(j => {
+    const key = j.hari + '|' + j.jamKeMulai + '|' + (j.kelas || '(Tanpa Kelas)');
+    (cellIndex[key] = cellIndex[key] || []).push(j);
+  });
+
+  const theadKelas = semuaKelas.map(k => `<th style="min-width:150px">${esc(k)}</th>`).join('');
+  const rowsHtml = semuaBaris.map(b => {
+    const cells = semuaKelas.map(kelas => {
+      const arr = cellIndex[b.hari + '|' + b.jamKeMulai + '|' + kelas] || [];
+      if (!arr.length) return `<td style="text-align:center;color:var(--text-muted)">-</td>`;
+      return `<td>${arr.map(j => `
+        <div style="padding:4px 0;${arr.length > 1 ? 'border-bottom:1px dashed var(--border);margin-bottom:4px' : ''}">
+          <div style="font-weight:700;font-size:.82rem">${esc(j.mapel)}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">${esc(j.namaGuru)}${j.jamKeMulai === j.jamKeSelesai ? '' : ` &middot; s/d Ke-${esc(j.jamKeSelesai)}`}</div>
+          <div style="display:flex;gap:4px;margin-top:4px">
+            <button class="btn btn-outline btn-sm" onclick="editJadwalMengajarUI('${j.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="hapusJadwalMengajarUI('${j.id}')">🗑</button>
+          </div>
+        </div>`).join('')}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="white-space:nowrap;font-weight:700">${esc(b.hari)}<div style="font-size:.72rem;color:var(--text-muted);font-weight:600">Ke-${esc(b.jamKeMulai)}</div></td>
+      ${cells}
+    </tr>`;
   }).join('');
+
+  container.innerHTML = `<div class="table-responsive"><table>
+    <thead><tr><th style="width:100px">Hari / Jam Ke</th>${theadKelas}</tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table></div>`;
 }
 
 function openModalJadwalMengajar() {

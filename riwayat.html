@@ -418,9 +418,17 @@ function render(r) {
     // jadi teks ini WAJIB di-esc() sebelum masuk innerHTML -- sama seperti
     // pola yang sudah dipakai di tab "Per Mapel" (esc(item.mapel),
     // esc(infoText)) sedikit di bawah. Sebelumnya luput di tab "Harian" ini.
+    // (BARU) Kalau statusPulang bukan 'Pulang' (tapi ada isinya), berarti
+    // ini bukan absen pulang biasa -- siswa sempat hadir lalu dipulangkan
+    // lebih awal karena sakit/izin mendadak (lihat tandaiPulangCepat di
+    // api/kehadiran.js). Tampilkan jelas sebagai itu, bukan seolah dia
+    // "Pulang" biasa jam segitu.
+    const pulangCepat = item.statusPulang && item.statusPulang !== 'Pulang';
     const jamText = item.jamDatang
-      ? `Datang ${item.jamDatang}${item.jamPulang ? ' • Pulang ' + item.jamPulang : ''}`
+      ? `Datang ${item.jamDatang}${item.jamPulang ? (pulangCepat ? ` • ${item.statusPulang} pukul ${item.jamPulang} (pulang cepat)` : ' • Pulang ' + item.jamPulang) : ''}`
       : esc(item.keterangan || '-');
+    const ketPulangCepatHTML = pulangCepat && item.keteranganPulangCepat
+      ? `<div class="jam" style="font-style:italic">${esc(item.keteranganPulangCepat)}</div>` : '';
     return `
       <div class="riwayat-item ${cls}">
         <div class="tgl-box">
@@ -430,6 +438,7 @@ function render(r) {
         <div class="info">
           <div class="hari">${esc(item.hari || HARI_SINGKAT_FULL(d))}</div>
           <div class="jam">${jamText}</div>
+          ${ketPulangCepatHTML}
         </div>
         <div class="badge-status ${cls}">${esc(item.statusDatang)}</div>
       </div>`;

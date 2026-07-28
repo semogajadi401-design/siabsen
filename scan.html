@@ -1362,6 +1362,63 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   font-size:.82rem;cursor:pointer;font-family:inherit;
 }
 
+/* ══════ PANEL REKAP HARIAN (BARU, dirapikan) ══════
+   Dipakai di #rekapHarianPanel -- accordion ringkas berbasis <details>
+   supaya tidak perlu JS tambahan buat expand/collapse (native browser). */
+.rh-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:14px 16px;margin-bottom:12px;
+}
+.rh-head{font-weight:800;font-size:.92rem;margin-bottom:2px}
+.rh-sub{font-size:.76rem;color:var(--text-muted);margin-bottom:12px}
+.rh-section{border-top:1px solid var(--border)}
+.rh-section:first-of-type{border-top:none}
+.rh-section > summary{
+  list-style:none;cursor:pointer;padding:11px 2px;
+  display:flex;align-items:center;gap:8px;font-weight:700;font-size:.82rem;
+  user-select:none;
+}
+.rh-section > summary::-webkit-details-marker{display:none}
+.rh-section > summary .rh-chevron{
+  margin-left:auto;font-size:.9rem;color:var(--text-muted);
+  transition:transform .15s;flex-shrink:0;
+}
+.rh-section[open] > summary .rh-chevron{transform:rotate(90deg)}
+.rh-section > summary .rh-count{
+  font-weight:700;color:var(--text-muted);font-size:.76rem;
+  background:var(--bg);border-radius:20px;padding:2px 9px;
+}
+.rh-section-body{padding:0 2px 12px}
+.rh-row{font-size:.8rem;color:var(--text-muted);padding:4px 0}
+.rh-row b{color:var(--text)}
+.rh-warn{font-size:.8rem;color:#B45309;padding:4px 0}
+.rh-empty{font-size:.8rem;color:var(--text-muted);padding:4px 0}
+.rh-kelas-row{display:flex;align-items:center;gap:8px;font-size:.8rem;padding:3px 0}
+.rh-kelas-row .rh-kelas-nama{width:42px;font-weight:700;flex-shrink:0}
+.rh-kelas-row .rh-kelas-bar{flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.rh-kelas-row .rh-kelas-bar > div{height:100%;background:var(--primary);border-radius:3px}
+.rh-kelas-row .rh-kelas-info{flex-shrink:0;color:var(--text-muted);white-space:nowrap;font-size:.76rem}
+.rh-siswa-tabs{display:flex;gap:4px;background:#EEF2FA;border-radius:10px;padding:3px;margin-bottom:8px}
+.rh-siswa-tab{
+  flex:1;padding:6px;text-align:center;border-radius:7px;font-size:.72rem;
+  font-weight:700;color:var(--text-muted);cursor:pointer;background:transparent;
+  border:none;font-family:inherit;transition:all .2s;
+}
+.rh-siswa-tab.active{background:#fff;color:var(--primary-dark);box-shadow:var(--shadow-soft)}
+.rh-siswa-list{max-height:260px;overflow-y:auto}
+.rh-siswa-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:.78rem;padding:6px 2px;border-bottom:1px dashed var(--border);
+}
+.rh-siswa-item:last-child{border-bottom:none}
+.rh-siswa-nama{font-weight:700;color:var(--text)}
+.rh-siswa-kelas{font-size:.7rem;color:var(--text-muted)}
+@media(max-width:520px){
+  .rh-card{padding:12px 12px;border-radius:12px}
+  .rh-section > summary{font-size:.8rem;padding:10px 2px}
+  .rh-siswa-list{max-height:220px}
+}
+
 </style>
 </head>
 <body>
@@ -2108,12 +2165,42 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          getAktivitasGuruHariIni() (dipakai ulang, sama seperti tombol
          "Cek Aktivitas Guru" yang disembunyikan saat panel ini aktif). -->
     <div id="rekapHarianPanel" style="display:none">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px">
-        <div style="font-weight:800;font-size:.92rem;margin-bottom:2px">📊 Rekap Hari Ini</div>
-        <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">Jam absensi sudah selesai — ini ringkasan hari ini, bukan data langsung.</div>
-        <div id="rhGuruPiket" style="margin-bottom:14px"></div>
-        <div id="rhPerKelas" style="margin-bottom:14px"></div>
-        <div id="rhMengajar"></div>
+      <div class="rh-card">
+        <div class="rh-head">📊 Rekap Hari Ini</div>
+        <div class="rh-sub">Jam absensi sudah selesai — ini ringkasan hari ini, bukan data langsung.</div>
+
+        <!-- Guru piket: singkat, jadi biarkan langsung terbuka -->
+        <details class="rh-section" open>
+          <summary>🛡️ Guru Piket Hari Ini<span class="rh-chevron">›</span></summary>
+          <div class="rh-section-body" id="rhGuruPiket"></div>
+        </details>
+
+        <!-- Ringkasan per kelas: ringkas (progress bar), langsung terbuka -->
+        <details class="rh-section" open>
+          <summary>🏫 Ringkasan per Kelas<span class="rh-chevron">›</span></summary>
+          <div class="rh-section-body" id="rhPerKelas"></div>
+        </details>
+
+        <!-- Guru mengajar: bisa panjang -- tertutup default, dirender saat dibuka -->
+        <details class="rh-section" id="rhMengajarWrap">
+          <summary>📚 Guru Mengajar Hari Ini<span class="rh-count" id="rhMengajarCount">0</span><span class="rh-chevron">›</span></summary>
+          <div class="rh-section-body" id="rhMengajar"></div>
+        </details>
+
+        <!-- Daftar siswa (Sudah Hadir/Belum Hadir/Izin-Sakit): dulu di tabel
+             bawah, sekarang digabung ke sini -- tertutup default, dirender
+             lazy saat dibuka (lihat renderRekapSiswa() di script). -->
+        <details class="rh-section" id="rhSiswaWrap">
+          <summary>👥 Kehadiran Siswa<span class="rh-count" id="rhSiswaCount">0</span><span class="rh-chevron">›</span></summary>
+          <div class="rh-section-body">
+            <div class="rh-siswa-tabs">
+              <button type="button" class="rh-siswa-tab active" id="rhTabBelum" onclick="switchRhSiswaTab('belum')">⏳ Belum (<span id="rhTabBelumCount">0</span>)</button>
+              <button type="button" class="rh-siswa-tab" id="rhTabIzin" onclick="switchRhSiswaTab('izin')">🤒 Izin/Sakit (<span id="rhTabIzinCount">0</span>)</button>
+              <button type="button" class="rh-siswa-tab" id="rhTabHadir" onclick="switchRhSiswaTab('hadir')">✅ Hadir (<span id="rhTabHadirCount">0</span>)</button>
+            </div>
+            <div class="rh-siswa-list" id="rhSiswaList"></div>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -4092,14 +4179,28 @@ let _rhLastFetchAktivitas = 0;
 function masukModeRekapHarian(r) {
   if (!_modeRekapHarian) {
     _modeRekapHarian = true;
-    const statsRow    = document.querySelector('.stats-row');
-    const chartWidget = document.getElementById('chartKehadiranWidget');
+    const statsRow     = document.querySelector('.stats-row');
+    const chartWidget  = document.getElementById('chartKehadiranWidget');
     const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
     const btnTanpaKartu = document.getElementById('btnTanpaKartu');
-    if (statsRow)     statsRow.style.display = 'none';
-    if (chartWidget)  chartWidget.style.display = 'none';
-    if (aksiWrap)      aksiWrap.style.display = 'none';
-    if (btnTanpaKartu) btnTanpaKartu.style.display = 'none';
+    // BARU: nama guru piket di atas kamera dipindah ke dalam panel
+    // ringkasan (#rhGuruPiket), jadi kotak aslinya disembunyikan di
+    // sini supaya tidak dobel.
+    const guruStatusBox = document.getElementById('guruStatusBox');
+    // BARU: dropdown filter kelas + tab Belum/Izin/Hadir + daftar
+    // siswanya juga digabung ke dalam panel ringkasan (bagian
+    // "👥 Kehadiran Siswa"), jadi versi lama di bawah disembunyikan.
+    const filterRow    = document.querySelector('.filter-row');
+    const logTabs      = document.querySelector('.log-tabs');
+    const logContainer = document.getElementById('logContainer');
+    if (statsRow)      statsRow.style.display = 'none';
+    if (chartWidget)   chartWidget.style.display = 'none';
+    if (aksiWrap)       aksiWrap.style.display = 'none';
+    if (btnTanpaKartu)  btnTanpaKartu.style.display = 'none';
+    if (guruStatusBox)  guruStatusBox.style.display = 'none';
+    if (filterRow)      filterRow.style.display = 'none';
+    if (logTabs)        logTabs.style.display = 'none';
+    if (logContainer)   logContainer.style.display = 'none';
     const panel = document.getElementById('rekapHarianPanel');
     if (panel) panel.style.display = 'block';
   }
@@ -4109,29 +4210,37 @@ function masukModeRekapHarian(r) {
 function keluarModeRekapHarian() {
   if (!_modeRekapHarian) return;
   _modeRekapHarian = false;
-  const statsRow    = document.querySelector('.stats-row');
-  const chartWidget = document.getElementById('chartKehadiranWidget');
+  const statsRow     = document.querySelector('.stats-row');
+  const chartWidget  = document.getElementById('chartKehadiranWidget');
   const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
   const btnTanpaKartu = document.getElementById('btnTanpaKartu');
-  if (statsRow)     statsRow.style.display = '';
-  if (chartWidget)  chartWidget.style.display = '';
-  if (aksiWrap)      aksiWrap.style.display = '';
-  if (btnTanpaKartu) btnTanpaKartu.style.display = '';
+  const guruStatusBox = document.getElementById('guruStatusBox');
+  const filterRow    = document.querySelector('.filter-row');
+  const logTabs      = document.querySelector('.log-tabs');
+  const logContainer = document.getElementById('logContainer');
+  if (statsRow)      statsRow.style.display = '';
+  if (chartWidget)   chartWidget.style.display = '';
+  if (aksiWrap)       aksiWrap.style.display = '';
+  if (btnTanpaKartu)  btnTanpaKartu.style.display = '';
+  if (guruStatusBox)  guruStatusBox.style.display = '';
+  if (filterRow)      filterRow.style.display = '';
+  if (logTabs)        logTabs.style.display = '';
+  if (logContainer)   logContainer.style.display = '';
   const panel = document.getElementById('rekapHarianPanel');
   if (panel) panel.style.display = 'none';
 }
 
 async function renderRekapHarian(r) {
-  // -- Guru piket hari ini (dari checkStatus, sudah ada) --
+  // -- Guru piket hari ini (dari checkStatus, sudah ada). BARU: ini
+  // dulunya juga ditampilkan di kotak di atas kamera (#guruStatusBox),
+  // sekarang kotak itu disembunyikan saat mode rekap aktif (lihat
+  // masukModeRekapHarian()) dan infonya cukup di sini saja. --
   const elPiket = document.getElementById('rhGuruPiket');
   if (elPiket) {
     const list = r.guruPiket || [];
-    elPiket.innerHTML = `
-      <div style="font-weight:700;font-size:.8rem;margin-bottom:6px">🛡️ Guru Piket Hari Ini</div>
-      ${list.length
-        ? list.map(g => `<div style="font-size:.82rem;color:var(--text-muted);padding:3px 0">${esc(g.nama_guru)} <span style="opacity:.7">• scan ${g.jam_scan}</span></div>`).join('')
-        : `<div style="font-size:.82rem;color:var(--text-muted)">Tidak ada guru piket tercatat hari ini.</div>`}
-    `;
+    elPiket.innerHTML = list.length
+      ? list.map(g => `<div class="rh-row"><b>${esc(g.nama_guru)}</b> <span style="opacity:.7">• scan ${g.jam_scan}</span></div>`).join('')
+      : `<div class="rh-empty">Tidak ada guru piket tercatat hari ini.</div>`;
   }
 
   // -- Ringkasan per kelas (pakai data yang SUDAH dimuat loadChartKehadiran(),
@@ -4140,27 +4249,28 @@ async function renderRekapHarian(r) {
   if (elKelas) {
     const data = _chartKehadiranData;
     if (!data || !data.kelasList || !data.kelasList.length) {
-      elKelas.innerHTML = `<div style="font-weight:700;font-size:.8rem;margin-bottom:6px">🏫 Ringkasan per Kelas</div><div style="font-size:.82rem;color:var(--text-muted)">Data belum tersedia.</div>`;
+      elKelas.innerHTML = `<div class="rh-empty">Data belum tersedia.</div>`;
     } else {
-      elKelas.innerHTML = `
-        <div style="font-weight:700;font-size:.8rem;margin-bottom:8px">🏫 Ringkasan per Kelas</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-        ${data.kelasList.map(k => {
-          const pct = k.total ? Math.round((k.hadir / k.total) * 100) : 0;
-          const izinSakit = (k.izin || 0) + (k.sakit || 0);
-          return `
-          <div style="display:flex;align-items:center;gap:8px;font-size:.8rem">
-            <div style="width:44px;font-weight:700;flex-shrink:0">${esc(k.kelas)}</div>
-            <div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden">
-              <div style="height:100%;width:${pct}%;background:#10B981;border-radius:3px"></div>
-            </div>
-            <div style="flex-shrink:0;color:var(--text-muted);white-space:nowrap">${k.hadir}/${k.total} hadir${izinSakit ? ` • ${izinSakit} izin/sakit` : ''}</div>
-          </div>`;
-        }).join('')}
-        </div>
-      `;
+      elKelas.innerHTML = data.kelasList.map(k => {
+        const pct = k.total ? Math.round((k.hadir / k.total) * 100) : 0;
+        const izinSakit = (k.izin || 0) + (k.sakit || 0);
+        return `
+        <div class="rh-kelas-row">
+          <div class="rh-kelas-nama">${esc(k.kelas)}</div>
+          <div class="rh-kelas-bar"><div style="width:${pct}%"></div></div>
+          <div class="rh-kelas-info">${k.hadir}/${k.total} hadir${izinSakit ? ` • ${izinSakit} izin/sakit` : ''}</div>
+        </div>`;
+      }).join('');
     }
   }
+
+  // -- Kehadiran siswa (Belum/Izin-Sakit/Sudah Hadir) -- BARU: dulu
+  // tabel terpisah di bawah (filter kelas + tab + #logContainer), yang
+  // datanya sudah dimuat berkala oleh loadLog() ke variabel `logData`
+  // global. Di mode rekap, versi tabel itu disembunyikan dan datanya
+  // dipakai ulang di sini saja (lihat renderRekapSiswa()) -- tidak
+  // perlu permintaan/endpoint baru.
+  renderRekapSiswa();
 
   // -- Guru mengajar / tidak masuk kelas -- pakai ulang
   // getAktivitasGuruHariIni() (endpoint yang sudah ada, dipakai juga oleh
@@ -4178,19 +4288,80 @@ async function renderRekapHarian(r) {
     elMengajar.dataset.filled = '1';
     const sudah = ra.sudahMengajar || [];
     const belum = ra.belumMengajar || [];
+    const countEl = document.getElementById('rhMengajarCount');
+    if (countEl) countEl.textContent = belum.length ? `${sudah.length} • ⚠️${belum.length}` : `${sudah.length}`;
     elMengajar.innerHTML = `
-      <div style="font-weight:700;font-size:.8rem;margin-bottom:8px">📚 Guru Mengajar Hari Ini</div>
       ${sudah.length ? sudah.map(g => `
-        <div style="font-size:.8rem;color:var(--text-muted);padding:3px 0">✅ ${esc(g.namaGuru)} — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.7">jam ${g.jamScan || '-'}</span></div>
-      `).join('') : `<div style="font-size:.8rem;color:var(--text-muted)">Belum ada yang tercatat mengajar.</div>`}
+        <div class="rh-row">✅ <b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.7">jam ${g.jamScan || '-'}</span></div>
+      `).join('') : `<div class="rh-empty">Belum ada yang tercatat mengajar.</div>`}
       ${belum.length ? `
-        <div style="font-weight:700;font-size:.8rem;margin:12px 0 6px">⚠️ Tidak Tercatat Mengajar</div>
+        <div style="font-weight:700;font-size:.78rem;margin:10px 0 4px;color:#B45309">⚠️ Tidak Tercatat Mengajar</div>
         ${belum.map(g => `
-          <div style="font-size:.8rem;color:#B45309;padding:3px 0">${esc(g.namaGuru)} — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.75">jadwal ${g.jamMulai || '-'}-${g.jamSelesai || '-'}</span></div>
+          <div class="rh-warn">${esc(g.namaGuru)} — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.8">jadwal ${g.jamMulai || '-'}-${g.jamSelesai || '-'}</span></div>
         `).join('')}
       ` : ''}
     `;
   } catch(e) {}
+}
+
+// ── KEHADIRAN SISWA DI DALAM RINGKASAN (BARU) ────────────────────
+// Tab kecil (Belum/Izin-Sakit/Hadir) di dalam bagian "👥 Kehadiran
+// Siswa" pada panel rekap. Sengaja pakai ulang `logData` (diisi oleh
+// loadLog(), tetap jalan berkala meski tabel lamanya disembunyikan)
+// supaya tidak perlu permintaan data baru ke server.
+let _rhSiswaTab = 'belum';
+
+function switchRhSiswaTab(tab) {
+  _rhSiswaTab = tab;
+  document.getElementById('rhTabBelum').classList.toggle('active', tab === 'belum');
+  document.getElementById('rhTabIzin').classList.toggle('active', tab === 'izin');
+  document.getElementById('rhTabHadir').classList.toggle('active', tab === 'hadir');
+  renderRekapSiswa();
+}
+
+function renderRekapSiswa() {
+  const totalBelum = (logData.belumHadir || []).length;
+  const totalIzin  = (logData.izinSakit || []).length;
+  const totalHadir = (logData.hadir || []).length;
+
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setTxt('rhTabBelumCount', totalBelum);
+  setTxt('rhTabIzinCount', totalIzin);
+  setTxt('rhTabHadirCount', totalHadir);
+  setTxt('rhSiswaCount', `${totalHadir} hadir • ${totalIzin} izin/sakit • ${totalBelum} belum`);
+
+  const listEl = document.getElementById('rhSiswaList');
+  if (!listEl) return;
+  const list = _rhSiswaTab === 'belum' ? (logData.belumHadir || [])
+             : _rhSiswaTab === 'izin'  ? (logData.izinSakit || [])
+             : (logData.hadir || []);
+
+  if (!list.length) {
+    const txt = _rhSiswaTab === 'belum' ? 'Semua siswa sudah hadir!'
+              : _rhSiswaTab === 'izin'  ? 'Tidak ada siswa izin/sakit.'
+              : 'Belum ada siswa yang hadir.';
+    listEl.innerHTML = `<div class="rh-empty">${txt}</div>`;
+    return;
+  }
+
+  listEl.innerHTML = list.map(s => {
+    let kanan = '';
+    if (_rhSiswaTab === 'izin') {
+      kanan = esc(s.status || 'Izin') + (s.keterangan ? ' • ' + esc(s.keterangan) : '');
+    } else if (_rhSiswaTab === 'hadir') {
+      kanan = 'Datang ' + esc(s.jamDatang || '-') + (s.jamPulang ? ' • Pulang ' + esc(s.jamPulang) : '');
+    } else {
+      kanan = 'Belum hadir';
+    }
+    return `
+    <div class="rh-siswa-item">
+      <div>
+        <div class="rh-siswa-nama">${esc(s.nama)}</div>
+        <div class="rh-siswa-kelas">${esc(s.kelas)}</div>
+      </div>
+      <div class="rh-siswa-kelas" style="text-align:right">${kanan}</div>
+    </div>`;
+  }).join('');
 }
 
 function updateGuruStatus(guruList, status) {
@@ -5634,6 +5805,10 @@ async function loadLog() {
     document.getElementById('tabIzinCount').textContent = r.totalIzinSakit;
     document.getElementById('tabHadirCount').textContent = r.totalHadir;
     renderLog();
+    // BARU: kalau mode rekap sedang aktif, ikut refresh bagian "👥 Kehadiran
+    // Siswa" di panel ringkasan supaya datanya tidak basi meski accordion
+    // itu sedang tertutup.
+    if (_modeRekapHarian) renderRekapSiswa();
 
     // Simpan snapshot lokal daftar "belum hadir" -- HANYA saat tidak
     // sedang difilter per kelas (kelas === ''), supaya cache-nya selalu

@@ -4187,6 +4187,9 @@ function masukModeRekapHarian(r) {
     // ringkasan (#rhGuruPiket), jadi kotak aslinya disembunyikan di
     // sini supaya tidak dobel.
     const guruStatusBox = document.getElementById('guruStatusBox');
+    // BARU: tombol switch Datang/Pulang juga "berperan di hari itu saja"
+    // -- tidak relevan lagi begitu jam absensi sudah selesai.
+    const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
     // BARU: dropdown filter kelas + tab Belum/Izin/Hadir + daftar
     // siswanya juga digabung ke dalam panel ringkasan (bagian
     // "👥 Kehadiran Siswa"), jadi versi lama di bawah disembunyikan.
@@ -4198,6 +4201,7 @@ function masukModeRekapHarian(r) {
     if (aksiWrap)       aksiWrap.style.display = 'none';
     if (btnTanpaKartu)  btnTanpaKartu.style.display = 'none';
     if (guruStatusBox)  guruStatusBox.style.display = 'none';
+    if (modeSwitchWrap) modeSwitchWrap.style.display = 'none';
     if (filterRow)      filterRow.style.display = 'none';
     if (logTabs)        logTabs.style.display = 'none';
     if (logContainer)   logContainer.style.display = 'none';
@@ -4215,6 +4219,7 @@ function keluarModeRekapHarian() {
   const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
   const btnTanpaKartu = document.getElementById('btnTanpaKartu');
   const guruStatusBox = document.getElementById('guruStatusBox');
+  const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
   const filterRow    = document.querySelector('.filter-row');
   const logTabs      = document.querySelector('.log-tabs');
   const logContainer = document.getElementById('logContainer');
@@ -4223,6 +4228,7 @@ function keluarModeRekapHarian() {
   if (aksiWrap)       aksiWrap.style.display = '';
   if (btnTanpaKartu)  btnTanpaKartu.style.display = '';
   if (guruStatusBox)  guruStatusBox.style.display = '';
+  if (modeSwitchWrap) modeSwitchWrap.style.display = '';
   if (filterRow)      filterRow.style.display = '';
   if (logTabs)        logTabs.style.display = '';
   if (logContainer)   logContainer.style.display = '';

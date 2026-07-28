@@ -791,7 +791,7 @@ async function ringkasanLiveHariIni() {
     { data: absensiMengajarHariIni }
   ] = await Promise.all([
     supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
-    supabase.from('absensi').select('nama_siswa,kelas,jam_datang,status_datang,jam_pulang,status_pulang').eq('tanggal', today),
+    supabase.from('absensi').select('nama_siswa,kelas,jam_datang,status_datang,jam_pulang,status_pulang,keterangan_pulang_cepat').eq('tanggal', today),
     supabase.from('keterangan_absensi').select('nama_siswa,kelas,status,keterangan').eq('tanggal', today),
     supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari),
     supabase.from('sesi_piket').select('id_guru,nama_guru,jam_scan').eq('tanggal', today),
@@ -806,6 +806,22 @@ async function ringkasanLiveHariIni() {
   const izinHariIni      = (ketHariIni || []).filter(k => k.status !== 'Sakit').length;
   const alphaHariIni     = Math.max(0, (totalSiswa || 0) - hadirHariIni - sakitHariIni - izinHariIni);
   const daftarSakitIzin  = (ketHariIni || []).map(k => ({ nama: k.nama_siswa, kelas: k.kelas, status: k.status, keterangan: k.keterangan || null }));
+
+  // (BARU) Siswa yang SEMPAT hadir lalu ditandai pulang cepat (sakit/izin
+  // mendadak di tengah hari, lihat tandaiPulangCepat di api/kehadiran.js)
+  // -- dibedakan dari status_pulang = 'Pulang' (checkout normal). Tidak
+  // dicampur ke daftarSakitIzin/sakitHariIni/izinHariIni di atas (yang
+  // menghitung siswa yang memang TIDAK hadir dari awal), supaya kedua
+  // angka itu tidak tertukar sesuai concern awal fitur ini -- ditampilkan
+  // sebagai daftar & hitungan terpisah.
+  const daftarPulangCepat = (absenHariIni || [])
+    .filter(a => a.status_pulang && a.status_pulang !== 'Pulang')
+    .map(a => ({
+      nama: a.nama_siswa, kelas: a.kelas,
+      status: a.status_pulang, jam: a.jam_pulang,
+      keterangan: a.keterangan_pulang_cepat || null
+    }));
+  const pulangCepatHariIni = daftarPulangCepat.length;
 
   const idSudahLapor = new Set((sesiPiketHariIni || []).map(s => s.id_guru));
   const daftarPiket = (jadwalPiket || []).map(p => ({
@@ -868,7 +884,10 @@ async function ringkasanLiveHariIni() {
     kehadiranSiswa: {
       totalSiswa: totalSiswa || 0, hadir: hadirHariIni, terlambat: terlambatHariIni,
       sakit: sakitHariIni, izin: izinHariIni, alpha: alphaHariIni,
-      daftarSakitIzin
+      daftarSakitIzin,
+      // (BARU) Lihat catatan daftarPulangCepat di atas.
+      pulangCepat: pulangCepatHariIni,
+      daftarPulangCepat
     },
     piket: daftarPiket,
     mengajar: { sedangMengajar, sudahSelesai, belumMulai }

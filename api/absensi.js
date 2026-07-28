@@ -170,8 +170,15 @@ async function absensiPulang({ idSiswa, idGuru, namaGuru, metode }) {
     .select('*').eq('id_siswa', idSiswa).eq('tanggal', today).maybeSingle();
   if (!absen)
     return { success: false, message: 'Siswa belum absen datang hari ini' };
-  if (absen.jam_pulang)
-    return { success: false, message: `${absen.nama_siswa} sudah absen pulang hari ini pukul ${absen.jam_pulang}` };
+  if (absen.jam_pulang) {
+    const statusPC = absen.status_pulang;
+    return {
+      success: false,
+      message: (statusPC && statusPC !== 'Pulang')
+        ? `${absen.nama_siswa} sudah dipulangkan lebih awal karena ${statusPC} pukul ${absen.jam_pulang} — bukan absen pulang biasa`
+        : `${absen.nama_siswa} sudah absen pulang hari ini pukul ${absen.jam_pulang}`
+    };
+  }
 
   const { error } = await supabase.from('absensi').update({
     jam_pulang: jam, status_pulang: 'Pulang',

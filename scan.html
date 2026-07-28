@@ -1902,45 +1902,76 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
       <!-- Header -->
       <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div style="font-weight:800;font-size:.98rem">👨‍🏫 Aktivitas Guru Hari Ini</div>
+        <div style="font-weight:800;font-size:.98rem">👨‍🏫 Aktivitas Guru</div>
         <button onclick="tutupModalAktivitasGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Tab Hari Ini / Besok (BARU) -- "Hari Ini" tetap sesuai isi lama
+           (siapa sudah/belum mengajar). "Besok" isinya cuma jadwal +
+           guru piket besok (belum ada status sudah/belum karena harinya
+           belum berjalan) -- lihat getJadwalBesok() di api/scan.js. -->
+      <div class="log-tabs" style="margin:14px 20px 0;flex-shrink:0">
+        <button type="button" class="log-tab active" id="agTabHariIni" onclick="switchAgTab('hariini')">📆 Hari Ini</button>
+        <button type="button" class="log-tab" id="agTabBesok" onclick="switchAgTab('besok')">📅 Besok</button>
       </div>
 
       <!-- Isi (loading / konten / error) -->
       <div id="agIsi" style="overflow-y:auto;flex:1;padding:16px 20px">
-        <div id="agLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
 
-        <div id="agKonten" style="display:none">
+        <!-- Panel: Hari Ini -->
+        <div id="agPanelHariIni">
+          <div id="agLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
 
-          <!-- Ringkasan singkat -->
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
-            <div style="background:var(--success-soft,#DCFCE7);border-radius:10px;padding:10px 6px;text-align:center">
-              <div id="agTotalSudah" style="font-weight:800;font-size:1.1rem;color:var(--success,#16A34A)">0</div>
-              <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Sudah Mengajar</div>
+          <div id="agKonten" style="display:none">
+
+            <!-- Ringkasan singkat -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+              <div style="background:var(--success-soft,#DCFCE7);border-radius:10px;padding:10px 6px;text-align:center">
+                <div id="agTotalSudah" style="font-weight:800;font-size:1.1rem;color:var(--success,#16A34A)">0</div>
+                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Sudah Mengajar</div>
+              </div>
+              <div style="background:var(--danger-soft,#FEE2E2);border-radius:10px;padding:10px 6px;text-align:center">
+                <div id="agTotalBelum" style="font-weight:800;font-size:1.1rem;color:var(--danger,#DC2626)">0</div>
+                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Belum Mengajar</div>
+              </div>
+              <div style="background:#EDE9FE;border-radius:10px;padding:10px 6px;text-align:center">
+                <div id="agTotalSiswa" style="font-weight:800;font-size:1.1rem;color:#7C3AED">0</div>
+                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Siswa Terverifikasi</div>
+              </div>
             </div>
-            <div style="background:var(--danger-soft,#FEE2E2);border-radius:10px;padding:10px 6px;text-align:center">
-              <div id="agTotalBelum" style="font-weight:800;font-size:1.1rem;color:var(--danger,#DC2626)">0</div>
-              <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Belum Mengajar</div>
-            </div>
-            <div style="background:#EDE9FE;border-radius:10px;padding:10px 6px;text-align:center">
-              <div id="agTotalSiswa" style="font-weight:800;font-size:1.1rem;color:#7C3AED">0</div>
-              <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Siswa Terverifikasi</div>
-            </div>
+
+            <div id="agLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
+
+            <!-- Sudah mengajar -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--success,#16A34A)">✅ Sudah Mengajar</div>
+            <div id="agListSudah" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
+            <div id="agKosongSudah" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0 18px">Belum ada guru yang mengajar hari ini.</div>
+
+            <!-- Belum mengajar -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--danger,#DC2626)">⏳ Belum Mengajar</div>
+            <div id="agListBelum" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div id="agKosongBelum" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">🎉 Semua guru terjadwal sudah mengajar.</div>
+
           </div>
-
-          <div id="agLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
-
-          <!-- Sudah mengajar -->
-          <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--success,#16A34A)">✅ Sudah Mengajar</div>
-          <div id="agListSudah" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
-          <div id="agKosongSudah" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0 18px">Belum ada guru yang mengajar hari ini.</div>
-
-          <!-- Belum mengajar -->
-          <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--danger,#DC2626)">⏳ Belum Mengajar</div>
-          <div id="agListBelum" style="display:flex;flex-direction:column;gap:8px"></div>
-          <div id="agKosongBelum" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">🎉 Semua guru terjadwal sudah mengajar.</div>
-
         </div>
+
+        <!-- Panel: Besok (BARU) -->
+        <div id="agPanelBesok" style="display:none">
+          <div id="agBesokLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+
+          <div id="agBesokKonten" style="display:none">
+            <div id="agBesokLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
+
+            <!-- Guru piket besok -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px">🛡️ Guru Piket Besok</div>
+            <div id="agBesokPiket" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
+
+            <!-- Jadwal mengajar besok -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px">📚 Jadwal Mengajar Besok</div>
+            <div id="agBesokMengajar" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -2199,6 +2230,20 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
               <button type="button" class="rh-siswa-tab" id="rhTabHadir" onclick="switchRhSiswaTab('hadir')">✅ Hadir (<span id="rhTabHadirCount">0</span>)</button>
             </div>
             <div class="rh-siswa-list" id="rhSiswaList"></div>
+          </div>
+        </details>
+
+        <!-- Jadwal & guru piket BESOK (BARU) -- supaya guru yang buka
+             aplikasi malam hari (jam operasional sudah lewat) tetap bisa
+             lihat jadwal & piket besok tanpa perlu menunggu besok pagi.
+             Langsung terbuka karena ini justru bagian paling relevan buat
+             kunjungan malam hari. Data dari getJadwalBesok() (dipakai
+             ulang dari fetchJadwalBesok(), sama dengan tab "Besok" di
+             modal Cek Aktivitas Guru). -->
+        <details class="rh-section" id="rhBesokWrap" open>
+          <summary>📅 Jadwal Besok<span class="rh-chevron">›</span></summary>
+          <div class="rh-section-body" id="rhBesok">
+            <div class="rh-empty">Memuat data...</div>
           </div>
         </details>
       </div>
@@ -4190,6 +4235,9 @@ function masukModeRekapHarian(r) {
     // BARU: tombol switch Datang/Pulang juga "berperan di hari itu saja"
     // -- tidak relevan lagi begitu jam absensi sudah selesai.
     const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
+    // BARU: judul "Scan Absensi / Arahkan kartu ke kamera" di atas juga
+    // cuma relevan selagi jam absensi masih berjalan.
+    const scanTitle = document.querySelector('.scan-title');
     // BARU: dropdown filter kelas + tab Belum/Izin/Hadir + daftar
     // siswanya juga digabung ke dalam panel ringkasan (bagian
     // "👥 Kehadiran Siswa"), jadi versi lama di bawah disembunyikan.
@@ -4202,6 +4250,7 @@ function masukModeRekapHarian(r) {
     if (btnTanpaKartu)  btnTanpaKartu.style.display = 'none';
     if (guruStatusBox)  guruStatusBox.style.display = 'none';
     if (modeSwitchWrap) modeSwitchWrap.style.display = 'none';
+    if (scanTitle)      scanTitle.style.display = 'none';
     if (filterRow)      filterRow.style.display = 'none';
     if (logTabs)        logTabs.style.display = 'none';
     if (logContainer)   logContainer.style.display = 'none';
@@ -4220,6 +4269,7 @@ function keluarModeRekapHarian() {
   const btnTanpaKartu = document.getElementById('btnTanpaKartu');
   const guruStatusBox = document.getElementById('guruStatusBox');
   const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
+  const scanTitle    = document.querySelector('.scan-title');
   const filterRow    = document.querySelector('.filter-row');
   const logTabs      = document.querySelector('.log-tabs');
   const logContainer = document.getElementById('logContainer');
@@ -4229,6 +4279,7 @@ function keluarModeRekapHarian() {
   if (btnTanpaKartu)  btnTanpaKartu.style.display = '';
   if (guruStatusBox)  guruStatusBox.style.display = '';
   if (modeSwitchWrap) modeSwitchWrap.style.display = '';
+  if (scanTitle)      scanTitle.style.display = '';
   if (filterRow)      filterRow.style.display = '';
   if (logTabs)        logTabs.style.display = '';
   if (logContainer)   logContainer.style.display = '';
@@ -4278,6 +4329,11 @@ async function renderRekapHarian(r) {
   // perlu permintaan/endpoint baru.
   renderRekapSiswa();
 
+  // -- Jadwal & guru piket BESOK (BARU) -- lihat renderRekapBesok().
+  // Ditaruh SEBELUM guard "if (!elMengajar) return;" di bawah supaya
+  // tetap jalan meski elemen guru-mengajar entah kenapa tidak ada.
+  renderRekapBesok();
+
   // -- Guru mengajar / tidak masuk kelas -- pakai ulang
   // getAktivitasGuruHariIni() (endpoint yang sudah ada, dipakai juga oleh
   // tombol "Cek Aktivitas Guru"), tapi paling banyak sekali per 25 detik
@@ -4323,6 +4379,46 @@ function switchRhSiswaTab(tab) {
   document.getElementById('rhTabIzin').classList.toggle('active', tab === 'izin');
   document.getElementById('rhTabHadir').classList.toggle('active', tab === 'hadir');
   renderRekapSiswa();
+}
+
+// ── JADWAL BESOK DI DALAM RINGKASAN (BARU) ──────────────────────
+// Bagian "📅 Jadwal Besok" di panel rekap -- pakai ulang
+// fetchJadwalBesok() (sama dengan tab "Besok" di modal Cek Aktivitas
+// Guru, sudah ada cache 60 detik di sana) supaya guru yang buka
+// aplikasi malam hari (jam operasional sudah lewat) tetap bisa lihat
+// guru piket & jadwal mengajar besok.
+let _rhBesokLastFetch = 0;
+
+async function renderRekapBesok() {
+  const el = document.getElementById('rhBesok');
+  if (!el) return;
+  const now = Date.now();
+  if (now - _rhBesokLastFetch < 60000 && el.dataset.filled === '1') return;
+  _rhBesokLastFetch = now;
+  try {
+    const r = await fetchJadwalBesok();
+    if (!r || !r.success) return;
+    el.dataset.filled = '1';
+
+    let html = '';
+    if (!r.hariSekolah) {
+      html += `<div class="rh-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'bukan hari sekolah'}.</div>`;
+    }
+
+    const piket = r.guruPiket || [];
+    html += `<div style="font-weight:700;font-size:.78rem;margin:${html ? '10px' : '0'} 0 4px">🛡️ Guru Piket Besok</div>`;
+    html += piket.length
+      ? piket.map(g => `<div class="rh-row"><b>${esc(g.namaGuru)}</b></div>`).join('')
+      : `<div class="rh-empty">Belum ada jadwal piket untuk besok.</div>`;
+
+    const jadwal = r.jadwalMengajar || [];
+    html += `<div style="font-weight:700;font-size:.78rem;margin:10px 0 4px">📚 Jadwal Mengajar Besok</div>`;
+    html += jadwal.length
+      ? jadwal.map(g => `<div class="rh-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.75">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
+      : `<div class="rh-empty">Belum ada jadwal mengajar untuk besok.</div>`;
+
+    el.innerHTML = html;
+  } catch (e) {}
 }
 
 function renderRekapSiswa() {
@@ -5441,6 +5537,8 @@ async function bukaModalAktivitasGuru() {
   document.getElementById('modalAktivitasGuru').style.display = 'flex';
   document.getElementById('agLoading').style.display = '';
   document.getElementById('agKonten').style.display = 'none';
+  // BARU: selalu mulai dari tab "Hari Ini" setiap modal dibuka lagi.
+  switchAgTab('hariini');
   try {
     const r = await api('scan', 'getAktivitasGuruHariIni', {});
     if (!r.success) { toast(r.message || 'Gagal memuat data aktivitas guru.'); tutupModalAktivitasGuru(); return; }
@@ -5485,6 +5583,7 @@ async function refreshAktivitasGuruSilent() {
 function tutupModalAktivitasGuru() {
   document.getElementById('modalAktivitasGuru').style.display = 'none';
   if (_agRefreshTimer) { clearInterval(_agRefreshTimer); _agRefreshTimer = null; }
+  _agBesokLoaded = false;
   resumeScanBerat();
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
 }
@@ -5542,6 +5641,87 @@ function renderAktivitasGuru(data) {
         <div style="margin-top:6px;font-size:.75rem">${labelStatusWaktu[g.statusWaktu] || ''}</div>
       </div>`).join('');
   document.getElementById('agKosongBelum').style.display = (data.belumMengajar || []).length ? 'none' : '';
+}
+
+// ── TAB HARI INI / BESOK (BARU) di modal Cek Aktivitas Guru ────────
+let _agBesokLoaded = false;
+
+function switchAgTab(tab) {
+  document.getElementById('agTabHariIni').classList.toggle('active', tab === 'hariini');
+  document.getElementById('agTabBesok').classList.toggle('active', tab === 'besok');
+  document.getElementById('agPanelHariIni').style.display = tab === 'hariini' ? '' : 'none';
+  document.getElementById('agPanelBesok').style.display   = tab === 'besok'   ? '' : 'none';
+  // Muat data besok cuma sekali per buka modal (jadwal besok tidak
+  // berubah-ubah cepat seperti aktivitas hari ini, jadi tidak perlu
+  // auto-refresh berkala seperti tab "Hari Ini").
+  if (tab === 'besok' && !_agBesokLoaded) {
+    _agBesokLoaded = true;
+    loadJadwalBesok();
+  }
+}
+
+// BARU: dipakai tab "Besok" di modal ini, DAN dipakai ulang oleh bagian
+// "📅 Jadwal Besok" di panel Rekap Harian (lihat renderRekapBesok()) --
+// makanya hasil fetch-nya disimpan di _jadwalBesokCache supaya kedua
+// tempat itu tidak perlu request terpisah kalau sudah pernah dimuat
+// dalam waktu berdekatan.
+let _jadwalBesokCache = null;
+let _jadwalBesokCacheAt = 0;
+
+async function loadJadwalBesok() {
+  const loading = document.getElementById('agBesokLoading');
+  const konten  = document.getElementById('agBesokKonten');
+  if (loading) loading.style.display = '';
+  if (konten)  konten.style.display = 'none';
+  try {
+    const r = await fetchJadwalBesok();
+    if (!r || !r.success) { toast((r && r.message) || 'Gagal memuat jadwal besok.'); return; }
+    renderJadwalBesokModal(r);
+  } catch (e) {
+    toast('Gagal memuat data. Cek koneksi.');
+  }
+}
+
+// Ambil jadwal besok, pakai cache singkat (60 detik) supaya modal
+// "Besok" dan panel Rekap Harian tidak dobel-request kalau dibuka
+// berdekatan.
+async function fetchJadwalBesok() {
+  const now = Date.now();
+  if (_jadwalBesokCache && (now - _jadwalBesokCacheAt) < 60000) return _jadwalBesokCache;
+  const r = await api('scan', 'getJadwalBesok', {});
+  if (r && r.success) { _jadwalBesokCache = r; _jadwalBesokCacheAt = now; }
+  return r;
+}
+
+function renderJadwalBesokModal(data) {
+  document.getElementById('agBesokLoading').style.display = 'none';
+  document.getElementById('agBesokKonten').style.display = '';
+
+  const liburBox = document.getElementById('agBesokLiburBox');
+  if (!data.hariSekolah) {
+    liburBox.style.display = '';
+    liburBox.textContent = `📅 Besok (${data.hari}) ${data.keteranganLibur ? '— ' + data.keteranganLibur : 'bukan hari sekolah'}.`;
+  } else {
+    liburBox.style.display = 'none';
+  }
+
+  const elPiket = document.getElementById('agBesokPiket');
+  const piket = data.guruPiket || [];
+  elPiket.innerHTML = piket.length
+    ? piket.map(g => `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface);font-weight:700;font-size:.86rem">${esc(g.namaGuru)}</div>
+    `).join('')
+    : `<div style="font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada jadwal piket untuk besok.</div>`;
+
+  const elMengajar = document.getElementById('agBesokMengajar');
+  const jadwal = data.jadwalMengajar || [];
+  elMengajar.innerHTML = jadwal.length
+    ? jadwal.map(g => `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface)">
+        <div style="font-weight:700;font-size:.86rem">${esc(g.namaGuru)}</div>
+        <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">${esc(g.kelas)} · ${esc(g.mapel)} · Jam ${esc(g.jamMulai || '-')}–${esc(g.jamSelesai || '-')}</div>
+      </div>`).join('')
+    : `<div style="font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada jadwal mengajar untuk besok.</div>`;
 }
 
 async function verifikasiTanpaKartu() {

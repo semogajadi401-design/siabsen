@@ -2095,6 +2095,28 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
     <!-- Statistik + daftar siswa -->
     <div class="log-panel">
 
+    <!-- ══════ PANEL: REKAP HARIAN (BARU) ══════
+         Ditampilkan SEBAGAI GANTI .stats-row + widget donut chart begitu
+         waktu sekarang sudah lewat jam pulang selesai efektif hari ini
+         (lihat masukModeRekapHarian()/keluarModeRekapHarian(), dipanggil
+         dari checkStatus() yang membandingkan r.jam vs r.jamSelesai --
+         keduanya sudah dikirim getStatus() di api/scan.js, tidak perlu
+         endpoint baru). Isinya SEPENUHNYA dari data yang sudah dimuat
+         sistem lain: kelasList dari _chartKehadiranData (agregasiChartKehadiran,
+         sudah jalan tiap REFRESH_LOG_MS), guru piket dari r.guruPiket
+         (checkStatus), dan guru mengajar/tidak masuk dari
+         getAktivitasGuruHariIni() (dipakai ulang, sama seperti tombol
+         "Cek Aktivitas Guru" yang disembunyikan saat panel ini aktif). -->
+    <div id="rekapHarianPanel" style="display:none">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px">
+        <div style="font-weight:800;font-size:.92rem;margin-bottom:2px">📊 Rekap Hari Ini</div>
+        <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">Jam absensi sudah selesai — ini ringkasan hari ini, bukan data langsung.</div>
+        <div id="rhGuruPiket" style="margin-bottom:14px"></div>
+        <div id="rhPerKelas" style="margin-bottom:14px"></div>
+        <div id="rhMengajar"></div>
+      </div>
+    </div>
+
     <!-- Stats -->
     <div class="stats-row">
       <div class="stat-box green">
@@ -4022,6 +4044,19 @@ async function checkStatus() {
     const jamPulang = r.jamPulangMulai || '14:00';
     if (jam >= jamPulang) setMode('pulang');
 
+    // ── REKAP HARIAN (BARU) ──────────────────────────────────────
+    // Begitu jam sekarang sudah lewat jam absensi selesai efektif hari
+    // ini (r.jamSelesai, dari getJamPulangEfektif di backend -- ikut
+    // override per-hari kalau admin atur), tombol-tombol & statistik
+    // yang "berperan di hari itu saja" diganti tampilan ringkasan.
+    // Sebelum jam itu (atau kalau field jamSelesai kosong karena alasan
+    // apapun), tetap tampilan biasa seperti sekarang.
+    if (r.jamSelesai && jam > r.jamSelesai) {
+      masukModeRekapHarian(r);
+    } else {
+      keluarModeRekapHarian();
+    }
+
   } catch(e) {
     // Jika fetch gagal, tetap tampilkan mainContent agar scan bisa jalan
     document.getElementById('liburBanner').style.display = 'none';
@@ -4029,6 +4064,133 @@ async function checkStatus() {
   } finally {
     _checkStatusInFlight = false;
   }
+}
+
+// ══════ MODE REKAP HARIAN (BARU) ════════════════════════════════════
+// Aktif otomatis begitu jam sekarang lewat jam absensi selesai efektif
+// hari ini (dipicu dari checkStatus() di atas, bandingkan r.jam vs
+// r.jamSelesai). Tugasnya cuma dua:
+// (1) sembunyikan tombol/panel yang "berperan di hari itu saja" --
+//     Absen Kelas, Edit Kehadiran Siswa (Kelola Piket), Cek Aktivitas
+//     Guru (ketiganya satu wrap: .aksi-kelas-wrap), Input Tanpa Kartu,
+//     serta baris statistik + widget donut chart LIVE.
+// (2) tampilkan #rekapHarianPanel -- isinya BUKAN data baru, cuma
+//     mengemas ulang apa yang sudah dimuat sistem lain: kelasList dari
+//     _chartKehadiranData (loadChartKehadiran, sudah jalan tiap
+//     REFRESH_LOG_MS), guru piket dari r.guruPiket (checkStatus), dan
+//     guru mengajar/tidak masuk dari getAktivitasGuruHariIni() (endpoint
+//     yang sama dipakai tombol "Cek Aktivitas Guru" yang disembunyikan).
+//
+// Yang SENGAJA TIDAK disentuh sama sekali (tetap seperti biasa, sesuai
+// permintaan): kamera utama -- tetap bisa dipakai scan QR BELAKANG
+// guru/admin/kepsek untuk login (itu memang tidak terikat jam
+// operasional siswa/piket, lihat catatan "APAPUN KONDISINYA" di
+// api/scan.js), tombol ❓ Petunjuk, dan ⛶ Layar Penuh.
+let _modeRekapHarian = false;
+let _rhLastFetchAktivitas = 0;
+
+function masukModeRekapHarian(r) {
+  if (!_modeRekapHarian) {
+    _modeRekapHarian = true;
+    const statsRow    = document.querySelector('.stats-row');
+    const chartWidget = document.getElementById('chartKehadiranWidget');
+    const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
+    const btnTanpaKartu = document.getElementById('btnTanpaKartu');
+    if (statsRow)     statsRow.style.display = 'none';
+    if (chartWidget)  chartWidget.style.display = 'none';
+    if (aksiWrap)      aksiWrap.style.display = 'none';
+    if (btnTanpaKartu) btnTanpaKartu.style.display = 'none';
+    const panel = document.getElementById('rekapHarianPanel');
+    if (panel) panel.style.display = 'block';
+  }
+  renderRekapHarian(r);
+}
+
+function keluarModeRekapHarian() {
+  if (!_modeRekapHarian) return;
+  _modeRekapHarian = false;
+  const statsRow    = document.querySelector('.stats-row');
+  const chartWidget = document.getElementById('chartKehadiranWidget');
+  const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
+  const btnTanpaKartu = document.getElementById('btnTanpaKartu');
+  if (statsRow)     statsRow.style.display = '';
+  if (chartWidget)  chartWidget.style.display = '';
+  if (aksiWrap)      aksiWrap.style.display = '';
+  if (btnTanpaKartu) btnTanpaKartu.style.display = '';
+  const panel = document.getElementById('rekapHarianPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+async function renderRekapHarian(r) {
+  // -- Guru piket hari ini (dari checkStatus, sudah ada) --
+  const elPiket = document.getElementById('rhGuruPiket');
+  if (elPiket) {
+    const list = r.guruPiket || [];
+    elPiket.innerHTML = `
+      <div style="font-weight:700;font-size:.8rem;margin-bottom:6px">🛡️ Guru Piket Hari Ini</div>
+      ${list.length
+        ? list.map(g => `<div style="font-size:.82rem;color:var(--text-muted);padding:3px 0">${esc(g.nama_guru)} <span style="opacity:.7">• scan ${g.jam_scan}</span></div>`).join('')
+        : `<div style="font-size:.82rem;color:var(--text-muted)">Tidak ada guru piket tercatat hari ini.</div>`}
+    `;
+  }
+
+  // -- Ringkasan per kelas (pakai data yang SUDAH dimuat loadChartKehadiran(),
+  // tidak minta ulang dari server) --
+  const elKelas = document.getElementById('rhPerKelas');
+  if (elKelas) {
+    const data = _chartKehadiranData;
+    if (!data || !data.kelasList || !data.kelasList.length) {
+      elKelas.innerHTML = `<div style="font-weight:700;font-size:.8rem;margin-bottom:6px">🏫 Ringkasan per Kelas</div><div style="font-size:.82rem;color:var(--text-muted)">Data belum tersedia.</div>`;
+    } else {
+      elKelas.innerHTML = `
+        <div style="font-weight:700;font-size:.8rem;margin-bottom:8px">🏫 Ringkasan per Kelas</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+        ${data.kelasList.map(k => {
+          const pct = k.total ? Math.round((k.hadir / k.total) * 100) : 0;
+          const izinSakit = (k.izin || 0) + (k.sakit || 0);
+          return `
+          <div style="display:flex;align-items:center;gap:8px;font-size:.8rem">
+            <div style="width:44px;font-weight:700;flex-shrink:0">${esc(k.kelas)}</div>
+            <div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:#10B981;border-radius:3px"></div>
+            </div>
+            <div style="flex-shrink:0;color:var(--text-muted);white-space:nowrap">${k.hadir}/${k.total} hadir${izinSakit ? ` • ${izinSakit} izin/sakit` : ''}</div>
+          </div>`;
+        }).join('')}
+        </div>
+      `;
+    }
+  }
+
+  // -- Guru mengajar / tidak masuk kelas -- pakai ulang
+  // getAktivitasGuruHariIni() (endpoint yang sudah ada, dipakai juga oleh
+  // tombol "Cek Aktivitas Guru"), tapi paling banyak sekali per 25 detik
+  // (bukan tiap checkStatus 5 detik) -- query-nya gabungan 3 tabel dan
+  // datanya jarang berubah cepat menjelang akhir hari.
+  const elMengajar = document.getElementById('rhMengajar');
+  if (!elMengajar) return;
+  const now = Date.now();
+  if (now - _rhLastFetchAktivitas < 25000 && elMengajar.dataset.filled === '1') return;
+  _rhLastFetchAktivitas = now;
+  try {
+    const ra = await api('scan', 'getAktivitasGuruHariIni', {});
+    if (!ra.success) return;
+    elMengajar.dataset.filled = '1';
+    const sudah = ra.sudahMengajar || [];
+    const belum = ra.belumMengajar || [];
+    elMengajar.innerHTML = `
+      <div style="font-weight:700;font-size:.8rem;margin-bottom:8px">📚 Guru Mengajar Hari Ini</div>
+      ${sudah.length ? sudah.map(g => `
+        <div style="font-size:.8rem;color:var(--text-muted);padding:3px 0">✅ ${esc(g.namaGuru)} — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.7">jam ${g.jamScan || '-'}</span></div>
+      `).join('') : `<div style="font-size:.8rem;color:var(--text-muted)">Belum ada yang tercatat mengajar.</div>`}
+      ${belum.length ? `
+        <div style="font-weight:700;font-size:.8rem;margin:12px 0 6px">⚠️ Tidak Tercatat Mengajar</div>
+        ${belum.map(g => `
+          <div style="font-size:.8rem;color:#B45309;padding:3px 0">${esc(g.namaGuru)} — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.75">jadwal ${g.jamMulai || '-'}-${g.jamSelesai || '-'}</span></div>
+        `).join('')}
+      ` : ''}
+    `;
+  } catch(e) {}
 }
 
 function updateGuruStatus(guruList, status) {

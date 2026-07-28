@@ -1419,6 +1419,61 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   .rh-siswa-list{max-height:220px}
 }
 
+/* ══════ PANEL "INFO BESOK" DI SIDEBAR KIRI (BARU) ══════
+   Sengaja DIPISAH secara visual dari #rekapHarianPanel (kanan): dulu
+   "Jadwal Besok" cuma jadi 1 accordion kecil, tenggelam di antara 5
+   section lain punya #rekapHarianPanel ("Rekap Hari Ini" -- Guru Piket
+   Hari Ini, Ringkasan per Kelas, dst), padahal justru inilah bagian
+   paling relevan buat guru yang buka aplikasi di luar jam operasional
+   (guru piket & jadwal ngajar BESOK, bukan rekap hari INI yang sudah
+   lewat). Pindah ke sidebar kiri (gantikan slot kamera yang sudah tidak
+   relevan lagi -- lihat #besokSideRailPanel di HTML & masukModeRekapHarian())
+   + warna indigo/ungu berbeda dari hijau/teal punya rh-card, supaya
+   langsung mencolok & tidak "ketelan" isi rekap hari ini.
+   Ditampilkan/disembunyikan bareng #rekapHarianPanel, TAPI isinya
+   dirender oleh renderBesokSideRail() (dulu renderRekapBesok(), lihat
+   catatan di JS) -- lokasi & fungsi pindah bareng, tidak lagi duplikat
+   di 2 tempat. */
+.besok-side-panel{
+  background:linear-gradient(160deg,#EEF2FF 0%,#F5F3FF 100%);
+  border:1.5px solid #C7D2FE;
+  border-radius:16px;padding:16px 15px;
+  box-shadow:0 2px 10px rgba(79,70,229,.08);
+}
+.bsp-head{
+  display:flex;align-items:center;gap:8px;
+  font-weight:800;font-size:.88rem;color:#3730A3;
+  margin-bottom:2px;
+}
+.bsp-head .bsp-head-icon{font-size:1.05rem;line-height:1}
+.bsp-sub{font-size:.72rem;color:#6366F1;font-weight:600;margin-bottom:12px}
+.bsp-section{margin-bottom:12px}
+.bsp-section:last-child{margin-bottom:0}
+.bsp-section-title{
+  display:flex;align-items:center;gap:6px;
+  font-weight:800;font-size:.76rem;color:#4338CA;
+  text-transform:uppercase;letter-spacing:.02em;
+  margin-bottom:6px;
+}
+.bsp-row{
+  background:rgba(255,255,255,.7);border-radius:10px;
+  padding:8px 10px;margin-bottom:6px;font-size:.8rem;
+  color:#312E81;line-height:1.4;
+}
+.bsp-row:last-child{margin-bottom:0}
+.bsp-row b{color:#1E1B4B}
+.bsp-row .bsp-meta{display:block;font-size:.72rem;color:#6366F1;opacity:.85;margin-top:1px}
+.bsp-empty{font-size:.78rem;color:#6366F1;padding:4px 2px}
+.bsp-warn{
+  font-size:.76rem;color:#92400E;background:#FEF3C7;
+  border-radius:8px;padding:6px 9px;margin-bottom:10px;font-weight:600;
+}
+@media(max-width:900px){
+  /* Di HP, .side-rail jadi flex baris -- paksa panel ini full lebar
+     supaya tidak berdesakan sejajar dengan elemen lain & tetap terbaca. */
+  .besok-side-panel{flex:1 1 100%}
+}
+
 </style>
 </head>
 <body>
@@ -1783,6 +1838,29 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          tampil penuh (ring + legend + rincian per kelas) langsung. -->
     <div id="chartAnchorDesktop"></div>
 
+    <!-- ══════ PANEL "INFO BESOK" (BARU) -- sidebar kiri, sebelah kamera ══════
+         Tersembunyi default (hanya tampil saat mode rekap harian aktif,
+         yaitu di luar jam operasional -- lihat masukModeRekapHarian()/
+         keluarModeRekapHarian()). SENGAJA dipisah dari #rekapHarianPanel
+         (yang isinya soal HARI INI) supaya info piket & jadwal BESOK --
+         yang justru paling relevan buat guru yang buka aplikasi malam
+         hari -- tidak tenggelam di antara 5 section lain di panel kanan.
+         Isi dirender oleh renderBesokSideRail() (lihat JS), pakai ulang
+         fetchJadwalBesok() yang sama seperti sebelumnya. -->
+    <div id="besokSideRailPanel" class="besok-side-panel" style="display:none">
+      <div class="bsp-head"><span class="bsp-head-icon">📅</span> Info Besok</div>
+      <div class="bsp-sub">Piket & jadwal mengajar untuk hari berikutnya</div>
+      <div id="bsprLiburWarn"></div>
+      <div class="bsp-section">
+        <div class="bsp-section-title">🛡️ Guru Piket Besok</div>
+        <div id="bsprPiket"><div class="bsp-empty">Memuat data...</div></div>
+      </div>
+      <div class="bsp-section">
+        <div class="bsp-section-title">📚 Jadwal Mengajar Besok</div>
+        <div id="bsprJadwal"><div class="bsp-empty">Memuat data...</div></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ══════ MODAL: PETUNJUK UNTUK GURU (BARU) ══════
@@ -2102,8 +2180,11 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       </div>
 
       <!-- Teks bantuan -- supaya siswa/guru yang kartunya hilang langsung
-           tahu ada jalan alternatif tanpa perlu mencari-cari sendiri. -->
-      <div style="margin-top:12px;font-size:.74rem;font-weight:600;color:var(--text-muted);text-align:center;line-height:1.4">
+           tahu ada jalan alternatif tanpa perlu mencari-cari sendiri.
+           BARU: dikasih id (lupaKartuHint) supaya bisa ikut disembunyikan
+           bareng #lastResult saat mode rekap aktif -- di luar jam
+           operasional, "siswa lupa kartu" jelas tidak relevan lagi. -->
+      <div id="lupaKartuHint" style="margin-top:12px;font-size:.74rem;font-weight:600;color:var(--text-muted);text-align:center;line-height:1.4">
         🪪 Siswa lupa kartu? Klik menu di bawah ini.
       </div>
       <!-- Tombol input kehadiran tanpa kartu (kartu hilang/rusak/ketinggalan) -->
@@ -2233,19 +2314,12 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
           </div>
         </details>
 
-        <!-- Jadwal & guru piket BESOK (BARU) -- supaya guru yang buka
-             aplikasi malam hari (jam operasional sudah lewat) tetap bisa
-             lihat jadwal & piket besok tanpa perlu menunggu besok pagi.
-             Langsung terbuka karena ini justru bagian paling relevan buat
-             kunjungan malam hari. Data dari getJadwalBesok() (dipakai
-             ulang dari fetchJadwalBesok(), sama dengan tab "Besok" di
-             modal Cek Aktivitas Guru). -->
-        <details class="rh-section" id="rhBesokWrap" open>
-          <summary>📅 Jadwal Besok<span class="rh-chevron">›</span></summary>
-          <div class="rh-section-body" id="rhBesok">
-            <div class="rh-empty">Memuat data...</div>
-          </div>
-        </details>
+        <!-- CATATAN: bagian "📅 Jadwal Besok" yang dulunya di sini SUDAH
+             DIPINDAH ke panel tersendiri di sidebar kiri
+             (#besokSideRailPanel, lihat HTML di dalam .side-rail &
+             renderBesokSideRail() di JS) supaya info piket/jadwal besok
+             lebih mencolok, tidak ketelan di antara section "hari ini"
+             lain di panel ini. Sengaja tidak diduplikasi di 2 tempat. -->
       </div>
     </div>
 
@@ -4244,6 +4318,18 @@ function masukModeRekapHarian(r) {
     const filterRow    = document.querySelector('.filter-row');
     const logTabs      = document.querySelector('.log-tabs');
     const logContainer = document.getElementById('logContainer');
+    // BARU: "Arahkan kartu ke kamera" (#lastResult) + "Siswa lupa kartu?"
+    // (#lupaKartuHint) juga cuma relevan selagi jam absensi masih
+    // berjalan -- di luar jam operasional keduanya cuma bikin bingung
+    // (seolah-olah masih bisa/harus scan), jadi ikut disembunyikan sama
+    // seperti tombol Input Tanpa Kartu (#btnTanpaKartu) di atas.
+    const lastResultBox = document.getElementById('lastResult');
+    const lupaKartuHint  = document.getElementById('lupaKartuHint');
+    // BARU: panel "Info Besok" (piket + jadwal mengajar besok) mengisi
+    // slot sidebar kiri yang jadi kosong begitu judul & switch mode di
+    // atasnya disembunyikan -- lihat #besokSideRailPanel di HTML &
+    // renderBesokSideRail() di bawah.
+    const besokPanel = document.getElementById('besokSideRailPanel');
     if (statsRow)      statsRow.style.display = 'none';
     if (chartWidget)   chartWidget.style.display = 'none';
     if (aksiWrap)       aksiWrap.style.display = 'none';
@@ -4254,6 +4340,9 @@ function masukModeRekapHarian(r) {
     if (filterRow)      filterRow.style.display = 'none';
     if (logTabs)        logTabs.style.display = 'none';
     if (logContainer)   logContainer.style.display = 'none';
+    if (lastResultBox)  lastResultBox.style.display = 'none';
+    if (lupaKartuHint)  lupaKartuHint.style.display = 'none';
+    if (besokPanel)     besokPanel.style.display = 'block';
     const panel = document.getElementById('rekapHarianPanel');
     if (panel) panel.style.display = 'block';
   }
@@ -4273,6 +4362,9 @@ function keluarModeRekapHarian() {
   const filterRow    = document.querySelector('.filter-row');
   const logTabs      = document.querySelector('.log-tabs');
   const logContainer = document.getElementById('logContainer');
+  const lastResultBox = document.getElementById('lastResult');
+  const lupaKartuHint  = document.getElementById('lupaKartuHint');
+  const besokPanel     = document.getElementById('besokSideRailPanel');
   if (statsRow)      statsRow.style.display = '';
   if (chartWidget)   chartWidget.style.display = '';
   if (aksiWrap)       aksiWrap.style.display = '';
@@ -4283,6 +4375,9 @@ function keluarModeRekapHarian() {
   if (filterRow)      filterRow.style.display = '';
   if (logTabs)        logTabs.style.display = '';
   if (logContainer)   logContainer.style.display = '';
+  if (lastResultBox)  lastResultBox.style.display = '';
+  if (lupaKartuHint)  lupaKartuHint.style.display = '';
+  if (besokPanel)     besokPanel.style.display = 'none';
   const panel = document.getElementById('rekapHarianPanel');
   if (panel) panel.style.display = 'none';
 }
@@ -4329,10 +4424,10 @@ async function renderRekapHarian(r) {
   // perlu permintaan/endpoint baru.
   renderRekapSiswa();
 
-  // -- Jadwal & guru piket BESOK (BARU) -- lihat renderRekapBesok().
+  // -- Jadwal & guru piket BESOK (BARU) -- lihat renderBesokSideRail().
   // Ditaruh SEBELUM guard "if (!elMengajar) return;" di bawah supaya
   // tetap jalan meski elemen guru-mengajar entah kenapa tidak ada.
-  renderRekapBesok();
+  renderBesokSideRail();
 
   // -- Guru mengajar / tidak masuk kelas -- pakai ulang
   // getAktivitasGuruHariIni() (endpoint yang sudah ada, dipakai juga oleh
@@ -4381,43 +4476,46 @@ function switchRhSiswaTab(tab) {
   renderRekapSiswa();
 }
 
-// ── JADWAL BESOK DI DALAM RINGKASAN (BARU) ──────────────────────
-// Bagian "📅 Jadwal Besok" di panel rekap -- pakai ulang
+// ── PANEL "INFO BESOK" DI SIDEBAR KIRI (BARU) ────────────────────
+// Dulu bernama renderRekapBesok() dan menulis ke 1 accordion kecil
+// (#rhBesok) di dalam panel Rekap Harian kanan. SEKARANG dipindah jadi
+// panel tersendiri di sidebar kiri (#besokSideRailPanel, gantikan slot
+// kamera yang sudah tidak relevan di luar jam operasional -- lihat
+// masukModeRekapHarian()) supaya info piket & jadwal besok lebih
+// mencolok, tidak ketelan di antara section "hari ini" lain. Sumber
+// data & cache 60 detik TIDAK berubah -- tetap pakai ulang
 // fetchJadwalBesok() (sama dengan tab "Besok" di modal Cek Aktivitas
-// Guru, sudah ada cache 60 detik di sana) supaya guru yang buka
-// aplikasi malam hari (jam operasional sudah lewat) tetap bisa lihat
-// guru piket & jadwal mengajar besok.
+// Guru).
 let _rhBesokLastFetch = 0;
 
-async function renderRekapBesok() {
-  const el = document.getElementById('rhBesok');
-  if (!el) return;
+async function renderBesokSideRail() {
+  const elPiket  = document.getElementById('bsprPiket');
+  const elJadwal = document.getElementById('bsprJadwal');
+  const elWarn   = document.getElementById('bsprLiburWarn');
+  if (!elPiket || !elJadwal) return;
   const now = Date.now();
-  if (now - _rhBesokLastFetch < 60000 && el.dataset.filled === '1') return;
+  if (now - _rhBesokLastFetch < 60000 && elPiket.dataset.filled === '1') return;
   _rhBesokLastFetch = now;
   try {
     const r = await fetchJadwalBesok();
     if (!r || !r.success) return;
-    el.dataset.filled = '1';
+    elPiket.dataset.filled = '1';
 
-    let html = '';
-    if (!r.hariSekolah) {
-      html += `<div class="rh-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'bukan hari sekolah'}.</div>`;
+    if (elWarn) {
+      elWarn.innerHTML = !r.hariSekolah
+        ? `<div class="bsp-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'bukan hari sekolah'}.</div>`
+        : '';
     }
 
     const piket = r.guruPiket || [];
-    html += `<div style="font-weight:700;font-size:.78rem;margin:${html ? '10px' : '0'} 0 4px">🛡️ Guru Piket Besok</div>`;
-    html += piket.length
-      ? piket.map(g => `<div class="rh-row"><b>${esc(g.namaGuru)}</b></div>`).join('')
-      : `<div class="rh-empty">Belum ada jadwal piket untuk besok.</div>`;
+    elPiket.innerHTML = piket.length
+      ? piket.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b></div>`).join('')
+      : `<div class="bsp-empty">Belum ada jadwal piket untuk besok.</div>`;
 
     const jadwal = r.jadwalMengajar || [];
-    html += `<div style="font-weight:700;font-size:.78rem;margin:10px 0 4px">📚 Jadwal Mengajar Besok</div>`;
-    html += jadwal.length
-      ? jadwal.map(g => `<div class="rh-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)}) <span style="opacity:.75">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
-      : `<div class="rh-empty">Belum ada jadwal mengajar untuk besok.</div>`;
-
-    el.innerHTML = html;
+    elJadwal.innerHTML = jadwal.length
+      ? jadwal.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)})<span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
+      : `<div class="bsp-empty">Belum ada jadwal mengajar untuk besok.</div>`;
   } catch (e) {}
 }
 
@@ -5660,8 +5758,8 @@ function switchAgTab(tab) {
   }
 }
 
-// BARU: dipakai tab "Besok" di modal ini, DAN dipakai ulang oleh bagian
-// "📅 Jadwal Besok" di panel Rekap Harian (lihat renderRekapBesok()) --
+// BARU: dipakai tab "Besok" di modal ini, DAN dipakai ulang oleh panel
+// "📅 Info Besok" di sidebar kiri (lihat renderBesokSideRail()) --
 // makanya hasil fetch-nya disimpan di _jadwalBesokCache supaya kedua
 // tempat itu tidak perlu request terpisah kalau sudah pernah dimuat
 // dalam waktu berdekatan.

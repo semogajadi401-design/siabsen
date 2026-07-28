@@ -135,7 +135,14 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
       tanggal: a.tanggal, hari: a.hari,
       jamDatang: a.jam_datang, statusDatang: a.status_datang,
       jamPulang: a.jam_pulang, statusPulang: a.status_pulang,
-      keterangan: a.keterangan || null
+      keterangan: a.keterangan || null,
+      // (BARU) Alasan pulang cepat (Sakit/Izin mendadak setelah sempat
+      // hadir) -- lihat tandaiPulangCepat di api/kehadiran.js. Dikirim
+      // terpisah dari `keterangan` (yang dipakai untuk alasan terlambat)
+      // supaya riwayat menampilkan informasi yang tidak membingungkan:
+      // frontend bisa cek statusPulang di luar 'Pulang' untuk tahu ini
+      // bukan pulang biasa, lalu tampilkan keteranganPulangCepat ini.
+      keteranganPulangCepat: a.keterangan_pulang_cepat || null
     };
   });
   (ketData || []).forEach(k => {

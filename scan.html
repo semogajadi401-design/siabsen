@@ -2376,7 +2376,18 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
     </div>
 
     <!-- Tabs -->
-    <div class="log-tabs">
+    <!-- PENTING: id="logTabsBar" WAJIB ADA -- dulu elemen ini cuma dikenali
+         lewat class .log-tabs, padahal class yang sama juga dipakai tab
+         "Hari Ini/Besok" di modal Aktivitas Guru (id="modalAktivitasGuru",
+         lihat sekitar baris 1991). Karena querySelector('.log-tabs') di
+         masukModeRekapHarian()/keluarModeRekapHarian() cuma ambil elemen
+         PERTAMA yang cocok di dokumen, yang kesembunyi/muncul malah tab
+         modal itu (yang memang sudah tersembunyi dari sononya), sementara
+         tab BELUM/IZIN/HADIR di sini (yang seharusnya ikut disembunyikan
+         begitu masuk mode Rekap Hari Ini) tetap tampil dobel dengan section
+         "👥 Kehadiran Siswa" di #rekapHarianPanel. Jangan hapus id ini atau
+         balikin ke pakai querySelector('.log-tabs') lagi. -->
+    <div class="log-tabs" id="logTabsBar">
       <button class="log-tab active" id="tabBelum" onclick="switchTab('belum')">⏳ Belum Hadir (<span id="tabBelumCount">0</span>)</button>
       <button class="log-tab" id="tabIzin" onclick="switchTab('izin')">🤒 Izin/Sakit (<span id="tabIzinCount">0</span>)</button>
       <button class="log-tab" id="tabHadir" onclick="switchTab('hadir')">✅ Sudah Hadir (<span id="tabHadirCount">0</span>)</button>
@@ -4316,7 +4327,13 @@ function masukModeRekapHarian(r) {
     // siswanya juga digabung ke dalam panel ringkasan (bagian
     // "👥 Kehadiran Siswa"), jadi versi lama di bawah disembunyikan.
     const filterRow    = document.querySelector('.filter-row');
-    const logTabs      = document.querySelector('.log-tabs');
+    // FIX: sebelumnya document.querySelector('.log-tabs') -- ambil elemen
+    // PERTAMA ber-class .log-tabs di dokumen, padahal ada 2 (lihat catatan
+    // id="logTabsBar" di HTML): yang kesembunyi jadi tab modal Aktivitas
+    // Guru (tidak relevan, sudah tersembunyi dari sononya), sementara tab
+    // Belum/Izin/Hadir yang asli (dobel dengan "Kehadiran Siswa" di panel
+    // ini) malah tetap tampil. Sekarang pakai id supaya tidak ambigu.
+    const logTabs      = document.getElementById('logTabsBar');
     const logContainer = document.getElementById('logContainer');
     // BARU: "Arahkan kartu ke kamera" (#lastResult) + "Siswa lupa kartu?"
     // (#lupaKartuHint) juga cuma relevan selagi jam absensi masih
@@ -4360,7 +4377,9 @@ function keluarModeRekapHarian() {
   const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
   const scanTitle    = document.querySelector('.scan-title');
   const filterRow    = document.querySelector('.filter-row');
-  const logTabs      = document.querySelector('.log-tabs');
+  // FIX: samakan dengan masukModeRekapHarian() -- pakai id, bukan class
+  // .log-tabs yang ambigu (ada juga di modal Aktivitas Guru).
+  const logTabs      = document.getElementById('logTabsBar');
   const logContainer = document.getElementById('logContainer');
   const lastResultBox = document.getElementById('lastResult');
   const lupaKartuHint  = document.getElementById('lupaKartuHint');

@@ -42,6 +42,7 @@ module.exports = async (req, res) => {
     if (action === 'resetPassword') return res.json(await resetPassword(params));
     if (action === 'resetSemua')    return res.json(await resetSemua());
     if (action === 'importGuru')    return res.json(await importGuru(params));
+    if (action === 'loginSebagaiGuru') return res.json(await loginSebagaiGuru(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
 };
@@ -197,6 +198,44 @@ async function resetPassword({ id }) {
     password_enc: encryptPassword(newPass)
   }).eq('id', id);
   return { success: true, message: 'Password direset', password: newPass, username: guru.username };
+}
+
+// ── ADMIN LOGIN SEBAGAI GURU (impersonasi) ─────────────────────────
+// Dipanggil dari tombol 🔓 di baris Data Guru (index.html). Admin yang
+// sudah terverifikasi (requireAdminToken di dispatcher atas) boleh
+// langsung masuk ke akun guru manapun TANPA perlu tahu passwordnya.
+// Ini TIDAK menambah lubang keamanan baru: siapa pun yang pegang
+// adminToken yang valid sudah punya kendali penuh atas akun guru lewat
+// aksi lain di file ini juga (resetPassword, edit, hapusPermanen, dst),
+// jadi impersonasi cuma memakai wewenang yang memang sudah dipercayakan
+// ke admin sejak awal.
+//
+// Hasil fungsi ini SENGAJA dibentuk persis sama dengan hasil login()
+// guru biasa di api/auth.js (role/id/nama/jabatan/username/qrToken)
+// supaya index.html bisa langsung memakai APP.user = hasil ini apa
+// adanya, tanpa jalur/logika terpisah dari login manual biasa.
+async function loginSebagaiGuru({ id }) {
+  if (!id) return { success: false, message: 'ID guru wajib diisi' };
+  const { data: guruData } = await supabase.from('guru').select('*').eq('id', id).single();
+  if (!guruData) return { success: false, message: 'Guru tidak ditemukan' };
+  if (guruData.status !== 'Aktif')
+    return { success: false, message: 'Guru ini nonaktif -- tidak bisa login sebagai akun ini.' };
+
+  // Sama seperti pola migrasi token di auth.js: akun lama yang belum
+  // pernah login sendiri mungkin belum punya qr_token, buatkan sekali
+  // di sini supaya sesi impersonasi ini tetap punya token yang valid
+  // untuk dipakai server memverifikasi request-request berikutnya.
+  let qrToken = guruData.qr_token;
+  if (!qrToken) {
+    qrToken = await generateGuruQrToken();
+    await supabase.from('guru').update({ qr_token: qrToken }).eq('id', guruData.id);
+  }
+
+  return {
+    success: true, role: guruData.role === 'kepsek' ? 'kepsek' : 'guru',
+    id: guruData.id, nama: guruData.nama,
+    jabatan: guruData.jabatan, username: guruData.username, qrToken
+  };
 }
 
 async function resetSemua() {

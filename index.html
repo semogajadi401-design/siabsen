@@ -1812,55 +1812,100 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
      dari server). -->
 <div class="modal-backdrop" id="modalPetunjukGuru">
   <div class="modal">
-    <div class="modal-header"><h3>📖 Petunjuk untuk Guru</h3><button class="modal-close" onclick="closeModal('modalPetunjukGuru')">✕</button></div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;font-size:.85rem;line-height:1.55">
-
+    <div class="modal-header">
       <div>
-        <div style="font-weight:800;margin-bottom:6px">🕒 1. Absen Datang / Pulang (setiap hari)</div>
-        <div style="color:var(--text-muted)">
-          Berlaku untuk SEMUA guru, baik piket maupun bukan. Dilakukan di layar scan (kios), bukan di dashboard ini.<br>
-          • Pilih tombol <b>☀️ Datang</b> (pagi) atau <b>🌙 Pulang</b> (sore) di layar scan.<br>
-          • Arahkan QR halaman <b>DEPAN</b> kartu Anda ke kamera.<br>
-          • Tunggu sampai muncul tanda ✅ dan nama Anda di layar.
-        </div>
+        <h3>❓ Tanya Jawab untuk Guru</h3>
+        <div style="font-size:.76rem;color:var(--text-muted);font-weight:400;margin-top:2px">Klik pertanyaan untuk lihat jawabannya</div>
       </div>
+      <button class="modal-close" onclick="closeModal('modalPetunjukGuru')">✕</button>
+    </div>
+    <div class="modal-body">
+      <style>
+        .pg-cat-label{font-weight:800;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--primary);margin:16px 0 8px;display:flex;align-items:center;gap:6px}
+        .pg-cat-label:first-child{margin-top:0}
+        .pg-item{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
+        .pg-item summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;font-size:.84rem;color:var(--text)}
+        .pg-item summary::-webkit-details-marker{display:none}
+        .pg-item summary .pg-chev{transition:transform .2s ease;color:var(--text-muted);flex-shrink:0;font-size:.9rem}
+        .pg-item[open] summary .pg-chev{transform:rotate(90deg)}
+        .pg-item[open] summary{border-bottom:1px solid var(--border);background:var(--bg)}
+        .pg-item summary:hover{background:var(--bg)}
+        .pg-a{padding:12px 14px;font-size:.82rem;line-height:1.55;color:var(--text-muted)}
+      </style>
 
-      <div>
-        <div style="font-weight:800;margin-bottom:6px">🛡️ 2. Kalau Anda kebetulan Guru Piket hari ini</div>
-        <div style="color:var(--text-muted)">
-          Tidak ada tombol khusus -- cukup scan seperti langkah Absen Datang di atas.<br>
-          • Status Anda otomatis tercatat, muncul di layar scan sebagai "👤 Guru Piket Hari Ini".<br>
-          • Kalau guru piket terjadwal belum scan dan Anda scan duluan, akan muncul konfirmasi <i>"Jadi guru piket pengganti?"</i> -- pilih Ya kalau memang bersedia menggantikan.
-        </div>
-      </div>
+      <div class="pg-cat-label">🛡️ Piket</div>
+      <details class="pg-item">
+        <summary>Bagaimana cara saya tercatat sebagai guru piket? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Dilakukan di layar scan (kios), bukan di dashboard ini. Arahkan QR halaman <b>DEPAN</b> kartu Anda ke kamera utama -- tidak perlu tekan tombol apapun dulu. Kalau hari itu memang giliran Anda, langsung tercatat sebagai guru piket.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Kenapa muncul "Jadi guru piket pengganti?" <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Guru piket yang terjadwal hari itu belum scan, dan Anda scan duluan. Tekan <b>Ya</b> kalau bersedia menggantikan hari itu; kalau tidak, tekan Batal dan biarkan guru yang terjadwal scan sendiri nanti.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Kenapa muncul "sudah tercatat sebagai guru piket hari ini"? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Setiap guru cuma bisa tercatat piket <b>1x per hari</b>. Kalau Anda sudah scan sebelumnya, tidak perlu scan ulang. Riwayatnya bisa dilihat di menu <b>Riwayat Piket Saya</b> di sidebar ini.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Switch ☀️ Datang / 🌙 Pulang di layar scan itu untuk siapa? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Itu khusus untuk absen datang/pulang <b>siswa</b>, bukan untuk guru. Guru tidak punya absen datang/pulang pribadi -- abaikan switch ini saat scan untuk piket.</div>
+      </details>
 
-      <div>
-        <div style="font-weight:800;margin-bottom:6px">📚 3. Absen Kehadiran Mengajar (per jam pelajaran)</div>
-        <div style="color:var(--text-muted)">
-          • Di layar scan, tekan tombol <b>📚 Absen Kelas</b>.<br>
-          • Scan QR halaman <b>DEPAN</b> kartu Anda untuk memulai sesi mengajar.<br>
-          • Sistem otomatis mencocokkan dengan jadwal mengajar Anda hari ini.<br>
-          • Siswa di kelas itu lalu scan kartunya satu per satu supaya tercatat hadir di mapel Anda.<br>
-          • Rekapnya bisa dilihat di menu <b>Rekap Kehadiran Mengajar</b> di sidebar ini.
-        </div>
-      </div>
+      <div class="pg-cat-label">📚 Absen Mengajar</div>
+      <details class="pg-item">
+        <summary>Bagaimana cara absen mengajar? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Di layar scan, tekan tombol <b>📚 Absen Kelas</b>, lalu scan QR halaman <b>DEPAN</b> kartu Anda. Sistem otomatis mencocokkan dengan jadwal mengajar Anda hari ini & jam berapa. Rekapnya bisa dilihat di menu <b>Rekap Kehadiran Mengajar</b> di sidebar ini.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Bagaimana siswa absen setelah saya mulai sesi mengajar? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Setelah kartu Anda berhasil discan (sesi dimulai), siswa di kelas itu tinggal scan kartunya masing-masing satu per satu ke kamera yang sama.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Bisa absen mengajar walau saya juga piket hari itu? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Bisa, keduanya terpisah. Piket dicatat lewat scan biasa di kamera utama; mengajar lewat tombol <b>📚 Absen Kelas</b>.</div>
+      </details>
 
-      <div>
-        <div style="font-weight:800;margin-bottom:6px">📋 4. Edit Kehadiran Siswa (khusus Guru Piket)</div>
-        <div style="color:var(--text-muted)">
-          • Di layar scan, tekan tombol <b>📋 Edit Kehadiran Siswa (Guru Piket)</b>.<br>
-          • Scan QR halaman <b>BELAKANG</b> kartu Anda (bukan depan!).<br>
-          • Hanya guru piket hari itu yang bisa mengubah keterangan Sakit/Izin/Terlambat/Pulang Cepat siswa.
-        </div>
-      </div>
+      <div class="pg-cat-label">📋 Edit Kehadiran Siswa (Guru Piket)</div>
+      <details class="pg-item">
+        <summary>Siapa yang boleh mengedit keterangan siswa (Sakit/Izin/dll)? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Hanya guru piket yang <b>sedang bertugas hari itu</b>. Server yang memutuskan boleh/tidaknya, bukan sekadar tombolnya.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Bagaimana caranya? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Di layar scan, tekan tombol <b>📋 Edit Kehadiran Siswa (Guru Piket)</b>, lalu scan QR halaman <b>BELAKANG</b> kartu Anda (bukan depan).</div>
+      </details>
+      <details class="pg-item">
+        <summary>Saya piket tapi tidak bisa masuk menu ini, kenapa? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Kemungkinan Anda scan QR halaman <b>DEPAN</b> (kartu kebalik). Untuk menu ini wajib scan halaman <b>BELAKANG</b> kartu.</div>
+      </details>
 
-      <div style="background:var(--bg);border-radius:10px;padding:12px 14px">
-        <div style="font-weight:800;margin-bottom:6px">🔄 Ingat: Depan vs Belakang Kartu</div>
-        <div style="color:var(--text-muted)">
-          • QR <b>DEPAN</b> kartu → Absen Datang/Pulang & Absen Kelas (mengajar)<br>
-          • QR <b>BELAKANG</b> kartu → Login Dashboard & Edit Kehadiran Siswa (piket)
-        </div>
-      </div>
+      <div class="pg-cat-label">🪪 Kartu & Kamera</div>
+      <details class="pg-item">
+        <summary>Apa bedanya QR depan dan belakang kartu? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">QR <b>DEPAN</b> → Piket & Absen Mengajar.<br>QR <b>BELAKANG</b> → Login Dashboard & Edit Kehadiran Siswa (piket).</div>
+      </details>
+      <details class="pg-item">
+        <summary>Kamera menyala tapi kartu tidak pernah terbaca (khusus iPhone)? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Ini bug lama khusus Safari/iPhone yang sudah diperbaiki di versi terbaru aplikasi. Kalau masih terjadi, coba refresh halaman scan; kalau tetap bermasalah, laporkan ke admin supaya dicek versinya.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Kartu tidak terbaca sama sekali, harus bagaimana? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Pastikan kartu bersih (tidak buram/tergores), pencahayaan cukup, dan jarak kartu ke kamera sekitar 15-20 cm. Pastikan juga halaman kartunya sudah benar (depan/belakang) sesuai menu yang dituju.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Internet mati, apakah scan masih bisa jalan? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Bisa. Akan muncul badge <b>📴 Offline</b> di layar scan, data disimpan sementara di perangkat, dan otomatis terkirim ke server begitu koneksi kembali (atau ketuk badge itu untuk kirim manual).</div>
+      </details>
+
+      <div class="pg-cat-label">🔐 Akun</div>
+      <details class="pg-item">
+        <summary>Saya lupa password akun guru, bagaimana? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Minta admin sekolah mereset password Anda lewat menu <b>Data Guru</b> di dashboard admin.</div>
+      </details>
+      <details class="pg-item">
+        <summary>Saya tiba-tiba masuk ke akun ini padahal tidak login sendiri, kenapa? <span class="pg-chev">›</span></summary>
+        <div class="pg-a">Admin punya wewenang masuk ke akun guru mana pun (mis. untuk bantu troubleshooting) tanpa perlu tahu password Anda. Kalau ini terjadi, akan muncul banner kuning <b>"Mode Admin"</b> di bagian atas layar ini.</div>
+      </details>
 
     </div>
   </div>

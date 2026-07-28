@@ -92,6 +92,11 @@ module.exports = async (req, res) => {
     // lihat jadwal & piket besok. Read-only, publik, sama seperti
     // getAktivitasGuruHariIni() di atas.
     if (action === 'getJadwalBesok')      return res.json(await getJadwalBesok());
+    // BARU: versi "hari ini" dari getJadwalBesok() di atas -- dipakai
+    // panel sidebar saat Mode Menunggu Mulai (jam sudah masuk hari baru,
+    // tapi belum sampai jamMulai), lihat getJadwalHariIni() & catatan
+    // lengkapnya di dekat definisinya.
+    if (action === 'getJadwalHariIni')    return res.json(await getJadwalHariIni());
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     if (action === 'absenKelasUsername')  return res.json(await absenKelasUsername(params));
@@ -1175,47 +1180,51 @@ async function getAktivitasGuruHariIni() {
 // menunggu sampai besok paginya. Read-only/publik seperti
 // getAktivitasGuruHariIni() -- TIDAK ada status "sudah/belum mengajar"
 // di sini karena itu baru berarti kalau harinya sudah berjalan.
-async function getJadwalBesok() {
-  const besok     = tanggalBesok();
-  const hariBsk   = hariBesok();
+//
+// BARU: logika intinya sekarang di getJadwalUntukTanggal() (di bawah),
+// dipakai bareng oleh getJadwalBesok() (tanggal = besok) DAN
+// getJadwalHariIni() (tanggal = hari ini) -- lihat catatan lengkap di
+// getJadwalUntukTanggal(). Bentuk hasil (shape) SENGAJA dibuat identik
+// supaya scan.html bisa pakai satu fungsi render untuk keduanya, cuma
+// beda label teksnya saja (lihat renderBesokSideRail(mode) di scan.html).
+async function getJadwalUntukTanggal(tanggal, hari) {
+  const cekLibur  = await isHariLibur(tanggal);
+  const hariAktif = !cekLibur.libur && await isHariKerja(hari);
 
-  const cekLibur  = await isHariLibur(besok);
-  const hariAktif = !cekLibur.libur && await isHariKerja(hariBsk);
-
-  // Kalau besok bukan hari sekolah (libur kalender ATAU memang tidak
+  // Kalau harinya bukan hari sekolah (libur kalender ATAU memang tidak
   // aktif di Pengaturan Hari Kerja), tidak perlu query jadwal sama
   // sekali -- langsung kembalikan status liburnya saja.
   if (!hariAktif) {
     return {
       success: true,
-      tanggal: besok, hari: hariBsk,
+      tanggal, hari,
       hariSekolah: false,
-      keteranganLibur: cekLibur.libur ? (cekLibur.keterangan || 'Hari libur') : `${hariBsk} bukan hari sekolah`,
+      keteranganLibur: cekLibur.libur ? (cekLibur.keterangan || 'Hari libur') : `${hari} bukan hari sekolah`,
       guruPiket: [],
       jadwalMengajar: []
     };
   }
 
   const [
-    { data: jadwalPiketBesok },
-    { data: jadwalMengajarBesok },
-    { data: jamPelajaranBesok }
+    { data: jadwalPiket },
+    { data: jadwalMengajar },
+    { data: jamPelajaran }
   ] = await Promise.all([
     supabase.from('jadwal_piket')
       .select('id_guru,nama_guru')
-      .eq('hari', hariBsk),
+      .eq('hari', hari),
     supabase.from('jadwal_mengajar')
       .select('id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
-      .eq('hari', hariBsk),
+      .eq('hari', hari),
     supabase.from('jam_pelajaran')
       .select('jam_ke,jam_mulai,jam_selesai')
-      .eq('hari', hariBsk).order('jam_ke')
+      .eq('hari', hari).order('jam_ke')
   ]);
 
   const jpMap = {};
-  (jamPelajaranBesok || []).forEach(j => { jpMap[j.jam_ke] = j; });
+  (jamPelajaran || []).forEach(j => { jpMap[j.jam_ke] = j; });
 
-  const jadwalMengajar = (jadwalMengajarBesok || []).map(j => {
+  const jadwalMengajarHasil = (jadwalMengajar || []).map(j => {
     const jpMulai   = jpMap[j.jam_ke_mulai];
     const jpSelesai = jpMap[j.jam_ke_selesai] || jpMulai;
     return {
@@ -1227,12 +1236,27 @@ async function getJadwalBesok() {
 
   return {
     success: true,
-    tanggal: besok, hari: hariBsk,
+    tanggal, hari,
     hariSekolah: true,
     keteranganLibur: null,
-    guruPiket: (jadwalPiketBesok || []).map(g => ({ namaGuru: g.nama_guru })),
-    jadwalMengajar
+    guruPiket: (jadwalPiket || []).map(g => ({ namaGuru: g.nama_guru })),
+    jadwalMengajar: jadwalMengajarHasil
   };
+}
+
+async function getJadwalBesok() {
+  return getJadwalUntukTanggal(tanggalBesok(), hariBesok());
+}
+
+// BARU: sama persis dengan getJadwalBesok(), tapi untuk HARI INI --
+// dipakai scan.html saat mode "Menunggu Mulai" (jam sekarang sudah masuk
+// hari baru tapi belum sampai jamMulai, lihat masukModeMenungguMulai()
+// di scan.html). Supaya panel "Info Besok" yang tadi malam menampilkan
+// jadwal besok, begitu tanggal berganti otomatis berubah jadi "Info Hari
+// Ini" dengan DATA YANG SAMA (karena "besok" kemarin malam = "hari ini"
+// sekarang) tapi label teksnya relevan.
+async function getJadwalHariIni() {
+  return getJadwalUntukTanggal(todayStr(), hariIni());
 }
 
 // CATATAN: fungsi getSesiPiket() yang dulu ada di sini SUDAH DIHAPUS karena

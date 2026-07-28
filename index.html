@@ -1064,10 +1064,14 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <select class="form-control" id="jmFilterGuru" style="max-width:220px" onchange="loadJadwalMengajar()"><option value="">Semua Guru</option></select>
               <select class="form-control" id="jmFilterHari" style="max-width:160px" onchange="loadJadwalMengajar()"><option value="">Semua Hari</option></select>
             </div>
-            <div class="table-responsive"><table>
-              <thead><tr><th>No</th><th>Guru</th><th>Hari</th><th>Jam Ke</th><th>Kelas</th><th>Mapel</th><th>Aksi</th></tr></thead>
-              <tbody id="jmTableBody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
-            </table></div>
+            <!-- BARU: sebelumnya satu <table> panjang berisi SEMUA kelas
+                 tercampur (diurutkan apa adanya dari server), jadi susah
+                 dibaca kalau jadwalnya sudah banyak. Sekarang dikelompokkan
+                 per kelas -- satu mini-tabel per kelas, diisi/dirender oleh
+                 loadJadwalMengajar() ke dalam #jmGroupedContainer ini. -->
+            <div id="jmGroupedContainer">
+              <div style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</div>
+            </div>
           </div>
         </div>
       </div>
@@ -6377,8 +6381,8 @@ async function loadHalamanJadwalMengajar() {
     : [];
 
   if (!HARI_MENGAJAR.length) {
-    const tbody = document.getElementById('jmTableBody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">⚠️ Hari sekolah aktif belum diatur.</td></tr>`;
+    const cont = document.getElementById('jmGroupedContainer');
+    if (cont) cont.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">⚠️ Hari sekolah aktif belum diatur.</div>`;
     openModal('modalMengajarBelumAturHari');
     return;
   }
@@ -6599,26 +6603,79 @@ async function hapusPengecualianHari() {
   else toast(result.message, 'error');
 }
 
-// ── JADWAL MENGAJAR (tabel + CRUD) ──────────────────────────────────
+// ── JADWAL MENGAJAR (dikelompokkan per kelas, BARU) ──────────────────
+// SEBELUMNYA: satu <table> panjang berisi SEMUA baris jadwal dari semua
+// kelas tercampur jadi satu (urutan apa adanya dari server) -- makin
+// banyak jadwal, makin terasa seperti "daftar panjang" yang susah
+// dibaca. Sekarang dikelompokkan per kelas: satu mini-tabel per kelas
+// (diurutkan Hari lalu Jam Ke), supaya jadwal pelajaran tiap kelas
+// langsung terlihat rapi & terpisah, tidak bercampur dengan kelas lain.
 async function loadJadwalMengajar() {
   const idGuru = document.getElementById('jmFilterGuru')?.value || '';
   const hari = document.getElementById('jmFilterHari')?.value || '';
   const result = await api('mengajar', 'getJadwalMengajar', { idGuru, hari });
-  const tbody = document.getElementById('jmTableBody'); if (!tbody) return;
-  if (!result.success || !result.data.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">${result.success ? 'Belum ada jadwal mengajar' : esc(result.message)}</td></tr>`; return; }
+  const container = document.getElementById('jmGroupedContainer'); if (!container) return;
+  if (!result.success || !result.data.length) {
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">${result.success ? 'Belum ada jadwal mengajar' : esc(result.message)}</div>`;
+    return;
+  }
   window._jmDataSemua = result.data;
-  tbody.innerHTML = result.data.map((j,i) => `<tr>
-    <td>${i+1}</td>
-    <td>${esc(j.namaGuru)}</td>
-    <td>${esc(j.hari)}</td>
-    <td>${j.jamKeMulai===j.jamKeSelesai ? `Ke-${j.jamKeMulai}` : `Ke-${j.jamKeMulai} s/d Ke-${j.jamKeSelesai}`}</td>
-    <td><span class="badge badge-primary">${esc(j.kelas)}</span></td>
-    <td>${esc(j.mapel)}</td>
-    <td><div style="display:flex;gap:6px">
-      <button class="btn btn-outline btn-sm" onclick="editJadwalMengajarUI('${j.id}')">✏️</button>
-      <button class="btn btn-danger btn-sm" onclick="hapusJadwalMengajarUI('${j.id}')">🗑</button>
-    </div></td>
-  </tr>`).join('');
+
+  const URUTAN_HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+  const urutHari = h => { const i = URUTAN_HARI.indexOf(h); return i === -1 ? 99 : i; };
+
+  // Kelompokkan baris jadwal per kelas.
+  const grup = {};
+  result.data.forEach(j => {
+    const k = j.kelas || '(Tanpa Kelas)';
+    (grup[k] = grup[k] || []).push(j);
+  });
+
+  // Urutan kelas: ikut urutan APP.kelasList (konsisten dengan menu
+  // Manajemen Kelas) supaya kelas 7A tampil sebelum 7B dst, bukan
+  // alfabetis mentah yang bisa salah urut (mis. "Kelas 10" sebelum
+  // "Kelas 2"). Kelas yang tidak/tidak-lagi ada di APP.kelasList
+  // (mis. sudah dihapus tapi jadwalnya belum) ditaruh di akhir,
+  // diurutkan alfabet supaya tetap rapi.
+  const urutanKelas = APP.kelasList || [];
+  const semuaKelas = Object.keys(grup).sort((a, b) => {
+    const ia = urutanKelas.indexOf(a), ib = urutanKelas.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  container.innerHTML = semuaKelas.map(kelas => {
+    const rows = grup[kelas].slice().sort((a, b) => {
+      const dh = urutHari(a.hari) - urutHari(b.hari);
+      if (dh !== 0) return dh;
+      return (Number(a.jamKeMulai) || 0) - (Number(b.jamKeMulai) || 0);
+    });
+    const rowsHtml = rows.map(j => `<tr>
+      <td>${esc(j.hari)}</td>
+      <td>${j.jamKeMulai===j.jamKeSelesai ? `Ke-${j.jamKeMulai}` : `Ke-${j.jamKeMulai} s/d Ke-${j.jamKeSelesai}`}</td>
+      <td>${esc(j.namaGuru)}</td>
+      <td>${esc(j.mapel)}</td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn btn-outline btn-sm" onclick="editJadwalMengajarUI('${j.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="hapusJadwalMengajarUI('${j.id}')">🗑</button>
+      </div></td>
+    </tr>`).join('');
+    return `
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="padding:12px 16px">
+          <h4 style="font-size:.92rem;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
+            <span class="badge badge-primary">${esc(kelas)}</span>
+            <span style="font-weight:600;color:var(--text-muted);font-size:.78rem">${rows.length} jadwal</span>
+          </h4>
+        </div>
+        <div class="table-responsive"><table>
+          <thead><tr><th style="width:110px">Hari</th><th style="width:150px">Jam Ke</th><th>Guru</th><th>Mapel</th><th style="width:90px">Aksi</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table></div>
+      </div>`;
+  }).join('');
 }
 
 function openModalJadwalMengajar() {

@@ -357,6 +357,21 @@ function renderHariIni(d) {
       </div>`).join('')
     : `<div class="empty">Tidak ada siswa sakit/izin tercatat hari ini.</div>`;
 
+  // (BARU) Lihat catatan yang sama di monitor.html (kepsek) -- siswa yang
+  // SEMPAT hadir lalu dipulangkan lebih awal, ditampilkan terpisah dari
+  // "Siswa Sakit/Izin" di atas.
+  const pulangCepatHTML = (k.daftarPulangCepat || []).length
+    ? k.daftarPulangCepat.map(s => `
+      <div class="list-item">
+        <div class="avatar">${esc((s.nama||'?').charAt(0))}</div>
+        <div class="li-main">
+          <div class="li-name">${esc(s.nama)}</div>
+          <div class="li-sub">${esc(s.kelas)} • pulang ${esc(s.jam)}${s.keterangan ? ' • ' + esc(s.keterangan) : ''}</div>
+        </div>
+        <span class="badge badge-warning">🤒 ${esc(s.status)}</span>
+      </div>`).join('')
+    : `<div class="empty">Tidak ada siswa yang dipulangkan lebih awal hari ini.</div>`;
+
   const piketHTML = d.piket.length
     ? d.piket.map(p => `
       <div class="list-item">
@@ -382,6 +397,7 @@ function renderHariIni(d) {
         ${statBox(k.terlambat, 'Terlambat', 'warning')}
         ${statBox(k.sakit + k.izin, 'Sakit/Izin', '')}
         ${statBox(k.alpha, 'Tanpa Keterangan', 'danger')}
+        ${statBox(k.pulangCepat || 0, 'Pulang Cepat', 'warning')}
       </div>
       <div style="font-size:.72rem;color:var(--text-muted)">dari total ${k.totalSiswa} siswa aktif</div>
     </div>
@@ -389,6 +405,11 @@ function renderHariIni(d) {
     <div class="section">
       <div class="section-title">🤒 Siswa Sakit / Izin Hari Ini</div>
       ${sakitIzinHTML}
+    </div>
+
+    <div class="section">
+      <div class="section-title">🏃 Siswa Pulang Cepat Hari Ini</div>
+      ${pulangCepatHTML}
     </div>
 
     <div class="section">

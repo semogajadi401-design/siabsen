@@ -399,23 +399,35 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
   // INSERT absensi dengan id_guru_piket/nama_guru_piket KOSONG -- padahal
   // scanKartu() (jalur online) menolak KERAS kalau sesi_piket kosong untuk
   // hari itu ("Guru piket belum scan kartu."). Sekarang disamakan: DITOLAK
-  // di sini juga. `namaGuru`/`idGuru` dari item offline biasanya kosong
-  // (scan.html tidak pernah mengirimnya untuk item siswa -- lihat
-  // processQRWithOffline()), jadi guruAktif dari sesiList adalah
-  // satu-satunya sumber. permanent:false SENGAJA (bukan ditolak selamanya)
-  // karena guru piket lain mungkin baru berhasil sync belakangan (dari
-  // device lain) -- begitu itu terjadi, item siswa ini harus otomatis
-  // ikut lolos di percobaan retry berikutnya, bukan dibuang permanen.
-  if ((!sesiList || sesiList.length === 0) && !namaGuru && !idGuru) {
+  // di sini juga.
+  //
+  // PERBAIKAN KEAMANAN (celah fatal, BARU ditemukan & ditutup):
+  // sebelumnya pengecekan kosongnya sesiList ini bisa DILEWATI sepenuhnya
+  // hanya dengan mengirim `namaGuru`/`idGuru` apa saja di body request
+  // batchSync (`!namaGuru && !idGuru` di kondisi lama) -- padahal kedua
+  // field itu DATANG MENTAH DARI KLIEN, tidak pernah diverifikasi ke
+  // tabel `guru` atau ke `sesi_piket` sama sekali. Siapa pun yang tahu
+  // endpoint ini bisa membuat catatan hadir/pulang siswa PALSU lengkap
+  // dengan id_guru_piket/nama_guru_piket hasil karangan sendiri, TANPA
+  // ada guru piket yang benar-benar scan hari itu -- persis celah yang
+  // sudah pernah ditutup di jalur online (scanKartu()), tapi luput di
+  // jalur offline ini.
+  //
+  // Sekarang: satu-satunya sumber identitas guru piket yang dipercaya
+  // adalah `sesiList` (hasil query server ke sesi_piket), SAMA PERSIS
+  // seperti scan.js. `namaGuru`/`idGuru` dari body request TIDAK PERNAH
+  // dipakai lagi untuk keputusan otorisasi maupun untuk mengisi kolom
+  // guru piket -- field itu diabaikan sepenuhnya.
+  if (!sesiList || sesiList.length === 0) {
     return {
       success: false, permanent: false, tipe: 'siswa',
       message: 'Guru piket belum tercatat untuk tanggal ini. Akan dicoba lagi otomatis setelah ada guru piket yang berhasil sinkron.'
     };
   }
 
-  const guruAktif  = sesiList && sesiList.length > 0 ? sesiList[sesiList.length - 1] : null;
-  const namaGP     = namaGuru || guruAktif?.nama_guru || null;
-  const idGP       = idGuru   || guruAktif?.id_guru   || null;
+  const guruAktif  = sesiList[sesiList.length - 1];
+  const namaGP     = guruAktif.nama_guru;
+  const idGP       = guruAktif.id_guru;
 
   // Cek absensi hari itu
   const { data: absenHariIni } = await supabase

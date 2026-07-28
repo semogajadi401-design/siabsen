@@ -457,6 +457,23 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
       // item "pulang" ini harus otomatis ikut lolos di percobaan berikutnya.
       return { success: false, permanent: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
     if (absenHariIni.jam_pulang) {
+      // (BARU) PENGAMAN: kalau baris pulang yang sudah ada itu sebenarnya
+      // status "Pulang Cepat" (Sakit/Izin/dll, ditandai lewat
+      // tandaiPulangCepat di api/kehadiran.js -- lihat STATUS_PULANG_CEPAT
+      // di sana), maka logika "koreksi jam lebih awal" di bawah TIDAK
+      // BOLEH jalan. Kalau tetap dibiarkan, scan offline pulang biasa yang
+      // baru masuk (jam berapa pun) bisa diam-diam MENIMPA status "Sakit"
+      // itu jadi 'Pulang' normal begitu jam offline-nya lebih awal dari
+      // jam sakit -- padahal siswa itu memang benar sudah dipulangkan
+      // lebih awal karena sakit, bukan salah catat jam pulang biasa.
+      // Perlakukan sebagai sudah final (permanent), sama seperti kalau
+      // sudah ada jam_pulang 'Pulang' biasa dan scan barunya lebih SIANG.
+      if (absenHariIni.status_pulang && absenHariIni.status_pulang !== 'Pulang') {
+        return {
+          success: false, permanent: true, tipe: 'siswa',
+          message: `${siswa.nama} sudah dipulangkan lebih awal karena ${absenHariIni.status_pulang} pukul ${absenHariIni.jam_pulang} — bukan absen pulang biasa`
+        };
+      }
       // Kalau baris pulang yang SUDAH ADA itu justru berasal dari scan yang
       // lebih SIANG daripada scan offline yang baru sync ini (misal: siswa
       // scan pulang offline jam 14:05 di laptop belum sempat sync, lalu ada

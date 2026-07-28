@@ -2602,7 +2602,14 @@ window.onload = async function() {
         document.getElementById('mainApp').style.display = 'flex';
         setupUserUI(saved);
         setTimeout(() => initFirstPage(saved.role), 100);
-        toast(`Selamat datang kembali, ${saved.nama}!`, 'success');
+        // Kalau tab ini di-refresh SAAT admin sedang menyamar sebagai guru
+        // (localStorage impersonasi masih ada), tampilkan lagi banner
+        // "Kembali ke Admin" supaya tidak hilang cuma karena reload.
+        if (localStorage.getItem(IMPERSONATE_KEY)) {
+          tampilkanBannerImpersonasi(saved.nama);
+        } else {
+          toast(`Selamat datang kembali, ${saved.nama}!`, 'success');
+        }
       }
     }, 500);
   }, 2000);
@@ -2695,10 +2702,81 @@ function setupUserUI(user) {
 }
 function doLogout() {
   APP.user=null; clearSession();
+  // Kalau logout dilakukan SAAT sedang menyamar sebagai guru (bukan lewat
+  // kembaliKeAdmin()), buang juga sesi admin yang tersimpan sementara --
+  // supaya tidak ada sesi admin "menggantung" tanpa banner yang jelas
+  // kalau nanti ada yang login manual lagi di device/browser yang sama.
+  localStorage.removeItem(IMPERSONATE_KEY);
+  sembunyikanBannerImpersonasi();
   document.getElementById('mainApp').style.display='none';
   document.getElementById('loginPage').style.display='flex';
   document.getElementById('loginUsername').value='';
   document.getElementById('loginPassword').value='';
+}
+
+// ── ADMIN LOGIN SEBAGAI GURU (impersonasi) ──────────────────────────
+// Tombol 🔓 di baris Data Guru. Server (api/guru.js -> loginSebagaiGuru)
+// yang memutuskan boleh/tidaknya lewat requireAdminToken -- di sini
+// cuma memanggil API itu lalu memperlakukan hasilnya SAMA PERSIS seperti
+// abis login manual (APP.user, saveSession, setupUserUI, initFirstPage),
+// supaya semua halaman guru/kepsek berjalan wajar tanpa kode khusus.
+const IMPERSONATE_KEY = 'siabsen_impersonate_admin';
+
+async function loginSebagaiGuru(id, nama) {
+  if (!confirm(`Login sebagai guru "${nama}"?\n\nAnda akan langsung masuk ke dashboard guru ini tanpa perlu tahu passwordnya. Sesi admin Anda saat ini disimpan sementara -- tinggal klik "Kembali ke Admin" di bagian atas layar kapan saja untuk kembali.`)) return;
+
+  const r = await api('guru', 'loginSebagaiGuru', { id });
+  if (!r.success) { toast(r.message, 'error'); return; }
+
+  // Simpan sesi admin SAAT INI (sebelum ditimpa) supaya kembaliKeAdmin()
+  // bisa mengembalikannya tanpa perlu login ulang pakai password.
+  localStorage.setItem(IMPERSONATE_KEY, JSON.stringify(APP.user));
+
+  APP.user = r; saveSession(r);
+  setupUserUI(r);
+  initFirstPage(r.role);
+  tampilkanBannerImpersonasi(r.nama);
+  toast(`Masuk sebagai ${r.nama}`, 'success');
+}
+
+function kembaliKeAdmin() {
+  const raw = localStorage.getItem(IMPERSONATE_KEY);
+  if (!raw) { toast('Sesi admin sebelumnya tidak ditemukan lagi. Silakan login ulang.', 'error'); return; }
+  const adminUser = JSON.parse(raw);
+  localStorage.removeItem(IMPERSONATE_KEY);
+
+  APP.user = adminUser; saveSession(adminUser);
+  setupUserUI(adminUser);
+  initFirstPage(adminUser.role);
+  sembunyikanBannerImpersonasi();
+  toast('Kembali ke akun Admin', 'success');
+}
+
+// Banner dibuat lewat JS (bukan ditaruh statis di HTML) supaya elemen ini
+// hanya ada di DOM saat betul-betul dibutuhkan. display:none dulu di CSS
+// via style.display, ditampilkan/hilang lewat tampilkanBannerImpersonasi()/
+// sembunyikanBannerImpersonasi() -- dipanggil juga saat restore sesi lewat
+// reload halaman (lihat window.onload) supaya banner tidak hilang kalau
+// admin yang sedang menyamar me-refresh browser.
+function tampilkanBannerImpersonasi(namaGuru) {
+  let bar = document.getElementById('impersonateBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'impersonateBar';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#F59E0B;color:#111;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:.85rem;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.15)';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `🔓 Anda login sebagai guru <b>${esc(namaGuru)}</b> (mode Admin) <button onclick="kembaliKeAdmin()" style="padding:6px 14px;border:none;border-radius:6px;background:#111;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">↩️ Kembali ke Admin</button>`;
+  bar.style.display = 'flex';
+  // Beri jarak supaya konten #mainApp (termasuk sidebar/header-nya) tidak
+  // tertutup banner fixed ini.
+  document.body.style.paddingTop = bar.offsetHeight + 'px';
+}
+
+function sembunyikanBannerImpersonasi() {
+  const bar = document.getElementById('impersonateBar');
+  if (bar) bar.style.display = 'none';
+  document.body.style.paddingTop = '0';
 }
 
 // ── NAVIGATION ───────────────────────────────────────────────────
@@ -2853,7 +2931,7 @@ async function loadGuru() {
     // dulu (data & histori piket tetap aman), baru hapus permanen kalau memang
     // yakin. Sebelumnya guru cuma bisa dihapus permanen dari UI meski backend
     // sudah punya endpoint nonaktifkan (guru.hapus) — sekarang dipakai.
-    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${esc(g.nama)}</div><div style="font-size:.76rem;color:var(--text-muted)">${esc(g.nip||'-')}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${esc(g.jabatan)}</td><td>${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${esc(g.username)}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
+    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${esc(g.nama)}</div><div style="font-size:.76rem;color:var(--text-muted)">${esc(g.nip||'-')}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${esc(g.jabatan)}</td><td>${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${esc(g.username)}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px">${g.status==='Aktif'?`<button class="btn btn-primary btn-sm" onclick="loginSebagaiGuru('${g.id}',window._guruData[${i}].nama)" title="Login sebagai guru ini (tanpa perlu password)">🔓</button>`:''}<button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
   } catch(e){ toast('Gagal memuat data guru','error'); }
 }
 function openModalGuru(){

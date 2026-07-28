@@ -2334,7 +2334,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
           <summary>👥 Kehadiran Siswa<span class="rh-count" id="rhSiswaCount">0</span><span class="rh-chevron">›</span></summary>
           <div class="rh-section-body">
             <div class="rh-siswa-tabs">
-              <button type="button" class="rh-siswa-tab active" id="rhTabBelum" onclick="switchRhSiswaTab('belum')">⏳ Belum (<span id="rhTabBelumCount">0</span>)</button>
+              <button type="button" class="rh-siswa-tab active" id="rhTabBelum" onclick="switchRhSiswaTab('belum')">❌ Alpa (<span id="rhTabBelumCount">0</span>)</button>
               <button type="button" class="rh-siswa-tab" id="rhTabIzin" onclick="switchRhSiswaTab('izin')">🤒 Izin/Sakit (<span id="rhTabIzinCount">0</span>)</button>
               <button type="button" class="rh-siswa-tab" id="rhTabHadir" onclick="switchRhSiswaTab('hadir')">✅ Hadir (<span id="rhTabHadirCount">0</span>)</button>
             </div>
@@ -4591,7 +4591,7 @@ function renderRekapSiswa() {
   setTxt('rhTabBelumCount', totalBelum);
   setTxt('rhTabIzinCount', totalIzin);
   setTxt('rhTabHadirCount', totalHadir);
-  setTxt('rhSiswaCount', `${totalHadir} hadir • ${totalIzin} izin/sakit • ${totalBelum} belum`);
+  setTxt('rhSiswaCount', `${totalHadir} hadir • ${totalIzin} izin/sakit • ${totalBelum} alpa`);
 
   const listEl = document.getElementById('rhSiswaList');
   if (!listEl) return;
@@ -4600,7 +4600,7 @@ function renderRekapSiswa() {
              : (logData.hadir || []);
 
   if (!list.length) {
-    const txt = _rhSiswaTab === 'belum' ? 'Semua siswa sudah hadir!'
+    const txt = _rhSiswaTab === 'belum' ? 'Tidak ada siswa alpa hari ini!'
               : _rhSiswaTab === 'izin'  ? 'Tidak ada siswa izin/sakit.'
               : 'Belum ada siswa yang hadir.';
     listEl.innerHTML = `<div class="rh-empty">${txt}</div>`;
@@ -4614,7 +4614,7 @@ function renderRekapSiswa() {
     } else if (_rhSiswaTab === 'hadir') {
       kanan = 'Datang ' + esc(s.jamDatang || '-') + (s.jamPulang ? ' • Pulang ' + esc(s.jamPulang) : '');
     } else {
-      kanan = 'Belum hadir';
+      kanan = 'Alpa';
     }
     return `
     <div class="rh-siswa-item">

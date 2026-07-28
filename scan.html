@@ -4166,7 +4166,23 @@ const SCAN_HINT_SETELAH = 45; // ± 1.5 detik di 30fps sebelum kasih tips
 // kalau kamera sudah menyajikan frame baru, jadi ini cara murah untuk
 // melewati frame yang belum berganti -- TANPA mengubah cara scanLoop()
 // dipanggil dari tempat lain di file ini (tetap requestAnimationFrame).
+//
+// CATATAN IOS SAFARI: di sejumlah versi WebKit (iPhone/iPad), video.currentTime
+// untuk elemen <video> yang sumbernya srcObject dari KAMERA LIVE (beda dengan
+// file video biasa) tidak reliable -- nilainya bisa macet di satu angka dan
+// tidak pernah berubah, walau gambar di layar tetap terlihat jalan normal
+// (rendering frame terbaru itu urusan video decoder, bukan currentTime).
+// Akibatnya kalau optimasi ini dipakai apa adanya, scanLoop() akan terus
+// mengira "belum ada frame baru" SELAMANYA di iPhone -> drawImage/jsQR tidak
+// pernah dijalankan -> kartu apa pun tidak akan pernah terdeteksi, padahal
+// video tampil normal (persis gejala "tampil tapi scan tidak respon" yang
+// hanya dialami pengguna iPhone). _scanStaleFrameCount di bawah ini jadi
+// pengaman: kalau currentTime tidak berubah beberapa kali berturut-turut,
+// anggap browser ini tidak bisa diandalkan untuk itu, dan tetap proses
+// frame-nya (fallback ke perilaku lama: proses tiap panggilan rAF).
 let _scanLastVideoTime = -1;
+let _scanStaleFrameCount = 0;
+const SCAN_STALE_FRAME_LIMIT = 5;
 
 // ── KONFIRMASI HASIL DECODE (anti salah-baca kamera kualitas rendah) ──
 // Webcam laptop (fixed-focus, resolusi rendah, sering agak buram) kadang
@@ -4241,8 +4257,18 @@ function scanLoop() {
   // sini tidak diperlukan -- perbandingan angka currentTime tetap benar
   // walau scanLoop() sempat berhenti/pause karena _scanBeratPaused, dsb.
   if (video.currentTime === _scanLastVideoTime) {
-    scanAnimFrame = requestAnimationFrame(scanLoop);
-    return;
+    _scanStaleFrameCount++;
+    // Kalau currentTime sudah "macet" di angka yang sama SCAN_STALE_FRAME_LIMIT
+    // kali berturut-turut, ini indikasi browser (mis. iOS Safari) tidak update
+    // currentTime dgn andal untuk video kamera live -- berhenti menunggu dan
+    // proses frame ini saja, supaya scan tetap jalan (lihat catatan di
+    // deklarasi _scanLastVideoTime / _scanStaleFrameCount di atas).
+    if (_scanStaleFrameCount < SCAN_STALE_FRAME_LIMIT) {
+      scanAnimFrame = requestAnimationFrame(scanLoop);
+      return;
+    }
+  } else {
+    _scanStaleFrameCount = 0;
   }
   _scanLastVideoTime = video.currentTime;
 

@@ -641,8 +641,20 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       return { success: false, tipe: 'siswa', message: `Absensi pulang baru bisa dilakukan mulai ${jamPulangMulai}` };
     if (!absenHariIni)
       return { success: false, tipe: 'siswa', message: `${siswa.nama} belum absen datang` };
-    if (absenHariIni.jam_pulang)
-      return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}` };
+    if (absenHariIni.jam_pulang) {
+      // (BARU) Bedakan pesan: kalau sebelumnya sudah ditandai "pulang
+      // cepat" (Sakit/Izin, lihat tandaiPulangCepat di api/kehadiran.js),
+      // pesannya harus jelas menyebut itu -- bukan seolah dia baru saja
+      // absen pulang biasa lewat scan kartu.
+      const statusPC = absenHariIni.status_pulang;
+      const sudahPulangCepat = statusPC && statusPC !== 'Pulang';
+      return {
+        success: false, tipe: 'siswa',
+        message: sudahPulangCepat
+          ? `${siswa.nama} sudah dipulangkan lebih awal karena ${statusPC} pukul ${absenHariIni.jam_pulang} — bukan absen pulang biasa`
+          : `${siswa.nama} sudah absen pulang pukul ${absenHariIni.jam_pulang}`
+      };
+    }
 
     // PERBAIKAN RACE CONDITION: sebelumnya UPDATE ini tidak punya syarat
     // apa pun selain `id` -- kalau 2 perangkat scan pulang siswa yang sama
@@ -677,10 +689,14 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       // di antara SELECT absenHariIni di atas dan UPDATE ini. Ambil ulang
       // nilai jam_pulang yang sebenarnya tersimpan supaya pesannya akurat.
       const { data: absenTerbaru } = await supabase
-        .from('absensi').select('jam_pulang').eq('id', absenHariIni.id).maybeSingle();
+        .from('absensi').select('jam_pulang,status_pulang').eq('id', absenHariIni.id).maybeSingle();
+      const statusPCTerbaru = absenTerbaru?.status_pulang;
+      const sudahPulangCepatTerbaru = statusPCTerbaru && statusPCTerbaru !== 'Pulang';
       return {
         success: false, tipe: 'siswa',
-        message: `${siswa.nama} sudah absen pulang pukul ${absenTerbaru?.jam_pulang || '-'}`
+        message: sudahPulangCepatTerbaru
+          ? `${siswa.nama} sudah dipulangkan lebih awal karena ${statusPCTerbaru} pukul ${absenTerbaru?.jam_pulang || '-'} — bukan absen pulang biasa`
+          : `${siswa.nama} sudah absen pulang pukul ${absenTerbaru?.jam_pulang || '-'}`
       };
     }
 
@@ -903,7 +919,13 @@ async function inputTanpaKartu({ username, password, siswaIds, mode }) {
 
     if (mode === 'pulang') {
       if (!absenHariIni)           { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: 'Belum absen datang' }); continue; }
-      if (absenHariIni.jam_pulang) { gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: `Sudah absen pulang pukul ${absenHariIni.jam_pulang}` }); continue; }
+      if (absenHariIni.jam_pulang) {
+        const statusPCBatch = absenHariIni.status_pulang;
+        const msgBatch = (statusPCBatch && statusPCBatch !== 'Pulang')
+          ? `Sudah dipulangkan lebih awal karena ${statusPCBatch} pukul ${absenHariIni.jam_pulang}`
+          : `Sudah absen pulang pukul ${absenHariIni.jam_pulang}`;
+        gagal++; detail.push({ id: idSiswa, nama: siswa.nama, success: false, message: msgBatch }); continue;
+      }
 
       const { error } = await supabase.from('absensi').update({
         jam_pulang: jam, status_pulang: 'Pulang',

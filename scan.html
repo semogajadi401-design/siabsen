@@ -951,6 +951,81 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   .rekap-selesai-banner{margin:14px 14px 0}
 }
 
+/* ── BANNER MODE MENUNGGU MULAI (BARU) ──
+   Aktif begitu tanggal sudah berganti (lewat tengah malam) TAPI jam
+   absen datang (jamMulai) belum tiba -- lihat masukModeMenungguMulai()
+   di JS. Sengaja dibedakan warnanya (biru-ungu, bukan hijau seperti
+   .rekap-selesai-banner) supaya guru piket langsung sadar ini KONDISI
+   BEDA: bukan "sudah selesai hari ini", tapi "menunggu hari ini mulai". */
+.menunggu-mulai-banner{
+  margin:16px 22px 0;padding:14px 20px;
+  border-radius:14px;text-align:center;
+  color:#fff;font-weight:800;font-size:.95rem;letter-spacing:.2px;
+  line-height:1.5;
+  box-shadow:0 4px 16px rgba(99,102,241,.3);
+  animation:menungguMulaiBerkedip 3.2s ease-in-out infinite;
+}
+@keyframes menungguMulaiBerkedip{
+  0%,100%{background:#4338CA}
+  50%{background:#6366F1}
+}
+@media(max-width:900px){
+  .menunggu-mulai-banner{margin:14px 14px 0}
+}
+
+/* ── PANGGUNG HITUNG MUNDUR (Mode Menunggu Mulai, BARU) ──
+   Menggantikan posisi kamera (.scanner-visual) selagi mode ini aktif --
+   inilah bagian "menutupi tampilan" yang diminta: guru piket yang buka
+   kios sebelum jam absen datang harus langsung melihat SISA WAKTU,
+   bukan kamera kosong yang seolah-olah siap dipakai scan padahal
+   belum waktunya. */
+.mm-stage{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;padding:38px 20px 34px;border-radius:20px;text-align:center;
+  background:linear-gradient(160deg,#1E1B4B 0%,#312E81 45%,#4C1D95 100%);
+  box-shadow:0 10px 32px rgba(79,70,229,.28);
+  position:relative;overflow:hidden;
+}
+.mm-stage::before{
+  /* Kilau halus yang bergerak pelan di belakang -- kesan "modern",
+     bukan sekadar teks statis di atas warna polos. */
+  content:"";position:absolute;inset:-40%;
+  background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.10),transparent 55%);
+  animation:mmShimmer 6s ease-in-out infinite;
+}
+@keyframes mmShimmer{
+  0%,100%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(4%,3%) scale(1.08)}
+}
+.mm-icon{font-size:2.6rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));position:relative}
+.mm-label{
+  color:#C7D2FE;font-weight:700;font-size:.86rem;letter-spacing:.4px;
+  text-transform:uppercase;position:relative
+}
+.mm-clock{
+  font-family:'SF Mono','Roboto Mono',ui-monospace,Consolas,monospace;
+  font-weight:800;letter-spacing:2px;position:relative;
+  font-size:clamp(2.4rem,9vw,3.6rem);
+  background:linear-gradient(90deg,#A5B4FC,#F0ABFC,#A5B4FC);
+  background-size:200% auto;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:mmClockBerkedip 1.6s ease-in-out infinite,mmClockGradient 4s linear infinite;
+}
+@keyframes mmClockBerkedip{
+  0%,100%{opacity:1}
+  50%{opacity:.55}
+}
+@keyframes mmClockGradient{
+  0%{background-position:0% center}
+  100%{background-position:200% center}
+}
+.mm-sub{color:#E0E7FF;font-size:.86rem;font-weight:600;position:relative;line-height:1.5}
+.mm-sub b{color:#fff}
+@media(max-width:900px){
+  .mm-stage{padding:30px 16px 26px}
+  .mm-icon{font-size:2.1rem}
+}
+
 /* ── COOLDOWN BAR ── */
 .cooldown-bar{
   height:4px;background:var(--border);
@@ -1784,6 +1859,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   <span id="jamOperasionalBannerText">Jam Operasional telah berakhir. Sampai jumpa di jam operasional berikutnya 😊</span>
 </div>
 
+<!-- BANNER MODE MENUNGGU MULAI (BARU, tersembunyi default) -->
+<!-- Ditampilkan oleh masukModeMenungguMulai()/keluarModeMenungguMulai()
+     -- begitu tanggal sudah berganti (lewat tengah malam) tapi jam absen
+     datang hari ini belum tiba. Lihat catatan lengkap di JS. -->
+<div class="menunggu-mulai-banner" id="menungguMulaiBanner" style="display:none">
+  <span id="menungguMulaiBannerText">Menunggu jam absen datang dimulai...</span>
+</div>
+
 <!-- MAIN -->
 <div class="main" id="mainContent">
 
@@ -1876,15 +1959,15 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          Isi dirender oleh renderBesokSideRail() (lihat JS), pakai ulang
          fetchJadwalBesok() yang sama seperti sebelumnya. -->
     <div id="besokSideRailPanel" class="besok-side-panel" style="display:none">
-      <div class="bsp-head"><span class="bsp-head-icon">📅</span> Info Besok</div>
-      <div class="bsp-sub">Piket & jadwal mengajar untuk hari berikutnya</div>
+      <div class="bsp-head"><span class="bsp-head-icon" id="bsprHeadIcon">📅</span> <span id="bsprHeadTitle">Info Besok</span></div>
+      <div class="bsp-sub" id="bsprSub">Piket & jadwal mengajar untuk hari berikutnya</div>
       <div id="bsprLiburWarn"></div>
       <div class="bsp-section">
-        <div class="bsp-section-title">🛡️ Guru Piket Besok</div>
+        <div class="bsp-section-title" id="bsprPiketTitle">🛡️ Guru Piket Besok</div>
         <div id="bsprPiket"><div class="bsp-empty">Memuat data...</div></div>
       </div>
       <div class="bsp-section">
-        <div class="bsp-section-title">📚 Jadwal Mengajar Besok</div>
+        <div class="bsp-section-title" id="bsprJadwalTitle">📚 Jadwal Mengajar Besok</div>
         <div id="bsprJadwal"><div class="bsp-empty">Memuat data...</div></div>
       </div>
     </div>
@@ -2135,6 +2218,20 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
            Elemennya (dengan ID yang sama) sudah dipindah ke overlay; JS
            yang mengisi/mengontrolnya (mulaiModeVerifikasi, batalAbsenKelas,
            dst.) TIDAK berubah sama sekali karena tetap mencari ID yang sama. -->
+
+      <!-- ══════ PANGGUNG HITUNG MUNDUR: MODE MENUNGGU MULAI (BARU) ══════
+           Tersembunyi default. Ditampilkan SEBAGAI GANTI .scanner-visual
+           (+ #lastResult, #lupaKartuHint, #btnTanpaKartu, dst. --
+           disembunyikan bareng lewat masukModeMenungguMulai()) begitu
+           tanggal sudah berganti tapi jam absen datang hari ini belum
+           tiba. Isi teks & digit diisi/diupdate oleh tickMenungguMulai()
+           tiap detik -- lihat JS. -->
+      <div class="mm-stage" id="mmStage" style="display:none">
+        <div class="mm-icon">⏰</div>
+        <div class="mm-label">Menunggu Jam Absen Datang</div>
+        <div class="mm-clock" id="mmClock">00:00:00</div>
+        <div class="mm-sub" id="mmSub">Absen Datang mulai pukul <b>-</b></div>
+      </div>
 
       <div id="scannerVisualAnchor"></div>
       <div class="scanner-visual">
@@ -4296,10 +4393,25 @@ async function checkStatus() {
     // yang "berperan di hari itu saja" diganti tampilan ringkasan.
     // Sebelum jam itu (atau kalau field jamSelesai kosong karena alasan
     // apapun), tetap tampilan biasa seperti sekarang.
+    //
+    // BARU: ditambah cabang "Mode Menunggu Mulai" -- SEBELUMNYA begitu
+    // tanggal berganti (lewat tengah malam), r.jam (jam sekarang, mis.
+    // 00:05) langsung lebih kecil dari r.jamSelesai (dihitung ulang
+    // untuk HARI BARU, mis. 14:00), jadi kondisi `jam > r.jamSelesai` di
+    // atas otomatis jadi FALSE -> keluarModeRekapHarian() terpanggil ->
+    // tampilan balik ke halaman scan biasa, PADAHAL jam absen datang
+    // (r.jamMulai) hari itu belum tiba sama sekali. Sekarang, selama
+    // masih SEBELUM jamMulai, tampilkan Mode Menunggu Mulai (hitung
+    // mundur ke jamMulai) dulu -- BUKAN langsung ke tampilan scan biasa.
     if (r.jamSelesai && jam > r.jamSelesai) {
+      keluarModeMenungguMulai();
       masukModeRekapHarian(r);
+    } else if (r.jamMulai && jam < r.jamMulai) {
+      keluarModeRekapHarian();
+      masukModeMenungguMulai(r);
     } else {
       keluarModeRekapHarian();
+      keluarModeMenungguMulai();
     }
 
   } catch(e) {
@@ -4445,6 +4557,179 @@ function keluarModeRekapHarian() {
   if (jamOpBanner) jamOpBanner.style.display = 'none';
 }
 
+// ══════ MODE MENUNGGU MULAI (BARU) ══════════════════════════════════
+// Aktif begitu tanggal sudah berganti (lewat tengah malam) TAPI jam
+// absen datang efektif hari ini (r.jamMulai) belum tiba (dipicu dari
+// checkStatus() di atas, bandingkan r.jam vs r.jamMulai). Tujuannya
+// supaya kios TIDAK langsung balik ke tampilan scan biasa begitu tengah
+// malam lewat -- guru piket yang buka kios dini hari tetap disambut
+// ringkasan yang relevan (bukan "besok" lagi, karena sekarang sudah
+// jadi "hari ini") plus hitung mundur besar ke jam mulai.
+//
+// Yang disembunyikan SAMA seperti masukModeRekapHarian() (tombol/panel
+// yang "berperan di hari itu saja"): Absen Kelas, Edit Kehadiran Siswa,
+// Cek Aktivitas Guru, Input Tanpa Kartu, baris statistik + donut chart,
+// serta "Arahkan kartu ke kamera"/"Siswa lupa kartu?" -- karena semua
+// itu memang belum relevan sebelum jamMulai tiba.
+//
+// Yang SENGAJA TETAP TAMPIL (tidak disentuh, beda dari mengganti
+// #scannerVisualAnchor dkk. total): kamera utama (.scanner-visual) --
+// tetap dibiarkan hidup di BAWAH panggung hitung mundur, karena scan QR
+// BELAKANG guru/admin/kepsek untuk login tidak terikat jam operasional
+// siswa/piket (lihat catatan "APAPUN KONDISINYA" di masukModeRekapHarian()
+// & api/scan.js). Panggung hitung mundur (#mmStage) hanya DITAMBAHKAN
+// di atasnya, mendominasi tampilan, bukan mematikan kamera.
+let _modeMenungguMulai = false;
+let _mmIntervalId = null;
+
+function masukModeMenungguMulai(r) {
+  if (!_modeMenungguMulai) {
+    _modeMenungguMulai = true;
+    const statsRow      = document.querySelector('.stats-row');
+    const chartWidget   = document.getElementById('chartKehadiranWidget');
+    const aksiWrap      = document.querySelector('.aksi-kelas-wrap');
+    const btnTanpaKartu = document.getElementById('btnTanpaKartu');
+    const guruStatusBox = document.getElementById('guruStatusBox');
+    const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
+    const scanTitle     = document.querySelector('.scan-title');
+    const filterRow     = document.querySelector('.filter-row');
+    const logTabs       = document.getElementById('logTabsBar');
+    const logContainer  = document.getElementById('logContainer');
+    const lastResultBox = document.getElementById('lastResult');
+    const lupaKartuHint = document.getElementById('lupaKartuHint');
+    const besokPanel    = document.getElementById('besokSideRailPanel');
+    const rekapPanel    = document.getElementById('rekapHarianPanel');
+    if (statsRow)      statsRow.style.display = 'none';
+    if (chartWidget)   chartWidget.style.display = 'none';
+    if (aksiWrap)       aksiWrap.style.display = 'none';
+    if (btnTanpaKartu)  btnTanpaKartu.style.display = 'none';
+    if (guruStatusBox)  guruStatusBox.style.display = 'none';
+    if (modeSwitchWrap) modeSwitchWrap.style.display = 'none';
+    if (scanTitle)      scanTitle.style.display = 'none';
+    if (filterRow)      filterRow.style.display = 'none';
+    if (logTabs)        logTabs.style.display = 'none';
+    if (logContainer)   logContainer.style.display = 'none';
+    if (lastResultBox)  lastResultBox.style.display = 'none';
+    if (lupaKartuHint)  lupaKartuHint.style.display = 'none';
+    // rekapHarianPanel bukan bagian mode ini -- pastikan tersembunyi
+    // kalau kebetulan baru saja keluar dari Mode Rekap Harian.
+    if (rekapPanel)     rekapPanel.style.display = 'none';
+    if (besokPanel)     besokPanel.style.display = 'block';
+
+    const mmStage = document.getElementById('mmStage');
+    if (mmStage) mmStage.style.display = 'flex';
+
+    const banner = document.getElementById('menungguMulaiBanner');
+    if (banner) {
+      const bannerText = document.getElementById('menungguMulaiBannerText');
+      if (bannerText) {
+        bannerText.textContent = `Hari ${r.hari || 'ini'} belum dimulai -- absen datang membuka pukul ${r.jamMulai}.`;
+      }
+      banner.style.display = 'block';
+    }
+
+    const mmSub = document.getElementById('mmSub');
+    if (mmSub) mmSub.innerHTML = `Hari <b>${esc(r.hari || '')}</b> &mdash; Absen Datang mulai pukul <b>${esc(r.jamMulai || '-')}</b>`;
+  }
+  // Panel "Info Besok" dipakai ulang di sini sebagai "Info Hari Ini"
+  // (data piket/jadwal HARI INI, bukan besok lagi -- lihat
+  // renderBesokSideRail(mode) & getJadwalHariIni()).
+  renderBesokSideRail('hariini');
+  mulaiTickMenungguMulai(r.jamMulai);
+}
+
+function keluarModeMenungguMulai() {
+  if (!_modeMenungguMulai) return;
+  _modeMenungguMulai = false;
+  const statsRow      = document.querySelector('.stats-row');
+  const chartWidget   = document.getElementById('chartKehadiranWidget');
+  const aksiWrap      = document.querySelector('.aksi-kelas-wrap');
+  const btnTanpaKartu = document.getElementById('btnTanpaKartu');
+  const guruStatusBox = document.getElementById('guruStatusBox');
+  const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
+  const scanTitle     = document.querySelector('.scan-title');
+  const filterRow     = document.querySelector('.filter-row');
+  const logTabs       = document.getElementById('logTabsBar');
+  const logContainer  = document.getElementById('logContainer');
+  const lastResultBox = document.getElementById('lastResult');
+  const lupaKartuHint = document.getElementById('lupaKartuHint');
+  const besokPanel    = document.getElementById('besokSideRailPanel');
+  if (statsRow)      statsRow.style.display = '';
+  if (chartWidget)   chartWidget.style.display = '';
+  if (aksiWrap)       aksiWrap.style.display = '';
+  if (btnTanpaKartu)  btnTanpaKartu.style.display = '';
+  if (guruStatusBox)  guruStatusBox.style.display = '';
+  if (modeSwitchWrap) modeSwitchWrap.style.display = '';
+  if (scanTitle)      scanTitle.style.display = '';
+  if (filterRow)      filterRow.style.display = '';
+  if (logTabs)        logTabs.style.display = '';
+  if (logContainer)   logContainer.style.display = '';
+  if (lastResultBox)  lastResultBox.style.display = '';
+  if (lupaKartuHint)  lupaKartuHint.style.display = '';
+  // besokPanel SENGAJA tidak dipaksa 'none' di sini kalau mode Rekap
+  // Harian yang justru mau masuk setelah ini (dipanggil sebelum
+  // masukModeRekapHarian() di checkStatus()) -- fungsi itu sendiri yang
+  // akan menampilkannya kembali dengan mode 'besok'. Tapi kalau TIDAK
+  // ada mode lain yang menyusul (balik ke tampilan normal), sembunyikan.
+  if (!_modeRekapHarian && besokPanel) besokPanel.style.display = 'none';
+
+  const mmStage = document.getElementById('mmStage');
+  if (mmStage) mmStage.style.display = 'none';
+  const banner = document.getElementById('menungguMulaiBanner');
+  if (banner) banner.style.display = 'none';
+
+  if (_mmIntervalId) { clearInterval(_mmIntervalId); _mmIntervalId = null; }
+}
+
+// Hitung mundur besar (#mmClock) ke jamMulai (HH:MM dari server).
+// Dihitung dari jam LOKAL perangkat (bukan poll server tiap detik) --
+// checkStatus() sendiri sudah jalan tiap ~10 detik dan akan mengoreksi
+// otomatis kalau ternyata meleset (mis. jam kios tidak presisi), lihat
+// setInterval(checkStatus,...) di init(). Begitu hitungan mencapai nol,
+// paksa checkStatus() jalan sekali lagi supaya transisi ke tampilan
+// scan biasa terjadi secepatnya, tidak menunggu siklus 10 detik.
+function mulaiTickMenungguMulai(jamMulaiStr) {
+  if (_mmIntervalId) clearInterval(_mmIntervalId);
+  if (!jamMulaiStr) return;
+  const [hh, mm] = jamMulaiStr.split(':').map(Number);
+
+  const hitungTarget = () => {
+    const target = new Date();
+    target.setHours(hh || 0, mm || 0, 0, 0);
+    // Kalau target sudah lewat menurut jam lokal (mis. baru saja lewat
+    // jamMulai tapi checkStatus() belum sempat poll ulang), anggap 0 --
+    // biar tidak muncul angka negatif/aneh sesaat sebelum halaman
+    // otomatis kembali normal.
+    return target;
+  };
+
+  const tick = () => {
+    const target = hitungTarget();
+    const now = new Date();
+    let diffMs = target - now;
+    if (diffMs <= 0) {
+      updateMmClockText(0);
+      checkStatus();
+      return;
+    }
+    updateMmClockText(diffMs);
+  };
+
+  tick();
+  _mmIntervalId = setInterval(tick, 1000);
+}
+
+function updateMmClockText(diffMs) {
+  const clockEl = document.getElementById('mmClock');
+  if (!clockEl) return;
+  const totalDetik = Math.max(0, Math.floor(diffMs / 1000));
+  const jj = Math.floor(totalDetik / 3600);
+  const mn = Math.floor((totalDetik % 3600) / 60);
+  const dt = totalDetik % 60;
+  const pad = n => String(n).padStart(2, '0');
+  clockEl.textContent = `${pad(jj)}:${pad(mn)}:${pad(dt)}`;
+}
+
 async function renderRekapHarian(r) {
   // -- Guru piket hari ini (dari checkStatus, sudah ada). BARU: ini
   // dulunya juga ditampilkan di kotak di atas kamera (#guruStatusBox),
@@ -4490,7 +4775,7 @@ async function renderRekapHarian(r) {
   // -- Jadwal & guru piket BESOK (BARU) -- lihat renderBesokSideRail().
   // Ditaruh SEBELUM guard "if (!elMengajar) return;" di bawah supaya
   // tetap jalan meski elemen guru-mengajar entah kenapa tidak ada.
-  renderBesokSideRail();
+  renderBesokSideRail('besok');
 
   // -- Guru mengajar / tidak masuk kelas -- pakai ulang
   // getAktivitasGuruHariIni() (endpoint yang sudah ada, dipakai juga oleh
@@ -4550,35 +4835,73 @@ function switchRhSiswaTab(tab) {
 // fetchJadwalBesok() (sama dengan tab "Besok" di modal Cek Aktivitas
 // Guru).
 let _rhBesokLastFetch = 0;
+// BARU: mode terakhir yang dipakai untuk mengisi panel ('besok' atau
+// 'hariini') -- kalau mode BERUBAH sejak render terakhir (mis. tengah
+// malam lewat, Mode Rekap Harian keluar & Mode Menunggu Mulai masuk),
+// cache waktu di atas SENGAJA diabaikan supaya panel langsung refetch
+// dengan data & label yang benar, tidak menunggu 60 detik cache habis.
+let _rhSideRailModeTerakhir = null;
 
-async function renderBesokSideRail() {
+// BARU: panel ini sekarang dipakai di DUA mode --
+// - mode 'besok'   (default, Mode Rekap Harian -- di luar jam operasional
+//                   TAPI masih tanggal yang sama): menampilkan piket &
+//                   jadwal mengajar BESOK, lewat fetchJadwalBesok().
+// - mode 'hariini' (Mode Menunggu Mulai -- tanggal sudah berganti, tapi
+//                   jamMulai belum tiba): menampilkan piket & jadwal
+//                   mengajar HARI INI (data yang sama seperti "besok"
+//                   semalam, hanya labelnya yang diganti relevan), lewat
+//                   fetchJadwalHariIni().
+// Lihat masukModeRekapHarian()/masukModeMenungguMulai() untuk pemanggil.
+async function renderBesokSideRail(mode) {
+  mode = mode === 'hariini' ? 'hariini' : 'besok';
+  const elHeadIcon  = document.getElementById('bsprHeadIcon');
+  const elHeadTitle = document.getElementById('bsprHeadTitle');
+  const elSub       = document.getElementById('bsprSub');
+  const elPiketTitle  = document.getElementById('bsprPiketTitle');
+  const elJadwalTitle = document.getElementById('bsprJadwalTitle');
   const elPiket  = document.getElementById('bsprPiket');
   const elJadwal = document.getElementById('bsprJadwal');
   const elWarn   = document.getElementById('bsprLiburWarn');
   if (!elPiket || !elJadwal) return;
+
+  // Label & sub-teks berbeda sesuai mode -- ini yang membuat teks
+  // "Guru Piket Besok" otomatis jadi "Guru Piket Hari Ini" begitu
+  // tanggal berganti, alih-alih tetap bilang "besok" padahal harinya
+  // sudah jadi hari ini.
+  if (elHeadIcon)  elHeadIcon.textContent  = mode === 'hariini' ? '🛎️' : '📅';
+  if (elHeadTitle) elHeadTitle.textContent = mode === 'hariini' ? 'Info Hari Ini' : 'Info Besok';
+  if (elSub) elSub.textContent = mode === 'hariini'
+    ? 'Piket & jadwal mengajar untuk hari ini'
+    : 'Piket & jadwal mengajar untuk hari berikutnya';
+  if (elPiketTitle)  elPiketTitle.textContent  = mode === 'hariini' ? '🛡️ Guru Piket Hari Ini' : '🛡️ Guru Piket Besok';
+  if (elJadwalTitle) elJadwalTitle.textContent = mode === 'hariini' ? '📚 Jadwal Mengajar Hari Ini' : '📚 Jadwal Mengajar Besok';
+
   const now = Date.now();
-  if (now - _rhBesokLastFetch < 60000 && elPiket.dataset.filled === '1') return;
+  const modeBerubah = _rhSideRailModeTerakhir !== mode;
+  if (!modeBerubah && now - _rhBesokLastFetch < 60000 && elPiket.dataset.filled === '1') return;
   _rhBesokLastFetch = now;
+  _rhSideRailModeTerakhir = mode;
   try {
-    const r = await fetchJadwalBesok();
+    const r = mode === 'hariini' ? await fetchJadwalHariIni() : await fetchJadwalBesok();
     if (!r || !r.success) return;
     elPiket.dataset.filled = '1';
 
+    const labelHari = mode === 'hariini' ? 'Hari ini' : 'Besok';
     if (elWarn) {
       elWarn.innerHTML = !r.hariSekolah
-        ? `<div class="bsp-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'bukan hari sekolah'}.</div>`
+        ? `<div class="bsp-warn">📅 ${esc(labelHari)} (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'bukan hari sekolah'}.</div>`
         : '';
     }
 
     const piket = r.guruPiket || [];
     elPiket.innerHTML = piket.length
       ? piket.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b></div>`).join('')
-      : `<div class="bsp-empty">Belum ada jadwal piket untuk besok.</div>`;
+      : `<div class="bsp-empty">Belum ada jadwal piket untuk ${esc(labelHari.toLowerCase())}.</div>`;
 
     const jadwal = r.jadwalMengajar || [];
     elJadwal.innerHTML = jadwal.length
       ? jadwal.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)})<span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
-      : `<div class="bsp-empty">Belum ada jadwal mengajar untuk besok.</div>`;
+      : `<div class="bsp-empty">Belum ada jadwal mengajar untuk ${esc(labelHari.toLowerCase())}.</div>`;
   } catch (e) {}
 }
 
@@ -5851,6 +6174,20 @@ async function fetchJadwalBesok() {
   if (_jadwalBesokCache && (now - _jadwalBesokCacheAt) < 60000) return _jadwalBesokCache;
   const r = await api('scan', 'getJadwalBesok', {});
   if (r && r.success) { _jadwalBesokCache = r; _jadwalBesokCacheAt = now; }
+  return r;
+}
+
+// BARU: kembaran fetchJadwalBesok() di atas, tapi untuk HARI INI --
+// dipakai panel sidebar (renderBesokSideRail(mode)) saat Mode Menunggu
+// Mulai. Cache terpisah (bukan pakai _jadwalBesokCache) karena datanya
+// beda tanggal/endpoint (getJadwalHariIni, bukan getJadwalBesok).
+let _jadwalHariIniCache = null;
+let _jadwalHariIniCacheAt = 0;
+async function fetchJadwalHariIni() {
+  const now = Date.now();
+  if (_jadwalHariIniCache && (now - _jadwalHariIniCacheAt) < 60000) return _jadwalHariIniCache;
+  const r = await api('scan', 'getJadwalHariIni', {});
+  if (r && r.success) { _jadwalHariIniCache = r; _jadwalHariIniCacheAt = now; }
   return r;
 }
 

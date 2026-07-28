@@ -1492,6 +1492,11 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#1565C0"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg></div><div class="stat-info"><small>Sakit</small><strong id="khStatSakit">0</strong></div></div>
           <div class="stat-card cyan"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg></div><div class="stat-info"><small>Izin</small><strong id="khStatIzin">0</strong></div></div>
           <div class="stat-card red"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg></div><div class="stat-info"><small>Alpha</small><strong id="khStatAlpha">0</strong></div></div>
+          <!-- (BARU) Kartu terpisah untuk siswa yang SEMPAT hadir lalu
+               dipulangkan lebih awal (sakit/izin mendadak) -- sengaja
+               dipisah dari kartu Sakit/Izin di atas (yang menghitung
+               siswa yang memang tidak hadir dari awal). -->
+          <div class="stat-card orange"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.45 0 2.26 1.44 1.94 2.5h2.06c.5 0 .9.4.9.9v.1c0 3.87-3.13 7-7 7s-7-3.13-7-7v-.1c0-.5.4-.9.9-.9h2.06C5.74 9.44 6.55 8 8 8h4z"/></svg></div><div class="stat-info"><small>Pulang Cepat</small><strong id="khStatPulangCepat">0</strong></div></div>
         </div>
         <div class="card">
           <div class="card-header">
@@ -1907,6 +1912,50 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalKeteranganTerlambat')">Batal</button>
       <button class="btn btn-primary" onclick="submitKeteranganTerlambat()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+<!-- Modal Tandai Sakit/Pulang Cepat (BARU) -->
+<div class="modal-backdrop" id="modalPulangCepat">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>🤒 Tandai Sakit/Pulang Cepat</h3>
+      <button class="modal-close" onclick="closeModal('modalPulangCepat')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:10px;background:var(--primary-pale);border-radius:8px;margin-bottom:16px">
+        <div style="font-weight:700" id="pcNamaSiswa">—</div>
+        <div style="font-size:.82rem;color:var(--text-muted)" id="pcKelasSiswa">—</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">
+          Siswa ini sudah tercatat hadir hari ini. Gunakan form ini kalau
+          dia sakit/dijemput sebelum jam pulang resmi.
+        </div>
+      </div>
+      <input type="hidden" id="pcIdAbsen">
+      <div class="form-group">
+        <label>Status *</label>
+        <select id="pcStatus" class="form-control">
+          <option value="Sakit">Sakit</option>
+          <option value="Izin">Izin</option>
+          <option value="Urusan Keluarga">Urusan Keluarga</option>
+          <option value="Izin Lainnya">Izin Lainnya</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Jam Pulang (wajib) *</label>
+        <input type="time" id="pcJam" class="form-control">
+        <small style="color:var(--text-muted)">Diisi otomatis jam sekarang, bisa diedit -- misalnya kalau baru sempat diinput belakangan padahal siswa sudah dipulangkan dari tadi.</small>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Keterangan (wajib) *</label>
+        <textarea id="pcKeterangan" class="form-control" rows="3"
+          placeholder="Contoh: demam tinggi, dijemput orang tua, dll"
+          style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalPulangCepat')">Batal</button>
+      <button class="btn btn-primary" onclick="submitPulangCepat()">💾 Simpan</button>
     </div>
   </div>
 </div>
@@ -5468,6 +5517,7 @@ async function loadKehadiran() {
   document.getElementById('khStatSakit').textContent = statistik.totalSakit;
   document.getElementById('khStatIzin').textContent = statistik.totalIzin;
   document.getElementById('khStatAlpha').textContent = statistik.totalAlpha;
+  document.getElementById('khStatPulangCepat').textContent = statistik.totalPulangCepat || 0;
   document.getElementById('khBelumCount').textContent = belumHadir.length;
   document.getElementById('khHadirCount').textContent = hadir.length;
 
@@ -5515,18 +5565,34 @@ async function loadKehadiran() {
             ? `<span style="font-size:.8rem">${esc(s.keteranganTerlambat)}</span>`
             : `<span style="font-size:.8rem;color:var(--text-muted)">—</span>`)
         : `<span style="font-size:.8rem;color:var(--text-muted)">-</span>`;
-      const aksiBtn = s.statusDatang === 'Terlambat'
+      const aksiTerlambatBtn = s.statusDatang === 'Terlambat'
         ? `<button class="btn btn-outline btn-xs" onclick="openModalKeteranganTerlambat('${s.idAbsen}','${esc(s.nama)}','${esc(s.keteranganTerlambat||'')}')">✏️ ${s.keteranganTerlambat ? 'Edit' : 'Isi'} Alasan</button>`
-        : '-';
+        : '';
+
+      // (BARU) Kolom Jam Pulang: bedakan badge oranye "🤒 Sakit 10:15" (pulang
+      // cepat) dari badge hijau "Pulang 14:05" (pulang normal), supaya tidak
+      // membingungkan -- sesuai permintaan awal fitur ini.
+      let jamPulangHTML = '-';
+      let aksiPulangHTML = `<button class="btn btn-warning btn-xs" onclick="openModalPulangCepat('${s.idAbsen}','${esc(s.nama)}','${s.kelas}')">🤒 Sakit/Pulang Cepat</button>`;
+      if (s.pulangCepat) {
+        jamPulangHTML = `<span class="badge" style="background:#FFF3E0;color:#E65100">🤒 ${esc(s.pulangCepat.status)} ${s.pulangCepat.jam}</span>`
+          + (s.pulangCepat.keterangan ? `<div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${esc(s.pulangCepat.keterangan)}</div>` : '');
+        aksiPulangHTML = `<button class="btn btn-danger btn-xs" onclick="batalkanPulangCepat('${s.idAbsen}')">↩️ Batalkan</button>`;
+      } else if (s.jamPulang) {
+        jamPulangHTML = `<span class="badge badge-success">Pulang ${s.jamPulang}</span>`;
+        aksiPulangHTML = '';
+      }
+      const aksiBtn = [aksiTerlambatBtn, aksiPulangHTML].filter(Boolean).join(' ') || '-';
+
       return `<tr>
       <td data-label="No">${i + 1}</td>
       <td data-label="Nama"><div style="font-weight:600">${esc(s.nama)}</div></td>
       <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
       <td data-label="Jam Datang">${s.jamDatang || '-'}</td>
       <td data-label="Status"><span class="badge ${s.statusDatang === 'Hadir' ? 'badge-success' : 'badge-warning'}">${s.statusDatang}</span></td>
-      <td data-label="Jam Pulang">${s.jamPulang || '-'}</td>
+      <td data-label="Jam Pulang">${jamPulangHTML}</td>
       <td data-label="Keterangan">${ketText}</td>
-      <td data-label="Aksi">${aksiBtn}</td>
+      <td data-label="Aksi"><div style="display:flex;gap:4px;flex-wrap:wrap">${aksiBtn}</div></td>
     </tr>`;
     }).join('');
   }
@@ -5593,6 +5659,51 @@ async function submitKeterangan() {
     closeModal('modalKeterangan');
     loadKehadiran();
   }
+}
+
+// (BARU) Modal "Tandai Sakit/Pulang Cepat" -- dipakai saat siswa yang
+// SUDAH HADIR ternyata sakit/dijemput di tengah hari, sebelum jam pulang
+// resmi. Jam diprefill jam sekarang (device guru piket) tapi tetap bisa
+// diedit -- lihat catatan di api/kehadiran.js (tandaiPulangCepat).
+function openModalPulangCepat(idAbsen, nama, kelas) {
+  document.getElementById('pcIdAbsen').value = idAbsen;
+  document.getElementById('pcNamaSiswa').textContent = nama;
+  document.getElementById('pcKelasSiswa').textContent = 'Kelas ' + kelas;
+  document.getElementById('pcStatus').value = 'Sakit';
+  document.getElementById('pcKeterangan').value = '';
+  const now = new Date();
+  const jamSekarang = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('pcJam').value = jamSekarang;
+  openModal('modalPulangCepat');
+}
+
+async function submitPulangCepat() {
+  const idAbsen = document.getElementById('pcIdAbsen').value;
+  const status = document.getElementById('pcStatus').value;
+  const keterangan = document.getElementById('pcKeterangan').value;
+  const jam = document.getElementById('pcJam').value;
+  const diinputOleh = APP.user?.nama || '';
+  const idGuru = APP.user?.role === 'guru' ? APP.user.id : undefined;
+
+  if (!keterangan.trim()) { toast('Keterangan wajib diisi', 'error'); return; }
+  if (!jam) { toast('Jam wajib diisi', 'error'); return; }
+
+  const result = await api('kehadiran', 'tandaiPulangCepat', {
+    idAbsen, status, keterangan, jam, diinputOleh, idGuru
+  });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) {
+    closeModal('modalPulangCepat');
+    loadKehadiran();
+  }
+}
+
+async function batalkanPulangCepat(idAbsen) {
+  if (!confirm('Batalkan penandaan pulang cepat ini? Siswa akan kembali berstatus hadir tanpa jam pulang.')) return;
+  const idGuru = APP.user?.role === 'guru' ? APP.user.id : undefined;
+  const result = await api('kehadiran', 'batalkanPulangCepat', { idAbsen, idGuru });
+  toast(result.message, result.success ? 'success' : 'error');
+  if (result.success) loadKehadiran();
 }
 
 async function hapusKeterangan(idKeterangan) {

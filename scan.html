@@ -403,6 +403,21 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   transition:transform .15s;
 }
 .btn-cek-aktivitas-guru:active{transform:scale(.96)}
+
+/* ── TOMBOL KELOLA KEHADIRAN / PIKET (BARU) ─────────────────────────
+   Pintasan supaya guru piket bisa mengedit keterangan Sakit/Izin/
+   Terlambat/Pulang Cepat siswa hari ini langsung dari kios scan, tanpa
+   perlu login penuh ke index.html -- lihat mulaiKelolaPiket() dan
+   overlay #kelolaPiketOverlay. Warna amber supaya beda dari 2 tombol
+   lain (Absen Kelas = ungu, Cek Aktivitas = teal). */
+.btn-kelola-piket{
+  width:100%;padding:12px 10px;border:none;border-radius:16px;
+  background:linear-gradient(160deg,#FCD34D,#D97706);
+  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
+  box-shadow:0 6px 16px -6px rgba(217,119,6,0.55),inset 0 1px 1px rgba(255,255,255,.35);
+  transition:transform .15s;
+}
+.btn-kelola-piket:active{transform:scale(.96)}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
   /* PERBAIKAN TATA LETAK MOBILE: sebelumnya tombol Absen Kelas & Cek
@@ -417,8 +432,8 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
      mode-switch-wrap), lalu isinya diubah jadi baris (dua tombol
      berdampingan, berbagi lebar rata lewat flex:1) supaya rapi dan
      tidak ada yang tersembunyi. */
-  .aksi-kelas-wrap{flex:1 1 100%;flex-direction:row;max-width:none;gap:10px}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru{flex:1 1 0;width:auto}
+  .aksi-kelas-wrap{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;max-width:none;gap:10px}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket{flex:1 1 0;width:auto}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -1288,6 +1303,65 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   min-height:1em;
 }
 
+/* ── OVERLAY KELOLA KEHADIRAN / PIKET (BARU) ────────────────────────
+   Lebih lebar dari .ak-card biasa karena isinya daftar siswa + panel
+   edit, bukan cuma status singkat. Dipakai bersama class .ak-card
+   (header/close/banner sudah konsisten) -- .kp-card cuma override
+   lebar & scroll. */
+#kelolaPiketOverlay{
+  position:fixed;inset:0;z-index:8500;
+  background:rgba(15,23,42,0.6);
+  backdrop-filter:blur(10px);
+  display:none;align-items:center;justify-content:center;
+  padding:20px;
+}
+#kelolaPiketOverlay.show{display:flex}
+.kp-card{width:min(560px,94vw);max-height:92vh;overflow-y:auto}
+#kpCameraSlot{display:flex;justify-content:center}
+#kpCameraSlot .scanner-visual{margin:6px auto}
+.kp-section-title{
+  font-size:.72rem;font-weight:800;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.5px;margin:10px 0 2px;
+}
+.kp-row{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 12px;border:1px solid var(--border);border-radius:12px;
+  margin-bottom:6px;background:var(--bg);flex-wrap:wrap;
+}
+.kp-row-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 140px}
+.kp-row-nama{font-weight:700;font-size:.85rem}
+.kp-row-sub{font-size:.72rem;color:var(--text-muted)}
+.kp-row-actions{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.kp-btn{
+  padding:7px 10px;border:none;border-radius:8px;font-size:.72rem;
+  font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+}
+.kp-btn-primary{background:var(--primary);color:#fff}
+.kp-btn-warning{background:#F59E0B;color:#fff}
+.kp-btn-danger{background:var(--danger);color:#fff}
+.kp-btn-outline{background:var(--surface);border:1.5px solid var(--border);color:var(--text)}
+.kp-empty{
+  text-align:center;padding:14px;color:var(--text-muted);font-size:.8rem;
+}
+.kp-edit-panel{
+  margin-top:10px;padding:14px;border:1.5px dashed var(--primary);
+  border-radius:12px;background:var(--bg);
+}
+.kp-edit-panel label{
+  font-size:.74rem;font-weight:700;color:var(--text-muted);
+  display:block;margin-top:10px;
+}
+.kp-edit-panel select,.kp-edit-panel input,.kp-edit-panel textarea{
+  width:100%;padding:9px 11px;border:1.5px solid var(--border);
+  border-radius:9px;font-size:.84rem;font-family:inherit;margin-top:4px;
+  box-sizing:border-box;
+}
+.kp-edit-actions{display:flex;gap:8px;margin-top:12px}
+.kp-edit-actions button{
+  flex:1;padding:10px;border:none;border-radius:9px;font-weight:700;
+  font-size:.82rem;cursor:pointer;font-family:inherit;
+}
+
 </style>
 </head>
 <body>
@@ -1432,6 +1506,72 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   </div>
 </div>
 
+<!-- ══════ OVERLAY KELOLA KEHADIRAN (PIKET) — BARU ══════════════════
+     Pintasan supaya guru piket bisa mengedit keterangan Sakit/Izin/
+     Terlambat/Pulang Cepat siswa hari ini LANGSUNG dari kios scan,
+     tanpa perlu login penuh ke index.html. Identitas + wewenang piket
+     dibuktikan lewat scan QR halaman BELAKANG kartu guru sendiri
+     (format "GURU_LOGIN|token", sama seperti dipakai untuk bypass
+     login ke index.html) -- BUKAN dengan mempercayai idGuru mentah.
+     Token (qrToken) hasil scan itu disimpan SEMENTARA di variabel JS
+     kpGuruToken (bukan localStorage/sesi penuh) dan disertakan di
+     setiap panggilan api/kehadiran.js selama overlay ini terbuka --
+     begitu ditutup, token dibuang (lihat batalKelolaPiket()). Server
+     tetap yang memutuskan boleh/tidak lewat isGuruPiketHariIni
+     (api/kehadiran.js, dicek ulang di SETIAP aksi) -- bagian ini
+     cuma UI-nya, bukan satu-satunya penjaga. -->
+<div id="kelolaPiketOverlay">
+  <div class="ak-card kp-card">
+    <div class="ak-header">
+      <div>
+        <h3>📋 Kelola Kehadiran (Piket)</h3>
+        <p>Scan QR halaman belakang kartu guru Anda untuk mengedit keterangan siswa hari ini</p>
+      </div>
+      <button type="button" class="ak-close" onclick="batalKelolaPiket()" title="Tutup">✕</button>
+    </div>
+
+    <div id="kpCameraSlot"></div>
+
+    <!-- Menunggu scan kartu guru -- tampil setelah tombol "Kelola
+         Kehadiran" diklik, sebelum identitas+wewenang piket terverifikasi
+         (lihat mulaiKelolaPiket()/processScanKelolaPiket()). -->
+    <div class="guru-status ada-guru" id="menungguKelolaPiketBox">
+      <div class="guru-label">📋 Kelola Kehadiran</div>
+      <div class="ak-alert-banner">🔴 Silakan scan QR halaman BELAKANG kartu guru Anda</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="font-size:.88rem" id="kpStatusText">⏳ Menunggu scan kartu...</div>
+        <button type="button" onclick="batalKelolaPiket()" style="padding:10px 16px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+          ✖ Batal
+        </button>
+      </div>
+    </div>
+
+    <!-- Konten setelah verifikasi berhasil (guru terbukti piket hari
+         ini) -- tersembunyi default, ditampilkan oleh
+         processScanKelolaPiket() lewat kpMuatData(). -->
+    <div id="kpContent" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="font-size:.86rem">👋 <b id="kpGuruNamaLabel"></b> — piket hari ini</div>
+        <button type="button" onclick="batalKelolaPiket()" style="padding:8px 14px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-weight:700;font-size:.78rem;cursor:pointer">
+          Selesai
+        </button>
+      </div>
+
+      <div class="kp-section-title">🚫 Belum Hadir</div>
+      <div id="kpBelumHadirList"></div>
+
+      <div class="kp-section-title">✅ Sudah Hadir</div>
+      <div id="kpHadirList"></div>
+
+      <!-- Panel edit tunggal, dipakai bergantian untuk ke-5 aksi (input/
+           edit keterangan, hapus keterangan, alasan terlambat, tandai &
+           batalkan pulang cepat) -- lihat kpOpenKeterangan()/
+           kpOpenTerlambat()/kpOpenPulangCepat() di bawah. -->
+      <div class="kp-edit-panel" id="kpEditPanel" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
 <!-- SYNC OVERLAY -->
 <div id="syncOverlay">
   <div class="sync-card">
@@ -1565,6 +1705,17 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
            Lihat getAktivitasGuruHariIni() di api/scan.js. -->
       <button type="button" class="btn-cek-aktivitas-guru" id="btnCekAktivitasGuru" onclick="bukaModalAktivitasGuru()">
         👨‍🏫 Cek Aktivitas Guru
+      </button>
+
+      <!-- Tombol Kelola Kehadiran (BARU) -- pintasan untuk guru piket
+           mengedit keterangan Sakit/Izin/Terlambat/Pulang Cepat siswa
+           hari ini langsung dari kios, tanpa perlu login penuh ke
+           index.html. Klik dulu, baru scan QR halaman BELAKANG kartu
+           guru sendiri (lihat mulaiKelolaPiket()) -- server yang
+           memutuskan boleh/tidaknya lewat isGuruPiketHariIni, bukan
+           sekadar tombol ini. -->
+      <button type="button" class="btn-kelola-piket" id="btnKelolaPiket" onclick="mulaiKelolaPiket()">
+        📋 Kelola Kehadiran
       </button>
     </div>
 
@@ -2134,6 +2285,25 @@ let verifikasiSesi      = null; // { idAbsensiMengajar, mapel, kelas, min, jumla
 // mengarahkan scan berikutnya ke processScanGuruAbsenKelas() (bukan
 // jalur scanKartu biasa) -- lihat mulaiAbsenKelas() di bawah.
 let menungguAbsenKelas  = false;
+// ── STATE MODE "KELOLA KEHADIRAN" (PIKET) — BARU ──────────────────
+// menungguKelolaPiket: true setelah tombol "Kelola Kehadiran" diklik,
+// SEBELUM kartu guru berhasil discan & terverifikasi piket hari ini
+// (lihat mulaiKelolaPiket()/processScanKelolaPiket() di bawah). Sama
+// prinsipnya dengan menungguAbsenKelas -- state murni per-tab, tidak
+// memengaruhi device lain.
+// kpGuruToken/kpGuruId/kpGuruNama: identitas guru yang SUDAH terbukti
+// piket hari ini, disimpan SEMENTARA (bukan localStorage) selama
+// overlay #kelolaPiketOverlay terbuka -- dibuang lagi begitu ditutup
+// (lihat batalKelolaPiket()). Disertakan sebagai guruToken di setiap
+// panggilan api/kehadiran.js supaya server bisa memverifikasi ulang.
+let menungguKelolaPiket = false;
+let kpGuruToken = null;
+let kpGuruId    = null;
+let kpGuruNama  = '';
+// Cache hasil getSiswaKehadiran terakhir -- dipakai tombol Edit/Isi di
+// tiap baris supaya tidak perlu menaruh data mentah siswa langsung di
+// atribut onclick (rawan rusak kalau nama/keterangan mengandung kutip).
+let kpDataCache = { belumHadir: [], hadir: [] };
 // Nilai default MIN_VERIFIKASI_SISWA (dipakai untuk menampilkan "dari
 // minimal Y siswa" di bar Mode Verifikasi SEBELUM sesi dimulai). Diisi
 // ulang dari jam_setting saat init() -- lihat blok getJamSetting di bawah.
@@ -2774,6 +2944,359 @@ function tutupOverlayAbsenKelas() {
   if (anchor && visual && anchor.parentNode) anchor.parentNode.insertBefore(visual, anchor.nextSibling);
   const overlay = document.getElementById('absenKelasOverlay');
   if (overlay) overlay.classList.remove('show');
+}
+
+// ══════ MODE "KELOLA KEHADIRAN" (PIKET) — BARU ═══════════════════
+// Pintasan supaya guru piket bisa mengedit keterangan Sakit/Izin/
+// Terlambat/Pulang Cepat siswa hari ini LANGSUNG dari kios scan, tanpa
+// perlu login penuh ke index.html. Alurnya sengaja disamakan persis
+// dengan pola Absen Kelas di atas: klik tombol dulu (device "berniat"
+// khusus), baru scan kartu -- supaya kartu yang kepencet di luar mode
+// ini tidak pernah disalahartikan.
+//
+// Beda pentingnya dari Absen Kelas: kartu yang harus discan di sini
+// adalah QR halaman BELAKANG kartu guru ("GURU_LOGIN|token", dipakai
+// juga untuk bypass login index.html) -- BUKAN QR halaman depan
+// ("GR...", dipakai untuk absen piket/mengajar). Ini karena kita butuh
+// qr_token guru (rahasia, cuma bocor lewat login) untuk membuktikan
+// identitasnya ke server -- kalau cuma pakai id dari QR depan (yang
+// bisa dibaca siapa saja lewat settings.getGuruPiket), siapa pun yang
+// tahu id guru piket hari ini bisa mengaku jadi guru itu.
+function mulaiKelolaPiket() {
+  if (modeVerifikasiAktif) { toast('📚 Sedang dalam sesi verifikasi kelas.'); return; }
+  if (menungguAbsenKelas)  { toast('📚 Sedang dalam mode Absen Kelas. Klik "Batal" dulu.'); return; }
+  menungguKelolaPiket = true;
+  kpGuruToken = null; kpGuruId = null; kpGuruNama = '';
+  document.getElementById('menungguKelolaPiketBox').style.display = '';
+  document.getElementById('kpContent').style.display = 'none';
+  kpCloseEdit();
+  const statusText = document.getElementById('kpStatusText');
+  if (statusText) statusText.textContent = '⏳ Menunggu scan kartu...';
+  bukaOverlayKelolaPiket();
+  toast('📷 Arahkan QR halaman BELAKANG kartu guru Anda ke kamera.', 3500);
+}
+
+function batalKelolaPiket() {
+  menungguKelolaPiket = false;
+  kpGuruToken = null; kpGuruId = null; kpGuruNama = '';
+  kpDataCache = { belumHadir: [], hadir: [] };
+  tutupOverlayKelolaPiket();
+  scanCooldown = false;
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// Kamera (.scanner-visual) dipindah UTUH ke overlay ini, sama persis
+// pola bukaOverlayAbsenKelas()/tutupOverlayAbsenKelas() -- lihat catatan
+// lengkap di sana soal kenapa dipindah, bukan diinisialisasi ulang.
+function bukaOverlayKelolaPiket() {
+  const slot   = document.getElementById('kpCameraSlot');
+  const visual = document.querySelector('.scanner-visual');
+  if (slot && visual && !slot.contains(visual)) slot.appendChild(visual);
+  const overlay = document.getElementById('kelolaPiketOverlay');
+  if (overlay) overlay.classList.add('show');
+}
+function tutupOverlayKelolaPiket() {
+  const anchor = document.getElementById('scannerVisualAnchor');
+  const visual = document.querySelector('.scanner-visual');
+  if (anchor && visual && anchor.parentNode) anchor.parentNode.insertBefore(visual, anchor.nextSibling);
+  const overlay = document.getElementById('kelolaPiketOverlay');
+  if (overlay) overlay.classList.remove('show');
+}
+
+// Dipanggil dari processQR()/processQRWithOffline() saat menungguKelolaPiket
+// true. Menolak halus kartu selain QR belakang guru (siswa/admin/kepsek/
+// QR depan guru yang kebalik), sama pola pesan spesifik seperti
+// processScanGuruAbsenKelas() di atas.
+async function processScanKelolaPiket(data) {
+  const now = Date.now();
+  if (scannedHistory[data] && now - scannedHistory[data] < PER_COOLDOWN) {
+    scanAnimFrame = requestAnimationFrame(scanLoop); return;
+  }
+  if (scanCooldown) return;
+  // Kalau identitas sudah terverifikasi (sedang mengisi form), abaikan
+  // kartu yang kepencet lagi -- kamera memang sengaja tidak lagi
+  // menjalankan scanLoop selama form terbuka (lihat akhir fungsi ini),
+  // tapi pengaman ini tetap dipasang untuk jaga-jaga.
+  if (kpGuruToken) { return; }
+
+  const identifier = data.trim();
+  if (!identifier) {
+    showFlash('warning','⚠️','QR tidak terbaca');
+    toast('⚠️ QR tidak terbaca, coba scan ulang.');
+    resumeScanSetelahJeda();
+    return;
+  }
+  if (identifier.startsWith('ADMIN|')) {
+    showFlash('warning','🛡️','Itu kartu Admin');
+    toast('🛡️😅 Itu kartu Admin, bukan kartu Guru. Scan QR halaman BELAKANG kartu Guru piket, ya!', 4000);
+    resumeScanSetelahJeda();
+    return;
+  }
+  if (isKartuRiwayatUrl(identifier)) {
+    showFlash('warning','🎒','Itu kartu Siswa');
+    toast('🎒😄 Itu QR riwayat kartu Siswa. Scan QR halaman BELAKANG kartu Guru piket, ya!', 4000);
+    resumeScanSetelahJeda();
+    return;
+  }
+  if (isKartuMonitorUrl(identifier)) {
+    showFlash('warning','🧑‍💼','Itu kartu Kepsek');
+    toast('🧑‍💼😄 Itu QR dashboard Kepsek. Scan QR halaman BELAKANG kartu Guru piket, ya!', 4000);
+    resumeScanSetelahJeda();
+    return;
+  }
+  if (!identifier.startsWith('GURU_LOGIN|')) {
+    showFlash('warning','🙃','Kartunya kebalik!');
+    toast('🙃😄 Untuk Kelola Kehadiran, scan QR halaman BELAKANG kartu Guru (bukan halaman depan) — kartunya kebalik, Pak/Bu!', 4500);
+    resumeScanSetelahJeda();
+    return;
+  }
+  if (!isOnline) {
+    showFlash('warning','📴','Butuh koneksi internet');
+    toast('📴 Fitur Kelola Kehadiran butuh koneksi internet. Coba lagi kalau sinyal/WiFi sudah tersedia.', 4000);
+    resumeScanSetelahJeda();
+    return;
+  }
+
+  scanCooldown = true;
+  try {
+    // Reuse scanKartu (api/scan.js) -- cabang GURU_LOGIN di sana sudah
+    // memvalidasi qr_token & status Aktif, sama persis jalur bypass
+    // login index.html. Tidak ada validasi baru yang ditulis ulang di
+    // sini, cuma dipakai untuk MENDAPATKAN qrToken guru yang terbukti.
+    const result = await api('scan', 'scanKartu', { identifier });
+    if (!result.success || result.tipe !== 'guru_login') {
+      showFlash('warning','⚠️','QR tidak dikenali');
+      toast('⚠️ ' + (result.message || 'QR tidak dikenali sebagai kartu login guru.'), 4000);
+      resumeScanSetelahJeda();
+      return;
+    }
+    const guru = result.guru;
+
+    // Cek beneran piket hari ini -- SERVER yang memutuskan (lewat
+    // guruToken, ke tabel sesi_piket), bukan ditebak di sini. Ini
+    // action yang sama dipakai guruNav (index.html) untuk menampilkan/
+    // menyembunyikan menu "Kehadiran Hari Ini".
+    const cek = await api('kehadiran', 'cekPiketSaya', { guruToken: guru.qrToken });
+    if (!cek.success || !cek.piketHariIni) {
+      showFlash('warning','🙅','Bukan guru piket hari ini');
+      toast(`🙅 ${guru.nama} bukan guru piket hari ini, jadi belum bisa mengubah keterangan siswa lewat menu ini. Kalau memang sedang menggantikan piket, scan dulu kartu Anda di kamera utama (halaman DEPAN kartu) supaya tercatat sebagai guru piket pengganti.`, 6500);
+      resumeScanSetelahJeda();
+      return;
+    }
+
+    // Berhasil -- tampilkan daftar kehadiran & aktifkan form edit.
+    kpGuruToken = guru.qrToken;
+    kpGuruId    = guru.id;
+    kpGuruNama  = guru.nama;
+    showFlash('guru', '✅', `Halo, ${guru.nama}`);
+    document.getElementById('menungguKelolaPiketBox').style.display = 'none';
+    document.getElementById('kpContent').style.display = '';
+    document.getElementById('kpGuruNamaLabel').textContent = guru.nama;
+    await kpMuatData();
+    scanCooldown = false;
+    // SENGAJA tidak melanjutkan scanLoop() di sini -- kamera berhenti
+    // membaca kartu selama guru mengisi form, supaya kartu lain yang
+    // tersenggol tidak ikut terbaca sebagai identitas baru.
+  } catch (e) {
+    showFlash('warning','⚠️','Gagal memproses');
+    toast('⚠️ Gagal terhubung ke server. Coba lagi.', 3000);
+    resumeScanSetelahJeda();
+  }
+}
+
+// ── DATA + RENDER DAFTAR KEHADIRAN (dalam overlay Kelola Kehadiran) ──
+async function kpMuatData() {
+  document.getElementById('kpBelumHadirList').innerHTML = '<div class="kp-empty">Memuat...</div>';
+  document.getElementById('kpHadirList').innerHTML = '';
+  const result = await api('kehadiran', 'getSiswaKehadiran', { guruToken: kpGuruToken });
+  if (!result.success) {
+    document.getElementById('kpBelumHadirList').innerHTML = '<div class="kp-empty">Gagal memuat data. Coba tutup lalu buka lagi.</div>';
+    return;
+  }
+  kpDataCache.belumHadir = result.belumHadir || [];
+  kpDataCache.hadir      = result.hadir || [];
+  kpRenderBelumHadir();
+  kpRenderHadir();
+}
+
+function kpCariBelumHadir(idSiswa) { return kpDataCache.belumHadir.find(s => s.id === idSiswa); }
+function kpCariHadir(idAbsen)      { return kpDataCache.hadir.find(s => s.idAbsen === idAbsen); }
+
+function kpRenderBelumHadir() {
+  const el = document.getElementById('kpBelumHadirList');
+  const list = kpDataCache.belumHadir;
+  if (!list.length) { el.innerHTML = '<div class="kp-empty">🎉 Semua siswa sudah hadir!</div>'; return; }
+  el.innerHTML = list.map(s => {
+    const aksi = s.sudahAdaKeterangan
+      ? `<button type="button" class="kp-btn kp-btn-outline" onclick="kpOpenKeterangan('${s.id}')">✏️ Edit</button>
+         <button type="button" class="kp-btn kp-btn-danger" onclick="kpHapusKeterangan('${s.idKeterangan}')">🗑</button>`
+      : `<button type="button" class="kp-btn kp-btn-warning" onclick="kpOpenKeterangan('${s.id}')">📝 Input</button>`;
+    return `<div class="kp-row">
+      <div class="kp-row-info">
+        <div class="kp-row-nama">${esc(s.nama)} <span style="font-weight:400;color:var(--text-muted)">— ${esc(s.kelas)}</span></div>
+        <div class="kp-row-sub">${esc(s.status)}${s.keterangan ? ': ' + esc(s.keterangan) : ''}</div>
+      </div>
+      <div class="kp-row-actions">${aksi}</div>
+    </div>`;
+  }).join('');
+}
+
+function kpRenderHadir() {
+  const el = document.getElementById('kpHadirList');
+  const list = kpDataCache.hadir;
+  if (!list.length) { el.innerHTML = '<div class="kp-empty">Belum ada siswa yang hadir.</div>'; return; }
+  el.innerHTML = list.map(s => {
+    let subInfo = `Datang ${s.jamDatang} (${esc(s.statusDatang)})`;
+    let aksi = '';
+    if (s.pulangCepat) {
+      subInfo += ` · 🤒 ${esc(s.pulangCepat.status)} pukul ${s.pulangCepat.jam}` + (s.pulangCepat.keterangan ? ' — ' + esc(s.pulangCepat.keterangan) : '');
+      aksi += `<button type="button" class="kp-btn kp-btn-danger" onclick="kpBatalkanPulangCepat('${s.idAbsen}')">↩️ Batalkan</button>`;
+    } else if (s.jamPulang) {
+      subInfo += ` · Pulang ${s.jamPulang}`;
+    } else {
+      aksi += `<button type="button" class="kp-btn kp-btn-warning" onclick="kpOpenPulangCepat('${s.idAbsen}')">🤒 Sakit/Pulang Cepat</button>`;
+    }
+    if (s.statusDatang === 'Terlambat') {
+      aksi += `<button type="button" class="kp-btn kp-btn-outline" onclick="kpOpenTerlambat('${s.idAbsen}')">✏️ ${s.keteranganTerlambat ? 'Edit' : 'Isi'} Alasan</button>`;
+    }
+    return `<div class="kp-row">
+      <div class="kp-row-info">
+        <div class="kp-row-nama">${esc(s.nama)} <span style="font-weight:400;color:var(--text-muted)">— ${esc(s.kelas)}</span></div>
+        <div class="kp-row-sub">${subInfo}</div>
+      </div>
+      <div class="kp-row-actions">${aksi}</div>
+    </div>`;
+  }).join('');
+}
+
+function kpCloseEdit() {
+  const panel = document.getElementById('kpEditPanel');
+  if (!panel) return;
+  panel.style.display = 'none';
+  panel.innerHTML = '';
+}
+
+// 1) INPUT/EDIT KETERANGAN SAKIT/IZIN/ALPHA (siswa belum hadir sama sekali)
+function kpOpenKeterangan(idSiswa) {
+  const s = kpCariBelumHadir(idSiswa);
+  if (!s) return;
+  const panel = document.getElementById('kpEditPanel');
+  panel.innerHTML = `
+    <div style="font-weight:700;margin-bottom:2px">${s.sudahAdaKeterangan ? 'Edit' : 'Input'} Keterangan — ${esc(s.nama)}</div>
+    <div style="font-size:.75rem;color:var(--text-muted)">Kelas ${esc(s.kelas)}</div>
+    <label>Status</label>
+    <select id="kpKetStatus">
+      <option value="Sakit">Sakit</option>
+      <option value="Izin">Izin</option>
+      <option value="Urusan Keluarga">Urusan Keluarga</option>
+      <option value="Izin Lainnya">Izin Lainnya</option>
+      <option value="Alpha">Alpha</option>
+    </select>
+    <label>Keterangan (opsional)</label>
+    <textarea id="kpKetKeterangan" rows="2"></textarea>
+    <div class="kp-edit-actions">
+      <button type="button" style="background:var(--primary);color:#fff" onclick="kpSubmitKeterangan('${idSiswa}')">💾 Simpan</button>
+      <button type="button" style="background:#E2E8F0;color:#334155" onclick="kpCloseEdit()">Batal</button>
+    </div>
+  `;
+  document.getElementById('kpKetStatus').value = s.status || 'Sakit';
+  document.getElementById('kpKetKeterangan').value = s.keterangan || '';
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function kpSubmitKeterangan(idSiswa) {
+  const status = document.getElementById('kpKetStatus').value;
+  const keterangan = document.getElementById('kpKetKeterangan').value;
+  const result = await api('kehadiran', 'inputKeterangan', {
+    idSiswa, status, keterangan, diinputOleh: kpGuruNama, guruToken: kpGuruToken
+  });
+  toast(result.message, result.success ? 2500 : 4500);
+  if (result.success) { kpCloseEdit(); await kpMuatData(); }
+}
+
+// 2) HAPUS KETERANGAN
+async function kpHapusKeterangan(idKeterangan) {
+  if (!confirm('Hapus keterangan ini?')) return;
+  const result = await api('kehadiran', 'hapusKeterangan', { idKeterangan, guruToken: kpGuruToken });
+  toast(result.message, result.success ? 2500 : 4500);
+  if (result.success) await kpMuatData();
+}
+
+// 3) ALASAN TERLAMBAT (siswa sudah hadir dengan status Terlambat)
+function kpOpenTerlambat(idAbsen) {
+  const s = kpCariHadir(idAbsen);
+  if (!s) return;
+  const panel = document.getElementById('kpEditPanel');
+  panel.innerHTML = `
+    <div style="font-weight:700;margin-bottom:2px">Alasan Terlambat — ${esc(s.nama)}</div>
+    <label>Keterangan (opsional)</label>
+    <textarea id="kpTlKeterangan" rows="2" placeholder="mis. ban bocor, urus adik sakit..."></textarea>
+    <div class="kp-edit-actions">
+      <button type="button" style="background:var(--primary);color:#fff" onclick="kpSubmitTerlambat('${idAbsen}')">💾 Simpan</button>
+      <button type="button" style="background:#E2E8F0;color:#334155" onclick="kpCloseEdit()">Batal</button>
+    </div>
+  `;
+  document.getElementById('kpTlKeterangan').value = s.keteranganTerlambat || '';
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function kpSubmitTerlambat(idAbsen) {
+  const keterangan = document.getElementById('kpTlKeterangan').value;
+  const result = await api('kehadiran', 'updateKeteranganTerlambat', { idAbsen, keterangan, guruToken: kpGuruToken });
+  toast(result.message, result.success ? 2500 : 4500);
+  if (result.success) { kpCloseEdit(); await kpMuatData(); }
+}
+
+// 4) TANDAI PULANG CEPAT (siswa sudah hadir, sakit/izin di tengah hari)
+function kpOpenPulangCepat(idAbsen) {
+  const s = kpCariHadir(idAbsen);
+  if (!s) return;
+  const panel = document.getElementById('kpEditPanel');
+  const now = new Date();
+  const jamSekarangStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  panel.innerHTML = `
+    <div style="font-weight:700;margin-bottom:2px">🤒 Sakit/Pulang Cepat — ${esc(s.nama)}</div>
+    <label>Status</label>
+    <select id="kpPcStatus">
+      <option value="Sakit">Sakit</option>
+      <option value="Izin">Izin</option>
+      <option value="Urusan Keluarga">Urusan Keluarga</option>
+      <option value="Izin Lainnya">Izin Lainnya</option>
+    </select>
+    <label>Jam Pulang</label>
+    <input type="time" id="kpPcJam" value="${jamSekarangStr}">
+    <label>Keterangan (wajib diisi)</label>
+    <textarea id="kpPcKeterangan" rows="2" placeholder="mis. dijemput orang tua karena demam"></textarea>
+    <div class="kp-edit-actions">
+      <button type="button" style="background:var(--primary);color:#fff" onclick="kpSubmitPulangCepat('${idAbsen}')">💾 Simpan</button>
+      <button type="button" style="background:#E2E8F0;color:#334155" onclick="kpCloseEdit()">Batal</button>
+    </div>
+  `;
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function kpSubmitPulangCepat(idAbsen) {
+  const status = document.getElementById('kpPcStatus').value;
+  const jam = document.getElementById('kpPcJam').value;
+  const keterangan = document.getElementById('kpPcKeterangan').value;
+  if (!keterangan.trim()) { toast('Keterangan wajib diisi', 3000); return; }
+  if (!jam) { toast('Jam wajib diisi', 3000); return; }
+  const result = await api('kehadiran', 'tandaiPulangCepat', {
+    idAbsen, status, keterangan, jam, diinputOleh: kpGuruNama, idGuru: kpGuruId, guruToken: kpGuruToken
+  });
+  toast(result.message, result.success ? 2500 : 4500);
+  if (result.success) { kpCloseEdit(); await kpMuatData(); }
+}
+
+// 5) BATALKAN PULANG CEPAT (koreksi kalau salah tandai)
+async function kpBatalkanPulangCepat(idAbsen) {
+  if (!confirm('Batalkan penandaan pulang cepat ini? Siswa akan kembali berstatus hadir tanpa jam pulang.')) return;
+  const result = await api('kehadiran', 'batalkanPulangCepat', { idAbsen, guruToken: kpGuruToken });
+  toast(result.message, result.success ? 2500 : 4500);
+  if (result.success) await kpMuatData();
 }
 
 // Dipanggil dari processQR()/processQRWithOffline() saat menungguAbsenKelas
@@ -3932,6 +4455,10 @@ async function processQR(data) {
   // tidak tiba-tiba memindah halaman di tengah sesi verifikasi guru.
   if (menungguAbsenKelas) {
     return processScanGuruAbsenKelas(data);
+  }
+  // BARU: mode Kelola Kehadiran (Piket) -- lihat mulaiKelolaPiket().
+  if (menungguKelolaPiket) {
+    return processScanKelolaPiket(data);
   }
   if (modeVerifikasiAktif) {
     return processScanSiswaVerifikasi(data);
@@ -5626,6 +6153,10 @@ async function processQRWithOffline(data) {
   // (lihat komentar di dalamnya & simpanScanSiswaVerifikasiOffline).
   if (menungguAbsenKelas) {
     return processScanGuruAbsenKelas(data);
+  }
+  // BARU: mode Kelola Kehadiran (Piket) -- sama seperti di processQR().
+  if (menungguKelolaPiket) {
+    return processScanKelolaPiket(data);
   }
   if (modeVerifikasiAktif) {
     return processScanSiswaVerifikasi(data);

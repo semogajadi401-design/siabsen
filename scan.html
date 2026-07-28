@@ -931,6 +931,26 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .libur-banner-title{font-size:1.1rem;font-weight:800;color:#B45309}
 .libur-banner-sub{font-size:.85rem;color:var(--text-muted);margin-top:6px}
 
+/* ── BANNER JAM OPERASIONAL BERAKHIR (Mode Rekap Harian) ──
+   Background hijau berkedip PELAN -- dibuat dengan animasi antara dua
+   corak hijau (bukan hijau<->transparan) supaya tetap terbaca sebagai
+   "hijau" sepanjang waktu, cuma intensitasnya naik-turun perlahan. */
+.rekap-selesai-banner{
+  margin:16px 22px 0;padding:14px 20px;
+  border-radius:14px;text-align:center;
+  color:#fff;font-weight:800;font-size:.95rem;letter-spacing:.2px;
+  line-height:1.5;
+  box-shadow:0 4px 14px rgba(16,163,74,.25);
+  animation:rekapSelesaiBerkedip 3.2s ease-in-out infinite;
+}
+@keyframes rekapSelesaiBerkedip{
+  0%,100%{background:#15803D}
+  50%{background:#22C55E}
+}
+@media(max-width:900px){
+  .rekap-selesai-banner{margin:14px 14px 0}
+}
+
 /* ── COOLDOWN BAR ── */
 .cooldown-bar{
   height:4px;background:var(--border);
@@ -1754,6 +1774,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   <div class="libur-banner-icon">🏖️</div>
   <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
   <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
+</div>
+
+<!-- BANNER JAM OPERASIONAL BERAKHIR (tersembunyi default) -->
+<!-- Ditampilkan otomatis oleh masukModeRekapHarian()/keluarModeRekapHarian()
+     (lihat JS di bawah), bareng dengan transisi ke Mode Rekap Harian --
+     begitu jam sekarang lewat jam absensi selesai efektif hari ini. -->
+<div class="rekap-selesai-banner" id="jamOperasionalBanner" style="display:none">
+  <span id="jamOperasionalBannerText">Jam Operasional telah berakhir. Sampai jumpa di jam operasional berikutnya 😊</span>
 </div>
 
 <!-- MAIN -->
@@ -4362,6 +4390,20 @@ function masukModeRekapHarian(r) {
     if (besokPanel)     besokPanel.style.display = 'block';
     const panel = document.getElementById('rekapHarianPanel');
     if (panel) panel.style.display = 'block';
+    // BARU: banner hijau berkedip pelan di atas, menandakan jam
+    // operasional hari ini sudah berakhir. Nama sekolah diambil dari
+    // #namaSekolah (sudah diisi oleh init() lewat NAMA_SEKOLAH), jadi
+    // ikut berubah otomatis kalau admin ganti nama sekolah di Pengaturan.
+    const jamOpBanner = document.getElementById('jamOperasionalBanner');
+    if (jamOpBanner) {
+      const elNama = document.getElementById('namaSekolah');
+      const namaSekolah = (elNama && elNama.textContent.trim()) || 'Sekolah';
+      const bannerText = document.getElementById('jamOperasionalBannerText');
+      if (bannerText) {
+        bannerText.textContent = `Jam Operasional ${namaSekolah} telah berakhir. Sampai jumpa di jam operasional berikutnya 😊`;
+      }
+      jamOpBanner.style.display = 'block';
+    }
   }
   renderRekapHarian(r);
 }
@@ -4399,6 +4441,8 @@ function keluarModeRekapHarian() {
   if (besokPanel)     besokPanel.style.display = 'none';
   const panel = document.getElementById('rekapHarianPanel');
   if (panel) panel.style.display = 'none';
+  const jamOpBanner = document.getElementById('jamOperasionalBanner');
+  if (jamOpBanner) jamOpBanner.style.display = 'none';
 }
 
 async function renderRekapHarian(r) {

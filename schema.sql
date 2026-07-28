@@ -378,6 +378,39 @@ BEGIN
   END IF;
 END $$;
 
+-- ─── FITUR BARU: PULANG CEPAT (Sakit/Izin mendadak setelah hadir) ──
+-- Kasus: siswa sudah absen datang (Hadir/Terlambat), tapi di tengah hari
+-- (mis. jam 10 pagi) ternyata sakit dan harus dipulangkan lebih awal --
+-- SEBELUM jam absen pulang resmi dan sebelum dia sempat scan pulang
+-- sendiri. Sebelumnya tidak ada cara mencatat ini: begitu jam_datang
+-- terisi, siswa dianggap "Hadir" penuh titik, dan satu-satunya tempat
+-- mencatat Sakit/Izin (tabel keterangan_absensi) hanya dipakai untuk
+-- siswa yang MEMANG TIDAK datang sama sekali.
+--
+-- Solusi: TIDAK bikin baris/tabel baru. Pakai ulang kolom yang sudah ada
+-- di `absensi` -- jam_pulang menyimpan JAM dia dipulangkan karena sakit/
+-- izin, status_pulang diisi status selain 'Pulang' (mis. 'Sakit', 'Izin',
+-- 'Urusan Keluarga', 'Izin Lainnya') supaya beda jelas dari absen pulang
+-- normal di semua tempat yang MENGHITUNG status_pulang = 'Pulang'
+-- (rekapBulanan/rekapBulananRange di api/absensi.js) -- baris "pulang
+-- cepat" otomatis TIDAK ikut terhitung sebagai pulang biasa tanpa perlu
+-- ubah kode lain. Hasilnya 1 baris absensi/siswa/hari tetap menyimpan
+-- cerita lengkap: Hadir 06:45 lalu Sakit 10:15.
+-- keterangan_pulang_cepat (BARU) menyimpan alasan/catatan sakit-nya --
+-- terpisah dari kolom `keterangan` yang sudah dipakai untuk alasan
+-- TERLAMBAT (updateKeteranganTerlambat di api/kehadiran.js), supaya dua
+-- keterangan yang beda konteks tidak saling menimpa kalau siswa yang
+-- sama kebetulan terlambat DAN pulang cepat di hari yang sama.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'absensi' AND column_name = 'keterangan_pulang_cepat'
+  ) THEN
+    ALTER TABLE absensi ADD COLUMN keterangan_pulang_cepat TEXT;
+  END IF;
+END $$;
+
 -- ─── TABEL JADWAL PIKET ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS jadwal_piket (
   id TEXT PRIMARY KEY,

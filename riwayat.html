@@ -429,6 +429,12 @@ function render(r) {
       : esc(item.keterangan || '-');
     const ketPulangCepatHTML = pulangCepat && item.keteranganPulangCepat
       ? `<div class="jam" style="font-style:italic">${esc(item.keteranganPulangCepat)}</div>` : '';
+    // (BARU) Baris yang lupa absen pulang -- lihat r.lupaAbsenPulang di
+    // api/riwayat.js -- ditandai jelas dengan badge terpisah supaya
+    // siswa/orang tua langsung notice hari mana yang kejadian, bukan
+    // cuma diam-diam kelihatan dari kolom jam yang kosong.
+    const lupaPulangHTML = item.lupaAbsenPulang
+      ? `<div class="jam" style="color:#c2410c;font-weight:700">🚶 Lupa absen pulang hari itu</div>` : '';
     return `
       <div class="riwayat-item ${cls}">
         <div class="tgl-box">
@@ -439,6 +445,7 @@ function render(r) {
           <div class="hari">${esc(item.hari || HARI_SINGKAT_FULL(d))}</div>
           <div class="jam">${jamText}</div>
           ${ketPulangCepatHTML}
+          ${lupaPulangHTML}
         </div>
         <div class="badge-status ${cls}">${esc(item.statusDatang)}</div>
       </div>`;
@@ -488,6 +495,7 @@ function render(r) {
               <div class="stat-item sakit"><div class="n">${st.totalSakit}</div><div class="l">Sakit</div></div>
               <div class="stat-item izin"><div class="n">${st.totalIzin}</div><div class="l">Izin</div></div>
               <div class="stat-item alpha"><div class="n">${st.totalAlpha}</div><div class="l">Alpha</div></div>
+              <div class="stat-item alpha"><div class="n">${st.totalLupaAbsenPulang || 0}</div><div class="l">Lupa Absen Pulang</div></div>
               <div class="stat-item total"><div class="n">${st.totalHariSekolah}</div><div class="l">Total Hari</div></div>
             </div>
           </div>

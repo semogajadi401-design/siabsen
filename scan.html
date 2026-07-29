@@ -6491,7 +6491,20 @@ async function loadLog() {
 //     berubah total jadi "🎉 Hadir Lengkap (n) ✅" -- tidak lagi
 //     menyebut angka 0 yang tidak informatif, diganti penanda selesai.
 function updateTabHadirLabel(totalHadir, belumPulang) {
-  document.getElementById('tabHadirCount').textContent = totalHadir;
+  // PERBAIKAN: baris lama "document.getElementById('tabHadirCount')
+  // .textContent = totalHadir" DIHAPUS dari sini -- itu penyebab bug
+  // "tab Hadir macet di angka lama/0" walau kartu ringkasan "Hadir" di
+  // atas sudah benar. Sebabnya: <span id="tabHadirCount"> aslinya hanya
+  // ada di HTML statis awal, tapi begitu lbl.innerHTML di bawah ini
+  // dijalankan sekali saja, span itu IKUT TERHAPUS dari DOM (diganti isi
+  // baru yang sudah menyertakan angkanya langsung di teks, tanpa span
+  // ber-id itu lagi). Panggilan updateTabHadirLabel() BERIKUTNYA lalu
+  // mencoba .textContent pada elemen yang sudah tidak ada (null) --
+  // error ini dibungkus try/catch di loadLog() jadi tidak kelihatan di
+  // konsol, tapi akibatnya seluruh fungsi ini berhenti di baris itu dan
+  // label tab Hadir tidak pernah diperbarui lagi setelah render pertama.
+  // Ketiga cabang di bawah sudah menyisipkan ${totalHadir} langsung ke
+  // teks lewat lbl.innerHTML, jadi baris lama itu memang tidak diperlukan.
   const lbl = document.getElementById('tabHadirLabel');
   if (!lbl) return;
 

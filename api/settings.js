@@ -293,6 +293,23 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
     .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
   if (eSesi) return { success: false, message: eSesi.message };
 
+  // Tanggal paling awal aplikasi ini benar-benar mulai dipakai (ada scan
+  // piket pertama kali), dicari dari SELURUH tabel sesi_piket (bukan
+  // dibatasi rentang laporan). Dipakai supaya hari-hari SEBELUM aplikasi
+  // dioperasikan tidak ikut dihitung sebagai "Kosong" -- karena "tidak ada
+  // data" beda dengan "guru benar-benar tidak piket". Tanpa ini, bulan
+  // pertama pemakaian aplikasi akan selalu menampilkan Kosong yang salah
+  // besar untuk semua tanggal sebelum aplikasi mulai dipakai.
+  const { data: sesiPalingAwal, error: eAwal } = await supabase
+    .from('sesi_piket').select('tanggal').order('tanggal', { ascending: true }).limit(1);
+  if (eAwal) return { success: false, message: eAwal.message };
+  const tanggalMulaiOperasi = (sesiPalingAwal && sesiPalingAwal[0]) ? sesiPalingAwal[0].tanggal : null;
+
+  // Jangan pernah menghitung tanggal yang belum terjadi (hari ini/masa
+  // depan) sebagai "Kosong" -- tidak ada seorang pun yang bisa piket di
+  // hari yang belum datang. WITA (UTC+8), konsisten dengan bagian lain.
+  const todayStr = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   // Map: nama hari (Senin..Minggu) -> daftar guru terjadwal hari itu
   const jadwalPerHari = {};
   jadwalList.forEach(j => {
@@ -325,6 +342,19 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
   const akhir  = new Date(tanggalSelesai + 'T00:00:00Z');
   while (cursor <= akhir) {
     const tglStr = cursor.toISOString().split('T')[0];
+
+    // Lewati tanggal yang belum terjadi (hari ini WITA ke atas belum
+    // selesai/masih di masa depan) dan tanggal sebelum aplikasi pernah
+    // dipakai sama sekali -- keduanya BUKAN indikasi guru tidak piket,
+    // cuma tidak ada datanya. Tanpa ini semua tanggal kosong tersebut
+    // salah dihitung sebagai "Kosong" (lihat catatan di atas).
+    const belumTerjadi   = tglStr > todayStr;
+    const sebelumOperasi = tanggalMulaiOperasi && tglStr < tanggalMulaiOperasi;
+    if (belumTerjadi || sebelumOperasi) {
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      continue;
+    }
+
     const hari   = namaHari[cursor.getUTCDay()];
     const terjadwalHariIni = jadwalPerHari[hari] || [];
     const sesiHariIni      = sesiPerTanggal[tglStr] || [];

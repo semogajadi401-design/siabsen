@@ -6364,37 +6364,152 @@ async function exportEvaluasiPDF() {
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    pdf.setFontSize(14);
-    pdf.text('Evaluasi Kehadiran Siswa', 14, 16);
+    const marginX = 14, pageW = 297, pageBottom = 195;
+
+    // ── Info konteks (semester/kelas/periode) diambil dari elemen yang
+    // sama dipakai halaman evaluasi, supaya PDF selalu konsisten dengan
+    // yang tampil di layar tanpa perlu hitung ulang. ──
+    const semesterEl  = document.getElementById('evalSemester');
+    const namaSemester = semesterEl?.selectedOptions?.[0]?.textContent?.trim() || '-';
+    const kelasEl      = document.getElementById('evalKelas');
+    const namaKelas    = kelasEl?.value ? (kelasEl.selectedOptions[0]?.textContent.trim() || kelasEl.value) : 'Semua Kelas';
+    const periodeText  = document.getElementById('evalPeriodeInfo')?.textContent || '';
+    const persenText   = document.getElementById('evalPersen')?.textContent || '0%';
+    const persenNum    = parseInt(persenText) || 0;
+    const persenDetail = document.getElementById('evalPersenDetail')?.textContent || '';
+    const warnaPersen  = persenNum >= 80 ? [46,125,50] : persenNum >= 60 ? [245,127,23] : [198,40,40];
+
+    // ── Halaman 1: Ringkasan (angka besar + gauge + grafik) ──
+    pdf.setFontSize(16);
+    pdf.setTextColor(21,101,192);
+    pdf.text('Evaluasi Kehadiran Siswa', marginX, 15);
     pdf.setFontSize(9);
-    let y = 26;
-    const headers = ['No','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','% Hadir'];
-    const colW = [10, 55, 20, 18, 22, 15, 15, 20];
-    // Header
-    headers.forEach((h, i) => {
-      const x = colW.slice(0,i).reduce((a,b)=>a+b, 14);
-      pdf.setFillColor(21,101,192);
-      pdf.setTextColor(255,255,255);
-      pdf.rect(x, y-4, colW[i], 7, 'F');
-      pdf.text(h, x+1, y);
+    pdf.setTextColor(90,90,90);
+    pdf.text(`Semester: ${namaSemester}   |   Kelas: ${namaKelas}`, marginX, 21);
+    if (periodeText) pdf.text(periodeText, marginX, 26);
+
+    let y = 40;
+    // Kartu % Kehadiran (hero) + gauge bar
+    pdf.setFontSize(10);
+    pdf.setTextColor(60,60,60);
+    pdf.text('% Kehadiran Keseluruhan', marginX, y);
+    pdf.setFontSize(26);
+    pdf.setTextColor(...warnaPersen);
+    pdf.text(persenText, marginX, y + 13);
+    const gaugeX = marginX + 45, gaugeY = y + 2, gaugeW = 90, gaugeH = 6;
+    pdf.setFillColor(225,228,232);
+    pdf.roundedRect(gaugeX, gaugeY, gaugeW, gaugeH, 1.5, 1.5, 'F');
+    pdf.setFillColor(...warnaPersen);
+    pdf.roundedRect(gaugeX, gaugeY, gaugeW * Math.max(0, Math.min(100, persenNum)) / 100, gaugeH, 1.5, 1.5, 'F');
+    pdf.setFontSize(8);
+    pdf.setTextColor(120,120,120);
+    if (persenDetail) pdf.text(persenDetail, gaugeX, gaugeY + 12);
+
+    // Rincian per status, sejajar di kanan kartu hero
+    const statusRincian = [
+      ['evalTotalHadir', 'Hadir', [46,125,50]],
+      ['evalTotalTerlambat', 'Terlambat', [245,127,23]],
+      ['evalTotalSakit', 'Sakit', [21,101,192]],
+      ['evalTotalIzin', 'Izin', [0,151,167]],
+      ['evalTotalAlpha', 'Alpha', [198,40,40]]
+    ];
+    let sx = 160;
+    statusRincian.forEach(([id, label, color]) => {
+      const val = document.getElementById(id)?.textContent || '0';
+      pdf.setFontSize(8); pdf.setTextColor(120,120,120);
+      pdf.text(label, sx, y);
+      pdf.setFontSize(15); pdf.setTextColor(...color);
+      pdf.text(val, sx, y + 10);
+      sx += 26;
     });
-    y += 7;
-    pdf.setTextColor(0,0,0);
+
+    y += 26;
+
+    // ── Grafik: ambil langsung dari canvas Chart.js yang sudah dirender
+    // di layar (grafikBar/grafikPie), bukan digambar ulang -- supaya
+    // dijamin selalu identik dengan yang dilihat pengguna. ──
+    const barCanvas = document.getElementById('grafikBar');
+    const pieCanvas = document.getElementById('grafikPie');
+    if (barCanvas && pieCanvas && barCanvas.width && pieCanvas.width) {
+      try {
+        const availW  = pageW - marginX * 2;
+        const colGap  = 8;
+        const colW    = (availW - colGap) / 2;
+        const maxH    = 78;
+        const fit = (canvas) => {
+          const ratio = canvas.width / canvas.height;
+          let w = colW, h = w / ratio;
+          if (h > maxH) { h = maxH; w = h * ratio; }
+          return { w, h };
+        };
+        const barSize = fit(barCanvas);
+        const pieSize = fit(pieCanvas);
+        pdf.setFontSize(10);
+        pdf.setTextColor(30,30,30);
+        pdf.text('Perbandingan Kehadiran per Kelas', marginX, y);
+        pdf.text('Proporsi Status Kehadiran', marginX + colW + colGap, y);
+        pdf.addImage(barCanvas.toDataURL('image/png', 1.0), 'PNG', marginX, y + 3, barSize.w, barSize.h);
+        pdf.addImage(pieCanvas.toDataURL('image/png', 1.0), 'PNG', marginX + colW + colGap, y + 3, pieSize.w, pieSize.h);
+        y += Math.max(barSize.h, pieSize.h) + 12;
+      } catch (imgErr) {
+        // Kalau gagal ambil gambar grafik (mis. belum sempat dirender),
+        // lewati saja bagian ini -- tetap lanjut ke tabel supaya PDF
+        // tidak gagal total hanya karena grafiknya tidak ada.
+      }
+    }
+
+    // ── Halaman berikutnya: tabel ranking per siswa. Header tabel
+    // ditulis lewat fungsi supaya bisa diulang otomatis tiap ganti
+    // halaman (sebelumnya cuma ditulis sekali di awal, jadi kalau
+    // tabelnya panjang, halaman lanjutannya tidak ada judul kolom sama
+    // sekali). ──
+    pdf.addPage();
+    y = 20;
+    const headers = ['No','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','Alpha','% Hadir'];
+    const colW = [10, 62, 20, 18, 22, 15, 15, 15, 20];
+    const drawTableHeader = () => {
+      pdf.setFontSize(11); pdf.setTextColor(0,0,0);
+      pdf.text('Ranking Kehadiran Siswa', marginX, y);
+      y += 8;
+      pdf.setFontSize(9);
+      headers.forEach((h, i) => {
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+        pdf.setFillColor(21,101,192);
+        pdf.setTextColor(255,255,255);
+        pdf.rect(x, y-4, colW[i], 7, 'F');
+        pdf.text(h, x+1, y);
+      });
+      y += 7;
+      pdf.setTextColor(0,0,0);
+    };
+    drawTableHeader();
     document.querySelectorAll('#evalRankingBody tr').forEach((tr, idx) => {
       const tds = tr.querySelectorAll('td');
       if (tds.length < 9) return;
+      const pctNum = parseInt(tds[8].textContent) || 0;
       const vals = [
         String(idx+1), tds[1].textContent.trim(), tds[2].textContent.trim(),
         tds[3].textContent.trim(), tds[4].textContent.trim(),
-        tds[5].textContent.trim(), tds[6].textContent.trim(), tds[8].textContent.trim()
+        tds[5].textContent.trim(), tds[6].textContent.trim(),
+        tds[7].textContent.trim(), tds[8].textContent.trim()
       ];
-      if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(14, y-4, 263, 7, 'F'); }
+      if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
+      pdf.setTextColor(0,0,0);
       vals.forEach((v, i) => {
-        const x = colW.slice(0,i).reduce((a,b)=>a+b, 14);
-        pdf.text(v.substring(0,30), x+1, y);
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+        // Kolom terakhir (% Hadir): diberi warna sesuai ambang batas,
+        // sama seperti badge di tabel pada layar (hijau/oranye/merah),
+        // supaya siswa yang perlu perhatian langsung terlihat di PDF.
+        if (i === vals.length - 1) {
+          const warna = pctNum >= 80 ? [46,125,50] : pctNum >= 60 ? [245,127,23] : [198,40,40];
+          pdf.setTextColor(...warna);
+        } else {
+          pdf.setTextColor(0,0,0);
+        }
+        pdf.text(v.substring(0,32), x+1, y);
       });
       y += 7;
-      if (y > 190) { pdf.addPage(); y = 20; }
+      if (y > pageBottom) { pdf.addPage(); y = 20; drawTableHeader(); }
     });
     pdf.save('Evaluasi_Kehadiran.pdf');
     toast('PDF berhasil didownload', 'success');

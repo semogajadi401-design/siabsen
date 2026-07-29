@@ -4491,60 +4491,44 @@ async function checkStatus() {
 let _modeRekapHarian = false;
 let _rhLastFetchAktivitas = 0;
 
+// ══════ TOGGLE ELEMEN OPERASIONAL (BARU, refactor) ══════════════════
+// Sebelumnya daftar elemen "yang cuma relevan selama jam operasional
+// berjalan" ini di-copy-paste 4x sendiri-sendiri di masukModeMenungguMulai,
+// keluarModeMenungguMulai, masukModeRekapHarian, keluarModeRekapHarian --
+// isinya PERSIS sama, cuma arah show/hide-nya beda. Selain boros baris,
+// ini pernah nyebabin bug nyata (lihat catatan lama soal .log-tabs yang
+// ambigu, sekarang sudah dipakai id logTabsBar di bawah): kalau nambah
+// elemen baru ke satu fungsi tapi lupa di 3 fungsi lain, elemen itu bisa
+// nyangkut tampil/hilang di fase yang salah. Sekarang cukup satu sumber
+// kebenaran di sini -- tampil(true) = balik ke tampilan scan biasa,
+// tampil(false) = sembunyikan semua (dipanggil dari mode Menunggu Mulai
+// & mode Rekap Harian).
+function toggleElemenOperasional(tampil) {
+  const ids = [
+    'chartKehadiranWidget', 'btnTanpaKartu', 'guruStatusBox',
+    'logTabsBar', 'logContainer', 'lastResult', 'lupaKartuHint'
+  ];
+  const selectors = [
+    '.stats-row', '.aksi-kelas-wrap', '.mode-switch-wrap',
+    '.scan-title', '.filter-row'
+  ];
+  const disp = tampil ? '' : 'none';
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = disp;
+  });
+  selectors.forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) el.style.display = disp;
+  });
+}
+
 function masukModeRekapHarian(r) {
   if (!_modeRekapHarian) {
     _modeRekapHarian = true;
-    const statsRow     = document.querySelector('.stats-row');
-    const chartWidget  = document.getElementById('chartKehadiranWidget');
-    const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
-    const btnTanpaKartu = document.getElementById('btnTanpaKartu');
-    // BARU: nama guru piket di atas kamera dipindah ke dalam panel
-    // ringkasan (#rhGuruPiket), jadi kotak aslinya disembunyikan di
-    // sini supaya tidak dobel.
-    const guruStatusBox = document.getElementById('guruStatusBox');
-    // BARU: tombol switch Datang/Pulang juga "berperan di hari itu saja"
-    // -- tidak relevan lagi begitu jam absensi sudah selesai.
-    const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
-    // BARU: judul "Scan Absensi / Arahkan kartu ke kamera" di atas juga
-    // cuma relevan selagi jam absensi masih berjalan.
-    const scanTitle = document.querySelector('.scan-title');
-    // BARU: dropdown filter kelas + tab Belum/Izin/Hadir + daftar
-    // siswanya juga digabung ke dalam panel ringkasan (bagian
-    // "👥 Kehadiran Siswa"), jadi versi lama di bawah disembunyikan.
-    const filterRow    = document.querySelector('.filter-row');
-    // FIX: sebelumnya document.querySelector('.log-tabs') -- ambil elemen
-    // PERTAMA ber-class .log-tabs di dokumen, padahal ada 2 (lihat catatan
-    // id="logTabsBar" di HTML): yang kesembunyi jadi tab modal Aktivitas
-    // Guru (tidak relevan, sudah tersembunyi dari sononya), sementara tab
-    // Belum/Izin/Hadir yang asli (dobel dengan "Kehadiran Siswa" di panel
-    // ini) malah tetap tampil. Sekarang pakai id supaya tidak ambigu.
-    const logTabs      = document.getElementById('logTabsBar');
-    const logContainer = document.getElementById('logContainer');
-    // BARU: "Arahkan kartu ke kamera" (#lastResult) + "Siswa lupa kartu?"
-    // (#lupaKartuHint) juga cuma relevan selagi jam absensi masih
-    // berjalan -- di luar jam operasional keduanya cuma bikin bingung
-    // (seolah-olah masih bisa/harus scan), jadi ikut disembunyikan sama
-    // seperti tombol Input Tanpa Kartu (#btnTanpaKartu) di atas.
-    const lastResultBox = document.getElementById('lastResult');
-    const lupaKartuHint  = document.getElementById('lupaKartuHint');
-    // BARU: panel "Info Besok" (piket + jadwal mengajar besok) mengisi
-    // slot sidebar kiri yang jadi kosong begitu judul & switch mode di
-    // atasnya disembunyikan -- lihat #besokSideRailPanel di HTML &
-    // renderBesokSideRail() di bawah.
+    toggleElemenOperasional(false);
     const besokPanel = document.getElementById('besokSideRailPanel');
-    if (statsRow)      statsRow.style.display = 'none';
-    if (chartWidget)   chartWidget.style.display = 'none';
-    if (aksiWrap)       aksiWrap.style.display = 'none';
-    if (btnTanpaKartu)  btnTanpaKartu.style.display = 'none';
-    if (guruStatusBox)  guruStatusBox.style.display = 'none';
-    if (modeSwitchWrap) modeSwitchWrap.style.display = 'none';
-    if (scanTitle)      scanTitle.style.display = 'none';
-    if (filterRow)      filterRow.style.display = 'none';
-    if (logTabs)        logTabs.style.display = 'none';
-    if (logContainer)   logContainer.style.display = 'none';
-    if (lastResultBox)  lastResultBox.style.display = 'none';
-    if (lupaKartuHint)  lupaKartuHint.style.display = 'none';
-    if (besokPanel)     besokPanel.style.display = 'block';
+    if (besokPanel) besokPanel.style.display = 'block';
     const panel = document.getElementById('rekapHarianPanel');
     if (panel) panel.style.display = 'block';
     // BARU: banner hijau berkedip pelan di atas, menandakan jam
@@ -4568,34 +4552,9 @@ function masukModeRekapHarian(r) {
 function keluarModeRekapHarian() {
   if (!_modeRekapHarian) return;
   _modeRekapHarian = false;
-  const statsRow     = document.querySelector('.stats-row');
-  const chartWidget  = document.getElementById('chartKehadiranWidget');
-  const aksiWrap     = document.querySelector('.aksi-kelas-wrap');
-  const btnTanpaKartu = document.getElementById('btnTanpaKartu');
-  const guruStatusBox = document.getElementById('guruStatusBox');
-  const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
-  const scanTitle    = document.querySelector('.scan-title');
-  const filterRow    = document.querySelector('.filter-row');
-  // FIX: samakan dengan masukModeRekapHarian() -- pakai id, bukan class
-  // .log-tabs yang ambigu (ada juga di modal Aktivitas Guru).
-  const logTabs      = document.getElementById('logTabsBar');
-  const logContainer = document.getElementById('logContainer');
-  const lastResultBox = document.getElementById('lastResult');
-  const lupaKartuHint  = document.getElementById('lupaKartuHint');
-  const besokPanel     = document.getElementById('besokSideRailPanel');
-  if (statsRow)      statsRow.style.display = '';
-  if (chartWidget)   chartWidget.style.display = '';
-  if (aksiWrap)       aksiWrap.style.display = '';
-  if (btnTanpaKartu)  btnTanpaKartu.style.display = '';
-  if (guruStatusBox)  guruStatusBox.style.display = '';
-  if (modeSwitchWrap) modeSwitchWrap.style.display = '';
-  if (scanTitle)      scanTitle.style.display = '';
-  if (filterRow)      filterRow.style.display = '';
-  if (logTabs)        logTabs.style.display = '';
-  if (logContainer)   logContainer.style.display = '';
-  if (lastResultBox)  lastResultBox.style.display = '';
-  if (lupaKartuHint)  lupaKartuHint.style.display = '';
-  if (besokPanel)     besokPanel.style.display = 'none';
+  toggleElemenOperasional(true);
+  const besokPanel = document.getElementById('besokSideRailPanel');
+  if (besokPanel) besokPanel.style.display = 'none';
   const panel = document.getElementById('rekapHarianPanel');
   if (panel) panel.style.display = 'none';
   const jamOpBanner = document.getElementById('jamOperasionalBanner');
@@ -4630,32 +4589,9 @@ let _mmIntervalId = null;
 function masukModeMenungguMulai(r) {
   if (!_modeMenungguMulai) {
     _modeMenungguMulai = true;
-    const statsRow      = document.querySelector('.stats-row');
-    const chartWidget   = document.getElementById('chartKehadiranWidget');
-    const aksiWrap      = document.querySelector('.aksi-kelas-wrap');
-    const btnTanpaKartu = document.getElementById('btnTanpaKartu');
-    const guruStatusBox = document.getElementById('guruStatusBox');
-    const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
-    const scanTitle     = document.querySelector('.scan-title');
-    const filterRow     = document.querySelector('.filter-row');
-    const logTabs       = document.getElementById('logTabsBar');
-    const logContainer  = document.getElementById('logContainer');
-    const lastResultBox = document.getElementById('lastResult');
-    const lupaKartuHint = document.getElementById('lupaKartuHint');
+    toggleElemenOperasional(false);
     const besokPanel    = document.getElementById('besokSideRailPanel');
     const rekapPanel    = document.getElementById('rekapHarianPanel');
-    if (statsRow)      statsRow.style.display = 'none';
-    if (chartWidget)   chartWidget.style.display = 'none';
-    if (aksiWrap)       aksiWrap.style.display = 'none';
-    if (btnTanpaKartu)  btnTanpaKartu.style.display = 'none';
-    if (guruStatusBox)  guruStatusBox.style.display = 'none';
-    if (modeSwitchWrap) modeSwitchWrap.style.display = 'none';
-    if (scanTitle)      scanTitle.style.display = 'none';
-    if (filterRow)      filterRow.style.display = 'none';
-    if (logTabs)        logTabs.style.display = 'none';
-    if (logContainer)   logContainer.style.display = 'none';
-    if (lastResultBox)  lastResultBox.style.display = 'none';
-    if (lupaKartuHint)  lupaKartuHint.style.display = 'none';
     // rekapHarianPanel bukan bagian mode ini -- pastikan tersembunyi
     // kalau kebetulan baru saja keluar dari Mode Rekap Harian.
     if (rekapPanel)     rekapPanel.style.display = 'none';
@@ -4686,31 +4622,8 @@ function masukModeMenungguMulai(r) {
 function keluarModeMenungguMulai() {
   if (!_modeMenungguMulai) return;
   _modeMenungguMulai = false;
-  const statsRow      = document.querySelector('.stats-row');
-  const chartWidget   = document.getElementById('chartKehadiranWidget');
-  const aksiWrap      = document.querySelector('.aksi-kelas-wrap');
-  const btnTanpaKartu = document.getElementById('btnTanpaKartu');
-  const guruStatusBox = document.getElementById('guruStatusBox');
-  const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
-  const scanTitle     = document.querySelector('.scan-title');
-  const filterRow     = document.querySelector('.filter-row');
-  const logTabs       = document.getElementById('logTabsBar');
-  const logContainer  = document.getElementById('logContainer');
-  const lastResultBox = document.getElementById('lastResult');
-  const lupaKartuHint = document.getElementById('lupaKartuHint');
-  const besokPanel    = document.getElementById('besokSideRailPanel');
-  if (statsRow)      statsRow.style.display = '';
-  if (chartWidget)   chartWidget.style.display = '';
-  if (aksiWrap)       aksiWrap.style.display = '';
-  if (btnTanpaKartu)  btnTanpaKartu.style.display = '';
-  if (guruStatusBox)  guruStatusBox.style.display = '';
-  if (modeSwitchWrap) modeSwitchWrap.style.display = '';
-  if (scanTitle)      scanTitle.style.display = '';
-  if (filterRow)      filterRow.style.display = '';
-  if (logTabs)        logTabs.style.display = '';
-  if (logContainer)   logContainer.style.display = '';
-  if (lastResultBox)  lastResultBox.style.display = '';
-  if (lupaKartuHint)  lupaKartuHint.style.display = '';
+  toggleElemenOperasional(true);
+  const besokPanel = document.getElementById('besokSideRailPanel');
   // besokPanel SENGAJA tidak dipaksa 'none' di sini kalau mode Rekap
   // Harian yang justru mau masuk setelah ini (dipanggil sebelum
   // masukModeRekapHarian() di checkStatus()) -- fungsi itu sendiri yang

@@ -1031,7 +1031,7 @@ module.exports = {
   generateKioskToken, verifyKioskToken,
   checkRateLimit, getClientIp,
   // ── TAMBAHAN BARU (perbaikan bug: % Kehadiran Evaluasi Semester) ──
-  hitungJumlahHariSekolah,
+  hitungJumlahHariSekolah, hitungTanggalEvaluasiEfektif,
   // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
   tanggalBesok, hariBesok
 };
@@ -1073,6 +1073,40 @@ async function hitungJumlahHariSekolah(tanggalMulai, tanggalSelesai) {
   }
   return jumlahHariSekolah;
 }
+// ── TANGGAL EVALUASI EFEKTIF (single source of truth) ──────────────
+// (BARU) Akar masalah bug "% Kehadiran > 100%" di halaman Evaluasi
+// Kehadiran BUKAN di rumusnya, tapi di INKONSISTENSI rentang tanggal:
+//   - Pembilang (rekapBulananRange / rekapKeteranganRange di
+//     absensi.js & kehadiran.js) query pakai tanggalSelesai = akhir
+//     SEMESTER (dataset.selesai di index.html, sering bulan depan),
+//     jadi otomatis ikut data absensi HARI INI kalau sudah ada.
+//   - Penyebut (jumlahHariSekolah) sebelumnya dibatasi sampai
+//     "kemarin" (lihat komentar lama di getJumlahHariSekolah) --
+//     sengaja TIDAK menghitung hari ini sama sekali.
+//   => Begitu ada absensi hari ini, pembilang naik duluan sementara
+//      penyebut masih tertinggal 1 hari di belakang -> persentase
+//      bisa lewat 100%.
+// Perbaikannya: satu fungsi ini dipakai sebagai SATU-SATUNYA sumber
+// kebenaran untuk "sampai tanggal berapa evaluasi ini dihitung", lalu
+// dipakai SAMA PERSIS oleh pembilang maupun penyebut. Aturannya
+// sederhana: batasi tanggalSelesai semester supaya tidak pernah lebih
+// jauh dari HARI INI (menurut waktu sekolah/WITA, lihat todayStr()) --
+// hari-hari di masa depan yang jelas belum terjadi tidak pernah
+// dihitung di kedua sisi, dan hari ini dihitung di KEDUA sisi kalau
+// sudah masuk rentang semester (bukan cuma di satu sisi seperti bug
+// sebelumnya).
+function hitungTanggalEvaluasiEfektif(tanggalMulaiSemester, tanggalSelesaiSemester) {
+  const hariIniStr = todayStr();
+  const tanggalMulaiEfektif   = tanggalMulaiSemester;
+  const tanggalSelesaiEfektif = tanggalSelesaiSemester < hariIniStr
+    ? tanggalSelesaiSemester   // semester sudah berakhir sebelum hari ini
+    : hariIniStr;              // semester masih berjalan -> batasi sampai hari ini
+  // Semester belum mulai (mis. tanggal mulai masih di masa depan) ->
+  // belum ada satu hari pun yang bisa dievaluasi.
+  const belumMulai = tanggalMulaiEfektif > tanggalSelesaiEfektif;
+  return { tanggalMulaiEfektif, tanggalSelesaiEfektif, belumMulai };
+}
+
 async function requireAdminToken(token) {
   if (!token) return false;
   // Sengaja TIDAK pakai .maybeSingle() di sini: kalau suatu saat ada lebih

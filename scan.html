@@ -725,7 +725,14 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 
 /* Stats */
 .stats-row{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex-shrink:0;
+  display:grid;grid-template-columns:repeat(5,1fr);gap:8px;flex-shrink:0;
+}
+/* BARU: 5 kartu jadi agak sesak kalau dipaksa 1 baris di layar HP (<=900px)
+   -- diturunkan jadi 3 kolom (3 atas + 2 bawah) supaya angka & label
+   (termasuk pesan panjang kartu Terlambat saat kosong, lihat .stat-box.zero-msg
+   di bawah) tetap kebaca, bukan kepotong/menumpuk. */
+@media(max-width:900px){
+  .stats-row{grid-template-columns:repeat(3,1fr)}
 }
 .stat-box{
   background:var(--surface);
@@ -739,12 +746,23 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .stat-box.orange{border-color:rgba(251,191,36,0.3);background:var(--warning-soft)}
 .stat-box.blue{border-color:rgba(99,102,241,0.3);background:#E0E7FF}
 .stat-box.red{border-color:rgba(139,92,246,0.3);background:var(--purple-soft)}
+.stat-box.rose{border-color:rgba(225,29,72,0.3);background:var(--danger-soft)}
 .stat-box.green .stat-num{color:#059669}
 .stat-box.orange .stat-num{color:#B45309}
 .stat-box.blue .stat-num{color:#4338CA}
 .stat-box.red .stat-num{color:#6D28D9}
+.stat-box.rose .stat-num{color:#BE123C}
 .stat-num{font-family:var(--font-display);font-size:1.45rem;font-weight:800;line-height:1}
 .stat-label{font-size:.62rem;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+/* BARU: kartu "Terlambat" begitu jumlahnya 0 -- daripada nampilkan angka
+   "0" yang datar, angkanya disembunyikan dan label diganti jadi kalimat
+   pujian (lihat updateStatTerlambat() di JS). Sama semangatnya dengan
+   label tab Hadir yang jadi "🎉 Hadir Lengkap" begitu semua sudah pulang. */
+.stat-box.zero-msg .stat-num{display:none}
+.stat-box.zero-msg .stat-label{
+  font-size:.72rem;line-height:1.4;text-transform:none;letter-spacing:normal;
+  color:#BE123C;font-weight:700;margin-top:0;
+}
 
 /* ── CHART KEHADIRAN (BARU) ──────────────────────────────────────────
    Widget diagram persentase kehadiran hari ini (Datang/Pulang/Izin/
@@ -2484,6 +2502,16 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
       <div class="stat-box red">
         <div class="stat-num" id="statTotal">0</div>
         <div class="stat-label">👥 Total</div>
+      </div>
+      <!-- BARU: kolom Terlambat -- jumlahnya dihitung di loadLog() dari
+           logData.hadir (field statusDatang, sama seperti yang dipakai
+           badge "Terlambat" di list tab Hadir), jadi tidak perlu field API
+           baru. Isinya diatur oleh updateStatTerlambat() di JS: kalau 0,
+           angka disembunyikan & label diganti jadi pesan "tidak ada yang
+           terlambat" (lihat kelas .zero-msg di CSS). -->
+      <div class="stat-box rose" id="statTerlambatBox">
+        <div class="stat-num" id="statTerlambat">0</div>
+        <div class="stat-label" id="statTerlambatLabel">⏰ Terlambat</div>
       </div>
     </div>
 
@@ -6451,6 +6479,14 @@ async function loadLog() {
     // sebagai badge di dalam label yang sama, bukan tab terpisah lagi).
     updateTabHadirLabel(r.totalHadir, (r.hadir || []).filter(s => !s.jamPulang).length);
 
+    // BARU: kolom "Terlambat" -- dihitung dari logData.hadir yang sudah
+    // ada field statusDatang per siswa (sama seperti dipakai badge
+    // "Terlambat" di list tab Hadir), jadi tidak perlu request/field API
+    // tambahan. Ikut kefilter kelas juga karena r.hadir sendiri sudah
+    // difilter oleh parameter `kelas` di getLogHariIni().
+    const totalTerlambat = (r.hadir || []).filter(s => s.statusDatang === 'Terlambat').length;
+    updateStatTerlambat(totalTerlambat);
+
     renderLog();
     // BARU: kalau mode rekap sedang aktif, ikut refresh bagian "👥 Kehadiran
     // Siswa" di panel ringkasan supaya datanya tidak basi meski accordion
@@ -6520,6 +6556,32 @@ function updateTabHadirLabel(totalHadir, belumPulang) {
     lbl.innerHTML = `✅ Hadir (${totalHadir})`;
   }
   _tabPulangCountTerakhir = belumPulang;
+}
+
+// ── KARTU "TERLAMBAT" (BARU) ────────────────────────────────────
+// Dipanggil dari loadLog() tiap refresh. totalTerlambat = banyaknya siswa
+// di antara yang sudah hadir dengan statusDatang === 'Terlambat'.
+//   - totalTerlambat > 0: kartu tampil normal, angkanya ditampilkan besar
+//     seperti kartu Hadir/Izin/Belum/Total lainnya.
+//   - totalTerlambat === 0: daripada nampilkan angka "0" yang datar,
+//     angkanya disembunyikan (class .zero-msg, lihat CSS) dan labelnya
+//     diganti jadi kalimat pujian singkat -- semangatnya sama seperti
+//     label tab Hadir yang berubah jadi "🎉 Hadir Lengkap" begitu semua
+//     siswa sudah absen pulang.
+function updateStatTerlambat(totalTerlambat) {
+  const box = document.getElementById('statTerlambatBox');
+  const num = document.getElementById('statTerlambat');
+  const lbl = document.getElementById('statTerlambatLabel');
+  if (!box || !num || !lbl) return;
+
+  num.textContent = totalTerlambat;
+  if (totalTerlambat === 0) {
+    box.classList.add('zero-msg');
+    lbl.textContent = 'Tidak ada siswa terlambat hari ini. Luar biasa 👌';
+  } else {
+    box.classList.remove('zero-msg');
+    lbl.textContent = '⏰ Terlambat';
+  }
 }
 
 // ── SWITCH TAB ───────────────────────────────────────────────────

@@ -6584,6 +6584,57 @@ async function exportEvaluasiPDF() {
       y += 7;
       if (y > pageBottom) { pdf.addPage(); y = 20; drawTableHeader(); }
     });
+
+    // ── Halaman baru: tabel Rekap Bulanan per Kelas (BARU) --
+    // sebelumnya cuma ada di tampilan web & sheet kedua Excel, PDF-nya
+    // belum ikut menampilkan tabel ini sama sekali. Polanya disamakan
+    // persis dengan tabel ranking di atas (header berulang tiap ganti
+    // halaman, baris selang-seling warna, kolom % diberi warna ambang
+    // batas). ──
+    const bulananRows = Array.from(document.querySelectorAll('#evalBulananKelasBody tr'))
+      .map(tr => tr.querySelectorAll('td'))
+      .filter(tds => tds.length >= 8);
+    if (bulananRows.length) {
+      pdf.addPage();
+      y = 20;
+      const headersBulanan = ['Bulan','Kelas','Hadir','Terlambat','Sakit','Izin','Hari Efektif','% Kehadiran'];
+      const colWBulanan = [38, 20, 18, 22, 15, 15, 24, 24];
+      const drawTableHeaderBulanan = () => {
+        pdf.setFontSize(11); pdf.setTextColor(0,0,0);
+        pdf.text('Rekap Bulanan per Kelas', marginX, y);
+        y += 8;
+        pdf.setFontSize(9);
+        headersBulanan.forEach((h, i) => {
+          const x = colWBulanan.slice(0,i).reduce((a,b)=>a+b, marginX);
+          pdf.setFillColor(21,101,192);
+          pdf.setTextColor(255,255,255);
+          pdf.rect(x, y-4, colWBulanan[i], 7, 'F');
+          pdf.text(h, x+1, y);
+        });
+        y += 7;
+        pdf.setTextColor(0,0,0);
+      };
+      drawTableHeaderBulanan();
+      bulananRows.forEach((tds, idx) => {
+        const pctNum = parseInt(tds[7].textContent) || 0;
+        const vals = Array.from(tds).map(td => td.textContent.trim());
+        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colWBulanan.reduce((a,b)=>a+b,0), 7, 'F'); }
+        pdf.setTextColor(0,0,0);
+        vals.forEach((v, i) => {
+          const x = colWBulanan.slice(0,i).reduce((a,b)=>a+b, marginX);
+          if (i === vals.length - 1) {
+            const warna = pctNum >= 80 ? [46,125,50] : pctNum >= 60 ? [245,127,23] : [198,40,40];
+            pdf.setTextColor(...warna);
+          } else {
+            pdf.setTextColor(0,0,0);
+          }
+          pdf.text(v.substring(0,32), x+1, y);
+        });
+        y += 7;
+        if (y > pageBottom) { pdf.addPage(); y = 20; drawTableHeaderBulanan(); }
+      });
+    }
+
     pdf.save('Evaluasi_Kehadiran.pdf');
     toast('PDF berhasil didownload', 'success');
   } catch(e) { toast('Gagal: ' + e.message, 'error'); }

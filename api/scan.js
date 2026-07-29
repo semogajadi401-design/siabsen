@@ -1127,7 +1127,7 @@ async function getAktivitasGuruHariIni() {
         namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel,
         jamMulai, jamSelesai,
         jamScan: tercatat.jam_scan,
-        statusAbsen: tercatat.status,                                   // 'Hadir' | 'Telat'
+        statusAbsen: tercatat.status,                                   // 'Hadir' (status telat sudah dihapus, lihat api/mengajar.js)
         jumlahSiswaTerverifikasi: tercatat.jumlah_siswa_terverifikasi || 0,
         statusVerifikasi: tercatat.status_verifikasi || 'Perlu Ditinjau' // 'Perlu Ditinjau' | 'Terverifikasi'
       });

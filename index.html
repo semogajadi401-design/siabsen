@@ -1629,6 +1629,18 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <canvas id="grafikPie" height="200"></canvas>
               </div>
             </div>
+            <!-- Rekap Bulanan per Kelas (BARU) -->
+            <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">📅 Rekap Bulanan per Kelas</h4>
+            <div class="table-responsive" style="margin-bottom:24px">
+              <table class="table-card-mobile">
+                <thead>
+                  <tr><th>Bulan</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Sakit</th><th>Izin</th><th>Hari Efektif</th><th>% Kehadiran</th></tr>
+                </thead>
+                <tbody id="evalBulananKelasBody">
+                  <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih semester terlebih dahulu</td></tr>
+                </tbody>
+              </table>
+            </div>
             <!-- Tabel Ranking -->
             <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🏆 Ranking Kehadiran Siswa</h4>
             <div class="table-responsive">
@@ -6138,10 +6150,12 @@ async function loadEvaluasi() {
     ? hariResult.tanggalSelesaiEfektif
     : tanggalMulai; // fallback aman: rentang kosong, bukan rentang semester penuh
 
-  const [absenResult, ketResult, siswaResult] = await Promise.all([
+  const [absenResult, ketResult, siswaResult, bulananKelasResult] = await Promise.all([
     api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
     api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
-    api('siswa', 'getAll', { activeOnly: true, kelas })
+    api('siswa', 'getAll', { activeOnly: true, kelas }),
+    // BARU: rekap % kehadiran per bulan per kelas, dipakai renderRekapBulananKelas()
+    api('absensi', 'rekapBulananPerKelas', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas })
   ]);
 
   if (!siswaResult.success) {
@@ -6249,8 +6263,21 @@ async function loadEvaluasi() {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
   } else {
     tbody.innerHTML = sorted.map((s, i) => {
-      const total    = s.hadir + s.terlambat + s.sakit + s.izin;
-      const pct      = total > 0 ? Math.round((s.hadir + s.terlambat) / total * 100) : 0;
+      // PERBAIKAN BUG: sebelumnya penyebutnya cuma
+      // (hadir+terlambat+sakit+izin) -- Alpha (siswa yang tidak absen DAN
+      // tidak ada keterangan sama sekali) TIDAK PERNAH masuk hitungan
+      // penyebut per-siswa ini, walaupun s.alpha sudah dihitung dengan
+      // benar di atas (lihat komentar "PERBAIKAN BUG: hitung Alpha per
+      // siswa"). Akibatnya siswa yang hanya hadir sebagian tapi sisanya
+      // Alpha (bukan Sakit/Izin) tetap tampil 100% di kolom ini, padahal
+      // kartu ringkasan "% Kehadiran Keseluruhan" di atasnya sudah benar
+      // (memakai jumlahHariSekolah sebagai penyebut). Sekarang dipakai
+      // penyebut yang SAMA PERSIS dengan kartu ringkasan --
+      // jumlahHariSekolah (total hari sekolah efektif periode ini) --
+      // supaya konsisten dan Alpha selalu ikut mengurangi persentase.
+      const pct      = jumlahHariSekolah > 0
+        ? Math.min(100, Math.round((s.hadir + s.terlambat) / jumlahHariSekolah * 100))
+        : 0;
       const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
       return `<tr>
         <td data-label="Rank"><strong>${i+1}</strong></td>
@@ -6268,6 +6295,38 @@ async function loadEvaluasi() {
 
   // Render grafik
   renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin);
+
+  // Render rekap bulanan per kelas (BARU)
+  renderRekapBulananKelas(bulananKelasResult);
+}
+
+// BARU: menampilkan % kehadiran per bulan untuk tiap kelas, supaya di
+// rapat orang tua bisa kelihatan bulan mana kehadirannya turun -- bukan
+// cuma satu angka total untuk seluruh semester.
+const NAMA_BULAN = ['', 'Januari','Februari','Maret','April','Mei','Juni',
+  'Juli','Agustus','September','Oktober','November','Desember'];
+function renderRekapBulananKelas(result) {
+  const tbody = document.getElementById('evalBulananKelasBody');
+  if (!tbody) return;
+  if (!result?.success || !result.data?.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
+    return;
+  }
+  tbody.innerHTML = result.data.map(r => {
+    const [thn, bln] = r.bulan.split('-');
+    const labelBulan = `${NAMA_BULAN[Number(bln)]} ${thn}`;
+    const pctColor = r.persen >= 80 ? 'var(--success)' : r.persen >= 60 ? 'var(--warning)' : 'var(--danger)';
+    return `<tr>
+      <td data-label="Bulan">${labelBulan}</td>
+      <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
+      <td data-label="Hadir"><span class="badge badge-success">${r.hadir}</span></td>
+      <td data-label="Terlambat"><span class="badge badge-warning">${r.terlambat}</span></td>
+      <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${r.sakit}</span></td>
+      <td data-label="Izin"><span class="badge badge-primary">${r.izin}</span></td>
+      <td data-label="Hari Efektif">${r.jumlahHariSekolah}</td>
+      <td data-label="% Kehadiran"><strong style="color:${pctColor}">${r.persen}%</strong></td>
+    </tr>`;
+  }).join('');
 }
 
 function renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin) {
@@ -6355,6 +6414,20 @@ async function exportEvaluasiExcel() {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Evaluasi Kehadiran');
+
+  // BARU: sheet kedua berisi rekap bulanan per kelas
+  const rowsBulanan = [['Bulan','Kelas','Hadir','Terlambat','Sakit','Izin','Hari Efektif','% Kehadiran']];
+  document.querySelectorAll('#evalBulananKelasBody tr').forEach(tr => {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length >= 8) {
+      rowsBulanan.push(Array.from(tds).map(td => td.textContent.trim()));
+    }
+  });
+  if (rowsBulanan.length > 1) {
+    const wsBulanan = XLSX.utils.aoa_to_sheet(rowsBulanan);
+    XLSX.utils.book_append_sheet(wb, wsBulanan, 'Rekap Bulanan per Kelas');
+  }
+
   XLSX.writeFile(wb, `Evaluasi_Kehadiran.xlsx`);
   toast('Excel berhasil didownload', 'success');
 }

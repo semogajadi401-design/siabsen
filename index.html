@@ -1591,13 +1591,32 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           </div>
           <div class="card-body">
             <!-- Kartu Ringkasan -->
+            <!-- PERBAIKAN TAMPILAN: sebelumnya "% Kehadiran" cuma jadi salah
+                 satu dari 6 kartu kecil yang setara dengan "Total Hadir: 273"
+                 -- padahal angka mentah seperti itu tidak bermakna tanpa tahu
+                 penyebutnya (hadir dari berapa hari sekolah efektif × berapa
+                 siswa). Sekarang persentase dijadikan kartu utama (hero) yang
+                 langsung menampilkan pecahannya, plus info periode yang
+                 benar-benar dipakai untuk menghitung. Rincian per status
+                 (Hadir/Terlambat/Sakit/Izin/Alpha) tetap ada di bawahnya
+                 sebagai konteks, masing-masing dengan % dari total hari agar
+                 mudah dibandingkan tanpa perlu fokus ke angka mentahnya. -->
+            <div class="card" style="padding:20px 24px;margin-bottom:20px;background:var(--primary-pale);border:1px solid var(--primary)">
+              <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between">
+                <div>
+                  <small style="color:var(--text-muted)">% Kehadiran Keseluruhan</small>
+                  <div id="evalPersen" style="font-size:2.6rem;font-weight:800;line-height:1.15;color:var(--primary)">—</div>
+                  <small id="evalPersenDetail" style="color:var(--text-muted)"></small>
+                </div>
+                <div id="evalPeriodeInfo" style="font-size:.82rem;color:var(--text-muted);text-align:right;max-width:320px"></div>
+              </div>
+            </div>
             <div class="stats-grid" style="margin-bottom:24px">
-              <div class="stat-card green"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div><div class="stat-info"><small>Total Hadir</small><strong id="evalTotalHadir">—</strong></div></div>
-              <div class="stat-card orange"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2z"/></svg></div><div class="stat-info"><small>Terlambat</small><strong id="evalTotalTerlambat">—</strong></div></div>
-              <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#1565C0"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg></div><div class="stat-info"><small>Sakit</small><strong id="evalTotalSakit">—</strong></div></div>
-              <div class="stat-card cyan"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2z"/></svg></div><div class="stat-info"><small>Izin</small><strong id="evalTotalIzin">—</strong></div></div>
-              <div class="stat-card red"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg></div><div class="stat-info"><small>Alpha</small><strong id="evalTotalAlpha">—</strong></div></div>
-              <div class="stat-card"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></div><div class="stat-info"><small>% Kehadiran</small><strong id="evalPersen">—</strong></div></div>
+              <div class="stat-card green"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div><div class="stat-info"><small>Hadir</small><strong id="evalTotalHadir">—</strong><small id="evalTotalHadirPct" style="display:block;color:var(--text-muted)">—</small></div></div>
+              <div class="stat-card orange"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2z"/></svg></div><div class="stat-info"><small>Terlambat</small><strong id="evalTotalTerlambat">—</strong><small id="evalTotalTerlambatPct" style="display:block;color:var(--text-muted)">—</small></div></div>
+              <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#1565C0"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg></div><div class="stat-info"><small>Sakit</small><strong id="evalTotalSakit">—</strong><small id="evalTotalSakitPct" style="display:block;color:var(--text-muted)">—</small></div></div>
+              <div class="stat-card cyan"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2z"/></svg></div><div class="stat-info"><small>Izin</small><strong id="evalTotalIzin">—</strong><small id="evalTotalIzinPct" style="display:block;color:var(--text-muted)">—</small></div></div>
+              <div class="stat-card red"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg></div><div class="stat-info"><small>Alpha</small><strong id="evalTotalAlpha">—</strong><small id="evalTotalAlphaPct" style="display:block;color:var(--text-muted)">—</small></div></div>
             </div>
             <!-- Grafik -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px" id="evalGrafikWrap">
@@ -6101,20 +6120,29 @@ async function loadEvaluasi() {
     return;
   }
 
-  // Ambil semua data sekaligus
-  // PERBAIKAN BUG: sebelumnya jumlah hari sekolah efektif tidak pernah
-  // diambil, jadi Alpha tidak pernah dihitung dan % Kehadiran hanya
-  // dibagi dengan (hadir+terlambat+sakit+izin) -- bukan total hari
-  // sekolah -- sehingga selalu tampak 100% kalau tidak ada data
-  // sakit/izin/terlambat, walau banyak siswa Alpha. Sekarang ambil juga
-  // jumlahHariSekolah supaya Alpha & persentase bisa dihitung benar.
-  const [absenResult, ketResult, siswaResult, hariResult] = await Promise.all([
-    api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai, kelas }),
-    api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai, kelas }),
-    api('siswa', 'getAll', { activeOnly: true, kelas }),
-    api('kehadiran', 'getJumlahHariSekolah', { tanggalMulai, tanggalSelesai })
+  // PERBAIKAN BUG (% Kehadiran bisa > 100%): sebelumnya rekapBulananRange
+  // & rekapKeteranganRange (pembilang) dan getJumlahHariSekolah
+  // (penyebut) dipanggil BERSAMAAN, masing-masing pakai batas tanggal
+  // sendiri-sendiri -- pembilang pakai tanggalSelesai SEMESTER (ikut
+  // absensi hari ini kalau sudah ada), penyebut pakai batas "kemarin"
+  // sendiri. Begitu ada absensi hari ini, pembilang > penyebut ->
+  // persentase lewat 100%.
+  // Sekarang panggil getJumlahHariSekolah LEBIH DULU untuk dapat
+  // tanggalSelesaiEfektif (satu-satunya sumber kebenaran, lihat
+  // hitungTanggalEvaluasiEfektif() di _db.js), lalu pakai tanggal itu
+  // juga untuk dua query lain -- jadi ketiganya PASTI memakai rentang
+  // yang sama persis, tidak mungkin pembilang lebih besar dari penyebut.
+  const hariResult = await api('kehadiran', 'getJumlahHariSekolah', { tanggalMulai, tanggalSelesai });
+  const jumlahHariSekolah    = hariResult?.success ? (hariResult.jumlahHariSekolah || 0) : 0;
+  const tanggalSelesaiEfektif = hariResult?.success && hariResult.tanggalSelesaiEfektif
+    ? hariResult.tanggalSelesaiEfektif
+    : tanggalMulai; // fallback aman: rentang kosong, bukan rentang semester penuh
+
+  const [absenResult, ketResult, siswaResult] = await Promise.all([
+    api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
+    api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
+    api('siswa', 'getAll', { activeOnly: true, kelas })
   ]);
-  const jumlahHariSekolah = hariResult?.success ? (hariResult.jumlahHariSekolah || 0) : 0;
 
   if (!siswaResult.success) {
     toast('Gagal memuat data siswa', 'error');
@@ -6173,16 +6201,42 @@ async function loadEvaluasi() {
   // sekolah efektif x jumlah siswa, sama seperti pola di
   // ringkasanRekapPeriode() (_db.js).
   const totalKemungkinanHadir = jumlahHariSekolah * allSiswa.length;
-  const persen = totalKemungkinanHadir > 0
-    ? Math.round((totHadir + totTerlambat) / totalKemungkinanHadir * 100) : 0;
+  // PENGAMAN TAMBAHAN: dengan tanggalSelesaiEfektif yang sama di kedua
+  // sisi, persentase seharusnya tidak akan pernah lewat 100% lagi --
+  // tapi tetap di-clamp di sini sebagai jaring pengaman terakhir kalau
+  // suatu saat ada duplikat baris absensi atau data tidak konsisten
+  // lainnya, supaya angka yang tampil ke pengguna tidak pernah
+  // menyesatkan (>100% secara harfiah tidak masuk akal untuk persentase
+  // kehadiran).
+  const persenMentah = totalKemungkinanHadir > 0
+    ? (totHadir + totTerlambat) / totalKemungkinanHadir * 100 : 0;
+  const persen = Math.min(100, Math.round(persenMentah));
 
-  // Update kartu statistik
-  document.getElementById('evalTotalHadir').textContent     = totHadir;
-  document.getElementById('evalTotalTerlambat').textContent = totTerlambat;
-  document.getElementById('evalTotalSakit').textContent     = totSakit;
-  document.getElementById('evalTotalIzin').textContent      = totIzin;
-  document.getElementById('evalTotalAlpha').textContent     = totAlpha;
-  document.getElementById('evalPersen').textContent         = persen + '%';
+  // Update kartu ringkasan
+  // PERBAIKAN TAMPILAN: sebelumnya kartu cuma menampilkan angka mentah
+  // (mis. "Total Hadir: 273") yang tidak bermakna tanpa konteks
+  // penyebutnya. Sekarang setiap kartu status juga menampilkan
+  // persentasenya dari total kemungkinan hadir, dan ditambahkan kartu
+  // ringkasan periode supaya jelas rentang tanggal & jumlah hari
+  // sekolah efektif yang benar-benar dipakai untuk menghitung.
+  const pct = n => totalKemungkinanHadir > 0 ? Math.round(n / totalKemungkinanHadir * 100) : 0;
+  document.getElementById('evalTotalHadir').textContent        = totHadir;
+  document.getElementById('evalTotalHadirPct').textContent     = pct(totHadir) + '% dari total hari';
+  document.getElementById('evalTotalTerlambat').textContent    = totTerlambat;
+  document.getElementById('evalTotalTerlambatPct').textContent = pct(totTerlambat) + '% dari total hari';
+  document.getElementById('evalTotalSakit').textContent        = totSakit;
+  document.getElementById('evalTotalSakitPct').textContent     = pct(totSakit) + '% dari total hari';
+  document.getElementById('evalTotalIzin').textContent         = totIzin;
+  document.getElementById('evalTotalIzinPct').textContent      = pct(totIzin) + '% dari total hari';
+  document.getElementById('evalTotalAlpha').textContent        = totAlpha;
+  document.getElementById('evalTotalAlphaPct').textContent     = pct(totAlpha) + '% dari total hari';
+  document.getElementById('evalPersen').textContent            = persen + '%';
+  document.getElementById('evalPersenDetail').textContent      =
+    `${totHadir + totTerlambat} dari ${totalKemungkinanHadir} kemungkinan hadir`;
+  document.getElementById('evalPeriodeInfo').textContent = allSiswa.length
+    ? `Dievaluasi: ${formatTanggal(tanggalMulai)} – ${formatTanggal(tanggalSelesaiEfektif)} `
+      + `(${jumlahHariSekolah} hari sekolah efektif × ${allSiswa.length} siswa)`
+    : '';
 
   // Urutkan berdasarkan kehadiran tertinggi
   const sorted = allSiswa.sort((a,b) => {

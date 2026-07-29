@@ -378,15 +378,13 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
     };
   }
 
-  // 4. Telat kalau scan > toleransi menit setelah jam_mulai jam ke awal blok.
-  // PERBAIKAN PERFORMA: SEBELUMNYA baris ini query ULANG tabel jam_pelajaran
-  // ke database untuk cari satu baris (jam_ke = jadwal.jam_ke_mulai) -- padahal
-  // baris itu SUDAH ADA di jamPelajaranHariIni (langkah 1 di atas), yang
-  // sudah berisi SEMUA jam ke- untuk hariNow yang sama persis. Sekarang
-  // dicari langsung di array yang sudah di memori, tanpa round-trip baru.
-  const jamMulaiBlok = (jamPelajaranHariIni || []).find(j => j.jam_ke === jadwal.jam_ke_mulai) || null;
-  const batasTelat = jamMulaiBlok ? tambahMenit(jamMulaiBlok.jam_mulai, toleransi) : jamKeSekarang.jam_mulai;
-  const status = jamMulaiBlok && jamNow > batasTelat ? 'Telat' : 'Hadir';
+  // Status telat DIHAPUS (sengaja tidak dihitung lagi): selama guru masih
+  // bisa scan sama sekali, jam operasional pasti belum selesai (tombol
+  // scan absen kelas otomatis disembunyikan begitu jam operasional habis
+  // -- lihat scan.html). Jadi begitu ada scan yang tercatat, itu sudah
+  // cukup dianggap Hadir mengajar hari itu, tanpa perlu bedakan telat
+  // atau tidak.
+  const status = 'Hadir';
 
   const id = generateID('AM');
   const { error } = await supabase.from('absensi_mengajar').insert({
@@ -405,7 +403,7 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
   return {
     success: true, sudahScan: false, idAbsensiMengajar: id, status,
     jadwal: { kelas: jadwal.kelas, mapel: jadwal.mapel },
-    message: `Absen mengajar tercatat (${status}). Silakan lanjut scan kartu siswa untuk verifikasi kehadiran di kelas.`,
+    message: `Absen mengajar tercatat. Silakan lanjut scan kartu siswa untuk verifikasi kehadiran di kelas.`,
     // BARU: lihat catatan sesiToken di api/_db.js -- ini "tiket" yang wajib
     // dibawa balik saat scanSiswaMapel/selesaiVerifikasi untuk sesi ini.
     sesiToken: generateSesiToken(id)
@@ -702,7 +700,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
   if (!jadwalGuru || jadwalGuru.length === 0) {
     return {
       success: true, guru: { id: guru.id, nama: guru.nama }, bulan: bl, tahun: th,
-      totalSesiTerjadwal: 0, totalHadir: 0, totalTelat: 0, totalIzin: 0, totalSakit: 0, totalAlpa: 0, totalMenunggu: 0,
+      totalSesiTerjadwal: 0, totalHadir: 0, totalIzin: 0, totalSakit: 0, totalAlpa: 0, totalMenunggu: 0,
       persentaseKehadiran: null, rincian: [], tren: [],
       message: 'Guru ini belum punya jadwal mengajar.'
     };
@@ -757,9 +755,9 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
   const keteranganMap = {};
   (keteranganBulan || []).forEach(k => { keteranganMap[`${k.id_jadwal_mengajar}|${k.tanggal}`] = k; });
 
-  let totalSesiTerjadwal = 0, totalHadir = 0, totalTelat = 0, totalIzin = 0, totalSakit = 0, totalAlpa = 0, totalMenunggu = 0;
+  let totalSesiTerjadwal = 0, totalHadir = 0, totalIzin = 0, totalSakit = 0, totalAlpa = 0, totalMenunggu = 0;
   const rincian = [];
-  const trenMap = {}; // per tanggal: { hadir, telat, izin, sakit, alpa }
+  const trenMap = {}; // per tanggal: { hadir, izin, sakit, alpa }
 
   for (let d = 1; d <= jumlahHariDiBulan; d++) {
     const tanggal = `${th}-${String(bl).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -778,7 +776,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
       const key = `${j.id}|${tanggal}`;
       const absen = absensiMap[key];
       const ket = keteranganMap[key];
-      trenMap[tanggal] = trenMap[tanggal] || { hadir: 0, telat: 0, izin: 0, sakit: 0, alpa: 0 };
+      trenMap[tanggal] = trenMap[tanggal] || { hadir: 0, izin: 0, sakit: 0, alpa: 0 };
 
       // PENTING (alur persetujuan): keterangan izin/sakit yang diinput GURU
       // SENDIRI belum tentu final -- statusnya bisa 'Menunggu Persetujuan'
@@ -790,9 +788,12 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
       // jadi perilaku lama untuk jalur admin tidak berubah sama sekali.
       let statusFinal;
       if (absen) {
-        statusFinal = absen.status === 'Telat' ? 'Telat' : 'Hadir';
-        if (statusFinal === 'Telat') { totalTelat++; trenMap[tanggal].telat++; }
-        else { totalHadir++; trenMap[tanggal].hadir++; }
+        // Status telat sudah dihapus dari sistem (lihat catatan di
+        // scanAbsenMengajar): entri lama yang kebetulan masih tercatat
+        // 'Telat' di database tetap dihitung sebagai Hadir, supaya
+        // riwayat lama tidak menampilkan status yang sudah tidak dipakai.
+        statusFinal = 'Hadir';
+        totalHadir++; trenMap[tanggal].hadir++;
       } else if (ket && ket.status_persetujuan === 'Menunggu Persetujuan') {
         statusFinal = 'Menunggu Persetujuan';
         totalMenunggu++;
@@ -824,7 +825,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
     }
   }
 
-  const dibayarSesiCount = totalHadir + totalTelat;
+  const dibayarSesiCount = totalHadir;
   const persentaseKehadiran = totalSesiTerjadwal > 0
     ? Math.round((dibayarSesiCount / totalSesiTerjadwal) * 1000) / 10
     : null;
@@ -833,7 +834,7 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
     success: true,
     guru: { id: guru.id, nama: guru.nama },
     bulan: bl, tahun: th,
-    totalSesiTerjadwal, totalHadir, totalTelat, totalIzin, totalSakit, totalAlpa, totalMenunggu,
+    totalSesiTerjadwal, totalHadir, totalIzin, totalSakit, totalAlpa, totalMenunggu,
     persentaseKehadiran,
     rincian: rincian.sort((a, b) => a.tanggal < b.tanggal ? 1 : -1), // terbaru dulu
     tren: Object.keys(trenMap).sort().map(tgl => ({ tanggal: tgl, ...trenMap[tgl] }))

@@ -3,7 +3,9 @@ const {
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, requireAdminToken,
   // ── TAMBAHAN BARU (perbaikan keamanan) ──
-  resolveGuruIdFromToken
+  resolveGuruIdFromToken,
+  // ── TAMBAHAN BARU (rekap bulanan per kelas) ──
+  hitungJumlahHariSekolah
 } = require('./_db');
 
 // PENTING — DIPERBAIKI: 'datang' dan 'pulang' SEBELUMNYA terbuka tanpa
@@ -44,7 +46,7 @@ const AKSI_TERKUNCI = new Set(['resetAbsensi', 'datang', 'pulang']);
 // dipakai api/kehadiran.js & api/settings.js. Jadi cukup salah satu:
 // adminToken ATAU guruToken (siapa pun staf yang sudah login), TIDAK
 // terbuka untuk publik yang belum login sama sekali.
-const AKSI_BACA_TERBATAS = new Set(['rekapHarian', 'rekapBulanan', 'rekapBulananRange']);
+const AKSI_BACA_TERBATAS = new Set(['rekapHarian', 'rekapBulanan', 'rekapBulananRange', 'rekapBulananPerKelas']);
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -72,6 +74,7 @@ module.exports = async (req, res) => {
     if (action === 'rekapHarian')       return res.json(await rekapHarian(params));
     if (action === 'rekapBulanan')      return res.json(await rekapBulanan(params));
     if (action === 'rekapBulananRange') return res.json(await rekapBulananRange(params));
+    if (action === 'rekapBulananPerKelas') return res.json(await rekapBulananPerKelas(params));
     if (action === 'dashboard')         return res.json(await dashboard());
     if (action === 'resetAbsensi')      return res.json(await resetAbsensi(params));
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
@@ -256,6 +259,109 @@ async function rekapBulananRange({ tanggalMulai, tanggalSelesai, kelas }) {
     if (r.status_pulang === 'Pulang')    grouped[r.id_siswa].pulang++;
   });
   return { success: true, data: Object.values(grouped) };
+}
+
+// ── REKAP BULANAN PER KELAS (BARU) ───────────────────────────────
+// Dipakai halaman Evaluasi Kehadiran untuk menampilkan % kehadiran PER
+// BULAN untuk tiap kelas -- sebelumnya evaluasi cuma menampilkan total
+// satu angka untuk seluruh rentang semester, jadi tidak kelihatan bulan
+// mana yang kehadirannya turun.
+// Pola perhitungan % kehadiran DISAMAKAN dengan loadEvaluasi() di
+// index.html (dan ringkasanRekapPeriode() di _db.js): penyebutnya
+// "total kemungkinan hadir" = jumlah hari sekolah efektif BULAN ITU x
+// jumlah siswa aktif di kelas itu -- BUKAN cuma (hadir+terlambat+sakit+
+// izin), supaya Alpha (tidak hadir tanpa keterangan) ikut mengurangi
+// persentase, sama seperti bug yang sudah diperbaiki di rekap semester.
+async function rekapBulananPerKelas({ tanggalMulai, tanggalSelesai, kelas }) {
+  if (!tanggalMulai || !tanggalSelesai)
+    return { success: false, message: 'tanggalMulai dan tanggalSelesai wajib diisi' };
+
+  let qAbsen = supabase.from('absensi').select('tanggal,kelas,status_datang')
+    .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
+  if (kelas) qAbsen = qAbsen.eq('kelas', kelas);
+
+  let qKet = supabase.from('keterangan_absensi').select('tanggal,kelas,status')
+    .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
+  if (kelas) qKet = qKet.eq('kelas', kelas);
+
+  let qSiswa = supabase.from('siswa').select('kelas').eq('status', 'Aktif');
+  if (kelas) qSiswa = qSiswa.eq('kelas', kelas);
+
+  const [
+    { data: absenRows, error: e1 },
+    { data: ketRows, error: e2 },
+    { data: siswaRows, error: e3 }
+  ] = await Promise.all([qAbsen, qKet, qSiswa]);
+  if (e1) return { success: false, message: e1.message };
+  if (e2) return { success: false, message: e2.message };
+  if (e3) return { success: false, message: e3.message };
+
+  // Jumlah siswa aktif per kelas -- dipakai sebagai bagian dari penyebut.
+  const jumlahSiswaPerKelas = {};
+  (siswaRows || []).forEach(s => {
+    const k = (s.kelas || '').trim();
+    if (!k) return;
+    jumlahSiswaPerKelas[k] = (jumlahSiswaPerKelas[k] || 0) + 1;
+  });
+
+  // Kelompokkan hadir/terlambat/sakit/izin per (bulan, kelas). Kunci
+  // bulan diambil dari 7 karakter pertama tanggal ('YYYY-MM').
+  const grouped = {};
+  const getBucket = (bulan, k) => {
+    const key = `${bulan}|${k}`;
+    if (!grouped[key]) grouped[key] = { bulan, kelas: k, hadir: 0, terlambat: 0, sakit: 0, izin: 0 };
+    return grouped[key];
+  };
+  (absenRows || []).forEach(r => {
+    const k = (r.kelas || '').trim();
+    if (!k || !r.tanggal) return;
+    const b = getBucket(String(r.tanggal).substring(0, 7), k);
+    if (r.status_datang === 'Hadir')     b.hadir++;
+    if (r.status_datang === 'Terlambat') b.terlambat++;
+  });
+  (ketRows || []).forEach(r => {
+    const k = (r.kelas || '').trim();
+    if (!k || !r.tanggal) return;
+    const b = getBucket(String(r.tanggal).substring(0, 7), k);
+    if (r.status === 'Sakit') b.sakit++;
+    else b.izin++;
+  });
+
+  // Hitung jumlah hari sekolah efektif untuk tiap bulan yang muncul di
+  // data. Rentang tiap bulan DIPOTONG ke tanggalMulai/tanggalSelesai
+  // yang diminta -- supaya bulan pertama/terakhir yang tidak penuh
+  // sebulan (mis. semester mulai tanggal 15) tidak dihitung kelebihan.
+  const bulanList = Array.from(new Set(Object.values(grouped).map(b => b.bulan)));
+  const hariSekolahPerBulan = {};
+  await Promise.all(bulanList.map(async bulan => {
+    const [thn, bln] = bulan.split('-').map(Number);
+    const awalBulan  = `${bulan}-01`;
+    // Hari terakhir bulan itu: tanggal ke-0 bulan berikutnya.
+    const akhirBulan = new Date(Date.UTC(thn, bln, 0)).toISOString().substring(0, 10);
+    const dariTgl   = awalBulan  > tanggalMulai   ? awalBulan  : tanggalMulai;
+    const sampaiTgl = akhirBulan < tanggalSelesai ? akhirBulan : tanggalSelesai;
+    hariSekolahPerBulan[bulan] = dariTgl <= sampaiTgl
+      ? await hitungJumlahHariSekolah(dariTgl, sampaiTgl)
+      : 0;
+  }));
+
+  const hasil = Object.values(grouped).map(b => {
+    const jumlahSiswa = jumlahSiswaPerKelas[b.kelas] || 0;
+    const jumlahHariSekolah = hariSekolahPerBulan[b.bulan] || 0;
+    const totalKemungkinanHadir = jumlahHariSekolah * jumlahSiswa;
+    const persenMentah = totalKemungkinanHadir > 0
+      ? (b.hadir + b.terlambat) / totalKemungkinanHadir * 100 : 0;
+    return {
+      bulan: b.bulan, kelas: b.kelas,
+      hadir: b.hadir, terlambat: b.terlambat, sakit: b.sakit, izin: b.izin,
+      jumlahSiswa, jumlahHariSekolah,
+      persen: Math.min(100, Math.round(persenMentah))
+    };
+  }).sort((a, b) => a.bulan === b.bulan
+    ? a.kelas.localeCompare(b.kelas, 'id')
+    : a.bulan.localeCompare(b.bulan));
+
+  return { success: true, data: hasil };
 }
 
 async function dashboard() {

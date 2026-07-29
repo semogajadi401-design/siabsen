@@ -372,6 +372,21 @@ function renderHariIni(d) {
       </div>`).join('')
     : `<div class="empty">Tidak ada siswa yang dipulangkan lebih awal hari ini.</div>`;
 
+  // (BARU) Siswa yang sudah absen datang tapi BELUM discan pulang sama
+  // sekali -- beda dari "Pulang Cepat" di atas. Ini yang perlu dikejar
+  // guru piket, jadi visualnya sengaja lebih tegas (badge merah).
+  const belumPulangHTML = (k.daftarBelumAbsenPulang || []).length
+    ? k.daftarBelumAbsenPulang.map(s => `
+      <div class="list-item">
+        <div class="avatar">${esc((s.nama||'?').charAt(0))}</div>
+        <div class="li-main">
+          <div class="li-name">${esc(s.nama)}</div>
+          <div class="li-sub">${esc(s.kelas)} • datang ${esc(s.jamDatang)}</div>
+        </div>
+        <span class="badge badge-danger">🚶 Belum Pulang</span>
+      </div>`).join('')
+    : `<div class="empty">✅ Semua siswa yang hadir sudah absen pulang.</div>`;
+
   const piketHTML = d.piket.length
     ? d.piket.map(p => `
       <div class="list-item">
@@ -398,6 +413,7 @@ function renderHariIni(d) {
         ${statBox(k.sakit + k.izin, 'Sakit/Izin', '')}
         ${statBox(k.alpha, 'Tanpa Keterangan', 'danger')}
         ${statBox(k.pulangCepat || 0, 'Pulang Cepat', 'warning')}
+        ${statBox(k.belumAbsenPulang || 0, 'Belum Absen Pulang', (k.belumAbsenPulang || 0) > 0 ? 'danger' : '')}
       </div>
       <div style="font-size:.72rem;color:var(--text-muted)">dari total ${k.totalSiswa} siswa aktif</div>
     </div>
@@ -410,6 +426,11 @@ function renderHariIni(d) {
     <div class="section">
       <div class="section-title">🏃 Siswa Pulang Cepat Hari Ini</div>
       ${pulangCepatHTML}
+    </div>
+
+    <div class="section">
+      <div class="section-title">🚶 Siswa Belum Absen Pulang</div>
+      ${belumPulangHTML}
     </div>
 
     <div class="section">
@@ -471,9 +492,25 @@ function renderRekapPeriode(d) {
         ${statBox(k.terlambat, 'Terlambat', 'warning')}
         ${statBox(k.sakit + k.izin, 'Sakit/Izin', '')}
         ${statBox(k.alpha, 'Tanpa Keterangan', 'danger')}
+        ${statBox(k.lupaAbsenPulang || 0, 'Lupa Absen Pulang', (k.lupaAbsenPulang || 0) > 0 ? 'danger' : '')}
       </div>
       <div class="pct-bar-wrap"><div class="pct-bar" style="width:${k.persentaseKehadiran}%"></div></div>
       <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Persentase kehadiran: <b>${k.persentaseKehadiran}%</b></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🚶 Riwayat Siswa Lupa Absen Pulang — ${esc(labelRentang)}</div>
+      ${(d.daftarSiswaLupaPulang || []).length
+        ? d.daftarSiswaLupaPulang.map(s => `
+          <div class="list-item">
+            <div class="avatar">${esc((s.nama||'?').charAt(0))}</div>
+            <div class="li-main">
+              <div class="li-name">${esc(s.nama)}</div>
+              <div class="li-sub">${esc(s.kelas)}</div>
+            </div>
+            <span class="badge ${s.jumlah > 1 ? 'badge-danger' : 'badge-warning'}">${s.jumlah}x lupa</span>
+          </div>`).join('')
+        : `<div class="empty">✅ Tidak ada siswa yang lupa absen pulang pada periode ini.</div>`}
     </div>
 
     <div class="section">

@@ -2,7 +2,8 @@
 const {
   supabase, generateID, setCors, todayStr, hariIni,
   isHariLibur, isHariKerja, requireAdminToken, isGuruPiketHariIni,
-  resolveGuruIdFromToken, hitungJumlahHariSekolah
+  resolveGuruIdFromToken, hitungJumlahHariSekolah,
+  hitungTanggalEvaluasiEfektif
 } = require('./_db');
 
 // CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
@@ -104,28 +105,29 @@ module.exports = async (req, res) => {
       const { tanggalMulai, tanggalSelesai } = params;
       if (!tanggalMulai || !tanggalSelesai)
         return res.json({ success: false, message: 'tanggalMulai dan tanggalSelesai wajib diisi' });
-      // PERBAIKAN BUG: tanggalSelesai yang dikirim frontend adalah akhir
-      // SEMESTER (mis. Desember), bukan hari ini -- kalau dipakai apa
-      // adanya, hari-hari di masa depan yang belum terjadi (dan jelas
-      // belum ada datanya) ikut dihitung sebagai "hari sekolah", membuat
-      // Alpha meledak dan % Kehadiran anjlok padahal semester baru
-      // berjalan beberapa hari. Batasi hitungan hanya sampai KEMARIN --
-      // bukan sampai hari ini juga, karena hari berjalan belum tentu
-      // selesai jam absennya saat laporan ini dibuka (mis. dicek jam
-      // 05:41 pagi, sebelum jam masuk 06:30 -- semua siswa masih akan
-      // tampak "Alpha" untuk hari yang belum benar-benar berjalan).
-      const kemarin = new Date(Date.now() + 8 * 60 * 60 * 1000); // WITA, sama seperti witaNow() di _db.js
-      kemarin.setUTCDate(kemarin.getUTCDate() - 1);
-      const kemarinStr = kemarin.toISOString().split('T')[0];
-      const efektifSelesai = tanggalSelesai > kemarinStr ? kemarinStr : tanggalSelesai;
+      // PERBAIKAN BUG (% Kehadiran > 100%): tanggalSelesai yang dikirim
+      // frontend adalah akhir SEMESTER (mis. Desember), sementara data
+      // absensi yang sudah tercatat (dipakai loadEvaluasi() di
+      // index.html untuk pembilang) cuma sampai HARI INI. Sebelumnya
+      // fungsi ini membatasi penyebut sampai "kemarin" secara terpisah
+      // -- beda satu hari dari rentang yang dipakai pembilang -- jadi
+      // begitu ada absensi hari ini, pembilang naik duluan sementara
+      // penyebut tertinggal, persentase bisa lewat 100%.
+      // Sekarang pakai hitungTanggalEvaluasiEfektif() (_db.js) sebagai
+      // SATU-SATUNYA sumber kebenaran, dan tanggalSelesaiEfektif-nya
+      // dikirim balik ke frontend supaya dipakai juga oleh
+      // rekapBulananRange & rekapKeteranganRange (pembilang) -- jadi
+      // kedua sisi PASTI memakai rentang tanggal yang sama persis.
+      const { tanggalSelesaiEfektif, belumMulai } =
+        hitungTanggalEvaluasiEfektif(tanggalMulai, tanggalSelesai);
 
-      if (tanggalMulai > efektifSelesai) {
-        // Semester belum mulai / baru mulai hari ini -- belum ada satu
-        // pun hari yang "selesai" untuk dievaluasi.
-        return res.json({ success: true, jumlahHariSekolah: 0 });
+      if (belumMulai) {
+        // Semester belum mulai / baru mulai setelah hari ini -- belum
+        // ada satu pun hari yang bisa dievaluasi.
+        return res.json({ success: true, jumlahHariSekolah: 0, tanggalSelesaiEfektif: tanggalMulai });
       }
-      const jumlahHariSekolah = await hitungJumlahHariSekolah(tanggalMulai, efektifSelesai);
-      return res.json({ success: true, jumlahHariSekolah });
+      const jumlahHariSekolah = await hitungJumlahHariSekolah(tanggalMulai, tanggalSelesaiEfektif);
+      return res.json({ success: true, jumlahHariSekolah, tanggalSelesaiEfektif });
     }
     // Dipakai frontend (guruNav) untuk tahu apakah menu "Kehadiran Hari Ini"
     // perlu ditampilkan: true hanya kalau guru YANG SEDANG LOGIN (dibuktikan

@@ -852,6 +852,31 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 }
 .log-tab.active{background:#fff;color:var(--primary-dark);box-shadow:var(--shadow-soft)}
 
+/* Tab "Belum Absen Pulang" (BARU) -- SELALU ada (tidak dinamis per jam,
+   lihat catatan panjang di dekat definisi tabPulang di markup & JS di
+   bawah), tapi visualnya sengaja dibedakan dari 3 tab lain: guru piket
+   perlu tab ini "menyala" jelas begitu ada siswa yang nyangkut belum
+   absen pulang, tanpa perlu baca teks dulu. Prinsipnya:
+   - count === 0 (aman, belum ada yang perlu dikejar): netral, sama
+     seperti tab lain -- supaya TIDAK selalu mencolok dan malah jadi
+     "alarm fatigue" di jam-jam biasa (pagi hari ini pasti 0).
+   - count > 0 (perlu perhatian): background oranye pekat + teks putih,
+     plus animasi pulse halus 1x saat count baru saja berubah dari 0
+     (class .log-tab-alert--pulse ditambah/dihapus lewat JS, lihat
+     loadLog()) supaya guru piket notice ada siswa baru yang belum
+     pulang tanpa terus-terusan berkedip mengganggu. */
+.log-tab-alert.has-alert{
+  background:#F97316;color:#fff;
+  box-shadow:0 1px 4px rgba(249,115,22,0.4);
+}
+.log-tab-alert.has-alert.active{background:#EA580C;color:#fff}
+.log-tab-alert--pulse{animation:logTabPulse 1.1s ease-out 2}
+@keyframes logTabPulse{
+  0%{transform:scale(1);box-shadow:0 0 0 0 rgba(249,115,22,0.55)}
+  70%{transform:scale(1.035);box-shadow:0 0 0 7px rgba(249,115,22,0)}
+  100%{transform:scale(1);box-shadow:0 0 0 0 rgba(249,115,22,0)}
+}
+
 /* Log list */
 .log-container{
   background:var(--surface);
@@ -2513,17 +2538,21 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
          "👥 Kehadiran Siswa" di #rekapHarianPanel. Jangan hapus id ini atau
          balikin ke pakai querySelector('.log-tabs') lagi. -->
     <div class="log-tabs" id="logTabsBar">
-      <button class="log-tab active" id="tabBelum" onclick="switchTab('belum')"><span id="tabBelumLabel">⏳ Belum Hadir</span> (<span id="tabBelumCount">0</span>)</button>
+      <button class="log-tab active" id="tabBelum" onclick="switchTab('belum')">❌ Alpa (<span id="tabBelumCount">0</span>)</button>
       <button class="log-tab" id="tabIzin" onclick="switchTab('izin')">🤒 Izin/Sakit (<span id="tabIzinCount">0</span>)</button>
-      <button class="log-tab" id="tabHadir" onclick="switchTab('hadir')"><span id="tabHadirLabel">✅ Sudah Hadir</span> (<span id="tabHadirCount">0</span>)</button>
-      <!-- BARU: tab "Lengkap Absen Datang-Pulang" -- tersembunyi default,
-           cuma dimunculkan begitu halaman scan masuk fase jam pulang
-           (lihat terapkanModeJamPulang() di script bawah, dipicu dari
-           checkStatus() persis di titik yang sama dengan setMode('pulang')
-           otomatis). Tujuannya supaya guru piket fokus ke tab "Belum Absen
-           Pulang" (bekas tab Hadir) tanpa siswa yang sudah lengkap
-           datang-pulang ikut menumpuk di situ. -->
-      <button class="log-tab" id="tabLengkap" onclick="switchTab('lengkap')" style="display:none">🏁 Lengkap Absen Datang-Pulang (<span id="tabLengkapCount">0</span>)</button>
+      <button class="log-tab" id="tabHadir" onclick="switchTab('hadir')">✅ Hadir (<span id="tabHadirCount">0</span>)</button>
+      <!-- BARU: tab "Belum Absen Pulang" -- SELALU tampil (tidak lagi
+           dinamis tergantung jam, beda dari rancangan sebelumnya yang
+           memakai terapkanModeJamPulang()/tab "Lengkap"). Ini murni
+           filter data (siswa yang sudah absen datang tapi jamPulang-nya
+           masih kosong), sama seperti tab Izin/Sakit yang juga selalu
+           ada dan otomatis menyesuaikan datanya sendiri -- pagi hari
+           hitungannya wajar 0 karena belum ada yang pulang, siang/sore
+           otomatis terisi. Visualnya sengaja lebih "kuat" (class
+           log-tab-alert, lihat CSS & loadLog()) supaya guru piket cepat
+           notice begitu count-nya > 0, tanpa perlu tahu jam berapa
+           sekarang sama sekali di sisi tampilan. -->
+      <button class="log-tab log-tab-alert" id="tabPulang" onclick="switchTab('pulang')">🚶 Belum Absen Pulang (<span id="tabPulangCount">0</span>)</button>
     </div>
 
     <!-- Log list -->
@@ -2752,13 +2781,11 @@ function resumeScanBerat() { _scanBeratPaused = false; }
 let logData       = { hadir:[], izinSakit:[], belumHadir:[] };
 let activeTab     = 'belum';
 
-// BARU: true begitu halaman scan sudah masuk fase jam pulang (jam sekarang
-// >= jamPulangMulai efektif hari ini) -- dipakai terapkanModeJamPulang()
-// untuk mengganti judul tab "Belum Hadir"->"Alpa" & "Sudah Hadir"->"Belum
-// Absen Pulang", plus memunculkan tab "Lengkap Absen Datang-Pulang". Lihat
-// pemicunya di checkStatus(), persis di titik yang sama dengan
-// setMode('pulang') otomatis.
-let modeJamPulangAktif = false;
+// BARU: hitungan terakhir tab "Belum Absen Pulang" -- dipakai loadLog()
+// untuk tahu kapan count-nya baru saja naik dari 0 (buat memicu animasi
+// pulse sekali saja, bukan tiap refresh). Lihat catatan lengkap di
+// loadLog() & CSS .log-tab-alert.
+let _tabPulangCountTerakhir = 0;
 
 // ── MODE VERIFIKASI KELAS (BARU, Langkah C sub-langkah 3) ────────
 // Aktif setelah guru absen mengajar (lihat handleScanResult tipe
@@ -4401,10 +4428,6 @@ async function checkStatus() {
     const jam = r.jam || '';
     const jamPulang = r.jamPulangMulai || '14:00';
     if (jam >= jamPulang) setMode('pulang');
-    // BARU: sinkronkan judul tab info kehadiran (Alpa / Belum Absen Pulang
-    // / Lengkap Absen Datang-Pulang) dengan fase jam pulang yang sama --
-    // lihat catatan lengkap di terapkanModeJamPulang().
-    terapkanModeJamPulang(jam >= jamPulang);
 
     // ── REKAP HARIAN (BARU) ──────────────────────────────────────
     // Begitu jam sekarang sudah lewat jam absensi selesai efektif hari
@@ -6507,17 +6530,35 @@ async function loadLog() {
     document.getElementById('statTotal').textContent = r.totalSiswa;
     document.getElementById('tabBelumCount').textContent = r.totalBelum;
     document.getElementById('tabIzinCount').textContent = r.totalIzinSakit;
-    // BARU: saat mode jam pulang aktif, tab "Hadir" (bekas "Sudah Hadir",
-    // sekarang "Belum Absen Pulang") cuma menghitung siswa yang BELUM
-    // discan pulang -- yang sudah lengkap dipindah hitungannya ke tab
-    // "Lengkap Absen Datang-Pulang". Di luar jam pulang, hitungannya tetap
-    // seperti semula (semua yang sudah hadir, terlepas status pulang).
+    // Tab "Hadir" SELALU menghitung semua siswa yang sudah absen datang,
+    // terlepas status pulangnya -- tidak lagi berubah tergantung jam
+    // (lihat diskusi revert dari rancangan tab dinamis sebelumnya).
+    document.getElementById('tabHadirCount').textContent = r.totalHadir;
+
+    // BARU: tab "Belum Absen Pulang" -- subset dari Hadir yang jamPulang-nya
+    // masih kosong. SELALU dihitung ulang di sini (bukan cuma pas jam
+    // pulang), supaya murni jadi filter data biasa: pagi hari otomatis 0,
+    // siang/sore otomatis terisi begitu ada yang nyangkut.
     const hadirList = r.hadir || [];
     const belumPulangCount = hadirList.filter(s => !s.jamPulang).length;
-    const lengkapCount     = hadirList.filter(s => !!s.jamPulang).length;
-    document.getElementById('tabHadirCount').textContent = modeJamPulangAktif ? belumPulangCount : r.totalHadir;
-    const tabLengkapCountEl = document.getElementById('tabLengkapCount');
-    if (tabLengkapCountEl) tabLengkapCountEl.textContent = lengkapCount;
+    document.getElementById('tabPulangCount').textContent = belumPulangCount;
+    const tabPulangEl = document.getElementById('tabPulang');
+    if (tabPulangEl) {
+      // Warna "menyala" (oranye) hanya saat count > 0 -- netral saat 0,
+      // supaya tidak jadi alarm fatigue di jam-jam yang memang belum ada
+      // siswa yang perlu dikejar (lihat catatan CSS .log-tab-alert).
+      tabPulangEl.classList.toggle('has-alert', belumPulangCount > 0);
+      // Pulse halus hanya dipicu saat count baru saja NAIK dari 0 (bukan
+      // tiap kali refresh, dan bukan saat count turun) -- supaya guru
+      // piket notice ada siswa baru yang belum pulang tanpa tab-nya
+      // terus-menerus berkedip mengganggu di setiap polling.
+      if (belumPulangCount > 0 && _tabPulangCountTerakhir === 0) {
+        tabPulangEl.classList.remove('log-tab-alert--pulse');
+        void tabPulangEl.offsetWidth; // restart animasi kalau kepicu lagi
+        tabPulangEl.classList.add('log-tab-alert--pulse');
+      }
+      _tabPulangCountTerakhir = belumPulangCount;
+    }
     renderLog();
     // BARU: kalau mode rekap sedang aktif, ikut refresh bagian "👥 Kehadiran
     // Siswa" di panel ringkasan supaya datanya tidak basi meski accordion
@@ -6544,66 +6585,38 @@ async function loadLog() {
   }
 }
 
-// ── MODE JAM PULANG (BARU) ──────────────────────────────────────────
-// Dipanggil dari checkStatus() setiap kali status disinkron dari server,
-// aktif/nonaktif murni mengikuti jam sekarang vs jamPulangMulai efektif
-// hari ini (idempotent -- aman dipanggil berulang tiap poll). Tujuannya
-// supaya guru piket fokus ke siswa yang BELUM absen pulang begitu jam
-// pulang dimulai, tanpa siswa yang sudah lengkap datang-pulang ikut
-// menumpuk di tab yang sama.
-function terapkanModeJamPulang(aktif) {
-  if (modeJamPulangAktif === aktif) return; // tidak ada perubahan, hindari kerja/render sia-sia
-  modeJamPulangAktif = aktif;
-
-  const lblBelum = document.getElementById('tabBelumLabel');
-  const lblHadir = document.getElementById('tabHadirLabel');
-  const tabLengkap = document.getElementById('tabLengkap');
-  if (lblBelum) lblBelum.textContent = aktif ? '❌ Alpa' : '⏳ Belum Hadir';
-  if (lblHadir) lblHadir.textContent = aktif ? '🚶 Belum Absen Pulang' : '✅ Sudah Hadir';
-  if (tabLengkap) tabLengkap.style.display = aktif ? '' : 'none';
-
-  // Kalau mode dimatikan (mis. tanggal berganti) sementara tab "Lengkap"
-  // sedang aktif, tab itu sudah tersembunyi -- pindahkan balik ke tab
-  // "Hadir" supaya tidak nyangkut di tab yang tidak terlihat.
-  if (!aktif && activeTab === 'lengkap') activeTab = 'hadir';
-
-  renderLog();
-}
-
 // ── SWITCH TAB ───────────────────────────────────────────────────
 function switchTab(tab) {
   activeTab = tab;
   document.getElementById('tabBelum').classList.toggle('active', tab==='belum');
   document.getElementById('tabIzin').classList.toggle('active', tab==='izin');
   document.getElementById('tabHadir').classList.toggle('active', tab==='hadir');
-  const tabLengkap = document.getElementById('tabLengkap');
-  if (tabLengkap) tabLengkap.classList.toggle('active', tab==='lengkap');
+  const tabPulang = document.getElementById('tabPulang');
+  if (tabPulang) tabPulang.classList.toggle('active', tab==='pulang');
   renderLog();
 }
 
 // ── RENDER LOG ───────────────────────────────────────────────────
 function renderLog() {
   const container = document.getElementById('logContainer');
-  // BARU: saat mode jam pulang aktif, tab 'hadir' (Belum Absen Pulang)
-  // cuma menampilkan siswa yang belum jamPulang; siswa yang sudah lengkap
-  // dipindah ke tab 'lengkap' baru. Di luar jam pulang, tab 'hadir' tetap
-  // menampilkan semua siswa yang sudah hadir seperti semula.
-  const hadirFiltered = modeJamPulangAktif
-    ? (logData.hadir || []).filter(s => !s.jamPulang)
-    : (logData.hadir || []);
-  const lengkapList = (logData.hadir || []).filter(s => !!s.jamPulang);
+  // Tab "hadir" SELALU menampilkan semua siswa yang sudah absen datang
+  // (terlepas status pulangnya). Tab "pulang" (Belum Absen Pulang) adalah
+  // filter terpisah dari list yang sama -- murni siswa yang jamPulang-nya
+  // masih kosong. Keduanya statis, tidak lagi tergantung jam sekarang.
+  const hadirList  = logData.hadir || [];
+  const pulangList = hadirList.filter(s => !s.jamPulang);
 
-  const list = activeTab === 'belum'   ? logData.belumHadir
-             : activeTab === 'izin'    ? logData.izinSakit
-             : activeTab === 'lengkap' ? lengkapList
-             : hadirFiltered;
+  const list = activeTab === 'belum'  ? logData.belumHadir
+             : activeTab === 'izin'   ? logData.izinSakit
+             : activeTab === 'pulang' ? pulangList
+             : hadirList;
 
   if (!list || !list.length) {
-    const emptyIcon = activeTab==='belum' ? '🎉' : activeTab==='izin' ? '🤒' : activeTab==='lengkap' ? '🏁' : '📋';
-    const emptyTxt  = activeTab==='belum' ? (modeJamPulangAktif ? 'Semua siswa hadir hari ini!' : 'Semua siswa sudah hadir!')
-                     : activeTab==='izin' ? 'Belum ada siswa izin/sakit'
-                     : activeTab==='lengkap' ? 'Belum ada siswa yang lengkap absen datang-pulang'
-                     : (modeJamPulangAktif ? 'Semua siswa sudah absen pulang!' : 'Belum ada siswa yang hadir');
+    const emptyIcon = activeTab==='belum' ? '🎉' : activeTab==='izin' ? '🤒' : activeTab==='pulang' ? '🎉' : '📋';
+    const emptyTxt  = activeTab==='belum'  ? 'Semua siswa sudah hadir!'
+                     : activeTab==='izin'   ? 'Belum ada siswa izin/sakit'
+                     : activeTab==='pulang' ? 'Semua siswa sudah absen pulang!'
+                     : 'Belum ada siswa yang hadir';
     container.innerHTML = `<div class="log-empty">
       <div class="log-empty-icon">${emptyIcon}</div>
       <div>${emptyTxt}</div>
@@ -6620,7 +6633,7 @@ function renderLog() {
           <div class="log-kelas">${s.kelas}</div>
         </div>
         <div class="log-right">
-          <span class="log-badge badge-belum">${modeJamPulangAktif ? 'Alpa' : 'Belum Hadir'}</span>
+          <span class="log-badge badge-belum">Alpa</span>
         </div>
       </div>`).join('');
   } else if (activeTab === 'izin') {

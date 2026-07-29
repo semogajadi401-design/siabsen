@@ -176,6 +176,18 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
 
   const allRows = Object.values(rowsMap).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
 
+  // (BARU) Tandai baris yang "lupa absen pulang": sudah absen datang
+  // (Hadir/Terlambat) tapi jamPulang kosong, DAN bukan hari ini (hari
+  // yang belum selesai belum adil disebut "lupa" -- siswa mungkin memang
+  // belum waktunya pulang). Ditandai per baris (bukan cuma dihitung
+  // total) supaya halaman riwayat bisa kasih highlight visual pas
+  // guru/ortu/siswa lihat hari mana saja yang kejadian.
+  const todayNow = new Date().toISOString().substring(0, 10);
+  allRows.forEach(r => {
+    r.lupaAbsenPulang = (r.statusDatang === 'Hadir' || r.statusDatang === 'Terlambat')
+      && !r.jamPulang && r.tanggal !== todayNow;
+  });
+
   const totalIzinList = ['Izin', 'Urusan Keluarga', 'Izin Lainnya'];
   const statistik = {
     totalHadir:      allRows.filter(r => r.statusDatang === 'Hadir').length,
@@ -183,6 +195,8 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
     totalSakit:      allRows.filter(r => r.statusDatang === 'Sakit').length,
     totalIzin:       allRows.filter(r => totalIzinList.includes(r.statusDatang)).length,
     totalAlpha:      allRows.filter(r => r.statusDatang === 'Alpha').length,
+    // (BARU) Lihat catatan r.lupaAbsenPulang di atas.
+    totalLupaAbsenPulang: allRows.filter(r => r.lupaAbsenPulang).length,
     totalHariSekolah: allRows.length
   };
   statistik.persentaseKehadiran = statistik.totalHariSekolah > 0

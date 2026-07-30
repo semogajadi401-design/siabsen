@@ -421,7 +421,29 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   const jamPulangHariIni = computeJamPulangEfektif(jamSetting, jamPulangOverride);
   const jamSelesaiOp   = jamPulangHariIni.jamPulangSelesai;
 
-  if (jam < jamMulai || jam > jamSelesaiOp) {
+  // PERBAIKAN BUG (siswa yang datang jadi tercatat "Alpha"): sebelumnya
+  // batas ATAS ini (jamSelesaiOp = jam pulang, mis. 16:00 atau bahkan
+  // lebih awal kalau di-override per-hari) berlaku untuk SEMUA scan
+  // TANPA KECUALI -- termasuk mode 'datang' siswa. Akibatnya siswa yang
+  // datang TERLAMBAT (setelah jamSelesaiOp) tidak pernah sampai ke
+  // logika `statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir'`
+  // di bawah sama sekali -- scan-nya DITOLAK MENTAH-MENTAH di sini,
+  // tidak ada baris `absensi` yang tersimpan untuknya sama sekali. Dan
+  // karena "Alpha" BUKAN status yang pernah ditulis ke database
+  // (lihat catatan di getSiswaKehadiran/loadEvaluasi/getRiwayat) --
+  // melainkan cuma label bawaan untuk "tidak ada baris `absensi` MAUPUN
+  // `keterangan_absensi` hari ini" -- siswa yang scan-nya ditolak
+  // seperti ini otomatis tampak "Alpha" di semua laporan, PADAHAL dia
+  // benar-benar datang dan scan kartu.
+  // Batas atas jam operasional itu SEHARUSNYA cuma relevan untuk mode
+  // 'pulang' (siswa tidak masuk akal absen pulang tengah malam) dan
+  // untuk guru/admin yang tidak mengirim `mode` sama sekali -- BUKAN
+  // untuk mode 'datang' siswa, karena keterlambatan sudah punya jalan
+  // keluarnya sendiri (status 'Terlambat'), tidak seharusnya berujung
+  // penolakan total.
+  const tolakKarenaTerlaluTelat = mode !== 'datang' && jam > jamSelesaiOp;
+
+  if (jam < jamMulai || tolakKarenaTerlaluTelat) {
     return { 
       success: false, 
       message: `Absensi hanya ${jamMulai} - ${jamSelesaiOp}` 
@@ -725,6 +747,31 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   if (absenHariIni?.jam_datang)
     return { success: false, tipe: 'siswa', message: `${siswa.nama} sudah absen datang pukul ${absenHariIni.jam_datang}` };
 
+  // PERBAIKAN BUG: sebelumnya blok ini TIDAK mengecek tabel
+  // `keterangan_absensi` sama sekali sebelum membuat baris `absensi`
+  // baru -- beda dengan inputTanpaKartu() di bawah yang SUDAH mengecek
+  // ini (lihat komentar "Jaga-jaga kondisi balapan" di sana). Akibatnya:
+  // kalau siswa sudah diinput Sakit/Izin lebih dulu (mis. orang tua
+  // lapor pagi-pagi), tapi siswa itu ternyata tetap datang lalu scan
+  // kartu, sistem tetap membuat baris `absensi` (Hadir/Terlambat) TANPA
+  // menyentuh baris `keterangan_absensi` yang sudah ada -- hasilnya
+  // siswa itu tercatat GANDA: Terlambat di `absensi` DAN Sakit/Izin di
+  // `keterangan_absensi` untuk tanggal yang sama. Di Evaluasi Kehadiran,
+  // dua-duanya ikut terhitung (lihat loadEvaluasi() di index.html),
+  // jadi satu hari yang sama dihitung 2x untuk siswa itu.
+  // Sekarang: kalau keterangan sudah ada, HAPUS keterangan itu (bukan
+  // ditolak) -- karena siswa TERBUKTI hadir secara fisik (baru saja
+  // scan kartu), jadi laporan Sakit/Izin sebelumnya sudah tidak berlaku
+  // lagi dan seharusnya tidak menghalangi absensi yang benar-benar
+  // terjadi. Guru piket diberi tahu lewat pesan sukses supaya sadar ada
+  // koreksi otomatis, bukan diam-diam.
+  const { data: ketHariIniSiswa } = await supabase
+    .from('keterangan_absensi').select('id,status')
+    .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
+  if (ketHariIniSiswa) {
+    await supabase.from('keterangan_absensi').delete().eq('id', ketHariIniSiswa.id);
+  }
+
   const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
   const absenId = generateID('AB');
 
@@ -750,9 +797,10 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
 
   return {
     success: true, tipe: 'siswa', status: statusDatang,
-    message: statusDatang === 'Terlambat'
+    message: (statusDatang === 'Terlambat'
       ? `⚠️ ${siswa.nama} TERLAMBAT - ${jam}`
-      : `✅ ${siswa.nama} absen datang - ${jam}`,
+      : `✅ ${siswa.nama} absen datang - ${jam}`)
+      + (ketHariIniSiswa ? ` (catatan ${ketHariIniSiswa.status} sebelumnya hari ini otomatis dihapus karena ternyata hadir)` : ''),
     siswa: { nama: siswa.nama, kelas: siswa.kelas, nisn: siswa.nisn }
   };
 }
@@ -1127,7 +1175,7 @@ async function getAktivitasGuruHariIni() {
         namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel,
         jamMulai, jamSelesai,
         jamScan: tercatat.jam_scan,
-        statusAbsen: tercatat.status,                                   // 'Hadir' (status telat sudah dihapus, lihat api/mengajar.js)
+        statusAbsen: tercatat.status,                                   // 'Hadir' | 'Telat'
         jumlahSiswaTerverifikasi: tercatat.jumlah_siswa_terverifikasi || 0,
         statusVerifikasi: tercatat.status_verifikasi || 'Perlu Ditinjau' // 'Perlu Ditinjau' | 'Terverifikasi'
       });

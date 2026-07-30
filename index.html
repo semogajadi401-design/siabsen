@@ -812,14 +812,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Guru</span></div>
       <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
-      <!-- BARU: menu sama persis dengan yang dipakai akun Kepala Sekolah
-           (showPage('kepsekPiket') -> loadKepsekPiket(), lihat kepsekNav di
-           bawah). Sudah berbasis per bulan (input type=month) baik di
-           tampilan tabel maupun file Excel/PDF yang didownload -- dipakai
-           ulang apa adanya, TIDAK dibuat halaman/loader terpisah. Aman
-           dipakai admin karena action getLaporanKepatuhanPiket sengaja
-           dibiarkan terbuka (lihat catatan di api/settings.js). -->
-      <div class="nav-item color-amber" onclick="showPage('kepsekPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Kepatuhan Piket Guru</span></div>
       <div class="nav-item color-amber" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Identitas</span></div>
     
       <div class="nav-section-label lbl-red">Sistem</div>
@@ -1327,12 +1319,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <!-- REKAP KEHADIRAN GURU (Absensi Mengajar per Jam Pelajaran) -->
       <div class="page" id="page-rekapMengajar">
         <div class="card">
-          <div class="card-header"><h3>📊 Rekap Kehadiran Guru Mengajar</h3>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-success btn-sm" onclick="exportRekapMengajarExcel()">📊 Excel</button>
-              <button class="btn btn-primary btn-sm" onclick="exportRekapMengajarPDF()">📄 PDF</button>
-            </div>
-          </div>
+          <div class="card-header"><h3>📊 Rekap Kehadiran Guru Mengajar</h3></div>
           <div class="card-body">
             <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
               Dashboard ini adalah bahan pertimbangan (evaluasi, tunjangan kinerja, dll), <b>bukan</b> penghitung nominal gaji — guru digaji bulanan tetap.
@@ -1347,49 +1334,40 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             </div>
             <div id="rmEmptyState" style="display:none;text-align:center;padding:40px;color:var(--text-muted)">👆 Pilih guru untuk melihat rekap kehadiran mengajar</div>
             <div id="rmContent" style="display:none">
-              <!-- Tampilan SATU GURU (detail) -->
-              <div id="rmSingleGuruWrap">
-                <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px">
-                  <div style="flex:1;min-width:140px;background:var(--primary-pale);border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:var(--primary)" id="rmPersen">-</div>
-                    <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">% Kehadiran</div>
-                  </div>
-                  <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.5rem;font-weight:800" id="rmHadir">0</div><div style="font-size:.78rem;color:var(--text-muted)">Hadir</div>
-                  </div>
-                  <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.5rem;font-weight:800" id="rmIzin">0</div><div style="font-size:.78rem;color:var(--text-muted)">Izin</div>
-                  </div>
-                  <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.5rem;font-weight:800" id="rmSakit">0</div><div style="font-size:.78rem;color:var(--text-muted)">Sakit</div>
-                  </div>
-                  <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.5rem;font-weight:800" id="rmAlpa">0</div><div style="font-size:.78rem;color:var(--text-muted)">Alpa</div>
-                  </div>
-                  <div style="flex:1;min-width:110px;background:#FFF8E1;border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.5rem;font-weight:800;color:#F57F17" id="rmMenunggu">0</div><div style="font-size:.78rem;color:var(--text-muted)">Menunggu Persetujuan</div>
-                  </div>
-                  <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
-                    <div style="font-size:1.5rem;font-weight:800" id="rmTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)">Total Sesi</div>
-                  </div>
+              <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px">
+                <div style="flex:1;min-width:140px;background:var(--primary-pale);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.8rem;font-weight:800;color:var(--primary)" id="rmPersen">-</div>
+                  <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">% Kehadiran</div>
                 </div>
-                <div style="display:flex;justify-content:center;margin-bottom:24px">
-                  <canvas id="rmPieChart" width="220" height="220"></canvas>
+                <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800" id="rmHadir">0</div><div style="font-size:.78rem;color:var(--text-muted)">Hadir</div>
                 </div>
-                <div class="table-responsive"><table class="table-card-mobile">
-                  <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Jam Ke</th><th>Status</th><th>Verifikasi</th><th>Aksi</th></tr></thead>
-                  <tbody id="rmRincianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
-                </table></div>
+                <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800" id="rmTelat">0</div><div style="font-size:.78rem;color:var(--text-muted)">Telat</div>
+                </div>
+                <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800" id="rmIzin">0</div><div style="font-size:.78rem;color:var(--text-muted)">Izin</div>
+                </div>
+                <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800" id="rmSakit">0</div><div style="font-size:.78rem;color:var(--text-muted)">Sakit</div>
+                </div>
+                <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800" id="rmAlpa">0</div><div style="font-size:.78rem;color:var(--text-muted)">Alpa</div>
+                </div>
+                <div style="flex:1;min-width:110px;background:#FFF8E1;border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800;color:#F57F17" id="rmMenunggu">0</div><div style="font-size:.78rem;color:var(--text-muted)">Menunggu Persetujuan</div>
+                </div>
+                <div style="flex:1;min-width:110px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800" id="rmTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)">Total Sesi</div>
+                </div>
               </div>
-              <!-- BARU: Tampilan SEMUA GURU (ringkasan satu tabel, tanpa rincian
-                   per sesi -- kalau butuh rincian per sesi, pilih guru itu
-                   sendiri dari dropdown). -->
-              <div id="rmSemuaGuruWrap" style="display:none">
-                <div class="table-responsive"><table class="table-card-mobile">
-                  <thead><tr><th>Nama Guru</th><th>Total Sesi</th><th>Hadir</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Menunggu</th><th>% Kehadiran</th></tr></thead>
-                  <tbody id="rmSemuaGuruBody"><tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
-                </table></div>
+              <div style="display:flex;justify-content:center;margin-bottom:24px">
+                <canvas id="rmPieChart" width="220" height="220"></canvas>
               </div>
+              <div class="table-responsive"><table class="table-card-mobile">
+                <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Jam Ke</th><th>Status</th><th>Verifikasi</th><th>Aksi</th></tr></thead>
+                <tbody id="rmRincianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+              </table></div>
             </div>
           </div>
         </div>
@@ -1651,18 +1629,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <canvas id="grafikPie" height="200"></canvas>
               </div>
             </div>
-            <!-- Rekap Bulanan per Kelas (BARU) -->
-            <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">📅 Rekap Bulanan per Kelas</h4>
-            <div class="table-responsive" style="margin-bottom:24px">
-              <table class="table-card-mobile">
-                <thead>
-                  <tr><th>Bulan</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Sakit</th><th>Izin</th><th>Hari Efektif</th><th>% Kehadiran</th></tr>
-                </thead>
-                <tbody id="evalBulananKelasBody">
-                  <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih semester terlebih dahulu</td></tr>
-                </tbody>
-              </table>
-            </div>
+            <!-- Rekap % Kehadiran per Bulan per Kelas -->
+            <!-- (BARU) Kartu ringkasan & grafik di atas cuma menampilkan
+                 angka KUMULATIF sejak awal semester -- tidak kelihatan kapan
+                 persisnya kehadiran mulai turun/naik. Tabel ini memecah
+                 persentase per BULAN dan per KELAS supaya tren dari
+                 waktu ke waktu kelihatan, bukan cuma satu angka akhir yang
+                 sudah "tercampur" dengan data lama. Diisi oleh
+                 renderRekapBulananKelas() di bawah. -->
+            <div id="evalRekapBulananWrap" style="margin-bottom:24px"></div>
             <!-- Tabel Ranking -->
             <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🏆 Ranking Kehadiran Siswa</h4>
             <div class="table-responsive">
@@ -1685,16 +1660,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="card-header"><h3>👑 Kepatuhan Piket Guru</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <input type="month" id="kepsekPiketBulan" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="loadKepsekPiket()">
-              <!-- BARU: filter per guru -- render & export bisa untuk satu guru
-                   saja (pilih dari dropdown) atau semua guru (default, tidak
-                   memfilter apa-apa). Diisi dari data yang sama dengan tabel,
-                   jadi tidak perlu request tambahan. -->
-              <select id="kepsekPiketGuru" class="form-control" style="padding:8px 12px;font-size:.82rem" onchange="renderKepsekPiketTable()">
-                <option value="">Semua Guru</option>
-              </select>
               <button class="btn btn-outline btn-sm" onclick="loadKepsekPiket()">🔄 Refresh</button>
-              <button class="btn btn-success btn-sm" onclick="exportKepsekPiketExcel()">📊 Excel</button>
-              <button class="btn btn-primary btn-sm" onclick="exportKepsekPiketPDF()">📄 PDF</button>
             </div>
           </div>
           <div class="card-body">
@@ -4094,129 +4060,18 @@ async function loadKepsekPiket() {
   const tanggalSelesai = `${tahun}-${String(bulan).padStart(2,'0')}-${String(akhirBulan).padStart(2,'0')}`;
 
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>';
-  window._kepsekPiketData = [];
-  window._kepsekPiketPeriode = { bulan, tahun };
   try {
     const r = await api('settings', 'getLaporanKepatuhanPiket', { tanggalMulai, tanggalSelesai });
     if (!r.success) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">${r.message||'Gagal memuat laporan'}</td></tr>`; return; }
-    window._kepsekPiketData = r.data || [];
-    // BARU: isi dropdown filter guru dari data yang sama (tidak perlu request
-    // tambahan) -- supaya bisa lihat/export satu guru saja kalau perlu.
-    // Dipakai INDEX (bukan nama mentah) sebagai value supaya tidak meleset
-    // gara-gara nama guru mengandung karakter yang di-escape HTML.
-    const selGuru = document.getElementById('kepsekPiketGuru');
-    if (selGuru) {
-      const currentVal = selGuru.value;
-      const sortedIdx = window._kepsekPiketData
-        .map((g, i) => i)
-        .sort((a, b) => window._kepsekPiketData[a].namaGuru.localeCompare(window._kepsekPiketData[b].namaGuru, 'id'));
-      const opts = sortedIdx.map(i => `<option value="${i}">${esc(window._kepsekPiketData[i].namaGuru)}</option>`).join('');
-      selGuru.innerHTML = '<option value="">Semua Guru</option>' + opts;
-      selGuru.value = currentVal && window._kepsekPiketData[Number(currentVal)] ? currentVal : '';
-    }
-    renderKepsekPiketTable();
+    if (!r.data.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada jadwal piket / data piket bulan ini</td></tr>'; return; }
+    tbody.innerHTML = r.data.map(g => `<tr>
+        <td data-label="Nama Guru" style="font-weight:600">${esc(g.namaGuru)}</td>
+        <td data-label="Hadir Tepat"><span class="badge badge-success">${g.hadirTepat}</span></td>
+        <td data-label="Digantikan">${g.digantikan ? `<span class="badge badge-warning">${g.digantikan}</span>` : 0}</td>
+        <td data-label="Kosong">${g.tanpaPiketSamaSekali ? `<span class="badge badge-danger">${g.tanpaPiketSamaSekali}</span>` : 0}</td>
+        <td data-label="Jadi Pengganti">${g.jadiPengganti ? `<span class="badge badge-primary">${g.jadiPengganti}</span>` : 0}</td>
+      </tr>`).join('');
   } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Gagal memuat laporan</td></tr>'; }
-}
-
-// BARU: render tabel dari data yang sudah dimuat (window._kepsekPiketData),
-// difilter per nama guru kalau dropdown kepsekPiketGuru dipilih. Dipisah dari
-// loadKepsekPiket() supaya ganti filter tidak perlu request ulang ke server,
-// dan supaya fungsi export bisa memakai data yang sama persis dengan yang
-// sedang ditampilkan.
-function renderKepsekPiketTable() {
-  const tbody = document.getElementById('kepsekPiketBody');
-  if (!tbody) return;
-  const filterVal = document.getElementById('kepsekPiketGuru')?.value || '';
-  const data = filterVal !== '' && window._kepsekPiketData?.[Number(filterVal)]
-    ? [window._kepsekPiketData[Number(filterVal)]]
-    : (window._kepsekPiketData || []);
-  if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">${(window._kepsekPiketData||[]).length ? 'Tidak ada data untuk guru ini' : 'Belum ada jadwal piket / data piket bulan ini'}</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = data.map(g => `<tr>
-      <td data-label="Nama Guru" style="font-weight:600">${esc(g.namaGuru)}</td>
-      <td data-label="Hadir Tepat"><span class="badge badge-success">${g.hadirTepat}</span></td>
-      <td data-label="Digantikan">${g.digantikan ? `<span class="badge badge-warning">${g.digantikan}</span>` : 0}</td>
-      <td data-label="Kosong">${g.tanpaPiketSamaSekali ? `<span class="badge badge-danger">${g.tanpaPiketSamaSekali}</span>` : 0}</td>
-      <td data-label="Jadi Pengganti">${g.jadiPengganti ? `<span class="badge badge-primary">${g.jadiPengganti}</span>` : 0}</td>
-    </tr>`).join('');
-}
-
-// BARU: export Excel -- memakai window._kepsekPiketData langsung (bukan
-// scrape DOM) supaya angka mentahnya pasti akurat, difilter sama seperti
-// tabel yang sedang tampil di layar.
-async function exportKepsekPiketExcel() {
-  if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
-  const filterVal = document.getElementById('kepsekPiketGuru')?.value || '';
-  const filtered = filterVal !== '' && window._kepsekPiketData?.[Number(filterVal)];
-  const data = filtered ? [window._kepsekPiketData[Number(filterVal)]] : (window._kepsekPiketData || []);
-  if (!data.length) { toast('Tidak ada data untuk diexport', 'warning'); return; }
-  const rows = [['Nama Guru','Hadir Tepat','Digantikan','Kosong','Jadi Pengganti']];
-  data.forEach(g => rows.push([g.namaGuru, g.hadirTepat||0, g.digantikan||0, g.tanpaPiketSamaSekali||0, g.jadiPengganti||0]));
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Kepatuhan Piket');
-  const namaFile = filtered ? `Kepatuhan_Piket_${data[0].namaGuru.replace(/\s+/g,'_')}` : 'Kepatuhan_Piket_Semua_Guru';
-  XLSX.writeFile(wb, `${namaFile}.xlsx`);
-  toast('Excel berhasil didownload', 'success');
-}
-
-// BARU: export PDF, format tabel sederhana + header info periode & guru
-// yang sedang difilter, supaya gampang dibaca (mudah dipahami) tanpa perlu
-// buka aplikasi lagi.
-async function exportKepsekPiketPDF() {
-  if (!window._kepsekPiketData || !window._kepsekPiketData.length) { toast('Belum ada data untuk diexport', 'warning'); return; }
-  toast('Menyiapkan PDF...', 'info', 3000);
-  try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const marginX = 14, pageBottom = 195;
-    const filterVal = document.getElementById('kepsekPiketGuru')?.value || '';
-    const filtered = filterVal !== '' && window._kepsekPiketData?.[Number(filterVal)];
-    const data = filtered ? [window._kepsekPiketData[Number(filterVal)]] : (window._kepsekPiketData || []);
-    const { bulan, tahun } = window._kepsekPiketPeriode || {};
-    const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    const periodeText = bulan ? `${namaBulan[bulan]} ${tahun}` : '-';
-
-    pdf.setFontSize(16); pdf.setTextColor(21,101,192);
-    pdf.text('Laporan Kepatuhan Piket Guru', marginX, 15);
-    pdf.setFontSize(9); pdf.setTextColor(90,90,90);
-    pdf.text(`Periode: ${periodeText}   |   Guru: ${filtered ? data[0].namaGuru : 'Semua Guru'}`, marginX, 21);
-
-    let y = 34;
-    const headers = ['Nama Guru','Hadir Tepat','Digantikan','Kosong','Jadi Pengganti'];
-    const colW = [80, 40, 40, 40, 40];
-    const drawHeader = () => {
-      pdf.setFontSize(9);
-      headers.forEach((h, i) => {
-        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-        pdf.setFillColor(21,101,192); pdf.setTextColor(255,255,255);
-        pdf.rect(x, y-4, colW[i], 7, 'F');
-        pdf.text(h, x+1, y);
-      });
-      y += 7; pdf.setTextColor(0,0,0);
-    };
-    drawHeader();
-    data.forEach((g, idx) => {
-      const vals = [g.namaGuru, String(g.hadirTepat||0), String(g.digantikan||0), String(g.tanpaPiketSamaSekali||0), String(g.jadiPengganti||0)];
-      if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
-      pdf.setTextColor(0,0,0);
-      // Kolom "Kosong" (index 3): merah kalau > 0, supaya perlu tindak
-      // lanjut langsung terlihat mencolok di PDF-nya juga.
-      vals.forEach((v, i) => {
-        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-        if (i === 3 && (g.tanpaPiketSamaSekali||0) > 0) pdf.setTextColor(198,40,40);
-        else pdf.setTextColor(0,0,0);
-        pdf.text(v.substring(0,40), x+1, y);
-      });
-      y += 7;
-      if (y > pageBottom) { pdf.addPage(); y = 20; drawHeader(); }
-    });
-    const namaFile = filtered ? `Kepatuhan_Piket_${data[0].namaGuru.replace(/\s+/g,'_')}` : 'Kepatuhan_Piket_Semua_Guru';
-    pdf.save(`${namaFile}.pdf`);
-    toast('PDF berhasil didownload', 'success');
-  } catch(e) { toast('Gagal: ' + e.message, 'error'); }
 }
 
 async function loadPiket() {
@@ -6292,12 +6147,10 @@ async function loadEvaluasi() {
     ? hariResult.tanggalSelesaiEfektif
     : tanggalMulai; // fallback aman: rentang kosong, bukan rentang semester penuh
 
-  const [absenResult, ketResult, siswaResult, bulananKelasResult] = await Promise.all([
+  const [absenResult, ketResult, siswaResult] = await Promise.all([
     api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
     api('kehadiran', 'rekapKeteranganRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
-    api('siswa', 'getAll', { activeOnly: true, kelas }),
-    // BARU: rekap % kehadiran per bulan per kelas, dipakai renderRekapBulananKelas()
-    api('absensi', 'rekapBulananPerKelas', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas })
+    api('siswa', 'getAll', { activeOnly: true, kelas })
   ]);
 
   if (!siswaResult.success) {
@@ -6405,25 +6258,27 @@ async function loadEvaluasi() {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
   } else {
     tbody.innerHTML = sorted.map((s, i) => {
-      // PERBAIKAN BUG: sebelumnya penyebutnya cuma
-      // (hadir+terlambat+sakit+izin) -- Alpha (siswa yang tidak absen DAN
-      // tidak ada keterangan sama sekali) TIDAK PERNAH masuk hitungan
-      // penyebut per-siswa ini, walaupun s.alpha sudah dihitung dengan
-      // benar di atas (lihat komentar "PERBAIKAN BUG: hitung Alpha per
-      // siswa"). Akibatnya siswa yang hanya hadir sebagian tapi sisanya
-      // Alpha (bukan Sakit/Izin) tetap tampil 100% di kolom ini, padahal
-      // kartu ringkasan "% Kehadiran Keseluruhan" di atasnya sudah benar
-      // (memakai jumlahHariSekolah sebagai penyebut). Sekarang dipakai
-      // penyebut yang SAMA PERSIS dengan kartu ringkasan --
-      // jumlahHariSekolah (total hari sekolah efektif periode ini) --
-      // supaya konsisten dan Alpha selalu ikut mengurangi persentase.
+      // PERBAIKAN BUG: sebelumnya penyebut % Hadir per siswa cuma
+      // (hadir+terlambat+sakit+izin) -- TIDAK termasuk Alpha, padahal
+      // Alpha itu sendiri dihitung dari jumlahHariSekolah (lihat di
+      // atas). Akibatnya siswa yang Alpha tetap bisa tampil "100%" di
+      // tabel ini (kontradiksi dengan kartu ringkasan di atas yang
+      // sudah benar). Sekarang penyebutnya disamakan: jumlahHariSekolah
+      // -- total hari sekolah efektif dalam periode ini, sama untuk
+      // semua siswa -- supaya konsisten dengan kartu ringkasan & dengan
+      // bagaimana Alpha itu sendiri dihitung.
       const pct      = jumlahHariSekolah > 0
-        ? Math.min(100, Math.round((s.hadir + s.terlambat) / jumlahHariSekolah * 100))
-        : 0;
+        ? Math.round((s.hadir + s.terlambat) / jumlahHariSekolah * 100) : 0;
       const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
+      // (BARU) Badge peringatan di nama siswa yang punya Alpha -- supaya
+      // di rapat/laporan tidak perlu hitung manual satu-satu lagi untuk
+      // tahu siapa yang perlu diperhatikan (Alpha = tidak hadir TANPA
+      // keterangan, beda dari Sakit/Izin yang sudah ada laporannya).
+      const alphaBadge = s.alpha > 0
+        ? ` <span class="badge badge-danger" title="Ada hari tanpa keterangan (Alpha)">⚠ Alpha</span>` : '';
       return `<tr>
         <td data-label="Rank"><strong>${i+1}</strong></td>
-        <td data-label="Nama">${esc(s.nama)}</td>
+        <td data-label="Nama">${esc(s.nama)}${alphaBadge}</td>
         <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
         <td data-label="Hadir"><span class="badge badge-success">${s.hadir}</span></td>
         <td data-label="Terlambat"><span class="badge badge-warning">${s.terlambat}</span></td>
@@ -6435,40 +6290,9 @@ async function loadEvaluasi() {
     }).join('');
   }
 
-  // Render grafik
+  // Render grafik & rekap per bulan per kelas
   renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin);
-
-  // Render rekap bulanan per kelas (BARU)
-  renderRekapBulananKelas(bulananKelasResult);
-}
-
-// BARU: menampilkan % kehadiran per bulan untuk tiap kelas, supaya di
-// rapat orang tua bisa kelihatan bulan mana kehadirannya turun -- bukan
-// cuma satu angka total untuk seluruh semester.
-const NAMA_BULAN = ['', 'Januari','Februari','Maret','April','Mei','Juni',
-  'Juli','Agustus','September','Oktober','November','Desember'];
-function renderRekapBulananKelas(result) {
-  const tbody = document.getElementById('evalBulananKelasBody');
-  if (!tbody) return;
-  if (!result?.success || !result.data?.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
-    return;
-  }
-  tbody.innerHTML = result.data.map(r => {
-    const [thn, bln] = r.bulan.split('-');
-    const labelBulan = `${NAMA_BULAN[Number(bln)]} ${thn}`;
-    const pctColor = r.persen >= 80 ? 'var(--success)' : r.persen >= 60 ? 'var(--warning)' : 'var(--danger)';
-    return `<tr>
-      <td data-label="Bulan">${labelBulan}</td>
-      <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
-      <td data-label="Hadir"><span class="badge badge-success">${r.hadir}</span></td>
-      <td data-label="Terlambat"><span class="badge badge-warning">${r.terlambat}</span></td>
-      <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${r.sakit}</span></td>
-      <td data-label="Izin"><span class="badge badge-primary">${r.izin}</span></td>
-      <td data-label="Hari Efektif">${r.jumlahHariSekolah}</td>
-      <td data-label="% Kehadiran"><strong style="color:${pctColor}">${r.persen}%</strong></td>
-    </tr>`;
-  }).join('');
+  await renderRekapBulananKelas(tanggalMulai, tanggalSelesaiEfektif, kelas, allSiswa);
 }
 
 function renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin) {
@@ -6540,6 +6364,109 @@ function renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzi
   }
 }
 
+// ══════════════════════════════════════════════════════════
+// REKAP % KEHADIRAN PER BULAN PER KELAS
+// ══════════════════════════════════════════════════════════
+// (BARU) Angka di kartu ringkasan & grafik di atas itu KUMULATIF sejak
+// hari pertama semester -- baik untuk melihat performa keseluruhan,
+// tapi tidak bisa menjawab "bulan mana yang mulai turun?" karena data
+// lama & baru sudah tercampur jadi satu angka. Fungsi ini memecah
+// periode evaluasi jadi per-BULAN KALENDER, dan per KELAS, supaya
+// kepala sekolah/orang tua bisa lihat tren dari waktu ke waktu.
+const NAMA_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+// Pecah [tanggalMulai, tanggalSelesai] jadi potongan per bulan kalender.
+// Contoh: 15 Jun s/d 10 Agu -> [15-30 Jun, 1-31 Jul, 1-10 Agu].
+function pecahRentangBulanan(tanggalMulai, tanggalSelesai) {
+  const potongan = [];
+  let tahun  = parseInt(tanggalMulai.substring(0, 4), 10);
+  let bulan  = parseInt(tanggalMulai.substring(5, 7), 10); // 1-12
+  let mulaiPotongan = tanggalMulai;
+  while (`${tahun}-${String(bulan).padStart(2,'0')}-01` <= tanggalSelesai) {
+    const hariTerakhir = new Date(Date.UTC(tahun, bulan, 0)).getUTCDate(); // hari terakhir bulan ini
+    const akhirBulan = `${tahun}-${String(bulan).padStart(2,'0')}-${String(hariTerakhir).padStart(2,'0')}`;
+    const selesaiPotongan = akhirBulan < tanggalSelesai ? akhirBulan : tanggalSelesai;
+    potongan.push({
+      kunci: `${tahun}-${String(bulan).padStart(2,'0')}`,
+      label: `${NAMA_BULAN_ID[bulan-1]} ${tahun}`,
+      mulai: mulaiPotongan, selesai: selesaiPotongan
+    });
+    bulan++;
+    if (bulan > 12) { bulan = 1; tahun++; }
+    mulaiPotongan = `${tahun}-${String(bulan).padStart(2,'0')}-01`;
+  }
+  return potongan;
+}
+
+async function renderRekapBulananKelas(tanggalMulai, tanggalSelesaiEfektif, kelasFilter, allSiswa) {
+  const wrap = document.getElementById('evalRekapBulananWrap');
+  if (!wrap) return;
+  if (tanggalMulai > tanggalSelesaiEfektif) { wrap.innerHTML = ''; return; }
+
+  const potongan = pecahRentangBulanan(tanggalMulai, tanggalSelesaiEfektif);
+
+  // Jumlah hari sekolah efektif PER BULAN -- pakai lagi endpoint yang
+  // sama dengan penyebut kartu ringkasan (getJumlahHariSekolah), jadi
+  // logika "hari aktif + kalender libur" tidak perlu ditulis ulang di
+  // frontend (satu sumber kebenaran tetap di _db.js).
+  const [hariPerBulanResults, rawResult] = await Promise.all([
+    Promise.all(potongan.map(p => api('kehadiran', 'getJumlahHariSekolah', { tanggalMulai: p.mulai, tanggalSelesai: p.selesai }))),
+    api('absensi', 'rekapHarianPerKelas', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas: kelasFilter })
+  ]);
+  potongan.forEach((p, i) => {
+    p.jumlahHariSekolah = hariPerBulanResults[i]?.success ? (hariPerBulanResults[i].jumlahHariSekolah || 0) : 0;
+  });
+
+  // Jumlah siswa aktif per kelas (dari data yang sama dipakai tabel
+  // ranking, supaya konsisten dengan filter kelas yang sedang dipilih).
+  const siswaPerKelas = {};
+  allSiswa.forEach(s => { siswaPerKelas[s.kelas] = (siswaPerKelas[s.kelas] || 0) + 1; });
+  const kelasList = Object.keys(siswaPerKelas).sort();
+
+  if (!kelasList.length || !potongan.length) { wrap.innerHTML = ''; return; }
+
+  // Hitung Hadir+Terlambat per (bulan, kelas) dari data mentah per
+  // tanggal. rekapHarianPerKelas() TIDAK membawa idSiswa/nisn/nama --
+  // cuma tanggal+kelas+status -- cukup untuk agregasi ini tanpa
+  // membocorkan data siswa individual.
+  const hadirPerBulanKelas = {}; // { 'YYYY-MM': { KELAS: jumlah } }
+  if (rawResult?.success) {
+    rawResult.data.forEach(r => {
+      if (r.statusDatang !== 'Hadir' && r.statusDatang !== 'Terlambat') return;
+      const bulanKey = String(r.tanggal).substring(0, 7);
+      if (!hadirPerBulanKelas[bulanKey]) hadirPerBulanKelas[bulanKey] = {};
+      hadirPerBulanKelas[bulanKey][r.kelas] = (hadirPerBulanKelas[bulanKey][r.kelas] || 0) + 1;
+    });
+  }
+
+  const hitungPct = (bulanKey, kls, jumlahHariBulan) => {
+    const denom = jumlahHariBulan * (siswaPerKelas[kls] || 0);
+    if (denom <= 0) return null; // belum ada hari sekolah efektif di bulan ini
+    const hadir = (hadirPerBulanKelas[bulanKey]?.[kls]) || 0;
+    return Math.min(100, Math.round(hadir / denom * 100));
+  };
+  const warnaPct = pct => pct === null ? 'var(--text-muted)' : pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
+
+  const headerBulan = potongan.map(p => `<th style="text-align:center">${p.label}</th>`).join('');
+  const bodyRows = kelasList.map(kls => {
+    const selBulan = potongan.map(p => {
+      const pct = hitungPct(p.kunci, kls, p.jumlahHariSekolah);
+      return `<td style="text-align:center"><strong style="color:${warnaPct(pct)}">${pct === null ? '—' : pct + '%'}</strong></td>`;
+    }).join('');
+    return `<tr><td><span class="badge badge-primary">${esc(kls)}</span></td>${selBulan}</tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <h4 style="font-size:.9rem;font-weight:700;margin-bottom:12px">📅 % Kehadiran per Bulan per Kelas</h4>
+    <div class="table-responsive">
+      <table>
+        <thead><tr><th>Kelas</th>${headerBulan}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>
+    <small style="color:var(--text-muted)">Tiap sel = % Hadir+Terlambat dibagi (hari sekolah efektif bulan itu × jumlah siswa kelas). Berguna untuk melihat bulan mana yang mulai turun, tidak tercampur dengan bulan lain seperti angka ringkasan di atas.</small>`;
+}
+
 async function exportEvaluasiExcel() {
   if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
   const rows = [['Rank','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','Alpha','% Kehadiran']];
@@ -6556,20 +6483,6 @@ async function exportEvaluasiExcel() {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Evaluasi Kehadiran');
-
-  // BARU: sheet kedua berisi rekap bulanan per kelas
-  const rowsBulanan = [['Bulan','Kelas','Hadir','Terlambat','Sakit','Izin','Hari Efektif','% Kehadiran']];
-  document.querySelectorAll('#evalBulananKelasBody tr').forEach(tr => {
-    const tds = tr.querySelectorAll('td');
-    if (tds.length >= 8) {
-      rowsBulanan.push(Array.from(tds).map(td => td.textContent.trim()));
-    }
-  });
-  if (rowsBulanan.length > 1) {
-    const wsBulanan = XLSX.utils.aoa_to_sheet(rowsBulanan);
-    XLSX.utils.book_append_sheet(wb, wsBulanan, 'Rekap Bulanan per Kelas');
-  }
-
   XLSX.writeFile(wb, `Evaluasi_Kehadiran.xlsx`);
   toast('Excel berhasil didownload', 'success');
 }
@@ -6726,57 +6639,6 @@ async function exportEvaluasiPDF() {
       y += 7;
       if (y > pageBottom) { pdf.addPage(); y = 20; drawTableHeader(); }
     });
-
-    // ── Halaman baru: tabel Rekap Bulanan per Kelas (BARU) --
-    // sebelumnya cuma ada di tampilan web & sheet kedua Excel, PDF-nya
-    // belum ikut menampilkan tabel ini sama sekali. Polanya disamakan
-    // persis dengan tabel ranking di atas (header berulang tiap ganti
-    // halaman, baris selang-seling warna, kolom % diberi warna ambang
-    // batas). ──
-    const bulananRows = Array.from(document.querySelectorAll('#evalBulananKelasBody tr'))
-      .map(tr => tr.querySelectorAll('td'))
-      .filter(tds => tds.length >= 8);
-    if (bulananRows.length) {
-      pdf.addPage();
-      y = 20;
-      const headersBulanan = ['Bulan','Kelas','Hadir','Terlambat','Sakit','Izin','Hari Efektif','% Kehadiran'];
-      const colWBulanan = [38, 20, 18, 22, 15, 15, 24, 24];
-      const drawTableHeaderBulanan = () => {
-        pdf.setFontSize(11); pdf.setTextColor(0,0,0);
-        pdf.text('Rekap Bulanan per Kelas', marginX, y);
-        y += 8;
-        pdf.setFontSize(9);
-        headersBulanan.forEach((h, i) => {
-          const x = colWBulanan.slice(0,i).reduce((a,b)=>a+b, marginX);
-          pdf.setFillColor(21,101,192);
-          pdf.setTextColor(255,255,255);
-          pdf.rect(x, y-4, colWBulanan[i], 7, 'F');
-          pdf.text(h, x+1, y);
-        });
-        y += 7;
-        pdf.setTextColor(0,0,0);
-      };
-      drawTableHeaderBulanan();
-      bulananRows.forEach((tds, idx) => {
-        const pctNum = parseInt(tds[7].textContent) || 0;
-        const vals = Array.from(tds).map(td => td.textContent.trim());
-        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colWBulanan.reduce((a,b)=>a+b,0), 7, 'F'); }
-        pdf.setTextColor(0,0,0);
-        vals.forEach((v, i) => {
-          const x = colWBulanan.slice(0,i).reduce((a,b)=>a+b, marginX);
-          if (i === vals.length - 1) {
-            const warna = pctNum >= 80 ? [46,125,50] : pctNum >= 60 ? [245,127,23] : [198,40,40];
-            pdf.setTextColor(...warna);
-          } else {
-            pdf.setTextColor(0,0,0);
-          }
-          pdf.text(v.substring(0,32), x+1, y);
-        });
-        y += 7;
-        if (y > pageBottom) { pdf.addPage(); y = 20; drawTableHeaderBulanan(); }
-      });
-    }
-
     pdf.save('Evaluasi_Kehadiran.pdf');
     toast('PDF berhasil didownload', 'success');
   } catch(e) { toast('Gagal: ' + e.message, 'error'); }
@@ -6873,10 +6735,7 @@ async function loadGuruDropdownMengajar() {
   const selModal = document.getElementById('jmGuru');
   if (selModal) selModal.innerHTML = '<option value="">-- Pilih Guru --</option>' + opts;
   const selRekap = document.getElementById('rmGuru');
-  // BARU: opsi "Semua Guru (Ringkasan)" -- menampilkan satu tabel ringkasan
-  // untuk semua guru sekaligus (lihat loadRekapMengajarSemuaGuru()), selain
-  // pilihan per guru satu-satu seperti sebelumnya.
-  if (selRekap) selRekap.innerHTML = '<option value="">-- Pilih Guru --</option><option value="ALL">📊 Semua Guru (Ringkasan)</option>' + opts;
+  if (selRekap) selRekap.innerHTML = '<option value="">-- Pilih Guru --</option>' + opts;
 }
 
 async function loadJamPelajaranSemua() {
@@ -7334,12 +7193,6 @@ async function loadRekapMengajar() {
     document.getElementById('rmEmptyState').style.display = 'block';
     return;
   }
-  // BARU: mode "Semua Guru (Ringkasan)" -- delegasikan ke fungsi terpisah,
-  // tampilan & datanya beda total dari mode satu guru di bawah ini.
-  if (idGuru === 'ALL') {
-    await loadRekapMengajarSemuaGuru();
-    return;
-  }
   const bulan = document.getElementById('rmBulan')?.value;
   const tahun = document.getElementById('rmTahun')?.value;
   const result = await api('mengajar', 'getRekapKehadiranGuru', { idGuru, bulan, tahun });
@@ -7347,18 +7200,10 @@ async function loadRekapMengajar() {
 
   document.getElementById('rmEmptyState').style.display = 'none';
   document.getElementById('rmContent').style.display = 'block';
-  // Pastikan tampilan satu-guru yang aktif (bukan sisa tampilan "Semua Guru"
-  // dari pilihan sebelumnya).
-  document.getElementById('rmSingleGuruWrap').style.display = '';
-  document.getElementById('rmSemuaGuruWrap').style.display = 'none';
-  // Simpan untuk dipakai fungsi export (nama guru + hasil mentah).
-  window._rmSingleGuruNama = APP.user.role === 'guru'
-    ? APP.user.nama
-    : (document.getElementById('rmGuru')?.selectedOptions?.[0]?.textContent?.trim() || result.guru?.nama || 'Guru');
-  window._rmSingleGuruResult = result;
 
   document.getElementById('rmPersen').textContent = result.persentaseKehadiran === null ? '-' : result.persentaseKehadiran + '%';
   document.getElementById('rmHadir').textContent = result.totalHadir;
+  document.getElementById('rmTelat').textContent = result.totalTelat;
   document.getElementById('rmIzin').textContent = result.totalIzin;
   document.getElementById('rmSakit').textContent = result.totalSakit;
   document.getElementById('rmAlpa').textContent = result.totalAlpa;
@@ -7371,10 +7216,10 @@ async function loadRekapMengajar() {
     rmChart = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: ['Hadir','Izin','Sakit','Alpa'],
+        labels: ['Hadir','Telat','Izin','Sakit','Alpa'],
         datasets: [{
-          data: [result.totalHadir, result.totalIzin, result.totalSakit, result.totalAlpa],
-          backgroundColor: ['#2E7D32','#1565C0','#6A1B9A','#C62828'],
+          data: [result.totalHadir, result.totalTelat, result.totalIzin, result.totalSakit, result.totalAlpa],
+          backgroundColor: ['#2E7D32','#F57F17','#1565C0','#6A1B9A','#C62828'],
           borderWidth: 2, borderColor: '#fff', hoverOffset: 6
         }]
       },
@@ -7385,10 +7230,10 @@ async function loadRekapMengajar() {
   const tbody = document.getElementById('rmRincianBody');
   if (!result.rincian.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada sesi pada periode ini</td></tr>'; return; }
   window._rmRincian = result.rincian;
-  const badgeMap = { Hadir: 'badge-success', Izin: 'badge-primary', Sakit: 'badge-primary', Alpa: 'badge-danger', 'Menunggu Persetujuan': 'badge-warning' };
+  const badgeMap = { Hadir: 'badge-success', Telat: 'badge-warning', Izin: 'badge-primary', Sakit: 'badge-primary', Alpa: 'badge-danger', 'Menunggu Persetujuan': 'badge-warning' };
   tbody.innerHTML = result.rincian.map(function(r, i) {
     // Tombol Izin/Sakit cuma relevan untuk sesi yang masih Alpa (belum ada
-    // catatan sama sekali) -- kalau sudah Hadir/Izin/Sakit/Menunggu
+    // catatan sama sekali) -- kalau sudah Hadir/Telat/Izin/Sakit/Menunggu
     // Persetujuan tidak perlu diubah lagi dari sini. Tombol ini juga
     // sengaja DISEMBUNYIKAN untuk akun kepsek: server (api/mengajar.js ->
     // inputKeteranganMengajar) cuma mengizinkan admin/TU atau guru yang
@@ -7411,246 +7256,6 @@ async function loadRekapMengajar() {
       + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' : '-') + '</td>'
       + '<td data-label="Aksi">' + aksi + '</td></tr>';
   }).join('');
-}
-
-// BARU: mode "Semua Guru (Ringkasan)" -- panggil getRekapKehadiranGuru untuk
-// SETIAP guru aktif (paralel lewat Promise.all) lalu tampilkan satu baris
-// ringkasan per guru. Tidak menampilkan rincian per sesi (itu tetap cuma
-// tersedia lewat mode per-guru) supaya tabelnya tetap ringkas & gampang
-// dibaca untuk puluhan guru sekaligus.
-async function loadRekapMengajarSemuaGuru() {
-  document.getElementById('rmEmptyState').style.display = 'none';
-  document.getElementById('rmContent').style.display = 'block';
-  document.getElementById('rmSingleGuruWrap').style.display = 'none';
-  document.getElementById('rmSemuaGuruWrap').style.display = '';
-
-  const tbody = document.getElementById('rmSemuaGuruBody');
-  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat data semua guru...</td></tr>';
-
-  const bulan = document.getElementById('rmBulan')?.value;
-  const tahun = document.getElementById('rmTahun')?.value;
-  const guruList = window._guruListMengajar || [];
-  if (!guruList.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data guru</td></tr>';
-    window._rmSemuaGuruData = [];
-    return;
-  }
-
-  const hasilPerGuru = await Promise.all(guruList.map(async g => {
-    try {
-      const r = await api('mengajar', 'getRekapKehadiranGuru', { idGuru: g.id, bulan, tahun });
-      return { guru: g, r };
-    } catch (e) {
-      return { guru: g, r: { success: false } };
-    }
-  }));
-
-  window._rmSemuaGuruData = hasilPerGuru
-    .filter(h => h.r && h.r.success)
-    .map(h => ({
-      nama: h.guru.nama,
-      totalSesi: h.r.totalSesiTerjadwal || 0,
-      hadir: h.r.totalHadir || 0,
-      izin: h.r.totalIzin || 0,
-      sakit: h.r.totalSakit || 0,
-      alpa: h.r.totalAlpa || 0,
-      menunggu: h.r.totalMenunggu || 0,
-      persen: h.r.persentaseKehadiran // bisa null kalau guru belum ada jadwal
-    }))
-    .sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
-
-  if (!window._rmSemuaGuruData.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = window._rmSemuaGuruData.map(d => {
-    const pctText  = d.persen === null ? '-' : d.persen + '%';
-    const pctColor = d.persen === null ? 'var(--text-muted)'
-      : d.persen >= 80 ? 'var(--success)' : d.persen >= 60 ? 'var(--warning)' : 'var(--danger)';
-    return `<tr>
-      <td data-label="Nama Guru" style="font-weight:600">${esc(d.nama)}</td>
-      <td data-label="Total Sesi">${d.totalSesi}</td>
-      <td data-label="Hadir"><span class="badge badge-success">${d.hadir}</span></td>
-      <td data-label="Izin"><span class="badge badge-primary">${d.izin}</span></td>
-      <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${d.sakit}</span></td>
-      <td data-label="Alpa"><span class="badge badge-danger">${d.alpa}</span></td>
-      <td data-label="Menunggu">${d.menunggu ? `<span class="badge badge-warning">${d.menunggu}</span>` : 0}</td>
-      <td data-label="% Kehadiran"><strong style="color:${pctColor}">${pctText}</strong></td>
-    </tr>`;
-  }).join('');
-}
-
-// ── EXPORT REKAP KEHADIRAN GURU (Excel & PDF) ────────────────────
-// Menyesuaikan isi export dengan mode yang sedang aktif: satu guru (detail
-// + rincian per sesi) atau semua guru (satu tabel ringkasan).
-function rmModeSemuaGuruAktif() {
-  return document.getElementById('rmSemuaGuruWrap')?.style.display !== 'none';
-}
-
-async function exportRekapMengajarExcel() {
-  if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
-  const wb = XLSX.utils.book_new();
-
-  if (rmModeSemuaGuruAktif()) {
-    const data = window._rmSemuaGuruData || [];
-    if (!data.length) { toast('Belum ada data untuk diexport', 'warning'); return; }
-    const rows = [['Nama Guru','Total Sesi','Hadir','Izin','Sakit','Alpa','Menunggu','% Kehadiran']];
-    data.forEach(d => rows.push([d.nama, d.totalSesi, d.hadir, d.izin, d.sakit, d.alpa, d.menunggu, d.persen === null ? '-' : d.persen + '%']));
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, 'Semua Guru');
-    XLSX.writeFile(wb, 'Rekap_Kehadiran_Guru_Semua.xlsx');
-  } else {
-    const result = window._rmSingleGuruResult;
-    if (!result) { toast('Belum ada data untuk diexport', 'warning'); return; }
-    const namaGuru = window._rmSingleGuruNama || 'Guru';
-    const ringkasan = [
-      ['Nama Guru', namaGuru],
-      ['% Kehadiran', result.persentaseKehadiran === null ? '-' : result.persentaseKehadiran + '%'],
-      ['Hadir', result.totalHadir],
-      ['Izin', result.totalIzin],
-      ['Sakit', result.totalSakit],
-      ['Alpa', result.totalAlpa],
-      ['Menunggu Persetujuan', result.totalMenunggu || 0],
-      ['Total Sesi', result.totalSesiTerjadwal]
-    ];
-    const wsRingkasan = XLSX.utils.aoa_to_sheet(ringkasan);
-    XLSX.utils.book_append_sheet(wb, wsRingkasan, 'Ringkasan');
-
-    const rowsRincian = [['Tanggal','Hari','Kelas','Mapel','Jam Ke','Status','Verifikasi']];
-    (result.rincian || []).forEach(r => {
-      rowsRincian.push([
-        r.tanggal, r.hari, r.kelas, r.mapel,
-        'Ke-' + r.jamKeMulai + (r.jamKeSelesai !== r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : ''),
-        r.status,
-        r.statusVerifikasi ? (r.statusVerifikasi + (r.jumlahSiswaTerverifikasi !== null ? ` (${r.jumlahSiswaTerverifikasi})` : '')) : '-'
-      ]);
-    });
-    const wsRincian = XLSX.utils.aoa_to_sheet(rowsRincian);
-    XLSX.utils.book_append_sheet(wb, wsRincian, 'Rincian Sesi');
-    XLSX.writeFile(wb, `Rekap_Kehadiran_${namaGuru.replace(/\s+/g,'_')}.xlsx`);
-  }
-  toast('Excel berhasil didownload', 'success');
-}
-
-async function exportRekapMengajarPDF() {
-  const isSemua = rmModeSemuaGuruAktif();
-  if (isSemua && !(window._rmSemuaGuruData || []).length) { toast('Belum ada data untuk diexport', 'warning'); return; }
-  if (!isSemua && !window._rmSingleGuruResult) { toast('Belum ada data untuk diexport', 'warning'); return; }
-
-  toast('Menyiapkan PDF...', 'info', 3000);
-  try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const marginX = 14, pageBottom = 195;
-    const bulanNama = document.getElementById('rmBulan')?.selectedOptions?.[0]?.textContent || '';
-    const tahun = document.getElementById('rmTahun')?.value || '';
-
-    pdf.setFontSize(16); pdf.setTextColor(21,101,192);
-    pdf.text('Rekap Kehadiran Guru Mengajar', marginX, 15);
-    pdf.setFontSize(9); pdf.setTextColor(90,90,90);
-    pdf.text(`Periode: ${bulanNama} ${tahun}`, marginX, 21);
-
-    if (isSemua) {
-      let y = 34;
-      const headers = ['Nama Guru','Total Sesi','Hadir','Izin','Sakit','Alpa','Menunggu','% Kehadiran'];
-      const colW = [58, 22, 18, 18, 18, 18, 24, 26];
-      const drawHeader = () => {
-        pdf.setFontSize(9);
-        headers.forEach((h, i) => {
-          const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-          pdf.setFillColor(21,101,192); pdf.setTextColor(255,255,255);
-          pdf.rect(x, y-4, colW[i], 7, 'F');
-          pdf.text(h, x+1, y);
-        });
-        y += 7; pdf.setTextColor(0,0,0);
-      };
-      drawHeader();
-      (window._rmSemuaGuruData || []).forEach((d, idx) => {
-        const pctText = d.persen === null ? '-' : d.persen + '%';
-        const vals = [d.nama, String(d.totalSesi), String(d.hadir), String(d.izin), String(d.sakit), String(d.alpa), String(d.menunggu), pctText];
-        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
-        vals.forEach((v, i) => {
-          const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-          if (i === vals.length - 1 && d.persen !== null) {
-            const warna = d.persen >= 80 ? [46,125,50] : d.persen >= 60 ? [245,127,23] : [198,40,40];
-            pdf.setTextColor(...warna);
-          } else {
-            pdf.setTextColor(0,0,0);
-          }
-          pdf.text(v.substring(0,26), x+1, y);
-        });
-        y += 7;
-        if (y > pageBottom) { pdf.addPage(); y = 20; drawHeader(); }
-      });
-      pdf.save('Rekap_Kehadiran_Guru_Semua.pdf');
-    } else {
-      const result = window._rmSingleGuruResult;
-      const namaGuru = window._rmSingleGuruNama || 'Guru';
-      pdf.text(`Guru: ${namaGuru}`, marginX, 26);
-
-      let y = 40;
-      pdf.setFontSize(10); pdf.setTextColor(60,60,60);
-      pdf.text('% Kehadiran', marginX, y);
-      const persenText = result.persentaseKehadiran === null ? '-' : result.persentaseKehadiran + '%';
-      const persenNum  = result.persentaseKehadiran || 0;
-      const warnaPersen = persenNum >= 80 ? [46,125,50] : persenNum >= 60 ? [245,127,23] : [198,40,40];
-      pdf.setFontSize(24); pdf.setTextColor(...warnaPersen);
-      pdf.text(persenText, marginX, y + 12);
-
-      const statusRincian = [
-        ['Hadir', result.totalHadir, [46,125,50]],
-        ['Izin', result.totalIzin, [21,101,192]],
-        ['Sakit', result.totalSakit, [106,27,154]],
-        ['Alpa', result.totalAlpa, [198,40,40]],
-        ['Menunggu', result.totalMenunggu || 0, [245,127,23]],
-        ['Total Sesi', result.totalSesiTerjadwal, [60,60,60]]
-      ];
-      let sx = 65;
-      statusRincian.forEach(([label, val, color]) => {
-        pdf.setFontSize(8); pdf.setTextColor(120,120,120);
-        pdf.text(label, sx, y);
-        pdf.setFontSize(14); pdf.setTextColor(...color);
-        pdf.text(String(val), sx, y + 9);
-        sx += 30;
-      });
-
-      // ── Halaman baru: rincian per sesi ──
-      pdf.addPage();
-      y = 20;
-      const headers = ['Tanggal','Hari','Kelas','Mapel','Jam Ke','Status','Verifikasi'];
-      const colW = [24, 22, 22, 42, 28, 32, 32];
-      const drawHeader = () => {
-        pdf.setFontSize(11); pdf.setTextColor(0,0,0);
-        pdf.text('Rincian Sesi Mengajar', marginX, y);
-        y += 8;
-        pdf.setFontSize(9);
-        headers.forEach((h, i) => {
-          const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-          pdf.setFillColor(21,101,192); pdf.setTextColor(255,255,255);
-          pdf.rect(x, y-4, colW[i], 7, 'F');
-          pdf.text(h, x+1, y);
-        });
-        y += 7; pdf.setTextColor(0,0,0);
-      };
-      drawHeader();
-      (result.rincian || []).forEach((r, idx) => {
-        const jamKe = 'Ke-' + r.jamKeMulai + (r.jamKeSelesai !== r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '');
-        const verifikasi = r.statusVerifikasi ? (r.statusVerifikasi + (r.jumlahSiswaTerverifikasi !== null ? ` (${r.jumlahSiswaTerverifikasi})` : '')) : '-';
-        const vals = [r.tanggal, r.hari, r.kelas, r.mapel, jamKe, r.status, verifikasi];
-        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
-        pdf.setTextColor(0,0,0);
-        vals.forEach((v, i) => {
-          const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-          pdf.text(String(v).substring(0,30), x+1, y);
-        });
-        y += 7;
-        if (y > pageBottom) { pdf.addPage(); y = 20; drawHeader(); }
-      });
-      pdf.save(`Rekap_Kehadiran_${namaGuru.replace(/\s+/g,'_')}.pdf`);
-    }
-    toast('PDF berhasil didownload', 'success');
-  } catch(e) { toast('Gagal: ' + e.message, 'error'); }
 }
 
 async function openModalKeteranganMengajar(idx) {

@@ -840,17 +840,6 @@ async function ringkasanLiveHariIni() {
     }));
   const pulangCepatHariIni = daftarPulangCepat.length;
 
-  // (BARU) Siswa yang sudah absen DATANG (Hadir/Terlambat) tapi jam_pulang
-  // masih kosong -- beda dari daftarPulangCepat di atas (yang jam_pulang-nya
-  // SUDAH terisi, cuma statusnya bukan 'Pulang' biasa). Ini murni "belum
-  // discan pulang sama sekali", dipakai dashboard admin/kepsek untuk
-  // menyorot siswa yang perlu dikejar guru piket -- lihat juga tab
-  // "🚶 Belum Absen Pulang" yang sama di scan.html.
-  const daftarBelumAbsenPulang = (absenHariIni || [])
-    .filter(a => (a.status_datang === 'Hadir' || a.status_datang === 'Terlambat') && !a.jam_pulang)
-    .map(a => ({ nama: a.nama_siswa, kelas: a.kelas, jamDatang: a.jam_datang }));
-  const belumAbsenPulangHariIni = daftarBelumAbsenPulang.length;
-
   const idSudahLapor = new Set((sesiPiketHariIni || []).map(s => s.id_guru));
   const daftarPiket = (jadwalPiket || []).map(p => ({
     namaGuru: p.nama_guru, jabatan: p.jabatan,
@@ -915,10 +904,7 @@ async function ringkasanLiveHariIni() {
       daftarSakitIzin,
       // (BARU) Lihat catatan daftarPulangCepat di atas.
       pulangCepat: pulangCepatHariIni,
-      daftarPulangCepat,
-      // (BARU) Lihat catatan daftarBelumAbsenPulang di atas.
-      belumAbsenPulang: belumAbsenPulangHariIni,
-      daftarBelumAbsenPulang
+      daftarPulangCepat
     },
     piket: daftarPiket,
     mengajar: { sedangMengajar, sudahSelesai, belumMulai }
@@ -951,7 +937,7 @@ async function ringkasanRekapPeriode(rentang) {
     { data: jadwalPiketAll },
     { data: sesiPiketRange }
   ] = await Promise.all([
-    supabase.from('absensi').select('tanggal,status_datang,nama_siswa,kelas,jam_pulang').gte('tanggal', start).lte('tanggal', end),
+    supabase.from('absensi').select('tanggal,status_datang').gte('tanggal', start).lte('tanggal', end),
     supabase.from('keterangan_absensi').select('tanggal,status').gte('tanggal', start).lte('tanggal', end),
     supabase.from('hari_kerja').select('tanggal').gte('tanggal', start).lte('tanggal', end),
     supabase.from('pengaturan_hari_kerja').select('*'),
@@ -1016,34 +1002,13 @@ async function ringkasanRekapPeriode(rentang) {
   }
   const kepatuhanPiket = Object.values(rekapGuru).sort((a, b) => a.namaGuru.localeCompare(b.namaGuru));
 
-  // (BARU) Riwayat siswa yang lupa absen pulang selama periode ini --
-  // dihitung per siswa (bukan cuma total angka) supaya admin/kepsek bisa
-  // lihat siapa saja yang SERING kejadian, bukan cuma sekali kelupaan.
-  // Hari ini (today) SENGAJA dikecualikan -- harinya belum tentu selesai,
-  // jadi belum adil disebut "lupa"; live count untuk hari berjalan sudah
-  // ada terpisah di ringkasanLiveHariIni() (kehadiranSiswa.belumAbsenPulang).
-  const lupaPulangMap = {};
-  (absenRange || []).forEach(a => {
-    if (a.tanggal === today) return;
-    if ((a.status_datang === 'Hadir' || a.status_datang === 'Terlambat') && !a.jam_pulang) {
-      const key = `${a.nama_siswa}|${a.kelas}`;
-      if (!lupaPulangMap[key]) lupaPulangMap[key] = { nama: a.nama_siswa, kelas: a.kelas, jumlah: 0 };
-      lupaPulangMap[key].jumlah++;
-    }
-  });
-  const daftarSiswaLupaPulang = Object.values(lupaPulangMap).sort((a, b) => b.jumlah - a.jumlah);
-  const lupaAbsenPulangTotal = daftarSiswaLupaPulang.reduce((sum, s) => sum + s.jumlah, 0);
-
   return {
     rentang, tanggalMulai: start, tanggalSelesai: end, jumlahHariSekolah,
     kehadiranSiswa: {
       totalSiswa: totalSiswa || 0, hadir: hadirTotal, terlambat: terlambatTotal,
-      sakit: sakitTotal, izin: izinTotal, alpha: alphaTotal, persentaseKehadiran,
-      // (BARU) Lihat catatan daftarSiswaLupaPulang di atas.
-      lupaAbsenPulang: lupaAbsenPulangTotal
+      sakit: sakitTotal, izin: izinTotal, alpha: alphaTotal, persentaseKehadiran
     },
-    kepatuhanPiket,
-    daftarSiswaLupaPulang
+    kepatuhanPiket
   };
 }
 

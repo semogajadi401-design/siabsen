@@ -350,6 +350,31 @@ async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh, tangg
     .from('siswa').select('nisn,nama,kelas').eq('id', idSiswa).maybeSingle();
   if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
 
+  // PERBAIKAN BUG: sebelumnya fungsi ini TIDAK PERNAH mengecek tabel
+  // `absensi` sama sekali -- jadi kalau siswa SUDAH tercatat Hadir/
+  // Terlambat lewat scan/checklist untuk tanggal ini, guru piket/admin
+  // tetap bisa "Input Keterangan" (Sakit/Izin/dst) untuk tanggal yang
+  // SAMA, menghasilkan DUA catatan yang saling bertentangan: Terlambat
+  // di `absensi` DAN Sakit/Izin di `keterangan_absensi` untuk hari yang
+  // sama. Di Evaluasi Kehadiran, dua-duanya ikut terhitung terpisah
+  // (lihat loadEvaluasi() di index.html), jadi satu hari terhitung 2x
+  // untuk siswa itu -- inilah yang terjadi pada laporan "siswa datang
+  // terlambat, tapi guru piket tetap input keterangan" sebelumnya.
+  // Sekarang: kalau siswa TERBUKTI sudah hadir secara fisik (ada
+  // jam_datang), tolak permintaan ini dan arahkan ke fitur yang memang
+  // dibuat untuk kasus "sempat hadir lalu pulang karena sakit/izin" --
+  // yaitu Tandai Pulang Cepat (tandaiPulangCepat) -- BUKAN diam-diam
+  // menimpa/menghapus data absensi yang sudah benar terverifikasi scan.
+  const { data: absenTglIni } = await supabase
+    .from('absensi').select('jam_datang,status_datang')
+    .eq('id_siswa', idSiswa).eq('tanggal', tglTarget).maybeSingle();
+  if (absenTglIni?.jam_datang) {
+    return {
+      success: false,
+      message: `${siswa.nama} sudah tercatat ${absenTglIni.status_datang} pukul ${absenTglIni.jam_datang} pada tanggal ini -- tidak bisa juga ditandai ${status}. Kalau siswa sempat hadir lalu harus pulang karena sakit/izin, gunakan fitur "Tandai Pulang Cepat", bukan Input Keterangan.`
+    };
+  }
+
   // Dipakai hanya untuk menentukan teks pesan balik (diperbarui/disimpan)
   // dan supaya baris yang diperbarui tetap mempertahankan id lamanya --
   // BUKAN satu-satunya penjaga terhadap duplikat (itu tugas upsert +

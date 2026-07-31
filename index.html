@@ -1059,6 +1059,32 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 </div>
               </div>
             </div>
+
+            <div style="margin-top:24px;padding-top:20px;border-top:1px dashed var(--border)">
+              <h4 style="font-size:.9rem;font-weight:700;margin-bottom:6px">Pengecualian per Hari + Kelas (opsional)</h4>
+              <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px">Pakai ini kalau cuma KELAS TERTENTU yang beda jamnya di hari tertentu (mis. Kamis kelas XII-1 pulang lebih cepat, kelas lain tetap jam biasa/pengecualian hari di atas). Kelas yang tidak dibuatkan pengecualian di sini otomatis ikut jam default/hari seperti biasa.</p>
+              <div id="jpKelasOverrideChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <select id="jpKelasOverrideHariBaru" class="form-control" style="max-width:160px"></select>
+                <select id="jpKelasOverrideKelasBaru" class="form-control" style="max-width:200px"></select>
+                <button class="btn btn-outline btn-sm" onclick="tambahPengecualianKelas()">+ Buat Pengecualian Kelas</button>
+              </div>
+              <div id="jpKelasOverrideEditor" style="display:none;margin-top:18px;padding:16px;background:var(--bg);border-radius:10px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                  <h4 style="font-size:.88rem;font-weight:700" id="jpKelasOverrideEditorTitle"></h4>
+                  <button class="btn btn-gray btn-sm" onclick="tutupPengecualianKelasEditor()">✕ Tutup</button>
+                </div>
+                <div class="table-responsive"><table>
+                  <thead><tr><th style="width:120px">Jam Ke</th><th>Jam Mulai</th><th>Jam Selesai</th><th style="width:60px"></th></tr></thead>
+                  <tbody id="jpKelasOverrideTableBody"></tbody>
+                </table></div>
+                <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+                  <button class="btn btn-gray btn-sm" onclick="tambahBarisPengecualianKelas()">+ Tambah Jam Ke</button>
+                  <button class="btn btn-primary btn-sm" onclick="simpanPengecualianKelas()">💾 Simpan Pengecualian Kelas</button>
+                  <button class="btn btn-danger btn-sm" onclick="hapusPengecualianKelas()">🗑 Hapus Pengecualian (kelas ini ikut jam hari biasa lagi)</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -6703,6 +6729,12 @@ let jpOverrideHariAktif = null; // hari yang sedang dibuka di editor pengecualia
 let jpOverrideRows = [];     // baris yang sedang diedit di editor pengecualian
 let jpDataSemua = [];        // seluruh jam_pelajaran dari server (semua hari, mentah)
 
+// BARU: pengecualian per Hari + Kelas (di atas pengecualian per Hari di
+// atas). jpKelasOverrides -- key `${hari}|${kelas}` -> [{jamKe,jamMulai,jamSelesai}, ...]
+let jpKelasOverrides = {};
+let jpKelasOverrideAktif = null; // { hari, kelas } yang sedang dibuka di editor, null = tertutup
+let jpKelasOverrideRows = [];
+
 // ── JAM PELAJARAN + JADWAL MENGAJAR (halaman admin) ─────────────────
 async function loadHalamanJadwalMengajar() {
   const pengaturanHari = await api('settings', 'getPengaturanHari');
@@ -6792,11 +6824,14 @@ async function loadJamPelajaranSemua() {
   const result = await api('mengajar', 'getJamPelajaran', {});
   jpDataSemua = result.success ? result.data : [];
   hitungDefaultDanOverride();
+  hitungKelasOverride();
   renderJamPelajaranTable();
   renderOverrideChips();
+  renderKelasOverrideChips();
   // Kalau editor pengecualian sedang terbuka utk hari yang ternyata sudah
   // tidak punya pengecualian lagi (baru saja dihapus), tutup otomatis.
   if (jpOverrideHariAktif && !jpOverrides[jpOverrideHariAktif]) tutupPengecualianEditor();
+  if (jpKelasOverrideAktif && !jpKelasOverrides[`${jpKelasOverrideAktif.hari}|${jpKelasOverrideAktif.kelas}`]) tutupPengecualianKelasEditor();
 }
 
 // Mengelompokkan data mentah per hari, lalu mencari "signature" jadwal yang
@@ -6807,8 +6842,15 @@ async function loadJamPelajaranSemua() {
 // yang justru belum pernah diisi).
 function hitungDefaultDanOverride() {
   const perHari = {};
+  // PERBAIKAN (pengecualian per Kelas): jpDataSemua sekarang bisa berisi
+  // campuran baris default (kelas='') DAN baris override khusus 1 kelas
+  // untuk hari+jam_ke yang sama. Perhitungan "jam default per hari" di
+  // bawah ini HARUS cuma melihat baris default (!j.kelas) -- kalau ikut
+  // baris override kelas, satu hari bisa punya >1 baris untuk jam_ke yang
+  // sama dan merusak signature-nya. Baris override dihitung terpisah lewat
+  // hitungKelasOverride().
   HARI_MENGAJAR.forEach(h => {
-    perHari[h] = jpDataSemua.filter(j => j.hari === h).sort((a, b) => a.jamKe - b.jamKe)
+    perHari[h] = jpDataSemua.filter(j => j.hari === h && !j.kelas).sort((a, b) => a.jamKe - b.jamKe)
       .map(j => ({ jamKe: j.jamKe, jamMulai: j.jamMulai, jamSelesai: j.jamSelesai }));
   });
 
@@ -6947,6 +6989,112 @@ async function hapusPengecualianHari() {
   const rows = jpDefaultRows.map(r => ({ hari: jpOverrideHariAktif, jamKe: r.jamKe, jamMulai: r.jamMulai, jamSelesai: r.jamSelesai }));
   const result = await api('mengajar', 'simpanJamPelajaran', { rows });
   if (result.success) { toast('Pengecualian dihapus, hari ini kembali memakai jam default', 'success'); tutupPengecualianEditor(); await loadJamPelajaranSemua(); }
+  else toast(result.message, 'error');
+}
+
+// ── PENGECUALIAN JAM PELAJARAN PER HARI + KELAS (BARU) ──────────────
+// Beda dengan pengecualian per Hari di atas (yang berlaku utk SEMUA kelas
+// di hari itu), ini cuma berlaku utk 1 kelas tertentu di 1 hari tertentu --
+// disimpan sebagai baris jam_pelajaran dengan kolom kelas terisi (lihat
+// simpanJamPelajaranKelas() di api/mengajar.js).
+function hitungKelasOverride() {
+  jpKelasOverrides = {};
+  jpDataSemua.filter(j => j.kelas).forEach(j => {
+    const key = `${j.hari}|${j.kelas}`;
+    if (!jpKelasOverrides[key]) jpKelasOverrides[key] = [];
+    jpKelasOverrides[key].push({ jamKe: j.jamKe, jamMulai: j.jamMulai, jamSelesai: j.jamSelesai });
+  });
+  Object.keys(jpKelasOverrides).forEach(key => jpKelasOverrides[key].sort((a, b) => a.jamKe - b.jamKe));
+}
+
+function renderKelasOverrideChips() {
+  const wrap = document.getElementById('jpKelasOverrideChips'); if (!wrap) return;
+  const keys = Object.keys(jpKelasOverrides);
+  wrap.innerHTML = keys.length
+    ? keys.map(key => {
+        const [hari, kelas] = key.split('|');
+        return `<span class="badge badge-primary" style="cursor:pointer;padding:8px 12px" onclick="bukaPengecualianKelasEditor('${hari}','${esc(kelas)}')" title="Klik untuk lihat/ubah">📌 ${hari} · ${esc(kelas)} (${jpKelasOverrides[key].length} jam pelajaran) ✏️</span>`;
+      }).join('')
+    : '<span style="font-size:.82rem;color:var(--text-muted)">Belum ada pengecualian per kelas -- semua kelas memakai jam hari biasa.</span>';
+
+  const selHari = document.getElementById('jpKelasOverrideHariBaru');
+  if (selHari) selHari.innerHTML = HARI_MENGAJAR.map(h => `<option value="${h}">${h}</option>`).join('');
+
+  const selKelas = document.getElementById('jpKelasOverrideKelasBaru');
+  if (selKelas) {
+    const daftarKelas = APP.kelasList || [];
+    selKelas.innerHTML = daftarKelas.length
+      ? daftarKelas.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
+      : '<option value="">(belum ada data kelas)</option>';
+  }
+}
+
+function tambahPengecualianKelas() {
+  const hari = document.getElementById('jpKelasOverrideHariBaru').value;
+  const kelas = document.getElementById('jpKelasOverrideKelasBaru').value;
+  if (!hari || !kelas) { toast('Pilih hari dan kelas dulu', 'warning'); return; }
+  const existingKey = `${hari}|${kelas}`;
+  if (jpKelasOverrides[existingKey]) { bukaPengecualianKelasEditor(hari, kelas); return; }
+  // Mulai dari salinan jam yang BERLAKU utk hari itu sekarang (pengecualian
+  // per Hari kalau ada, kalau tidak jam default) supaya admin tinggal ubah
+  // bagian yang perlu beda saja utk kelas ini.
+  const jamAcuan = jpOverrides[hari] || jpDefaultRows;
+  if (!jamAcuan.length) { toast('Isi dulu jam pelajaran default (atau pengecualian hari) di atas sebagai titik awal', 'warning'); return; }
+  jpKelasOverrideRows = jamAcuan.map(r => ({ ...r }));
+  jpKelasOverrideAktif = { hari, kelas };
+  document.getElementById('jpKelasOverrideEditorTitle').textContent = `Pengecualian: ${hari} · ${kelas}`;
+  document.getElementById('jpKelasOverrideEditor').style.display = 'block';
+  renderKelasOverrideTable();
+}
+
+function bukaPengecualianKelasEditor(hari, kelas) {
+  jpKelasOverrideAktif = { hari, kelas };
+  jpKelasOverrideRows = (jpKelasOverrides[`${hari}|${kelas}`] || []).map(r => ({ ...r }));
+  document.getElementById('jpKelasOverrideEditorTitle').textContent = `Pengecualian: ${hari} · ${kelas}`;
+  document.getElementById('jpKelasOverrideEditor').style.display = 'block';
+  renderKelasOverrideTable();
+}
+
+function tutupPengecualianKelasEditor() {
+  jpKelasOverrideAktif = null;
+  jpKelasOverrideRows = [];
+  const el = document.getElementById('jpKelasOverrideEditor');
+  if (el) el.style.display = 'none';
+}
+
+function renderKelasOverrideTable() {
+  const tbody = document.getElementById('jpKelasOverrideTableBody'); if (!tbody) return;
+  tbody.innerHTML = jpKelasOverrideRows.map((r, i) => `<tr>
+    <td>Jam ke-${r.jamKe}</td>
+    <td><input type="time" class="form-control" style="padding:6px 8px" value="${r.jamMulai||''}" onchange="jpKelasOverrideRows[${i}].jamMulai=this.value"></td>
+    <td><input type="time" class="form-control" style="padding:6px 8px" value="${r.jamSelesai||''}" onchange="jpKelasOverrideRows[${i}].jamSelesai=this.value"></td>
+    <td>${i===jpKelasOverrideRows.length-1 ? `<button class="btn btn-danger btn-sm" onclick="hapusBarisPengecualianKelas()">🗑</button>` : ''}</td>
+  </tr>`).join('');
+}
+function tambahBarisPengecualianKelas() {
+  const nextJamKe = jpKelasOverrideRows.length ? Math.max(...jpKelasOverrideRows.map(r => r.jamKe)) + 1 : 1;
+  jpKelasOverrideRows.push({ jamKe: nextJamKe, jamMulai: '', jamSelesai: '' });
+  renderKelasOverrideTable();
+}
+function hapusBarisPengecualianKelas() { jpKelasOverrideRows.pop(); renderKelasOverrideTable(); }
+
+async function simpanPengecualianKelas() {
+  if (!jpKelasOverrideAktif) return;
+  if (!jpKelasOverrideRows.length) { toast('Minimal harus ada 1 baris jam pelajaran', 'warning'); return; }
+  for (const r of jpKelasOverrideRows) { if (!r.jamMulai || !r.jamSelesai) { toast('Jam mulai & selesai wajib diisi di semua baris', 'warning'); return; } }
+  const { hari, kelas } = jpKelasOverrideAktif;
+  const rows = jpKelasOverrideRows.map(r => ({ jamKe: r.jamKe, jamMulai: r.jamMulai, jamSelesai: r.jamSelesai }));
+  const result = await api('mengajar', 'simpanJamPelajaranKelas', { hari, kelas, rows });
+  if (result.success) { toast(result.message, 'success'); tutupPengecualianKelasEditor(); await loadJamPelajaranSemua(); }
+  else toast(result.message, 'error');
+}
+
+async function hapusPengecualianKelas() {
+  if (!jpKelasOverrideAktif) return;
+  const { hari, kelas } = jpKelasOverrideAktif;
+  if (!confirm(`Hapus pengecualian untuk ${kelas} di hari ${hari}? Kelas ini akan kembali memakai jam hari biasa.`)) return;
+  const result = await api('mengajar', 'hapusJamPelajaranKelas', { hari, kelas });
+  if (result.success) { toast(result.message, 'success'); tutupPengecualianKelasEditor(); await loadJamPelajaranSemua(); }
   else toast(result.message, 'error');
 }
 

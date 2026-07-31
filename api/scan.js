@@ -8,7 +8,9 @@ const {
   // ── TAMBAHAN BARU (perbaikan performa scan siswa) ──
   fetchJamPulangOverride, computeJamPulangEfektif,
   // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
-  tanggalBesok, hariBesok
+  tanggalBesok, hariBesok,
+  // ── TAMBAHAN BARU (pengecualian jam pelajaran per Hari + Kelas) ──
+  buatResolverJamPelajaran
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -1148,15 +1150,17 @@ async function getAktivitasGuruHariIni() {
       .select('id,id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
       .eq('hari', hari),
     supabase.from('jam_pelajaran')
-      .select('jam_ke,jam_mulai,jam_selesai')
+      // BARU: ikut ambil `kelas` supaya pengecualian per Hari+Kelas ikut
+      // terpakai di sini (bukan cuma baris default) -- lihat
+      // buatResolverJamPelajaran() di api/_db.js.
+      .select('jam_ke,jam_mulai,jam_selesai,kelas')
       .eq('hari', hari).order('jam_ke'),
     supabase.from('absensi_mengajar')
       .select('id_jadwal_mengajar,nama_guru,kelas,mapel,jam_scan,status,jumlah_siswa_terverifikasi,status_verifikasi')
       .eq('tanggal', today)
   ]);
 
-  const jpMap = {};
-  (jamPelajaranHariIni || []).forEach(j => { jpMap[j.jam_ke] = j; });
+  const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni);
   const tercatatMap = {};
   (absensiMengajarHariIni || []).forEach(a => { tercatatMap[a.id_jadwal_mengajar] = a; });
 
@@ -1164,8 +1168,8 @@ async function getAktivitasGuruHariIni() {
   const belumMengajar  = [];
 
   (jadwalHariIni || []).forEach(j => {
-    const jpMulai   = jpMap[j.jam_ke_mulai];
-    const jpSelesai = jpMap[j.jam_ke_selesai] || jpMulai;
+    const jpMulai   = resolveJp(j.jam_ke_mulai, j.kelas);
+    const jpSelesai = resolveJp(j.jam_ke_selesai, j.kelas) || jpMulai;
     const jamMulai   = jpMulai   ? jpMulai.jam_mulai     : null;
     const jamSelesai = jpSelesai ? jpSelesai.jam_selesai : null;
 
@@ -1265,16 +1269,17 @@ async function getJadwalUntukTanggal(tanggal, hari) {
       .select('id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
       .eq('hari', hari),
     supabase.from('jam_pelajaran')
-      .select('jam_ke,jam_mulai,jam_selesai')
+      // BARU: ikut ambil `kelas` supaya pengecualian per Hari+Kelas ikut
+      // terpakai (lihat catatan sama di getAktivitasGuruHariIni() di atas).
+      .select('jam_ke,jam_mulai,jam_selesai,kelas')
       .eq('hari', hari).order('jam_ke')
   ]);
 
-  const jpMap = {};
-  (jamPelajaran || []).forEach(j => { jpMap[j.jam_ke] = j; });
+  const resolveJp = buatResolverJamPelajaran(jamPelajaran);
 
   const jadwalMengajarHasil = (jadwalMengajar || []).map(j => {
-    const jpMulai   = jpMap[j.jam_ke_mulai];
-    const jpSelesai = jpMap[j.jam_ke_selesai] || jpMulai;
+    const jpMulai   = resolveJp(j.jam_ke_mulai, j.kelas);
+    const jpSelesai = resolveJp(j.jam_ke_selesai, j.kelas) || jpMulai;
     return {
       namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel,
       jamMulai:   jpMulai   ? jpMulai.jam_mulai     : null,

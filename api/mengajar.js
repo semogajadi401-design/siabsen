@@ -23,7 +23,7 @@ const AKSI_ADMIN_SAJA = new Set([
   // BARU: pengecualian jam pelajaran per Hari + Kelas
   'simpanJamPelajaranKelas', 'hapusJamPelajaranKelas',
   'tambahJadwalMengajar', 'editJadwalMengajar', 'hapusJadwalMengajar',
-  'importJadwalMengajar',
+  'importJadwalMengajar', 'resetJadwalMengajarHari',
   'hapusKeteranganMengajar',
   'resetSemua'
 ]);
@@ -61,6 +61,9 @@ const handler = async (req, res) => {
     if (action === 'editJadwalMengajar')    return res.json(await editJadwalMengajar(params));
     if (action === 'hapusJadwalMengajar')   return res.json(await hapusJadwalMengajar(params));
     if (action === 'importJadwalMengajar')  return res.json(await importJadwalMengajar(params));
+    // BARU: reset semua jadwal mengajar utk SATU hari saja (tombol "Reset
+    // Jadwal Hari Ini" di tab hari yang sedang aktif)
+    if (action === 'resetJadwalMengajarHari') return res.json(await resetJadwalMengajarHari(params));
 
     if (action === 'scanSesiMengajar')      return res.json(await scanSesiMengajar({ ...params, guruIdTerverifikasi }));
     if (action === 'scanSiswaMapel')        return res.json(await scanSiswaMapel(params));
@@ -313,6 +316,58 @@ async function hapusJadwalMengajar({ id }) {
   const { error } = await supabase.from('jadwal_mengajar').delete().eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Jadwal mengajar berhasil dihapus' };
+}
+
+// ── RESET JADWAL MENGAJAR PER HARI (BARU) ─────────────────────────
+// Dipakai tombol "Reset Jadwal Hari Ini" di tab hari yang sedang aktif
+// (menu Jadwal Mengajar Guru) -- hapus SEMUA baris jadwal_mengajar utk 1
+// hari itu saja, hari lain tidak tersentuh.
+//
+// Sama seperti resetSemua() di bawah, urutan hapus WAJIB anak dulu baru
+// induk supaya tidak kena FK constraint (kehadiran_siswa_mapel ->
+// absensi_mengajar -> jadwal_mengajar, dan keterangan_mengajar ->
+// jadwal_mengajar) -- BEDANYA di sini discope ke jadwal_mengajar milik
+// hari yang dikirim saja, bukan seluruh tabel. Riwayat absensi/keterangan
+// mengajar yang sudah tercatat utk jadwal hari itu (mis. bulan lalu) IKUT
+// terhapus -- ini konsekuensi wajar dari "reset jadwal hari ini", sama
+// seperti semantik resetSemua() yang sudah ada, jadi sengaja tidak dibuat
+// beda perilakunya.
+async function resetJadwalMengajarHari({ hari }) {
+  if (!hari) return { success: false, message: 'Hari wajib diisi' };
+
+  const { data: jadwalHariIni, error: eSel } = await supabase
+    .from('jadwal_mengajar').select('id').eq('hari', hari);
+  if (eSel) return { success: false, message: 'Gagal membaca jadwal mengajar: ' + eSel.message };
+
+  const idJadwal = (jadwalHariIni || []).map(j => j.id);
+  if (idJadwal.length === 0) {
+    return { success: true, message: `Tidak ada jadwal mengajar di hari ${hari} untuk dihapus`, jumlahDihapus: 0 };
+  }
+
+  const { data: absensiHariIni, error: eSelAbsensi } = await supabase
+    .from('absensi_mengajar').select('id').in('id_jadwal_mengajar', idJadwal);
+  if (eSelAbsensi) return { success: false, message: 'Gagal membaca absensi mengajar: ' + eSelAbsensi.message };
+  const idAbsensi = (absensiHariIni || []).map(a => a.id);
+
+  if (idAbsensi.length) {
+    const { error: e1 } = await supabase.from('kehadiran_siswa_mapel').delete().in('id_absensi_mengajar', idAbsensi);
+    if (e1) return { success: false, message: 'Gagal hapus riwayat verifikasi kehadiran siswa per mapel: ' + e1.message };
+  }
+
+  const { error: e2 } = await supabase.from('absensi_mengajar').delete().in('id_jadwal_mengajar', idJadwal);
+  if (e2) return { success: false, message: 'Gagal hapus riwayat absensi mengajar guru: ' + e2.message };
+
+  const { error: e3 } = await supabase.from('keterangan_mengajar').delete().in('id_jadwal_mengajar', idJadwal);
+  if (e3) return { success: false, message: 'Gagal hapus keterangan izin/sakit mengajar: ' + e3.message };
+
+  const { error: e4 } = await supabase.from('jadwal_mengajar').delete().eq('hari', hari);
+  if (e4) return { success: false, message: 'Gagal hapus jadwal mengajar: ' + e4.message };
+
+  return {
+    success: true,
+    message: `Jadwal mengajar hari ${hari} berhasil dihapus (${idJadwal.length} jadwal)`,
+    jumlahDihapus: idJadwal.length
+  };
 }
 
 // importJadwalMengajar: dipanggil setelah frontend parse file Excel jadi

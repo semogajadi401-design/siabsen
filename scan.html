@@ -1011,6 +1011,15 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 }
 .libur-game-pad button:active{background:var(--accent-soft)}
 .libur-game-hint{font-size:.72rem;color:var(--text-muted)}
+/* BARU: di layar sentuh (HP/tablet), ular dikendalikan pakai swipe
+   langsung di atas canvas (lihat initLiburGame -> event touchstart/
+   touchmove/touchend), jadi tombol panah di bawah canvas jadi mubazir
+   dan malah bikin permainan berasa kaku. Disembunyikan untuk pointer
+   kasar (touch); tetap tampil sebagai kendali fallback untuk pointer
+   halus (mouse/trackpad, mis. kalau dibuka di desktop). */
+@media (pointer: coarse){
+  .libur-game-pad{display:none}
+}
 
 /* ── BANNER JAM OPERASIONAL BERAKHIR (Mode Rekap Harian) ──
    Background hijau berkedip PELAN -- dibuat dengan animasi antara dua
@@ -1974,7 +1983,7 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         <button data-dir="right">▶</button>
       </div>
     </div>
-    <div class="libur-game-hint" id="liburGameHint">Ketuk layar / panah keyboard untuk mulai</div>
+    <div class="libur-game-hint" id="liburGameHint">Geser layar / panah keyboard untuk mulai</div>
   </div>
 </div>
 
@@ -7719,11 +7728,46 @@ function initLiburGame() {
     if (dir) { e.preventDefault(); lgSetDir(dir); lgEnsureRunning(); }
   });
 
-  // Kontrol sentuh (tombol panah di layar) -- utama untuk kiosk sentuh/tablet.
+  // Kontrol sentuh (tombol panah di layar) -- fallback untuk pointer
+  // halus (mouse). Di HP/tablet (pointer kasar) tombol ini disembunyikan
+  // lewat CSS (lihat @media (pointer: coarse)) karena kendali utamanya
+  // swipe, lihat blok touchstart/touchmove/touchend di bawah.
   document.getElementById('liburGamePad').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-dir]');
     if (!btn) return;
     lgSetDir(btn.dataset.dir);
+    lgEnsureRunning();
+  });
+
+  // Kontrol swipe -- BARU. SEBELUMNYA di HP cuma bisa lewat 4 tombol
+  // panah kecil di bawah canvas, yang kaku/kurang responsif buat main
+  // sambil gerak cepat. Sekarang geser jari di atas canvas ke arah mana
+  // pun langsung dibaca sebagai belokan, seperti game ular pada umumnya
+  // di HP. Ambang batas (LG_SWIPE_MIN) dibuat kecil supaya tetap gesit,
+  // dan dibandingkan sumbu X vs Y untuk tentukan arah dominan swipe-nya.
+  let lgTouchStartX = 0, lgTouchStartY = 0;
+  const LG_SWIPE_MIN = 18; // px, ambang minimum supaya tap biasa tidak kebaca sebagai swipe
+  canvas.addEventListener('touchstart', (e) => {
+    if (!e.touches || !e.touches.length) return;
+    lgTouchStartX = e.touches[0].clientX;
+    lgTouchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault(); // cegah synthetic click ganda setelah touchend
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - lgTouchStartX;
+    const dy = t.clientY - lgTouchStartY;
+    if (Math.abs(dx) < LG_SWIPE_MIN && Math.abs(dy) < LG_SWIPE_MIN) {
+      // Geseran terlalu kecil -- anggap ketukan biasa (mulai/ulang game).
+      lgEnsureRunning();
+      return;
+    }
+    const dir = Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? 'right' : 'left')
+      : (dy > 0 ? 'down' : 'up');
+    lgSetDir(dir);
     lgEnsureRunning();
   });
 
@@ -7757,7 +7801,7 @@ function lgResetGame() {
   lgSpawnFood();
   document.getElementById('liburGameSkor').textContent = '0';
   document.getElementById('liburGameRekor').textContent = lgGetRekor();
-  document.getElementById('liburGameHint').textContent = 'Ketuk layar / panah keyboard untuk mulai';
+  document.getElementById('liburGameHint').textContent = 'Geser layar / panah keyboard untuk mulai';
   lgDraw();
 }
 

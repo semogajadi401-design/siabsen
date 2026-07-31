@@ -1665,6 +1665,31 @@ body.is-offline .header{ top:36px; }
   font-size:.76rem;color:#92400E;background:#FEF3C7;
   border-radius:8px;padding:6px 9px;margin-bottom:10px;font-weight:600;
 }
+/* BARU: accordion per kelas untuk jadwal mengajar besok/hari ini --
+   gantikan daftar memanjang urut jam yang susah dipindai (lihat
+   renderJadwalMengajarGrouped()). Tertutup default (kecuali kelas
+   pertama) supaya ringkas, guru tinggal buka kelasnya sendiri. */
+.bsp-kelas-group{margin-bottom:8px}
+.bsp-kelas-group:last-child{margin-bottom:0}
+.bsp-kelas-group summary{
+  display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
+  background:rgba(255,255,255,.85);border-radius:10px;padding:9px 11px;
+  font-size:.81rem;font-weight:800;color:#3730A3;
+  -webkit-tap-highlight-color:transparent;
+}
+.bsp-kelas-group summary::-webkit-details-marker{display:none}
+.bsp-kelas-chevron{font-size:.6rem;color:#818CF8;transition:transform .15s;flex-shrink:0}
+.bsp-kelas-group[open] > summary .bsp-kelas-chevron{transform:rotate(90deg)}
+.bsp-kelas-label{flex:1}
+.bsp-kelas-count{
+  font-size:.66rem;font-weight:700;color:#4F46E5;background:#E0E7FF;
+  border-radius:20px;padding:3px 9px;white-space:nowrap;flex-shrink:0;
+}
+.bsp-kelas-body{padding:8px 2px 2px 6px}
+@media(max-width:520px){
+  .bsp-kelas-group summary{padding:10px 12px;font-size:.83rem}
+  .bsp-kelas-count{font-size:.68rem;padding:3px 8px}
+}
 @media(max-width:900px){
   /* Di HP, .side-rail jadi flex baris -- paksa panel ini full lebar
      supaya tidak berdesakan sejajar dengan elemen lain & tetap terbaca. */
@@ -5144,6 +5169,48 @@ let _rhSideRailModeTerakhir = null;
 //                   semalam, hanya labelnya yang diganti relevan), lewat
 //                   fetchJadwalHariIni().
 // Lihat masukModeRekapHarian()/masukModeMenungguMulai() untuk pemanggil.
+// ── RENDER JADWAL MENGAJAR TERKELOMPOK PER KELAS (BARU) ─────────────
+// SEBELUMNYA: jadwalMengajar (piket besok / hari ini) dirender sebagai
+// SATU daftar memanjang urut jam, tanpa dikelompokkan -- untuk sekolah
+// dengan banyak kelas (12+) daftar ini jadi sangat panjang & susah
+// dipindai (guru harus scroll & baca satu per satu untuk cari kelasnya
+// sendiri, terutama di HP). Sekarang dikelompokkan per kelas (accordion,
+// tertutup kecuali kelas pertama) supaya ringkas dipindai -- guru
+// tinggal cari kelasnya, baru dibuka untuk lihat jam & mapel di kelas
+// itu. Dipakai bersama oleh renderBesokSideRail() & renderLiburBesokInfo()
+// supaya tidak dobel logic.
+function bandingKelasNatural(a, b) {
+  const na = parseInt(a, 10), nb = parseInt(b, 10);
+  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+  return String(a).localeCompare(String(b), 'id', { numeric: true });
+}
+
+function renderJadwalMengajarGrouped(jadwal) {
+  const grup = {};
+  jadwal.forEach(g => {
+    const k = g.kelas || '-';
+    (grup[k] = grup[k] || []).push(g);
+  });
+  const kelasList = Object.keys(grup).sort(bandingKelasNatural);
+  kelasList.forEach(k => grup[k].sort((a, b) => (a.jamMulai || '').localeCompare(b.jamMulai || '')));
+
+  return kelasList.map((k, i) => `
+    <details class="bsp-kelas-group"${i === 0 ? ' open' : ''}>
+      <summary>
+        <span class="bsp-kelas-chevron">▶</span>
+        <span class="bsp-kelas-label">Kelas ${esc(k)}</span>
+        <span class="bsp-kelas-count">${grup[k].length} mapel</span>
+      </summary>
+      <div class="bsp-kelas-body">
+        ${grup[k].map(g => `
+          <div class="bsp-row">
+            <b>${esc(g.mapel)}</b> — ${esc(g.namaGuru)}
+            <span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span>
+          </div>`).join('')}
+      </div>
+    </details>`).join('');
+}
+
 async function renderBesokSideRail(mode) {
   mode = mode === 'hariini' ? 'hariini' : 'besok';
   const elHeadIcon  = document.getElementById('bsprHeadIcon');
@@ -5192,7 +5259,7 @@ async function renderBesokSideRail(mode) {
 
     const jadwal = r.jadwalMengajar || [];
     elJadwal.innerHTML = jadwal.length
-      ? jadwal.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)})<span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
+      ? renderJadwalMengajarGrouped(jadwal)
       : `<div class="bsp-empty">Belum ada jadwal mengajar untuk ${esc(labelHari.toLowerCase())}.</div>`;
   } catch (e) {}
 }
@@ -5249,7 +5316,7 @@ async function renderLiburBesokInfo() {
 
     const jadwal = r.jadwalMengajar || [];
     elJadwal.innerHTML = jadwal.length
-      ? jadwal.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)})<span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
+      ? renderJadwalMengajarGrouped(jadwal)
       : `<div class="bsp-empty">Belum ada jadwal mengajar untuk besok.</div>`;
   } catch (e) {
     panel.style.display = 'none';

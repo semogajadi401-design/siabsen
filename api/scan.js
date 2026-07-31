@@ -117,7 +117,7 @@ async function getStatus() {
 
   const hariAktif = await isHariKerja(hari);
   if (!hariAktif)
-    return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} bukan hari sekolah` };
+    return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} - Sekolah libur, sistem pun diliburkan supaya bisa beristirahat sejenak 😄` };
 
   const semester = await getSemesterAktif();
   if (!semester)

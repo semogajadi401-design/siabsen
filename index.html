@@ -617,6 +617,37 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 }
 @media print{body>*:not(#printArea){display:none!important}#printArea{display:block!important}}
 #printArea{display:none}
+
+/* Hint jam pelajaran di modal Tambah/Edit Jadwal Mengajar -- muncul saat
+   kelas yang dipilih punya pengecualian jam sendiri di hari itu, supaya
+   admin sadar kenapa jam ke Mulai/Selesai berubah otomatis. */
+@keyframes jmHintPop{from{opacity:0;transform:translateY(-4px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.jm-jam-hint{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:12px;margin:-6px 0 14px;
+  font-size:.8rem;font-weight:600;line-height:1.35;
+  animation:jmHintPop .22s ease;
+}
+.jm-jam-hint .jm-jam-hint-icon{
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:50%;font-size:.85rem;
+}
+.jm-jam-hint.jm-hint-kelas{
+  background:linear-gradient(135deg,#E0F7FA 0%,#E1F5FE 100%);
+  border:1.5px solid var(--accent);color:var(--accent-dark);
+  box-shadow:0 2px 8px rgba(0,188,212,.15);
+}
+.jm-jam-hint.jm-hint-kelas .jm-jam-hint-icon{background:var(--accent);color:#fff}
+.jm-jam-hint.jm-hint-hari{
+  background:linear-gradient(135deg,#FFF8E1 0%,#FFFDE7 100%);
+  border:1.5px solid var(--warning);color:#8a5a00;
+  box-shadow:0 2px 8px rgba(245,127,23,.12);
+}
+.jm-jam-hint.jm-hint-hari .jm-jam-hint-icon{background:var(--warning);color:#fff}
+.jm-jam-hint.jm-hint-kosong{
+  background:var(--danger-light);border:1.5px dashed var(--danger);color:var(--danger);
+}
+.jm-jam-hint.jm-hint-kosong .jm-jam-hint-icon{background:var(--danger);color:#fff}
 </style>
 </head>
 <body>
@@ -2379,11 +2410,12 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <input type="hidden" id="jmId">
       <div class="form-group"><label>Guru</label><select class="form-control" id="jmGuru"><option value="">-- Pilih Guru --</option></select></div>
       <div class="form-group"><label>Hari</label><select class="form-control" id="jmHari" onchange="populateJamPelajaranOptionsJM()"></select></div>
+      <div class="form-group"><label>Kelas</label><select class="form-control" id="jmKelas" onchange="populateJamPelajaranOptionsJM()"></select></div>
       <div style="display:flex;gap:10px">
         <div class="form-group" style="flex:1"><label>Jam Ke Mulai</label><select class="form-control" id="jmJamMulai"></select></div>
         <div class="form-group" style="flex:1"><label>Jam Ke Selesai</label><select class="form-control" id="jmJamSelesai"><option value="">-- sama seperti Jam Mulai --</option></select></div>
       </div>
-      <div class="form-group"><label>Kelas</label><select class="form-control" id="jmKelas"></select></div>
+      <div id="jmJamHint" style="font-size:.78rem;color:var(--text-muted);margin:-8px 0 12px"></div>
       <div class="form-group"><label>Mapel</label><input type="text" class="form-control" id="jmMapel" placeholder="Contoh: Matematika"></div>
     </div>
     <div class="modal-footer">
@@ -7270,20 +7302,42 @@ async function loadJadwalMengajar() {
 function populateJamPelajaranOptionsJM(preselectMulai, preselectSelesai) {
   const selMulaiEl = document.getElementById('jmJamMulai');
   const selSelesaiEl = document.getElementById('jmJamSelesai');
+  const hintEl = document.getElementById('jmJamHint');
   const hari = document.getElementById('jmHari').value;
-  // Kalau dipanggil tanpa argumen (mis. dari onchange #jmHari), pertahankan
+  const kelas = document.getElementById('jmKelas').value;
+  // Kalau dipanggil tanpa argumen (mis. dari onchange #jmHari/#jmKelas), pertahankan
   // pilihan yang sedang aktif di dropdown selama masih valid untuk hari baru.
   const prevMulai = preselectMulai !== undefined ? preselectMulai : selMulaiEl.value;
   const prevSelesai = preselectSelesai !== undefined ? preselectSelesai : selSelesaiEl.value;
 
-  const rows = (jpDataSemua || [])
-    .filter(j => j.hari === hari)
-    .slice()
-    .sort((a, b) => Number(a.jamKe) - Number(b.jamKe));
+  // BARU: prioritas jam yang dipakai --
+  //   1. Pengecualian per Hari+Kelas (kalau KELAS yang dipilih punya
+  //      pengecualian sendiri di HARI ini -- lihat jpKelasOverrides)
+  //   2. Pengecualian per Hari (berlaku utk semua kelas di hari itu)
+  //   3. Jam pelajaran default
+  // Sebelumnya jam ke Mulai/Selesai cuma dihitung dari Hari saja (bahkan
+  // sempat mencampur baris default & baris override kelas dari jpDataSemua
+  // mentah), jadi kalau kelas ini sudah dibuatkan pengecualian, admin harus
+  // tahu & pilih jamnya sendiri secara manual -- sekarang otomatis.
+  let sumber = 'default';
+  let rows = jpDefaultRows;
+  if (hari && kelas && jpKelasOverrides[`${hari}|${kelas}`]) {
+    rows = jpKelasOverrides[`${hari}|${kelas}`];
+    sumber = 'kelas';
+  } else if (hari && jpOverrides[hari]) {
+    rows = jpOverrides[hari];
+    sumber = 'hari';
+  }
+  rows = (rows || []).slice().sort((a, b) => Number(a.jamKe) - Number(b.jamKe));
 
   if (!rows.length) {
     selMulaiEl.innerHTML = '<option value="">-- Jam pelajaran hari ini belum diatur --</option>';
     selSelesaiEl.innerHTML = '<option value="">-- sama seperti Jam Mulai --</option>';
+    if (hintEl) {
+      hintEl.style.display = 'flex';
+      hintEl.className = 'jm-jam-hint jm-hint-kosong';
+      hintEl.innerHTML = `<span class="jm-jam-hint-icon">⚠️</span><span>Jam pelajaran untuk hari ${esc(hari)||'ini'} belum diatur di menu Pengaturan Jam.</span>`;
+    }
     return;
   }
 
@@ -7297,6 +7351,21 @@ function populateJamPelajaranOptionsJM(preselectMulai, preselectSelesai) {
 
   if (rows.some(j => String(j.jamKe) === String(prevMulai))) selMulaiEl.value = prevMulai;
   if (rows.some(j => String(j.jamKe) === String(prevSelesai))) selSelesaiEl.value = prevSelesai;
+
+  if (hintEl) {
+    if (sumber === 'kelas') {
+      hintEl.style.display = 'flex';
+      hintEl.className = 'jm-jam-hint jm-hint-kelas';
+      hintEl.innerHTML = `<span class="jm-jam-hint-icon">📌</span><span>Kelas <strong>${esc(kelas)}</strong> punya pengecualian jam khusus di hari <strong>${esc(hari)}</strong> -- jam ke di atas sudah otomatis mengikutinya.</span>`;
+    } else if (sumber === 'hari') {
+      hintEl.style.display = 'flex';
+      hintEl.className = 'jm-jam-hint jm-hint-hari';
+      hintEl.innerHTML = `<span class="jm-jam-hint-icon">🕒</span><span>Hari <strong>${esc(hari)}</strong> punya pengecualian jam (berlaku semua kelas) -- jam ke di atas sudah mengikutinya.</span>`;
+    } else {
+      hintEl.style.display = 'none';
+      hintEl.innerHTML = '';
+    }
+  }
 }
 
 // presetHari/presetJamKe/presetKelas (opsional): dipakai supaya form
@@ -7312,7 +7381,6 @@ function openModalJadwalMengajar(presetHari, presetJamKe, presetKelas) {
   const hariAwal = presetHari || jmActiveHari || '';
   if (hariAwal && Array.from(selHari.options).some(o => o.value === hariAwal)) selHari.value = hariAwal;
   else selHari.selectedIndex = 0;
-  populateJamPelajaranOptionsJM(presetJamKe !== undefined ? String(presetJamKe) : '', '');
   // Insurance tambahan (murah, tanpa round-trip server -- cuma pakai
   // APP.kelasList yang sudah di-cache): jaga-jaga kalau kelas baru
   // ditambahkan dari tab/perangkat lain setelah halaman ini pertama
@@ -7321,6 +7389,10 @@ function openModalJadwalMengajar(presetHari, presetJamKe, presetKelas) {
   const selKelas = document.getElementById('jmKelas');
   if (presetKelas && Array.from(selKelas.options).some(o => o.value === presetKelas)) selKelas.value = presetKelas;
   else selKelas.selectedIndex = 0;
+  // Jam Ke Mulai/Selesai bergantung pada Hari SEKALIGUS Kelas (kalau kelas
+  // ini sudah punya pengecualian jam sendiri di hari ini) -- makanya
+  // dipanggil SETELAH Hari & Kelas di atas ditentukan.
+  populateJamPelajaranOptionsJM(presetJamKe !== undefined ? String(presetJamKe) : '', '');
   document.getElementById('jmMapel').value = '';
   openModal('modalJadwalMengajar');
 }
@@ -7331,8 +7403,8 @@ function editJadwalMengajarUI(id) {
   document.getElementById('jmId').value = j.id;
   document.getElementById('jmGuru').value = j.idGuru;
   document.getElementById('jmHari').value = j.hari;
-  populateJamPelajaranOptionsJM(j.jamKeMulai, j.jamKeMulai === j.jamKeSelesai ? '' : j.jamKeSelesai);
   document.getElementById('jmKelas').value = j.kelas;
+  populateJamPelajaranOptionsJM(j.jamKeMulai, j.jamKeMulai === j.jamKeSelesai ? '' : j.jamKeSelesai);
   document.getElementById('jmMapel').value = j.mapel;
   openModal('modalJadwalMengajar');
 }

@@ -1763,9 +1763,35 @@ body.is-offline .header{ top:36px; }
             Terverifikasi: <b id="verifikasiCounter">0</b> dari minimal <b id="verifikasiMin">?</b> siswa
           </div>
         </div>
-        <button type="button" onclick="selesaiModeVerifikasi()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
+        <button type="button" onclick="bukaChecklistAbsensiKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap">
           ✅ Kirim Verifikasi
         </button>
+      </div>
+    </div>
+
+    <!-- BARU: Checklist Absensi Kelas -- muncul setelah guru menekan
+         "Kirim Verifikasi". Menampilkan siswa yang BELUM scan kartu supaya
+         guru bisa langsung menandai Hadir/Alpa/Izin/Sakit -- sekalian jadi
+         absensi kehadiran siswa di kelas itu (bukan cuma verifikasi lagi).
+         Siswa yang keterangannya SUDAH diinput guru piket hari ini
+         ditampilkan read-only (tidak boleh ditimpa guru mengajar) -- lihat
+         daftarSiswaKelasSesi/simpanAbsensiKelasManual di api/mengajar.js. -->
+    <div id="modalChecklistKelas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:16px">
+      <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div>
+            <div style="font-weight:800;font-size:.98rem">📋 Absensi Kelas</div>
+            <div style="font-size:.75rem;color:var(--text-muted)" id="checklistKelasSub">Siswa yang belum scan kartu</div>
+          </div>
+          <button onclick="lewatiChecklistKelas()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+        </div>
+        <div id="checklistKelasBody" style="overflow-y:auto;flex:1;padding:12px 18px">
+          <div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat daftar siswa...</div>
+        </div>
+        <div style="padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+          <button type="button" onclick="lewatiChecklistKelas()" style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);font-weight:600;font-size:.82rem;cursor:pointer">Lewati</button>
+          <button type="button" id="btnSimpanChecklistKelas" onclick="simpanChecklistAbsensiKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer">💾 Simpan &amp; Selesai</button>
+        </div>
       </div>
     </div>
 
@@ -4356,6 +4382,154 @@ function keluarModeVerifikasi() {
   tutupOverlayAbsenKelas();
   scanCooldown = false;
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// ══════ CHECKLIST ABSENSI KELAS (BARU) ══════
+// Data siswa yang belum scan + pilihan status guru untuk masing-masing,
+// hidup selama modal ini terbuka saja.
+let checklistKelasState = null; // { daftar, pilihan: {idSiswa: {status, keterangan}} }
+
+async function bukaChecklistAbsensiKelas() {
+  // Sesi murni offline (belum ada idAbsensiMengajar asli dari server) atau
+  // perangkat sedang offline sekarang -- checklist butuh baca data siswa
+  // real-time dari server, jadi TIDAK didukung offline. Langsung tutup
+  // sesi verifikasi seperti perilaku lama, tanpa checklist.
+  if (!verifikasiSesi || !verifikasiSesi.idAbsensiMengajar || !isOnline) {
+    toast(!isOnline
+      ? '📴 Sedang offline -- absensi kelas manual butuh koneksi. Verifikasi ditutup seperti biasa, checklist bisa dilakukan lewat menu Riwayat nanti.'
+      : '📴 Sesi offline -- checklist absensi kelas akan tersedia setelah sinkron.', 4500);
+    return selesaiModeVerifikasi();
+  }
+
+  pauseScanBerat();
+  document.getElementById('modalChecklistKelas').style.display = 'flex';
+  const body = document.getElementById('checklistKelasBody');
+  body.innerHTML = '<div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat daftar siswa...</div>';
+
+  try {
+    const r = await api('mengajar', 'daftarSiswaKelasSesi', {
+      idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar, sesiToken: verifikasiSesi.sesiToken
+    });
+    if (!r.success) {
+      toast('⚠️ ' + (r.message || 'Gagal memuat daftar siswa.'), 4000);
+      return lewatiChecklistKelas(true);
+    }
+    checklistKelasState = { daftar: r.daftar || [], pilihan: {} };
+    (r.daftar || []).forEach(s => {
+      if (!s.sudahDiinputPiket) checklistKelasState.pilihan[s.idSiswa] = { status: 'Hadir', keterangan: '' };
+    });
+    document.getElementById('checklistKelasSub').textContent =
+      `${(r.daftar || []).length} siswa belum scan kartu (Kelas ${r.kelas}) -- ${r.jumlahSudahScan} sudah scan`;
+    renderChecklistKelas();
+  } catch (e) {
+    toast('❌ Gagal memuat daftar siswa. Cek koneksi.', 4000);
+    lewatiChecklistKelas(true);
+  }
+}
+
+function renderChecklistKelas() {
+  const body = document.getElementById('checklistKelasBody');
+  const daftar = checklistKelasState ? checklistKelasState.daftar : [];
+  if (!daftar.length) {
+    body.innerHTML = '<div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">🎉 Semua siswa kelas ini sudah scan kartu sendiri.</div>';
+    return;
+  }
+  body.innerHTML = daftar.map(s => {
+    if (s.sudahDiinputPiket) {
+      return `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.85">
+        <div style="font-weight:700;font-size:.88rem">${esc(s.nama)}</div>
+        <div style="font-size:.7rem;color:var(--text-muted)">${esc(s.nisn || '-')}</div>
+        <div style="margin-top:6px;font-size:.76rem;background:var(--accent-soft,#EEF2FA);border-radius:8px;padding:6px 10px;display:inline-block">
+          ✅ Sudah diinput guru piket: <b>${esc(s.statusPiket)}</b>${s.keteranganPiket ? ' — ' + esc(s.keteranganPiket) : ''}
+        </div>
+      </div>`;
+    }
+    const pilihan = checklistKelasState.pilihan[s.idSiswa] || { status: 'Hadir', keterangan: '' };
+    const statusList = ['Hadir', 'Alpa', 'Izin', 'Sakit'];
+    return `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-weight:700;font-size:.88rem">${esc(s.nama)}</div>
+        <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:6px">${esc(s.nisn || '-')}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${statusList.map(st => `
+            <button type="button" onclick="pilihStatusCAK('${s.idSiswa}','${st}')"
+              style="padding:6px 12px;border-radius:20px;font-size:.76rem;font-weight:700;cursor:pointer;border:1px solid ${pilihan.status === st ? 'transparent' : 'var(--border)'};background:${pilihan.status === st ? statusWarnaCAK(st) : 'transparent'};color:${pilihan.status === st ? '#fff' : 'var(--text-muted)'}">
+              ${st}
+            </button>`).join('')}
+        </div>
+        <textarea id="cakKet_${s.idSiswa}" oninput="ubahKeteranganCAK('${s.idSiswa}', this.value)"
+          placeholder="Keterangan Izin/Sakit (opsional)" rows="2"
+          style="display:${(pilihan.status === 'Izin' || pilihan.status === 'Sakit') ? 'block' : 'none'};width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:.78rem;background:var(--surface);color:var(--text)">${esc(pilihan.keterangan || '')}</textarea>
+      </div>`;
+  }).join('');
+}
+
+function statusWarnaCAK(status) {
+  return { Hadir: 'var(--success,#16A34A)', Alpa: 'var(--danger,#DC2626)', Izin: '#F59E0B', Sakit: '#7C3AED' }[status] || '#888';
+}
+
+function pilihStatusCAK(idSiswa, status) {
+  if (!checklistKelasState) return;
+  checklistKelasState.pilihan[idSiswa] = { status, keterangan: (checklistKelasState.pilihan[idSiswa] || {}).keterangan || '' };
+  renderChecklistKelas();
+}
+
+function ubahKeteranganCAK(idSiswa, val) {
+  if (!checklistKelasState || !checklistKelasState.pilihan[idSiswa]) return;
+  checklistKelasState.pilihan[idSiswa].keterangan = val;
+}
+
+async function simpanChecklistAbsensiKelas() {
+  if (!checklistKelasState || !verifikasiSesi) return lewatiChecklistKelas(true);
+
+  const entries = [];
+  checklistKelasState.daftar.forEach(s => {
+    if (s.sudahDiinputPiket) {
+      // Ikut disertakan supaya tercatat juga di riwayat sesi ini --
+      // backend akan otomatis MENGIKUTI status yang sudah diinput piket,
+      // bukan menerima status dari sini (lihat simpanAbsensiKelasManual).
+      entries.push({ idSiswa: s.idSiswa, status: s.statusPiket, keterangan: s.keteranganPiket });
+    } else {
+      const p = checklistKelasState.pilihan[s.idSiswa];
+      if (p) entries.push({ idSiswa: s.idSiswa, status: p.status, keterangan: p.keterangan });
+    }
+  });
+
+  if (!entries.length) return lewatiChecklistKelas(true);
+
+  const btn = document.getElementById('btnSimpanChecklistKelas');
+  btn.disabled = true; btn.textContent = '⏳ Menyimpan...';
+
+  try {
+    const r = await api('mengajar', 'simpanAbsensiKelasManual', {
+      idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar, sesiToken: verifikasiSesi.sesiToken, entries
+    });
+    if (r.success) {
+      toast(r.gagal && r.gagal.length
+        ? `⚠️ ${r.message}`
+        : `✅ Absensi kelas tersimpan (${r.disimpan} siswa).`, 4500);
+    } else {
+      toast('⚠️ ' + (r.message || 'Gagal menyimpan absensi kelas.'), 4000);
+    }
+  } catch (e) {
+    toast('❌ Gagal menyimpan (cek koneksi). Coba lagi sebelum menutup sesi.', 4000);
+    btn.disabled = false; btn.textContent = '💾 Simpan & Selesai';
+    return;
+  }
+
+  document.getElementById('modalChecklistKelas').style.display = 'none';
+  checklistKelasState = null;
+  resumeScanBerat();
+  selesaiModeVerifikasi();
+}
+
+function lewatiChecklistKelas(diam) {
+  document.getElementById('modalChecklistKelas').style.display = 'none';
+  checklistKelasState = null;
+  resumeScanBerat();
+  if (!diam) toast('Checklist absensi kelas dilewati -- verifikasi tetap ditutup seperti biasa.', 3000);
+  selesaiModeVerifikasi();
 }
 
 // ── SPLASH / PROGRESS PENYIAPAN AWAL ────────────────────────────────

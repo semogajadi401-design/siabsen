@@ -151,19 +151,28 @@ CREATE TABLE IF NOT EXISTS semester (
 -- ═══════════════════════════════════════════════════════════
 
 -- ─── TABEL JAM PELAJARAN (master jam ke-1, ke-2, dst per hari) ──
+-- BARU: kolom `kelas` (default '') supaya jam pelajaran bisa dibedakan per
+-- KELAS, bukan cuma per HARI. Baris dengan kelas='' adalah jam
+-- default/global (berlaku utk semua kelas yang tidak punya pengaturan
+-- khusus di hari itu -- persis perilaku lama). Baris dengan kelas terisi
+-- adalah override khusus utk kelas itu saja di hari tsb, dan MENANG atas
+-- baris default kalau ada (lihat buatResolverJamPelajaran() di api/_db.js).
 CREATE TABLE IF NOT EXISTS jam_pelajaran (
   id TEXT PRIMARY KEY,
   hari TEXT NOT NULL,
   jam_ke INTEGER NOT NULL,
   jam_mulai TEXT NOT NULL,
   jam_selesai TEXT NOT NULL,
+  kelas TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  -- 1 hari cuma boleh punya 1 baris untuk jam ke-N yang sama. simpanJamPelajaran()
-  -- di api/mengajar.js sudah menghapus baris lama per-hari sebelum insert baru,
+  -- 1 hari + 1 kelas (atau '' utk default) cuma boleh punya 1 baris utk jam
+  -- ke-N yang sama. simpanJamPelajaran()/simpanJamPelajaranKelas() di
+  -- api/mengajar.js sudah menghapus baris lama sebelum insert baru,
   -- constraint ini pengaman tambahan di level database.
-  CONSTRAINT uniq_jampelajaran_hari_jamke UNIQUE (hari, jam_ke)
+  CONSTRAINT uniq_jampelajaran_hari_jamke_kelas UNIQUE (hari, jam_ke, kelas)
 );
 CREATE INDEX IF NOT EXISTS idx_jampelajaran_hari ON jam_pelajaran(hari);
+CREATE INDEX IF NOT EXISTS idx_jampelajaran_hari_kelas ON jam_pelajaran(hari, kelas);
 
 -- ─── TABEL JADWAL MENGAJAR (jadwal tetap guru: hari, blok jam, kelas, mapel) ──
 CREATE TABLE IF NOT EXISTS jadwal_mengajar (

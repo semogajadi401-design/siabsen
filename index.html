@@ -2346,10 +2346,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-body">
       <input type="hidden" id="jmId">
       <div class="form-group"><label>Guru</label><select class="form-control" id="jmGuru"><option value="">-- Pilih Guru --</option></select></div>
-      <div class="form-group"><label>Hari</label><select class="form-control" id="jmHari"></select></div>
+      <div class="form-group"><label>Hari</label><select class="form-control" id="jmHari" onchange="populateJamPelajaranOptionsJM()"></select></div>
       <div style="display:flex;gap:10px">
-        <div class="form-group" style="flex:1"><label>Jam Ke Mulai</label><input type="number" min="1" class="form-control" id="jmJamMulai"></div>
-        <div class="form-group" style="flex:1"><label>Jam Ke Selesai</label><input type="number" min="1" class="form-control" id="jmJamSelesai" placeholder="kosongkan jika 1 jam"></div>
+        <div class="form-group" style="flex:1"><label>Jam Ke Mulai</label><select class="form-control" id="jmJamMulai"></select></div>
+        <div class="form-group" style="flex:1"><label>Jam Ke Selesai</label><select class="form-control" id="jmJamSelesai"><option value="">-- sama seperti Jam Mulai --</option></select></div>
       </div>
       <div class="form-group"><label>Kelas</label><select class="form-control" id="jmKelas"></select></div>
       <div class="form-group"><label>Mapel</label><input type="text" class="form-control" id="jmMapel" placeholder="Contoh: Matematika"></div>
@@ -7011,13 +7011,55 @@ async function loadJadwalMengajar() {
   </table></div>`;
 }
 
+// Mengisi dropdown Jam Ke Mulai/Selesai di modal Tambah/Edit Jadwal
+// Mengajar dengan jam ASLI (bukan cuma angka "Ke-N" polos), diambil dari
+// jpDataSemua (jam_pelajaran, sudah dimuat lewat loadJamPelajaranSemua())
+// sesuai hari yang sedang dipilih di #jmHari. Ini supaya admin tidak
+// salah pilih jam ke berapa saat menambah jadwal mengajar guru --
+// termasuk jam malam yang jam_ke-nya besar (mis. Ke-9, Ke-10) tapi kalau
+// cuma ditulis angka, gampang tertukar dengan jam ke-9 di hari lain yang
+// jamnya beda (lihat jpOverrides -- jam per hari bisa berbeda).
+// Dipanggil saat: modal Tambah dibuka, modal Edit dibuka (dengan
+// preselectMulai/preselectSelesai supaya nilai lama tetap terpilih), dan
+// saat #jmHari diganti (lihat onchange di HTML modal).
+function populateJamPelajaranOptionsJM(preselectMulai, preselectSelesai) {
+  const selMulaiEl = document.getElementById('jmJamMulai');
+  const selSelesaiEl = document.getElementById('jmJamSelesai');
+  const hari = document.getElementById('jmHari').value;
+  // Kalau dipanggil tanpa argumen (mis. dari onchange #jmHari), pertahankan
+  // pilihan yang sedang aktif di dropdown selama masih valid untuk hari baru.
+  const prevMulai = preselectMulai !== undefined ? preselectMulai : selMulaiEl.value;
+  const prevSelesai = preselectSelesai !== undefined ? preselectSelesai : selSelesaiEl.value;
+
+  const rows = (jpDataSemua || [])
+    .filter(j => j.hari === hari)
+    .slice()
+    .sort((a, b) => Number(a.jamKe) - Number(b.jamKe));
+
+  if (!rows.length) {
+    selMulaiEl.innerHTML = '<option value="">-- Jam pelajaran hari ini belum diatur --</option>';
+    selSelesaiEl.innerHTML = '<option value="">-- sama seperti Jam Mulai --</option>';
+    return;
+  }
+
+  const fmtJam = t => (t || '').slice(0, 5); // "19:00:00" -> "19:00"
+  const optsMulai = rows
+    .map(j => `<option value="${j.jamKe}">Ke-${esc(j.jamKe)} (${esc(fmtJam(j.jamMulai))}–${esc(fmtJam(j.jamSelesai))})</option>`)
+    .join('');
+
+  selMulaiEl.innerHTML = optsMulai;
+  selSelesaiEl.innerHTML = '<option value="">-- sama seperti Jam Mulai --</option>' + optsMulai;
+
+  if (rows.some(j => String(j.jamKe) === String(prevMulai))) selMulaiEl.value = prevMulai;
+  if (rows.some(j => String(j.jamKe) === String(prevSelesai))) selSelesaiEl.value = prevSelesai;
+}
+
 function openModalJadwalMengajar() {
   document.getElementById('jmModalTitle').textContent = 'Tambah Jadwal Mengajar';
   document.getElementById('jmId').value = '';
   document.getElementById('jmGuru').value = '';
   document.getElementById('jmHari').selectedIndex = 0;
-  document.getElementById('jmJamMulai').value = '';
-  document.getElementById('jmJamSelesai').value = '';
+  populateJamPelajaranOptionsJM('', '');
   // Insurance tambahan (murah, tanpa round-trip server -- cuma pakai
   // APP.kelasList yang sudah di-cache): jaga-jaga kalau kelas baru
   // ditambahkan dari tab/perangkat lain setelah halaman ini pertama
@@ -7034,8 +7076,7 @@ function editJadwalMengajarUI(id) {
   document.getElementById('jmId').value = j.id;
   document.getElementById('jmGuru').value = j.idGuru;
   document.getElementById('jmHari').value = j.hari;
-  document.getElementById('jmJamMulai').value = j.jamKeMulai;
-  document.getElementById('jmJamSelesai').value = j.jamKeSelesai;
+  populateJamPelajaranOptionsJM(j.jamKeMulai, j.jamKeMulai === j.jamKeSelesai ? '' : j.jamKeSelesai);
   document.getElementById('jmKelas').value = j.kelas;
   document.getElementById('jmMapel').value = j.mapel;
   openModal('modalJadwalMengajar');

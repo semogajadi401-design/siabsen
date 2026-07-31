@@ -1696,6 +1696,25 @@ body.is-offline .header{ top:36px; }
   .besok-side-panel{flex:1 1 100%}
 }
 
+/* BARU: varian netral dari .bsp-kelas-group, dipakai di modal Cek
+   Aktivitas Guru (tab Besok) -- lihat renderJadwalMengajarGroupedNeutral(). */
+.agb-kelas-group{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px}
+.agb-kelas-group:last-child{margin-bottom:0}
+.agb-kelas-group summary{
+  display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
+  padding:10px 12px;font-size:.84rem;font-weight:700;color:var(--text);
+  background:var(--surface);-webkit-tap-highlight-color:transparent;
+}
+.agb-kelas-group summary::-webkit-details-marker{display:none}
+.agb-kelas-chevron{font-size:.6rem;color:var(--text-muted);transition:transform .15s;flex-shrink:0}
+.agb-kelas-group[open] > summary .agb-kelas-chevron{transform:rotate(90deg)}
+.agb-kelas-label{flex:1}
+.agb-kelas-count{
+  font-size:.68rem;font-weight:700;color:var(--text-muted);background:var(--bg,#F1F5F9);
+  border-radius:20px;padding:3px 9px;white-space:nowrap;flex-shrink:0;
+}
+.agb-kelas-body{background:var(--surface)}
+
 </style>
 </head>
 <body>
@@ -5185,7 +5204,10 @@ function bandingKelasNatural(a, b) {
   return String(a).localeCompare(String(b), 'id', { numeric: true });
 }
 
-function renderJadwalMengajarGrouped(jadwal) {
+// Kelompokkan + urutkan jadwal per kelas (natural: 7,8,9,10,11,12 -- bukan
+// urutan teks). Dipakai bersama oleh kedua varian render di bawah supaya
+// logic pengelompokan tidak dobel.
+function kelompokkanJadwalPerKelas(jadwal) {
   const grup = {};
   jadwal.forEach(g => {
     const k = g.kelas || '-';
@@ -5193,7 +5215,11 @@ function renderJadwalMengajarGrouped(jadwal) {
   });
   const kelasList = Object.keys(grup).sort(bandingKelasNatural);
   kelasList.forEach(k => grup[k].sort((a, b) => (a.jamMulai || '').localeCompare(b.jamMulai || '')));
+  return { grup, kelasList };
+}
 
+function renderJadwalMengajarGrouped(jadwal) {
+  const { grup, kelasList } = kelompokkanJadwalPerKelas(jadwal);
   return kelasList.map((k, i) => `
     <details class="bsp-kelas-group"${i === 0 ? ' open' : ''}>
       <summary>
@@ -5206,6 +5232,30 @@ function renderJadwalMengajarGrouped(jadwal) {
           <div class="bsp-row">
             <b>${esc(g.mapel)}</b> — ${esc(g.namaGuru)}
             <span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span>
+          </div>`).join('')}
+      </div>
+    </details>`).join('');
+}
+
+// BARU: varian netral (kartu putih/border tipis) dari renderJadwalMengajarGrouped()
+// di atas -- dipakai di modal "Cek Aktivitas Guru" (tab 📅 Besok, lihat
+// renderJadwalBesokModal()) yang temanya netral, BUKAN indigo seperti
+// panel sidebar/banner libur. Grouping & urutannya sama persis (pakai
+// kelompokkanJadwalPerKelas() yang sama), cuma warnanya menyesuaikan.
+function renderJadwalMengajarGroupedNeutral(jadwal) {
+  const { grup, kelasList } = kelompokkanJadwalPerKelas(jadwal);
+  return kelasList.map((k, i) => `
+    <details class="agb-kelas-group"${i === 0 ? ' open' : ''}>
+      <summary>
+        <span class="agb-kelas-chevron">▶</span>
+        <span class="agb-kelas-label">Kelas ${esc(k)}</span>
+        <span class="agb-kelas-count">${grup[k].length} mapel</span>
+      </summary>
+      <div class="agb-kelas-body">
+        ${grup[k].map(g => `
+          <div style="padding:8px 10px;border-top:1px solid var(--border)">
+            <div style="font-weight:700;font-size:.84rem">${esc(g.mapel)}</div>
+            <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">${esc(g.namaGuru)} · Jam ${esc(g.jamMulai || '-')}–${esc(g.jamSelesai || '-')}</div>
           </div>`).join('')}
       </div>
     </details>`).join('');
@@ -6632,11 +6682,7 @@ function renderJadwalBesokModal(data) {
   const elMengajar = document.getElementById('agBesokMengajar');
   const jadwal = data.jadwalMengajar || [];
   elMengajar.innerHTML = jadwal.length
-    ? jadwal.map(g => `
-      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface)">
-        <div style="font-weight:700;font-size:.86rem">${esc(g.namaGuru)}</div>
-        <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">${esc(g.kelas)} · ${esc(g.mapel)} · Jam ${esc(g.jamMulai || '-')}–${esc(g.jamSelesai || '-')}</div>
-      </div>`).join('')
+    ? renderJadwalMengajarGroupedNeutral(jadwal)
     : `<div style="font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada jadwal mengajar untuk besok.</div>`;
 }
 

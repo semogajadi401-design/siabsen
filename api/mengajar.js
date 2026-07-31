@@ -60,6 +60,13 @@ const handler = async (req, res) => {
     if (action === 'scanSesiMengajar')      return res.json(await scanSesiMengajar({ ...params, guruIdTerverifikasi }));
     if (action === 'scanSiswaMapel')        return res.json(await scanSiswaMapel(params));
     if (action === 'selesaiVerifikasi')     return res.json(await selesaiVerifikasi(params));
+    // BARU: checklist absensi kelas -- lanjutan setelah ambang verifikasi
+    // (MIN_VERIFIKASI_SISWA) terpenuhi. Dilindungi sesiToken yang SAMA
+    // dengan scanSiswaMapel/selesaiVerifikasi (lihat verifySesiToken di
+    // masing-masing fungsi di bawah), bukan guruToken/adminToken --
+    // konsisten dengan pola sesi "terbuka" yang sudah dipakai di kiosk.
+    if (action === 'daftarSiswaKelasSesi')  return res.json(await daftarSiswaKelasSesi(params));
+    if (action === 'simpanAbsensiKelasManual') return res.json(await simpanAbsensiKelasManual(params));
 
     if (action === 'inputKeteranganMengajar') {
       // Boleh admin, ATAU guru yang melapor untuk DIRINYA SENDIRI saja
@@ -452,7 +459,8 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
   const { error } = await supabase.from('kehadiran_siswa_mapel').insert({
     id, id_absensi_mengajar: idAbsensiMengajar, id_siswa: idSiswa,
     nisn: siswa.nisn, nama_siswa: siswa.nama, kelas: siswa.kelas,
-    tanggal: sesi.tanggal, jam_scan: jamSekarang(), metode: 'online'
+    tanggal: sesi.tanggal, jam_scan: jamSekarang(), metode: 'online',
+    status: 'Hadir'
   });
   if (error) {
     if (error.code === '23505') {
@@ -489,6 +497,162 @@ async function hitungUlangStatusVerifikasi(sesi) {
     .eq('id', sesi.id);
 
   return { jumlah, status };
+}
+
+// ════════════════════════════════════════════════════════════════
+// CHECKLIST ABSENSI KELAS (BARU) — lanjutan setelah ambang verifikasi
+// terpenuhi. Siswa yang TIDAK ikut scan kartu ditampilkan di sini supaya
+// guru bisa langsung menandai kehadiran mereka (Hadir/Alpa) atau
+// Izin/Sakit, SEKALIAN jadi absensi kehadiran siswa di kelas itu --
+// bukan cuma soal verifikasi guru mengajar lagi.
+//
+// SINKRONISASI (poin penting): Izin/Sakit di sini TIDAK punya tabelnya
+// sendiri -- ditulis ke `keterangan_absensi`, tabel PUSAT yang sama
+// persis dipakai guru piket (lihat inputKeterangan di api/kehadiran.js)
+// dan dibaca di SEMUA rekap/riwayat siswa (dashboard admin di api/
+// absensi.js, riwayat siswa di api/riwayat.js, live monitor di api/
+// scan.js). Jadi begitu diinput di sini, otomatis ikut muncul di semua
+// tempat itu -- tidak ada data ganda/terpisah.
+//
+// ATURAN "piket duluan": kalau guru piket SUDAH menginput Izin/Sakit
+// untuk siswa itu hari ini (baris keterangan_absensi sudah ada), guru
+// mengajar TIDAK menimpanya -- daftarSiswaKelasSesi menandai baris itu
+// sebagai "sudahDiinputPiket" (read-only di UI), dan simpanAbsensiKelasManual
+// menolak status Izin/Sakit baru untuk siswa itu (hanya boleh menyalin
+// status yang sudah ada supaya tercatat juga di riwayat sesi ini).
+// ════════════════════════════════════════════════════════════════
+async function daftarSiswaKelasSesi({ idAbsensiMengajar, sesiToken }) {
+  if (!verifySesiToken(idAbsensiMengajar, sesiToken))
+    return { success: false, message: 'Sesi verifikasi tidak valid atau kedaluwarsa. Mulai ulang absen mengajar.' };
+
+  const { data: sesi } = await supabase
+    .from('absensi_mengajar').select('*').eq('id', idAbsensiMengajar).maybeSingle();
+  if (!sesi) return { success: false, message: 'Sesi mengajar tidak ditemukan' };
+
+  const [{ data: siswaKelas }, { data: sudahScan }, { data: keteranganHariIni }] = await Promise.all([
+    supabase.from('siswa').select('id,nisn,nama,kelas').eq('kelas', sesi.kelas).eq('status', 'Aktif').order('nama'),
+    supabase.from('kehadiran_siswa_mapel').select('id_siswa').eq('id_absensi_mengajar', idAbsensiMengajar),
+    supabase.from('keterangan_absensi').select('id_siswa,status,keterangan').eq('tanggal', sesi.tanggal)
+  ]);
+
+  const idSudahScan = new Set((sudahScan || []).map(r => r.id_siswa));
+  const ketMap = new Map((keteranganHariIni || []).map(k => [k.id_siswa, k]));
+
+  const daftar = (siswaKelas || [])
+    .filter(s => !idSudahScan.has(s.id))
+    .map(s => {
+      const ket = ketMap.get(s.id);
+      return {
+        idSiswa: s.id, nisn: s.nisn, nama: s.nama,
+        sudahDiinputPiket: !!ket,
+        statusPiket: ket ? ket.status : null,
+        keteranganPiket: ket ? (ket.keterangan || '') : ''
+      };
+    });
+
+  return {
+    success: true,
+    kelas: sesi.kelas, tanggal: sesi.tanggal,
+    jumlahSudahScan: idSudahScan.size,
+    daftar
+  };
+}
+
+async function simpanAbsensiKelasManual({ idAbsensiMengajar, sesiToken, entries }) {
+  if (!verifySesiToken(idAbsensiMengajar, sesiToken))
+    return { success: false, message: 'Sesi verifikasi tidak valid atau kedaluwarsa. Mulai ulang absen mengajar.' };
+  if (!Array.isArray(entries) || !entries.length)
+    return { success: false, message: 'Tidak ada data siswa untuk disimpan.' };
+
+  const { data: sesi } = await supabase
+    .from('absensi_mengajar').select('*').eq('id', idAbsensiMengajar).maybeSingle();
+  if (!sesi) return { success: false, message: 'Sesi mengajar tidak ditemukan' };
+
+  const STATUS_VALID = new Set(['Hadir', 'Izin', 'Sakit', 'Alpa']);
+  const hasilPerSiswa = [];
+
+  for (const entry of entries) {
+    const { idSiswa, status, keterangan } = entry || {};
+    if (!idSiswa || !STATUS_VALID.has(status)) {
+      hasilPerSiswa.push({ idSiswa, sukses: false, pesan: 'Status tidak valid' });
+      continue;
+    }
+
+    const { data: siswa } = await supabase.from('siswa').select('id,nisn,nama,kelas').eq('id', idSiswa).maybeSingle();
+    if (!siswa) { hasilPerSiswa.push({ idSiswa, sukses: false, pesan: 'Siswa tidak ditemukan' }); continue; }
+    if (siswa.kelas !== sesi.kelas) {
+      hasilPerSiswa.push({ idSiswa, sukses: false, pesan: `${siswa.nama} bukan siswa kelas ${sesi.kelas}` });
+      continue;
+    }
+
+    let statusFinal = status, keteranganFinal = keterangan || '';
+
+    if (status === 'Izin' || status === 'Sakit') {
+      const { data: ketAda } = await supabase
+        .from('keterangan_absensi').select('id,status,keterangan')
+        .eq('id_siswa', idSiswa).eq('tanggal', sesi.tanggal).maybeSingle();
+
+      if (ketAda) {
+        // Piket/admin sudah input duluan -- IKUTI data itu, jangan
+        // ditimpa oleh input guru mengajar (lihat aturan sinkronisasi di
+        // komentar atas fungsi daftarSiswaKelasSesi).
+        statusFinal = ketAda.status;
+        keteranganFinal = ketAda.keterangan || '';
+      } else {
+        // Belum ada -- guru mengajar yang menginput duluan. Cek dulu
+        // siswa belum tercatat hadir fisik pagi ini (sama seperti guard
+        // di inputKeterangan/api/kehadiran.js), supaya tidak bikin data
+        // yang saling bertentangan (Hadir pagi TAPI Izin/Sakit siang).
+        const { data: absenTglIni } = await supabase
+          .from('absensi').select('jam_datang,status_datang')
+          .eq('id_siswa', idSiswa).eq('tanggal', sesi.tanggal).maybeSingle();
+        if (absenTglIni?.jam_datang) {
+          hasilPerSiswa.push({
+            idSiswa, sukses: false,
+            pesan: `${siswa.nama} sudah tercatat ${absenTglIni.status_datang} pagi ini -- tidak bisa ditandai ${status}. Tandai "Hadir" saja untuk sesi ini.`
+          });
+          continue;
+        }
+        const { error: eKet } = await supabase.from('keterangan_absensi').upsert({
+          id: generateID('KT'), id_siswa: idSiswa, nisn: siswa.nisn, nama_siswa: siswa.nama,
+          kelas: siswa.kelas, tanggal: sesi.tanggal, status, keterangan: keteranganFinal,
+          diinput_oleh: 'guru_mengajar'
+        }, { onConflict: 'id_siswa,tanggal' });
+        if (eKet) { hasilPerSiswa.push({ idSiswa, sukses: false, pesan: 'Gagal simpan keterangan: ' + eKet.message }); continue; }
+      }
+    }
+
+    const { error: eKS } = await supabase.from('kehadiran_siswa_mapel').insert({
+      id: generateID('KS'), id_absensi_mengajar: idAbsensiMengajar, id_siswa: idSiswa,
+      nisn: siswa.nisn, nama_siswa: siswa.nama, kelas: siswa.kelas,
+      tanggal: sesi.tanggal, jam_scan: jamSekarang(), metode: 'manual',
+      status: statusFinal, keterangan: keteranganFinal
+    });
+    if (eKS) {
+      if (eKS.code === '23505') {
+        hasilPerSiswa.push({ idSiswa, sukses: false, pesan: `${siswa.nama} sudah tercatat untuk sesi ini (mungkin baru saja discan).` });
+      } else {
+        hasilPerSiswa.push({ idSiswa, sukses: false, pesan: eKS.message });
+      }
+      continue;
+    }
+
+    hasilPerSiswa.push({ idSiswa, sukses: true, status: statusFinal, nama: siswa.nama });
+  }
+
+  const jumlahBaru = await hitungUlangStatusVerifikasi(sesi);
+  const gagal = hasilPerSiswa.filter(h => !h.sukses);
+
+  return {
+    success: true,
+    disimpan: hasilPerSiswa.filter(h => h.sukses).length,
+    gagal,
+    jumlahSiswaTerverifikasi: jumlahBaru.jumlah,
+    statusVerifikasi: jumlahBaru.status,
+    message: gagal.length
+      ? `Tersimpan sebagian (${hasilPerSiswa.length - gagal.length}/${hasilPerSiswa.length}) -- ada ${gagal.length} yang gagal, lihat detail.`
+      : 'Absensi kelas berhasil disimpan.'
+  };
 }
 
 async function selesaiVerifikasi({ idAbsensiMengajar, sesiToken }) {

@@ -1062,12 +1062,14 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
             <div style="margin-top:24px;padding-top:20px;border-top:1px dashed var(--border)">
               <h4 style="font-size:.9rem;font-weight:700;margin-bottom:6px">Pengecualian per Hari + Kelas (opsional)</h4>
-              <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px">Pakai ini kalau cuma KELAS TERTENTU yang beda jamnya di hari tertentu (mis. Kamis kelas XII-1 pulang lebih cepat, kelas lain tetap jam biasa/pengecualian hari di atas). Kelas yang tidak dibuatkan pengecualian di sini otomatis ikut jam default/hari seperti biasa.</p>
+              <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px">Pakai ini kalau cuma KELAS TERTENTU yang beda jamnya di hari tertentu (mis. Kamis kelas XII-1 pulang lebih cepat, kelas lain tetap jam biasa/pengecualian hari di atas). Bisa pilih LEBIH DARI SATU kelas sekaligus kalau kelas-kelas itu jamnya sama. Kelas yang tidak dibuatkan pengecualian di sini otomatis ikut jam default/hari seperti biasa.</p>
               <div id="jpKelasOverrideChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
                 <select id="jpKelasOverrideHariBaru" class="form-control" style="max-width:160px"></select>
-                <select id="jpKelasOverrideKelasBaru" class="form-control" style="max-width:200px"></select>
-                <button class="btn btn-outline btn-sm" onclick="tambahPengecualianKelas()">+ Buat Pengecualian Kelas</button>
+                <div style="flex:1;min-width:220px">
+                  <div id="jpKelasOverrideKelasGrid" class="kelas-check-grid"></div>
+                  <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="tambahPengecualianKelas()">+ Buat Pengecualian Kelas</button>
+                </div>
               </div>
               <div id="jpKelasOverrideEditor" style="display:none;margin-top:18px;padding:16px;background:var(--bg);border-radius:10px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -7021,35 +7023,65 @@ function renderKelasOverrideChips() {
   const selHari = document.getElementById('jpKelasOverrideHariBaru');
   if (selHari) selHari.innerHTML = HARI_MENGAJAR.map(h => `<option value="${h}">${h}</option>`).join('');
 
-  const selKelas = document.getElementById('jpKelasOverrideKelasBaru');
-  if (selKelas) {
+  // BARU: grid checkbox supaya admin bisa pilih LEBIH DARI SATU kelas
+  // sekaligus utk pengecualian hari+kelas ini (sebelumnya cuma <select>
+  // 1 pilihan). Pola sama seperti #kelasResetGrid di fitur reset absensi.
+  const gridKelas = document.getElementById('jpKelasOverrideKelasGrid');
+  if (gridKelas) {
     const daftarKelas = APP.kelasList || [];
-    selKelas.innerHTML = daftarKelas.length
-      ? daftarKelas.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
-      : '<option value="">(belum ada data kelas)</option>';
+    gridKelas.innerHTML = daftarKelas.length
+      ? daftarKelas.map(k => `
+        <div class="kelas-check-item" id="jpKelasOverridePilih_${k.replace(/[^a-zA-Z0-9]/g,'_')}" onclick="toggleKelasOverridePilih('${k}')">
+          <input type="checkbox" id="jpKelasOverridePilihCheck_${k.replace(/[^a-zA-Z0-9]/g,'_')}">
+          <span>${esc(k)}</span>
+        </div>`).join('')
+      : '<span style="font-size:.82rem;color:var(--text-muted)">(belum ada data kelas)</span>';
   }
+}
+
+function toggleKelasOverridePilih(kelas) {
+  const safe = kelas.replace(/[^a-zA-Z0-9]/g,'_');
+  const item = document.getElementById('jpKelasOverridePilih_'+safe);
+  const check = document.getElementById('jpKelasOverridePilihCheck_'+safe);
+  if (!item || !check) return;
+  check.checked = !check.checked;
+  item.classList.toggle('checked', check.checked);
 }
 
 function tambahPengecualianKelas() {
   const hari = document.getElementById('jpKelasOverrideHariBaru').value;
-  const kelas = document.getElementById('jpKelasOverrideKelasBaru').value;
-  if (!hari || !kelas) { toast('Pilih hari dan kelas dulu', 'warning'); return; }
-  const existingKey = `${hari}|${kelas}`;
-  if (jpKelasOverrides[existingKey]) { bukaPengecualianKelasEditor(hari, kelas); return; }
+  // BARU: bisa centang LEBIH DARI SATU kelas sekaligus -- semua kelas yang
+  // dicentang akan dapat jam pengecualian yang SAMA utk hari ini (admin
+  // tinggal atur jamnya sekali di editor bawah, lalu simpan berlaku ke
+  // semua kelas yang dipilih).
+  const kelasDipilih = Array.from(document.querySelectorAll('#jpKelasOverrideKelasGrid .kelas-check-item.checked'))
+    .map(el => el.querySelector('span')?.textContent?.trim()).filter(Boolean);
+  if (!hari || !kelasDipilih.length) { toast('Pilih hari dan minimal 1 kelas dulu', 'warning'); return; }
+
+  // Kelas yang sudah punya pengecualian utk hari ini dilewati di sini --
+  // utk ubah pengecualian yang sudah ada, klik chip-nya langsung (supaya
+  // tidak sengaja tertimpa jam kelas lain yang baru dipilih).
+  const kelasSudahAda = kelasDipilih.filter(k => jpKelasOverrides[`${hari}|${k}`]);
+  const kelasBaru = kelasDipilih.filter(k => !jpKelasOverrides[`${hari}|${k}`]);
+  if (kelasSudahAda.length) {
+    toast(`${kelasSudahAda.join(', ')} sudah punya pengecualian di hari ${hari} -- klik chip-nya utk mengubah`, 'warning');
+  }
+  if (!kelasBaru.length) return;
+
   // Mulai dari salinan jam yang BERLAKU utk hari itu sekarang (pengecualian
   // per Hari kalau ada, kalau tidak jam default) supaya admin tinggal ubah
-  // bagian yang perlu beda saja utk kelas ini.
+  // bagian yang perlu beda saja utk kelas-kelas ini.
   const jamAcuan = jpOverrides[hari] || jpDefaultRows;
   if (!jamAcuan.length) { toast('Isi dulu jam pelajaran default (atau pengecualian hari) di atas sebagai titik awal', 'warning'); return; }
   jpKelasOverrideRows = jamAcuan.map(r => ({ ...r }));
-  jpKelasOverrideAktif = { hari, kelas };
-  document.getElementById('jpKelasOverrideEditorTitle').textContent = `Pengecualian: ${hari} · ${kelas}`;
+  jpKelasOverrideAktif = { hari, kelasList: kelasBaru };
+  document.getElementById('jpKelasOverrideEditorTitle').textContent = `Pengecualian: ${hari} · ${kelasBaru.join(', ')}`;
   document.getElementById('jpKelasOverrideEditor').style.display = 'block';
   renderKelasOverrideTable();
 }
 
 function bukaPengecualianKelasEditor(hari, kelas) {
-  jpKelasOverrideAktif = { hari, kelas };
+  jpKelasOverrideAktif = { hari, kelasList: [kelas] };
   jpKelasOverrideRows = (jpKelasOverrides[`${hari}|${kelas}`] || []).map(r => ({ ...r }));
   document.getElementById('jpKelasOverrideEditorTitle').textContent = `Pengecualian: ${hari} · ${kelas}`;
   document.getElementById('jpKelasOverrideEditor').style.display = 'block';
@@ -7061,6 +7093,12 @@ function tutupPengecualianKelasEditor() {
   jpKelasOverrideRows = [];
   const el = document.getElementById('jpKelasOverrideEditor');
   if (el) el.style.display = 'none';
+  // Kosongkan lagi centang kelas di grid supaya sesi berikutnya mulai bersih.
+  document.querySelectorAll('#jpKelasOverrideKelasGrid .kelas-check-item.checked').forEach(item => {
+    item.classList.remove('checked');
+    const chk = item.querySelector('input[type=checkbox]');
+    if (chk) chk.checked = false;
+  });
 }
 
 function renderKelasOverrideTable() {
@@ -7083,20 +7121,45 @@ async function simpanPengecualianKelas() {
   if (!jpKelasOverrideAktif) return;
   if (!jpKelasOverrideRows.length) { toast('Minimal harus ada 1 baris jam pelajaran', 'warning'); return; }
   for (const r of jpKelasOverrideRows) { if (!r.jamMulai || !r.jamSelesai) { toast('Jam mulai & selesai wajib diisi di semua baris', 'warning'); return; } }
-  const { hari, kelas } = jpKelasOverrideAktif;
+  const { hari, kelasList } = jpKelasOverrideAktif;
   const rows = jpKelasOverrideRows.map(r => ({ jamKe: r.jamKe, jamMulai: r.jamMulai, jamSelesai: r.jamSelesai }));
-  const result = await api('mengajar', 'simpanJamPelajaranKelas', { hari, kelas, rows });
-  if (result.success) { toast(result.message, 'success'); tutupPengecualianKelasEditor(); await loadJamPelajaranSemua(); }
-  else toast(result.message, 'error');
+
+  // BARU: kelasList bisa berisi lebih dari 1 kelas -- API-nya sendiri masih
+  // per (hari, kelas) jadi di sini dipanggil berturut-turut utk tiap kelas
+  // yang dipilih, dengan jam (rows) yang SAMA persis.
+  const gagal = [];
+  for (const kelas of kelasList) {
+    const result = await api('mengajar', 'simpanJamPelajaranKelas', { hari, kelas, rows });
+    if (!result.success) gagal.push(`${kelas} (${result.message})`);
+  }
+
+  if (!gagal.length) {
+    toast(kelasList.length > 1
+      ? `Pengecualian jam untuk ${kelasList.join(', ')} di hari ${hari} berhasil disimpan`
+      : `Pengecualian jam untuk ${kelasList[0]} di hari ${hari} berhasil disimpan`, 'success');
+  } else {
+    toast(`Gagal simpan sebagian: ${gagal.join('; ')}`, 'error');
+  }
+  tutupPengecualianKelasEditor();
+  await loadJamPelajaranSemua();
 }
 
 async function hapusPengecualianKelas() {
   if (!jpKelasOverrideAktif) return;
-  const { hari, kelas } = jpKelasOverrideAktif;
-  if (!confirm(`Hapus pengecualian untuk ${kelas} di hari ${hari}? Kelas ini akan kembali memakai jam hari biasa.`)) return;
-  const result = await api('mengajar', 'hapusJamPelajaranKelas', { hari, kelas });
-  if (result.success) { toast(result.message, 'success'); tutupPengecualianKelasEditor(); await loadJamPelajaranSemua(); }
-  else toast(result.message, 'error');
+  const { hari, kelasList } = jpKelasOverrideAktif;
+  const label = kelasList.join(', ');
+  if (!confirm(`Hapus pengecualian untuk ${label} di hari ${hari}? Kelas ini akan kembali memakai jam hari biasa.`)) return;
+
+  const gagal = [];
+  for (const kelas of kelasList) {
+    const result = await api('mengajar', 'hapusJamPelajaranKelas', { hari, kelas });
+    if (!result.success) gagal.push(`${kelas} (${result.message})`);
+  }
+
+  if (!gagal.length) toast(`Pengecualian untuk ${label} di hari ${hari} dihapus, kembali memakai jam default`, 'success');
+  else toast(`Gagal hapus sebagian: ${gagal.join('; ')}`, 'error');
+  tutupPengecualianKelasEditor();
+  await loadJamPelajaranSemua();
 }
 
 // ── JADWAL MENGAJAR (tabel jadwal pelajaran, BARU) ────────────────────

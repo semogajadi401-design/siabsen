@@ -1070,15 +1070,18 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             </div>
           </div>
           <div class="card-body">
+            <!-- Tab per Hari: satu tombol per hari sekolah aktif, klik untuk
+                 ganti hari yang ditampilkan. Tabel jadi jauh lebih pendek
+                 (cuma jam pelajaran hari itu, bukan semua hari digabung
+                 jadi satu tabel panjang) jadi lebih gampang dibaca & dicari. -->
+            <div id="jmHariTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
             <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
               <select class="form-control" id="jmFilterGuru" style="max-width:220px" onchange="loadJadwalMengajar()"><option value="">Semua Guru</option></select>
-              <select class="form-control" id="jmFilterHari" style="max-width:160px" onchange="loadJadwalMengajar()"><option value="">Semua Hari</option></select>
             </div>
-            <!-- BARU: sebelumnya satu <table> panjang berisi SEMUA kelas
-                 tercampur (diurutkan apa adanya dari server), jadi susah
-                 dibaca kalau jadwalnya sudah banyak. Sekarang dikelompokkan
-                 per kelas -- satu mini-tabel per kelas, diisi/dirender oleh
-                 loadJadwalMengajar() ke dalam #jmGroupedContainer ini. -->
+            <!-- Sel kosong ("-") di tabel bisa langsung diklik untuk buka
+                 form Tambah Jadwal dengan Hari/Jam Ke/Kelas sudah terisi
+                 otomatis sesuai posisi sel -- admin tidak perlu isi ulang
+                 dari awal, tinggal pilih guru & isi mapel. -->
             <div id="jmGroupedContainer">
               <div style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</div>
             </div>
@@ -6732,17 +6735,34 @@ async function loadHalamanJadwalMengajar() {
   await loadJadwalMengajar();
 }
 
+// Tab hari yang sedang aktif di tabel Jadwal Mengajar (BARU -- sebelumnya
+// dropdown "Semua Hari/Senin/Selasa/dst" yang kalau dikosongkan ("Semua
+// Hari") menggabungkan SEMUA hari jadi satu tabel panjang, susah dicari.
+// Sekarang selalu menampilkan SATU hari lewat tab, jadi tabelnya pendek &
+// rapi. Default ke hari ini kalau termasuk hari aktif, kalau tidak ke hari
+// aktif pertama.
+let jmActiveHari = null;
+
 function populateFilterHariMengajar() {
-  const selHari = document.getElementById('jmFilterHari');
-  if (selHari) {
-    const prev = selHari.value;
-    selHari.innerHTML = '<option value="">Semua Hari</option>' + HARI_MENGAJAR.map(h => `<option value="${h}">${h}</option>`).join('');
-    if (HARI_MENGAJAR.includes(prev)) selHari.value = prev;
+  if (!jmActiveHari || !HARI_MENGAJAR.includes(jmActiveHari)) {
+    const namaHariIni = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date().getDay()];
+    jmActiveHari = HARI_MENGAJAR.includes(namaHariIni) ? namaHariIni : (HARI_MENGAJAR[0] || null);
+  }
+  const tabWrap = document.getElementById('jmHariTabs');
+  if (tabWrap) {
+    tabWrap.innerHTML = HARI_MENGAJAR.map(h => `<button type="button" class="btn btn-sm ${h === jmActiveHari ? 'btn-primary' : 'btn-outline'}" onclick="pilihTabHariMengajar('${h}')">${esc(h)}</button>`).join('');
   }
   const selHariModal = document.getElementById('jmHari');
   if (selHariModal) {
     selHariModal.innerHTML = HARI_MENGAJAR.map(h => `<option value="${h}">${h}</option>`).join('');
   }
+}
+
+function pilihTabHariMengajar(hari) {
+  if (jmActiveHari === hari) return;
+  jmActiveHari = hari;
+  populateFilterHariMengajar();
+  loadJadwalMengajar();
 }
 
 // Dropdown daftar guru dipakai di 3 tempat sekaligus (filter jadwal, form
@@ -6932,30 +6952,37 @@ async function hapusPengecualianHari() {
 
 // ── JADWAL MENGAJAR (tabel jadwal pelajaran, BARU) ────────────────────
 // SEBELUMNYA: satu tabel per kelas (10 kelas = 10 tabel terpisah, semua
-// hari digabung DI DALAM tabel masing-masing kelas). Sekarang jadi SATU
-// tabel jadwal pelajaran saja: baris = Hari + Jam Ke (semua hari
-// digabung jadi satu tempat, tidak dipisah-pisah per kelas), kolom =
-// satu kolom per kelas (10 kelas = 10 kolom). Isi tiap sel = mapel +
-// guru yang mengajar kelas itu pada hari & jam tersebut.
+// hari digabung DI DALAM tabel masing-masing kelas). Lalu sempat jadi SATU
+// tabel gabungan semua hari (baris = Hari+Jam Ke, jadi panjang & susah
+// dicari kalau harinya banyak). SEKARANG: dikelompokkan pakai tab per
+// Hari (lihat jmActiveHari/pilihTabHariMengajar) -- tabel yang tampil
+// cuma untuk SATU hari yang sedang aktif, baris = Jam Ke saja, kolom =
+// satu kolom per kelas. Sel kosong bisa langsung diklik untuk quick-add.
 async function loadJadwalMengajar() {
   const idGuru = document.getElementById('jmFilterGuru')?.value || '';
-  const hari = document.getElementById('jmFilterHari')?.value || '';
-  const result = await api('mengajar', 'getJadwalMengajar', { idGuru, hari });
+  const hari = jmActiveHari || '';
   const container = document.getElementById('jmGroupedContainer'); if (!container) return;
-  if (!result.success || !result.data.length) {
-    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">${result.success ? 'Belum ada jadwal mengajar' : esc(result.message)}</div>`;
+
+  if (!hari) {
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">⚠️ Belum ada hari sekolah aktif untuk ditampilkan.</div>`;
+    return;
+  }
+
+  const result = await api('mengajar', 'getJadwalMengajar', { idGuru, hari });
+  if (!result.success) {
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">${esc(result.message)}</div>`;
     return;
   }
   window._jmDataSemua = result.data;
 
-  const URUTAN_HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
-  const urutHari = h => { const i = URUTAN_HARI.indexOf(h); return i === -1 ? 99 : i; };
-
-  // Kolom: satu per kelas yang muncul di data, diurutkan ikut
-  // APP.kelasList (konsisten dengan Manajemen Kelas) supaya 7A sebelum
-  // 7B dst, bukan alfabetis mentah.
+  // Kolom: satu per kelas. Diambil dari APP.kelasList (semua kelas yang
+  // ada) supaya kelas yang BELUM punya jadwal di hari ini tetap muncul
+  // sebagai kolom kosong yang bisa diklik untuk quick-add -- bukan cuma
+  // kelas yang sudah kebetulan punya jadwal. Diurutkan ikut Manajemen
+  // Kelas supaya 7A sebelum 7B dst, bukan alfabetis mentah.
   const urutanKelas = APP.kelasList || [];
-  const semuaKelas = Array.from(new Set(result.data.map(j => j.kelas || '(Tanpa Kelas)'))).sort((a, b) => {
+  const kelasDariData = Array.from(new Set(result.data.map(j => j.kelas || '(Tanpa Kelas)')));
+  const semuaKelas = Array.from(new Set([...urutanKelas, ...kelasDariData])).sort((a, b) => {
     const ia = urutanKelas.indexOf(a), ib = urutanKelas.indexOf(b);
     if (ia !== -1 && ib !== -1) return ia - ib;
     if (ia !== -1) return -1;
@@ -6963,32 +6990,38 @@ async function loadJadwalMengajar() {
     return a.localeCompare(b);
   });
 
-  // Baris: satu per kombinasi Hari + Jam Ke Mulai -- SEMUA hari
-  // digabung jadi satu tabel, jadi tinggal urut Hari lalu Jam Ke.
-  const barisMap = {};
-  result.data.forEach(j => {
-    const key = j.hari + '|' + j.jamKeMulai;
-    if (!barisMap[key]) barisMap[key] = { hari: j.hari, jamKeMulai: j.jamKeMulai };
-  });
-  const semuaBaris = Object.values(barisMap).sort((a, b) => {
-    const dh = urutHari(a.hari) - urutHari(b.hari);
-    if (dh !== 0) return dh;
-    return (Number(a.jamKeMulai) || 0) - (Number(b.jamKeMulai) || 0);
-  });
+  // Baris: satu per Jam Ke -- diambil dari jam pelajaran hari ini
+  // (jpDataSemua) supaya SEMUA jam pelajaran hari itu tampil sebagai
+  // baris walau belum ada jadwal isinya sama sekali (bisa diklik quick-
+  // add), bukan cuma jam yang kebetulan sudah ada jadwalnya.
+  const jamHariIni = (jpDataSemua || []).filter(j => j.hari === hari).sort((a, b) => Number(a.jamKe) - Number(b.jamKe));
+  const jamKeDariData = result.data.map(j => Number(j.jamKeMulai));
+  const semuaJamKe = Array.from(new Set([...jamHariIni.map(j => Number(j.jamKe)), ...jamKeDariData])).sort((a, b) => a - b);
 
-  // Index cepat "hari|jamKeMulai|kelas" -> daftar jadwal yang cocok,
-  // dipakai untuk mengisi tiap sel tabel.
+  if (!semuaJamKe.length) {
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">⚠️ Jam pelajaran untuk hari ${esc(hari)} belum diatur di atas.</div>`;
+    return;
+  }
+
+  const fmtJam = t => (t || '').slice(0, 5);
+  const jamLabel = {};
+  jamHariIni.forEach(j => { jamLabel[j.jamKe] = `${fmtJam(j.jamMulai)}–${fmtJam(j.jamSelesai)}`; });
+
+  // Index cepat "jamKeMulai|kelas" -> daftar jadwal yang cocok, dipakai
+  // untuk mengisi tiap sel tabel.
   const cellIndex = {};
   result.data.forEach(j => {
-    const key = j.hari + '|' + j.jamKeMulai + '|' + (j.kelas || '(Tanpa Kelas)');
+    const key = j.jamKeMulai + '|' + (j.kelas || '(Tanpa Kelas)');
     (cellIndex[key] = cellIndex[key] || []).push(j);
   });
 
   const theadKelas = semuaKelas.map(k => `<th style="min-width:150px">${esc(k)}</th>`).join('');
-  const rowsHtml = semuaBaris.map(b => {
+  const rowsHtml = semuaJamKe.map(jamKe => {
     const cells = semuaKelas.map(kelas => {
-      const arr = cellIndex[b.hari + '|' + b.jamKeMulai + '|' + kelas] || [];
-      if (!arr.length) return `<td style="text-align:center;color:var(--text-muted)">-</td>`;
+      const arr = cellIndex[jamKe + '|' + kelas] || [];
+      if (!arr.length) {
+        return `<td class="jm-cell-kosong" style="text-align:center;color:var(--text-muted);cursor:pointer" title="Klik untuk tambah jadwal" onclick="openModalJadwalMengajar('${hari}', ${jamKe}, '${kelas}')">+</td>`;
+      }
       return `<td>${arr.map(j => `
         <div style="padding:4px 0;${arr.length > 1 ? 'border-bottom:1px dashed var(--border);margin-bottom:4px' : ''}">
           <div style="font-weight:700;font-size:.82rem">${esc(j.mapel)}</div>
@@ -7000,13 +7033,13 @@ async function loadJadwalMengajar() {
         </div>`).join('')}</td>`;
     }).join('');
     return `<tr>
-      <td style="white-space:nowrap;font-weight:700">${esc(b.hari)}<div style="font-size:.72rem;color:var(--text-muted);font-weight:600">Ke-${esc(b.jamKeMulai)}</div></td>
+      <td style="white-space:nowrap;font-weight:700">Ke-${jamKe}${jamLabel[jamKe] ? `<div style="font-size:.72rem;color:var(--text-muted);font-weight:600">${esc(jamLabel[jamKe])}</div>` : ''}</td>
       ${cells}
     </tr>`;
   }).join('');
 
   container.innerHTML = `<div class="table-responsive"><table>
-    <thead><tr><th style="width:100px">Hari / Jam Ke</th>${theadKelas}</tr></thead>
+    <thead><tr><th style="width:110px">Jam Ke</th>${theadKelas}</tr></thead>
     <tbody>${rowsHtml}</tbody>
   </table></div>`;
 }
@@ -7054,18 +7087,28 @@ function populateJamPelajaranOptionsJM(preselectMulai, preselectSelesai) {
   if (rows.some(j => String(j.jamKe) === String(prevSelesai))) selSelesaiEl.value = prevSelesai;
 }
 
-function openModalJadwalMengajar() {
+// presetHari/presetJamKe/presetKelas (opsional): dipakai supaya form
+// tambah jadwal tidak selalu mulai kosong. Tombol "+ Tambah Jadwal" di
+// header otomatis mengisi Hari sesuai tab yang sedang aktif; sel kosong
+// ("+") di dalam tabel mengisi Hari + Jam Ke + Kelas sekaligus sesuai
+// posisi sel yang diklik -- admin tinggal pilih guru & isi mapel.
+function openModalJadwalMengajar(presetHari, presetJamKe, presetKelas) {
   document.getElementById('jmModalTitle').textContent = 'Tambah Jadwal Mengajar';
   document.getElementById('jmId').value = '';
   document.getElementById('jmGuru').value = '';
-  document.getElementById('jmHari').selectedIndex = 0;
-  populateJamPelajaranOptionsJM('', '');
+  const selHari = document.getElementById('jmHari');
+  const hariAwal = presetHari || jmActiveHari || '';
+  if (hariAwal && Array.from(selHari.options).some(o => o.value === hariAwal)) selHari.value = hariAwal;
+  else selHari.selectedIndex = 0;
+  populateJamPelajaranOptionsJM(presetJamKe !== undefined ? String(presetJamKe) : '', '');
   // Insurance tambahan (murah, tanpa round-trip server -- cuma pakai
   // APP.kelasList yang sudah di-cache): jaga-jaga kalau kelas baru
   // ditambahkan dari tab/perangkat lain setelah halaman ini pertama
   // dimuat, dropdown tetap terbaru saat modal ini dibuka.
   populateKelasDropdowns();
-  document.getElementById('jmKelas').selectedIndex = 0;
+  const selKelas = document.getElementById('jmKelas');
+  if (presetKelas && Array.from(selKelas.options).some(o => o.value === presetKelas)) selKelas.value = presetKelas;
+  else selKelas.selectedIndex = 0;
   document.getElementById('jmMapel').value = '';
   openModal('modalJadwalMengajar');
 }

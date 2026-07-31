@@ -14,12 +14,14 @@ const {
   supabase, generateID, setCors, todayStr, jamSekarang, hariIni,
   tambahMenit, isHariLibur, isHariKerja, requireAdminToken,
   resolveGuruIdFromToken, getJamSetting, getSemesterAktif,
-  generateSesiToken, verifySesiToken
+  generateSesiToken, verifySesiToken, buatResolverJamPelajaran
 } = require('./_db');
 
 // Action yang MENGUBAH data master/pengaturan -> wajib admin.
 const AKSI_ADMIN_SAJA = new Set([
   'simpanJamPelajaran',
+  // BARU: pengecualian jam pelajaran per Hari + Kelas
+  'simpanJamPelajaranKelas', 'hapusJamPelajaranKelas',
   'tambahJadwalMengajar', 'editJadwalMengajar', 'hapusJadwalMengajar',
   'importJadwalMengajar',
   'hapusKeteranganMengajar',
@@ -50,6 +52,9 @@ const handler = async (req, res) => {
   try {
     if (action === 'getJamPelajaran')       return res.json(await getJamPelajaran(params));
     if (action === 'simpanJamPelajaran')    return res.json(await simpanJamPelajaran(params));
+    // BARU: pengecualian jam pelajaran per Hari + Kelas (override di atas jam default)
+    if (action === 'simpanJamPelajaranKelas') return res.json(await simpanJamPelajaranKelas(params));
+    if (action === 'hapusJamPelajaranKelas')  return res.json(await hapusJamPelajaranKelas(params));
 
     if (action === 'getJadwalMengajar')     return res.json(await getJadwalMengajar(params));
     if (action === 'tambahJadwalMengajar')  return res.json(await tambahJadwalMengajar(params));
@@ -155,7 +160,11 @@ async function getJamPelajaran({ hari } = {}) {
     success: true,
     data: (data || []).map(j => ({
       id: j.id, hari: j.hari, jamKe: j.jam_ke,
-      jamMulai: j.jam_mulai, jamSelesai: j.jam_selesai
+      jamMulai: j.jam_mulai, jamSelesai: j.jam_selesai,
+      // BARU: kelas='' berarti baris default/global (berlaku semua kelas
+      // yang tidak punya override sendiri); kelas terisi = override khusus
+      // kelas itu saja utk hari ini.
+      kelas: j.kelas || ''
     }))
   };
 }
@@ -175,6 +184,13 @@ async function getJamPelajaran({ hari } = {}) {
 //    sekaligus dalam satu panggilan (lihat simpanJamPelajaranDefault() di
 //    index.html) -- lebih efisien dihapus per-hari dulu baru insert massal,
 //    dibanding query cek-lalu-update/insert satu per satu seperti sebelumnya.
+//
+// BARU (pengecualian per Kelas): fungsi ini SEKARANG HANYA mengelola baris
+// DEFAULT (kelas=''). Delete-nya sengaja discope `.eq('kelas', '')` supaya
+// TIDAK ikut menghapus baris override per-kelas milik hari yang sama (yang
+// dikelola terpisah lewat simpanJamPelajaranKelas() di bawah) -- kalau
+// tidak, menyimpan jam default untuk suatu hari akan diam-diam menghapus
+// semua pengecualian kelas yang sudah dibuat utk hari itu.
 async function simpanJamPelajaran({ rows }) {
   if (!rows || !Array.isArray(rows) || rows.length === 0)
     return { success: false, message: 'Tidak ada data jam pelajaran untuk disimpan' };
@@ -186,17 +202,59 @@ async function simpanJamPelajaran({ rows }) {
 
   const hariList = [...new Set(rows.map(r => r.hari))];
 
-  const { error: eDel } = await supabase.from('jam_pelajaran').delete().in('hari', hariList);
+  const { error: eDel } = await supabase.from('jam_pelajaran').delete().in('hari', hariList).eq('kelas', '');
   if (eDel) return { success: false, message: 'Gagal membersihkan jam pelajaran lama: ' + eDel.message };
 
   const toInsert = rows.map(r => ({
     id: generateID('JPL'), hari: r.hari, jam_ke: r.jamKe,
-    jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai
+    jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai, kelas: ''
   }));
   const { error: eIns } = await supabase.from('jam_pelajaran').insert(toInsert);
   if (eIns) return { success: false, message: 'Gagal simpan jam pelajaran: ' + eIns.message };
 
   return { success: true, message: 'Jam pelajaran berhasil disimpan' };
+}
+
+// ── PENGECUALIAN JAM PELAJARAN PER HARI + KELAS (BARU) ──────────────
+// simpanJamPelajaranKelas: sama seperti simpanJamPelajaran (hapus lalu
+// insert ulang), tapi DISCOPE ke satu (hari, kelas) tertentu saja -- tidak
+// menyentuh baris default maupun override kelas lain di hari yang sama.
+// rows: [{ jamKe, jamMulai, jamSelesai }, ...] (hari & kelas dikirim
+// terpisah, sama utk semua baris).
+async function simpanJamPelajaranKelas({ hari, kelas, rows }) {
+  if (!hari || !kelas)
+    return { success: false, message: 'Hari dan Kelas wajib diisi' };
+  if (!rows || !Array.isArray(rows) || rows.length === 0)
+    return { success: false, message: 'Tidak ada data jam pelajaran untuk disimpan' };
+  for (const r of rows) {
+    if (!r.jamKe || !r.jamMulai || !r.jamSelesai)
+      return { success: false, message: 'Setiap baris wajib punya jamKe, jamMulai, jamSelesai' };
+  }
+
+  const { error: eDel } = await supabase.from('jam_pelajaran')
+    .delete().eq('hari', hari).eq('kelas', kelas);
+  if (eDel) return { success: false, message: 'Gagal membersihkan pengecualian lama: ' + eDel.message };
+
+  const toInsert = rows.map(r => ({
+    id: generateID('JPL'), hari, jam_ke: r.jamKe,
+    jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai, kelas
+  }));
+  const { error: eIns } = await supabase.from('jam_pelajaran').insert(toInsert);
+  if (eIns) return { success: false, message: 'Gagal simpan pengecualian: ' + eIns.message };
+
+  return { success: true, message: `Pengecualian jam untuk ${kelas} di hari ${hari} berhasil disimpan` };
+}
+
+// hapusJamPelajaranKelas: hapus semua baris override utk 1 (hari, kelas) --
+// kelas itu otomatis kembali memakai jam default hari itu lagi (lewat
+// resolver di buatResolverJamPelajaran(), bukan karena baris disalin balik).
+async function hapusJamPelajaranKelas({ hari, kelas }) {
+  if (!hari || !kelas)
+    return { success: false, message: 'Hari dan Kelas wajib diisi' };
+  const { error } = await supabase.from('jam_pelajaran')
+    .delete().eq('hari', hari).eq('kelas', kelas);
+  if (error) return { success: false, message: 'Gagal menghapus pengecualian: ' + error.message };
+  return { success: true, message: `Pengecualian untuk ${kelas} di hari ${hari} dihapus, kembali memakai jam default` };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -338,31 +396,45 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
   if (cekLibur.libur) return { success: false, message: `Hari ini libur (${cekLibur.keterangan || '-'})` };
   if (!hariAktif) return { success: false, message: `${hariNow} bukan hari sekolah` };
 
-  // 1. Cari semua jam_pelajaran hari ini yang jam_mulai <= sekarang <= jam_selesai + toleransi
+  // 1. Cari jadwal_mengajar guru ini hari ini DULU (tiap baris sudah punya
+  //    kelasnya sendiri), baru resolve jam efektif tiap baris (pakai
+  //    pengecualian per Hari+Kelas kalau ada, kalau tidak baru jam
+  //    default) dan cek mana yang sedang berlangsung sekarang.
+  //
+  //    PERBAIKAN (sadar kelas): SEBELUMNYA jam_ke "sekarang" ditentukan
+  //    lebih dulu dari jam_pelajaran GLOBAL saja (tanpa tahu kelas), baru
+  //    dicocokkan ke jadwal_mengajar guru -- akibatnya pengecualian jam
+  //    per kelas (mis. Kamis kelas X-1 pulang lebih cepat) tidak pernah
+  //    ikut terpakai di sini, karena kelasnya belum diketahui saat jam_ke
+  //    dicari. Sekarang dibalik: kelas didapat lebih dulu dari jadwal
+  //    guru, baru jam efektifnya di-resolve.
   const jamSetting = jamSettingDikirim || await getJamSetting();
   const toleransi = Number(jamSetting['TOLERANSI_MENGAJAR_MENIT'] || 15);
 
-  const { data: jamPelajaranHariIni } = await supabase
-    .from('jam_pelajaran').select('*').eq('hari', hariNow).order('jam_ke');
+  const [{ data: jadwalGuruHariIni }, { data: jamPelajaranHariIni }] = await Promise.all([
+    supabase.from('jadwal_mengajar').select('*')
+      .eq('id_guru', guruIdTerverifikasi).eq('hari', hariNow),
+    supabase.from('jam_pelajaran').select('*').eq('hari', hariNow).order('jam_ke')
+  ]);
 
-  const jamKeSekarang = (jamPelajaranHariIni || []).find(j => jamNow >= j.jam_mulai && jamNow <= tambahMenit(j.jam_selesai, toleransi));
-
-  if (!jamKeSekarang) {
-    return { success: false, message: 'Bukan jam pelajaran sekarang. Absen mengajar hanya bisa dilakukan saat sesi berlangsung.' };
-  }
-
-  // 2. Cari jadwal_mengajar guru ini yang mencakup jam_ke sekarang (blok
-  //    jam_ke_mulai..jam_ke_selesai) di hari ini.
-  const { data: jadwalGuru } = await supabase
-    .from('jadwal_mengajar').select('*')
-    .eq('id_guru', guruIdTerverifikasi).eq('hari', hariNow)
-    .lte('jam_ke_mulai', jamKeSekarang.jam_ke)
-    .gte('jam_ke_selesai', jamKeSekarang.jam_ke);
-
-  if (!jadwalGuru || jadwalGuru.length === 0) {
+  if (!jadwalGuruHariIni || jadwalGuruHariIni.length === 0) {
     return { success: false, message: 'Tidak ada jadwal mengajar Anda pada jam ini.' };
   }
-  const jadwal = jadwalGuru[0];
+
+  const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni);
+  let jadwal = null, jamKeSekarang = null;
+  for (const kandidat of jadwalGuruHariIni) {
+    const jpMulai = resolveJp(kandidat.jam_ke_mulai, kandidat.kelas);
+    const jpSelesai = resolveJp(kandidat.jam_ke_selesai, kandidat.kelas) || jpMulai;
+    if (!jpMulai || !jpSelesai) continue;
+    if (jamNow >= jpMulai.jam_mulai && jamNow <= tambahMenit(jpSelesai.jam_selesai, toleransi)) {
+      jadwal = kandidat; jamKeSekarang = jpMulai; break;
+    }
+  }
+
+  if (!jadwal) {
+    return { success: false, message: 'Bukan jam pelajaran sekarang. Absen mengajar hanya bisa dilakukan saat sesi berlangsung.' };
+  }
 
   // 3. Cek belum pernah scan untuk sesi jadwal ini hari ini (constraint DB
   //    juga menjaga ini, tapi dicek dulu supaya pesannya ramah).

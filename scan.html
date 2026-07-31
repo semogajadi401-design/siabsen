@@ -4660,9 +4660,17 @@ function toggleElemenOperasional(tampil) {
     'logTabsBar', 'logContainer', 'lastResult', 'lupaKartuHint'
   ];
   const selectors = [
-    '.stats-row', '.aksi-kelas-wrap', '.mode-switch-wrap',
+    '.stats-row', '.mode-switch-wrap',
     '.scan-title', '.filter-row'
   ];
+  // CATATAN: '.aksi-kelas-wrap' SENGAJA dikeluarkan dari daftar ini.
+  // Wrap ini berisi tombol "Absen Kelas" (mengajar) & "Cek Aktivitas
+  // Guru" -- keduanya untuk GURU, bukan siswa/piket, jadi tidak boleh
+  // ikut disembunyikan hanya karena lewat jam operasional siswa/piket
+  // (mis. guru yang mengajar kelas malam). Validasi jam sesi mengajar
+  // yang sebenarnya sudah dilakukan di backend (scanSesiMengajar, lihat
+  // api/mengajar.js) berdasarkan jadwal_mengajar & jam_pelajaran guru
+  // itu sendiri, jadi aman tetap ditampilkan kapan saja.
   const disp = tampil ? '' : 'none';
   ids.forEach(id => {
     const el = document.getElementById(id);

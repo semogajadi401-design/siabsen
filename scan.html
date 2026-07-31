@@ -106,7 +106,19 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:50;
   min-height:58px;
+  transition:top .3s ease;
 }
+/* BUG (BARU, diperbaiki): #offlineBar (position:fixed, top:0, z-index
+   8000) SEBELUMNYA menumpuk tepat di atas .header (position:sticky,
+   top:0, z-index 50) begitu koneksi terputus -- bukan mendorongnya ke
+   bawah. Akibatnya bagian atas header (termasuk tombol ❓ Petunjuk,
+   ⛶ Fullscreen, dll di header-right) ketutupan banner merah itu dan
+   TIDAK BISA DIKLIK sama sekali selama status offline aktif, meski
+   secara visual kelihatan seperti cuma tumpang tindih kecil. Sekarang
+   begitu body diberi class .is-offline (lihat updateOnlineStatus() &
+   inisialisasi awal di JS), header didorong turun persis setinggi
+   #offlineBar.show (36px) supaya tidak tumpang tindih lagi. */
+body.is-offline .header{ top:36px; }}
 .header-left{display:flex;align-items:center;gap:10px}
 .header-jaminfo{
   flex:1 1 340px;
@@ -2173,6 +2185,16 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
         <details class="pg-item">
           <summary>Bisa absen mengajar walau saya juga piket hari itu? <span class="pg-chev">›</span></summary>
           <div class="pg-a">Bisa, keduanya terpisah. Piket dicatat lewat scan biasa di kamera utama; mengajar lewat tombol <b>📚 Absen Kelas</b>.</div>
+        </details>
+
+        <div class="pg-cat-label">📝 Siswa Tanpa Kartu</div>
+        <details class="pg-item">
+          <summary>Kapan tombol "Input Kehadiran Tanpa Kartu" dipakai? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Khusus untuk <b>siswa</b> yang kartunya hilang, rusak, atau ketinggalan -- bukan untuk guru. Tekan tombol <b>📝 Input Kehadiran Tanpa Kartu</b> di bawah kamera, lalu masukkan username & password akun <b>guru piket hari ini</b> untuk verifikasi sebelum bisa mencatat kehadiran siswa secara manual.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Bisa dipakai kalau internet sedang mati? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Bisa. Sama seperti scan kartu biasa, data yang diinput lewat menu ini tetap tersimpan di perangkat dan otomatis terkirim ke server begitu koneksi kembali.</div>
         </details>
 
         <div class="pg-cat-label">📋 Edit Kehadiran Siswa (Guru Piket)</div>
@@ -4458,6 +4480,7 @@ async function init() {
   // checkAndSync() tidak terpicu dua kali dengan urutan yang belum tentu
   // aman sebelum checkStatus()/loadLog() di bawah selesai).
   document.getElementById('offlineBar').classList.toggle('show', !isOnline);
+  document.body.classList.toggle('is-offline', !isOnline);
   const btnTKAwal = document.getElementById('btnTanpaKartu');
   if (btnTKAwal) {
     btnTKAwal.innerHTML = isOnline
@@ -7283,6 +7306,7 @@ async function kirimHeartbeat() {
 function updateOnlineStatus(online) {
   isOnline = online;
   const bar = document.getElementById('offlineBar');
+  document.body.classList.toggle('is-offline', !online);
   if (online) {
     bar.classList.remove('show');
     // Badge TIDAK dipaksa hilang di sini — updateOfflineBadge() yang

@@ -524,26 +524,61 @@ function sebutanGuru(nama, jenisKelamin) {
 // mengajar.js) mengikuti pola cekIzinPiket di atas, supaya nanti api/sync.js
 // (jalur offline, Langkah C sub-langkah 5) bisa memakai fungsi yang SAMA
 // PERSIS, bukan menduplikasi logikanya sendiri.
+// ── RESOLVER JAM PELAJARAN PER HARI + KELAS (BARU) ──────────────────
+// jam_pelajaran sekarang bisa punya baris default (kelas='') DAN baris
+// override khusus 1 kelas (kelas=<nama kelas>) utk hari+jam_ke yang sama.
+// Fungsi ini mengubah kumpulan baris jam_pelajaran UNTUK SATU HARI (hasil
+// query .eq('hari', hari), TANPA filter kelas -- jadi berisi campuran baris
+// default & override) menjadi satu fungsi resolve(jamKe, kelas) yang
+// mengembalikan baris yang BERLAKU: override kelas itu kalau ada, kalau
+// tidak baru fallback ke baris default. Dipakai bersama oleh
+// cekJadwalMengajarSaatIni (di sini), scanSesiMengajar (api/mengajar.js),
+// dan 2 fungsi tampilan jadwal di api/scan.js -- supaya logika "kelas mana
+// menang" cuma ada di SATU tempat, tidak diduplikasi & berisiko drift.
+function buatResolverJamPelajaran(jamPelajaranHariIni) {
+  const defaultMap = {};   // jam_ke -> baris default (kelas='')
+  const overrideMap = {};  // `${kelas}|${jam_ke}` -> baris override kelas itu
+  (jamPelajaranHariIni || []).forEach(j => {
+    if (!j.kelas) defaultMap[j.jam_ke] = j;
+    else overrideMap[`${j.kelas}|${j.jam_ke}`] = j;
+  });
+  return function resolve(jamKe, kelas) {
+    if (kelas && overrideMap[`${kelas}|${jamKe}`]) return overrideMap[`${kelas}|${jamKe}`];
+    return defaultMap[jamKe] || null;
+  };
+}
+
 async function cekJadwalMengajarSaatIni({ guruId, hari, jam }) {
   const jamSetting = await getJamSetting();
   const toleransi = Number(jamSetting['TOLERANSI_MENGAJAR_MENIT'] || 15);
 
-  const { data: jamPelajaranHariIni } = await supabase
-    .from('jam_pelajaran').select('*').eq('hari', hari).order('jam_ke');
+  // PERBAIKAN (sadar kelas): SEBELUMNYA jam_ke "sekarang" ditentukan lebih
+  // dulu dari jam_pelajaran GLOBAL saja, baru dicocokkan ke jadwal_mengajar
+  // guru -- ini berarti override per-kelas (mis. Kamis kelas X-1 pulang
+  // lebih cepat) tidak pernah ikut terpakai, karena kelasnya belum
+  // diketahui saat jam_ke dicari. Sekarang urutannya dibalik: ambil dulu
+  // semua jadwal_mengajar guru ini hari ini (tiap baris sudah punya
+  // kelasnya sendiri), baru untuk TIAP baris dihitung jam efektifnya
+  // (pakai override kelas itu kalau ada, kalau tidak baru default) dan
+  // dicek apakah waktu sekarang jatuh di rentang itu.
+  const [{ data: jadwalGuruHariIni }, { data: jamPelajaranHariIni }] = await Promise.all([
+    supabase.from('jadwal_mengajar').select('*').eq('id_guru', guruId).eq('hari', hari),
+    supabase.from('jam_pelajaran').select('*').eq('hari', hari).order('jam_ke')
+  ]);
 
-  const jamKeSekarang = (jamPelajaranHariIni || []).find(
-    j => jam >= j.jam_mulai && jam <= tambahMenit(j.jam_selesai, toleransi)
-  );
-  if (!jamKeSekarang) return { ada: false };
+  if (!jadwalGuruHariIni || jadwalGuruHariIni.length === 0) return { ada: false };
 
-  const { data: jadwalGuru } = await supabase
-    .from('jadwal_mengajar').select('*')
-    .eq('id_guru', guruId).eq('hari', hari)
-    .lte('jam_ke_mulai', jamKeSekarang.jam_ke)
-    .gte('jam_ke_selesai', jamKeSekarang.jam_ke);
+  const resolve = buatResolverJamPelajaran(jamPelajaranHariIni);
 
-  if (!jadwalGuru || jadwalGuru.length === 0) return { ada: false };
-  return { ada: true, jadwal: jadwalGuru[0], jamKeSekarang };
+  for (const jadwal of jadwalGuruHariIni) {
+    const jpMulai = resolve(jadwal.jam_ke_mulai, jadwal.kelas);
+    const jpSelesai = resolve(jadwal.jam_ke_selesai, jadwal.kelas) || jpMulai;
+    if (!jpMulai || !jpSelesai) continue;
+    if (jam >= jpMulai.jam_mulai && jam <= tambahMenit(jpSelesai.jam_selesai, toleransi)) {
+      return { ada: true, jadwal, jamKeSekarang: jpMulai };
+    }
+  }
+  return { ada: false };
 }
 
 async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
@@ -1024,7 +1059,7 @@ module.exports = {
   // ── TAMBAHAN BARU (perbaikan performa scan) ──
   fetchJamPulangOverride, computeJamPulangEfektif,
   cekIzinPiket, resolveGuruIdFromToken,
-  cekJadwalMengajarSaatIni,
+  cekJadwalMengajarSaatIni, buatResolverJamPelajaran,
   generateSesiToken, verifySesiToken,
   ringkasanLiveHariIni, ringkasanRekapPeriode,
   // ── TAMBAHAN BARU (perbaikan keamanan: kiosk token & rate limit) ──

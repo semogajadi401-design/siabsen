@@ -967,6 +967,9 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .libur-banner-icon{font-size:3rem;margin-bottom:8px}
 .libur-banner-title{font-size:1.1rem;font-weight:800;color:#B45309}
 .libur-banner-sub{font-size:.85rem;color:var(--text-muted);margin-top:6px}
+.libur-besok-panel{
+  text-align:left;margin:18px auto 0;max-width:380px;
+}
 
 /* ── GAME ULAR DI BANNER LIBUR (BARU) ──
    Tombol pembuka + kotak game, cuma tampil kalau liburBanner aktif
@@ -1927,6 +1930,29 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   <div class="libur-banner-icon">🏖️</div>
   <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
   <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
+
+  <!-- BARU: panel "Info Besok" di dalam banner libur -- SEBELUMNYA begitu
+       hari ini libur, banner ini cuma nampilin judul/sub + game ular,
+       tanpa info guru piket/jadwal mengajar besok sama sekali (padahal
+       kalau besok ternyata hari sekolah, itu justru info paling
+       berguna buat guru yang buka aplikasi pas hari libur). Sekarang
+       dirender oleh renderLiburBesokInfo() (lihat JS), pakai ulang
+       fetchJadwalBesok() yang sama dengan panel sidebar rekap harian.
+       Kalau besok TERNYATA juga libur, bagian piket/jadwal disembunyikan
+       dan diganti pesan liburnya (lihat lbBesokWarn). -->
+  <div class="besok-side-panel libur-besok-panel" id="liburBesokPanel" style="display:none">
+    <div class="bsp-head"><span class="bsp-head-icon">📅</span> <span>Info Besok</span></div>
+    <div class="bsp-sub">Piket & jadwal mengajar untuk hari berikutnya</div>
+    <div id="lbBesokWarn"></div>
+    <div class="bsp-section" id="lbBesokPiketSection">
+      <div class="bsp-section-title">🛡️ Guru Piket Besok</div>
+      <div id="lbBesokPiket"><div class="bsp-empty">Memuat data...</div></div>
+    </div>
+    <div class="bsp-section" id="lbBesokJadwalSection">
+      <div class="bsp-section-title">📚 Jadwal Mengajar Besok</div>
+      <div id="lbBesokJadwal"><div class="bsp-empty">Memuat data...</div></div>
+    </div>
+  </div>
 
   <!-- BARU: game ringan "Ular" -- muncul cuma di hari libur/bukan hari
        sekolah, biar layar kiosk yang nganggur nggak kosong-kosong amat.
@@ -4501,6 +4527,7 @@ async function checkStatus() {
       mainContent.style.display = 'none';
       document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
       updateJamInfoBar(r);
+      renderLiburBesokInfo();
       return;
     }
 
@@ -4953,6 +4980,65 @@ async function renderBesokSideRail(mode) {
       ? jadwal.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)})<span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
       : `<div class="bsp-empty">Belum ada jadwal mengajar untuk ${esc(labelHari.toLowerCase())}.</div>`;
   } catch (e) {}
+}
+
+// ── INFO BESOK DI DALAM BANNER LIBUR (BARU) ─────────────────────────
+// Dipanggil dari checkStatus() begitu banner libur (hari ini bukan hari
+// sekolah) ditampilkan. Pakai fetchJadwalBesok() yang sama dengan panel
+// sidebar #besokSideRailPanel (lihat renderBesokSideRail()) supaya tidak
+// dobel logic/dobel request kalau kebetulan sudah pernah dimuat.
+//
+// Dua kondisi yang ditangani:
+// 1. Besok hari sekolah aktif -> tampilkan guru piket & jadwal mengajar
+//    besok, persis seperti panel "Info Besok" yang sudah ada.
+// 2. Besok JUGA libur/bukan hari sekolah -> sembunyikan bagian
+//    piket/jadwal (kosong, tidak relevan) dan tampilkan pesan singkat
+//    yang menjelaskan kenapa (pakai keteranganLibur dari server kalau
+//    ada, misal "Libur Semester").
+async function renderLiburBesokInfo() {
+  const panel = document.getElementById('liburBesokPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+
+  const elWarn    = document.getElementById('lbBesokWarn');
+  const elPiketSec  = document.getElementById('lbBesokPiketSection');
+  const elJadwalSec = document.getElementById('lbBesokJadwalSection');
+  const elPiket   = document.getElementById('lbBesokPiket');
+  const elJadwal  = document.getElementById('lbBesokJadwal');
+
+  try {
+    const r = await fetchJadwalBesok();
+    if (!r || !r.success) { panel.style.display = 'none'; return; }
+
+    if (!r.hariSekolah) {
+      // Besok juga bukan hari sekolah -- tidak ada piket/jadwal untuk
+      // ditampilkan, jadi bagian itu disembunyikan sepenuhnya dan diganti
+      // satu pesan yang relevan.
+      if (elPiketSec)  elPiketSec.style.display  = 'none';
+      if (elJadwalSec) elJadwalSec.style.display = 'none';
+      if (elWarn) elWarn.innerHTML =
+        `<div class="bsp-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'juga bukan hari sekolah'}.</div>`;
+      return;
+    }
+
+    // Besok hari sekolah aktif -- tampilkan seperti panel "Info Besok"
+    // biasa.
+    if (elPiketSec)  elPiketSec.style.display  = '';
+    if (elJadwalSec) elJadwalSec.style.display = '';
+    if (elWarn) elWarn.innerHTML = '';
+
+    const piket = r.guruPiket || [];
+    elPiket.innerHTML = piket.length
+      ? piket.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b></div>`).join('')
+      : `<div class="bsp-empty">Belum ada jadwal piket untuk besok.</div>`;
+
+    const jadwal = r.jadwalMengajar || [];
+    elJadwal.innerHTML = jadwal.length
+      ? jadwal.map(g => `<div class="bsp-row"><b>${esc(g.namaGuru)}</b> — ${esc(g.kelas)} (${esc(g.mapel)})<span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span></div>`).join('')
+      : `<div class="bsp-empty">Belum ada jadwal mengajar untuk besok.</div>`;
+  } catch (e) {
+    panel.style.display = 'none';
+  }
 }
 
 function renderRekapSiswa() {

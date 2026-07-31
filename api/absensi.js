@@ -300,7 +300,9 @@ async function dashboard() {
     { data: ketHariIni },
     jamSetting,
     piket,
-    { data: siswaKelas }
+    { data: siswaKelas },
+    cekLibur,
+    hariAktif
   ] = await Promise.all([
     supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
     supabase.from('guru').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
@@ -315,8 +317,18 @@ async function dashboard() {
     // kolom kelas siswa Aktif lalu di-group di JS -- seringan
     // getKelasList() di api/siswa.js, supaya tidak menambah beban berarti
     // ke endpoint dashboard yang publik/sering dipanggil.
-    supabase.from('siswa').select('kelas').eq('status', 'Aktif')
+    supabase.from('siswa').select('kelas').eq('status', 'Aktif'),
+    // BARU: status hari ini (libur/hari sekolah aktif), sama seperti cek
+    // yang sudah dipakai di absensiDatang/absensiPulang. Dashboard
+    // (dipakai bersama oleh admin & kepsek) sebelumnya tidak pernah
+    // mengecek ini, jadi di hari libur SEMUA siswa yang memang tidak ada
+    // KBM ikut dihitung sebagai "Tidak Hadir" -- menyesatkan. Status ini
+    // dikirim ke frontend supaya kartu "Persentase Kehadiran" bisa
+    // menampilkan pesan hari libur, bukan angka 0%/Alpha palsu.
+    isHariLibur(today),
+    isHariKerja(hari)
   ]);
+  const isHariSekolah = !cekLibur.libur && hariAktif;
 
   const jumlahPerKelas = {};
   (siswaKelas || []).forEach(s => {
@@ -349,7 +361,13 @@ async function dashboard() {
   // selalu ikut menghitung siswa sakit/izin sebagai Alpha juga, padahal
   // halaman "Kehadiran Hari Ini" sudah benar memisahkannya. Sekarang
   // dikurangi dulu dengan siswa yang sudah ada keterangan hari ini.
-  const alphaHariIni = Math.max(0, (totalSiswa || 0) - hadirHariIni - sakitIzinHariIni);
+  // BARU: kalau hari ini libur / bukan hari sekolah aktif, jangan hitung
+  // Alpha sama sekali -- tidak ada KBM berarti tidak ada yang "tidak
+  // hadir". Sebelumnya baris ini selalu jalan meski hari libur, sehingga
+  // seluruh siswa otomatis muncul sebagai Alpha di dashboard.
+  const alphaHariIni = isHariSekolah
+    ? Math.max(0, (totalSiswa || 0) - hadirHariIni - sakitIzinHariIni)
+    : 0;
 
   const absenTerkini = (absenHariIni || [])
     .filter(a => a.jam_datang)
@@ -384,6 +402,12 @@ async function dashboard() {
         namaGuru: p.nama_guru, jabatan: p.jabatan
       })),
       hariIni: hari,
+      // BARU: dipakai frontend (loadDashboard di index.html) untuk
+      // menampilkan pesan "Hari Libur" alih-alih grafik/angka kehadiran
+      // yang menyesatkan di kartu "Persentase Kehadiran Hari Ini".
+      isHariSekolah,
+      isLibur: cekLibur.libur,
+      keteranganLibur: cekLibur.libur ? cekLibur.keterangan : null,
       absenTerkini,
       siswaPerKelas
     }

@@ -1247,7 +1247,7 @@ async function getJadwalUntukTanggal(tanggal, hari) {
       success: true,
       tanggal, hari,
       hariSekolah: false,
-      keteranganLibur: cekLibur.libur ? (cekLibur.keterangan || 'Hari libur') : `${hari} bukan hari sekolah`,
+      keteranganLibur: cekLibur.libur ? (cekLibur.keterangan || 'Hari libur') : `${hari} adalah hari libur`,
       guruPiket: [],
       jadwalMengajar: []
     };

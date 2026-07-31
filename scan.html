@@ -4966,7 +4966,7 @@ async function renderBesokSideRail(mode) {
     const labelHari = mode === 'hariini' ? 'Hari ini' : 'Besok';
     if (elWarn) {
       elWarn.innerHTML = !r.hariSekolah
-        ? `<div class="bsp-warn">📅 ${esc(labelHari)} (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'bukan hari sekolah'}.</div>`
+        ? `<div class="bsp-warn">📅 ${esc(labelHari)} (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'adalah hari libur'}.</div>`
         : '';
     }
 
@@ -5017,7 +5017,7 @@ async function renderLiburBesokInfo() {
       if (elPiketSec)  elPiketSec.style.display  = 'none';
       if (elJadwalSec) elJadwalSec.style.display = 'none';
       if (elWarn) elWarn.innerHTML =
-        `<div class="bsp-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'juga bukan hari sekolah'}.</div>`;
+        `<div class="bsp-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'juga adalah hari libur'}.</div>`;
       return;
     }
 
@@ -6334,7 +6334,7 @@ function renderJadwalBesokModal(data) {
   const liburBox = document.getElementById('agBesokLiburBox');
   if (!data.hariSekolah) {
     liburBox.style.display = '';
-    liburBox.textContent = `📅 Besok (${data.hari}) ${data.keteranganLibur ? '— ' + data.keteranganLibur : 'bukan hari sekolah'}.`;
+    liburBox.textContent = `📅 Besok (${data.hari}) ${data.keteranganLibur ? '— ' + data.keteranganLibur : 'adalah hari libur'}.`;
   } else {
     liburBox.style.display = 'none';
   }

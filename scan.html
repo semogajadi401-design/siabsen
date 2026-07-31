@@ -968,6 +968,47 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
 .libur-banner-title{font-size:1.1rem;font-weight:800;color:#B45309}
 .libur-banner-sub{font-size:.85rem;color:var(--text-muted);margin-top:6px}
 
+/* ── GAME ULAR DI BANNER LIBUR (BARU) ──
+   Tombol pembuka + kotak game, cuma tampil kalau liburBanner aktif
+   (lihat toggleLiburGame() di JS). Dibuat ringan (canvas 2D polos,
+   tanpa asset/lib luar) karena cuma pengisi waktu, bukan fitur inti. */
+.libur-game-toggle{
+  margin-top:16px;padding:10px 22px;border:none;border-radius:14px;
+  background:var(--primary);color:#fff;font-family:var(--font);
+  font-size:.9rem;font-weight:700;cursor:pointer;
+  box-shadow:0 6px 16px -6px rgba(16,185,129,0.5);
+}
+.libur-game-toggle:active{transform:scale(.97)}
+.libur-game-wrap{
+  margin:18px auto 4px;max-width:320px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+}
+.libur-game-scorebar{
+  width:100%;max-width:300px;display:flex;align-items:center;justify-content:space-between;
+  font-size:.8rem;color:var(--text);font-weight:600;
+}
+.libur-game-scorebar b{color:var(--primary-dark)}
+.libur-game-close{
+  border:none;background:none;color:var(--text-muted);font-size:.78rem;
+  font-weight:700;cursor:pointer;padding:2px 6px;
+}
+#liburGameCanvas{
+  background:#0F172A;border-radius:14px;box-shadow:var(--shadow-card);
+  touch-action:none;max-width:100%;
+}
+.libur-game-pad{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.libur-game-pad-mid{display:flex;gap:34px}
+.libur-game-pad button{
+  width:44px;height:44px;border:none;border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);
+  font-size:1.1rem;color:var(--text);cursor:pointer;
+  box-shadow:var(--shadow-soft);
+}
+.libur-game-pad button:active{background:var(--accent-soft)}
+.libur-game-hint{font-size:.72rem;color:var(--text-muted)}
+
 /* ── BANNER JAM OPERASIONAL BERAKHIR (Mode Rekap Harian) ──
    Background hijau berkedip PELAN -- dibuat dengan animasi antara dua
    corak hijau (bukan hijau<->transparan) supaya tetap terbaca sebagai
@@ -1886,6 +1927,29 @@ body{font-family:var(--font);color:var(--text);min-height:100%;overflow-x:hidden
   <div class="libur-banner-icon">🏖️</div>
   <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
   <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
+
+  <!-- BARU: game ringan "Ular" -- muncul cuma di hari libur/bukan hari
+       sekolah, biar layar kiosk yang nganggur nggak kosong-kosong amat.
+       Disembunyikan default, baru dirender saat tombol ditekan supaya
+       tidak makan resource kalau memang tidak dipakai. -->
+  <button class="libur-game-toggle" id="liburGameToggle" onclick="toggleLiburGame()">🐍 Main Ular Yuk</button>
+  <div class="libur-game-wrap" id="liburGameWrap" style="display:none">
+    <div class="libur-game-scorebar">
+      <span>Skor: <b id="liburGameSkor">0</b></span>
+      <span>Rekor: <b id="liburGameRekor">0</b></span>
+      <button class="libur-game-close" onclick="toggleLiburGame(false)">✕ Tutup</button>
+    </div>
+    <canvas id="liburGameCanvas" width="300" height="300"></canvas>
+    <div class="libur-game-pad" id="liburGamePad">
+      <button data-dir="up">▲</button>
+      <div class="libur-game-pad-mid">
+        <button data-dir="left">◀</button>
+        <button data-dir="down">▼</button>
+        <button data-dir="right">▶</button>
+      </div>
+    </div>
+    <div class="libur-game-hint" id="liburGameHint">Ketuk layar / panah keyboard untuk mulai</div>
+  </div>
 </div>
 
 <!-- BANNER JAM OPERASIONAL BERAKHIR (tersembunyi default) -->
@@ -7528,6 +7592,173 @@ async function processQRWithOffline(data) {
     scanCooldown = false;
     if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
   }, 2500);
+}
+
+// ══════ GAME ULAR DI BANNER LIBUR (BARU) ═══════════════════════════
+// Cuma pengisi waktu saat halaman scan menampilkan liburBanner (hari
+// libur / bukan hari sekolah -- lihat checkStatus(), r.bisaAbsen).
+// Canvas 2D polos, tanpa lib luar, jadi ringan dan tidak menabrak
+// alur absensi/QR/face-api yang jadi fokus utama halaman ini.
+let _lgCtx = null, _lgLoopId = null, _lgInited = false;
+const LG_CELL = 15, LG_COLS = 20, LG_ROWS = 20; // 300x300 canvas / 15px
+let lgSnake, lgDir, lgNextDir, lgFood, lgSkor, lgSpeedMs, lgRunning, lgGameOver;
+
+function toggleLiburGame(force) {
+  const wrap   = document.getElementById('liburGameWrap');
+  const toggle = document.getElementById('liburGameToggle');
+  const show = force !== undefined ? force : (wrap.style.display === 'none');
+  wrap.style.display   = show ? 'flex' : 'none';
+  toggle.style.display = show ? 'none' : 'inline-block';
+  if (show) {
+    if (!_lgInited) initLiburGame();
+    else lgResetGame();
+    document.getElementById('liburGameCanvas').focus();
+  } else {
+    lgStopLoop();
+  }
+}
+
+function initLiburGame() {
+  const canvas = document.getElementById('liburGameCanvas');
+  _lgCtx = canvas.getContext('2d');
+  canvas.setAttribute('tabindex', '0'); // supaya bisa nangkap fokus keyboard
+  _lgInited = true;
+
+  // Kontrol keyboard (panah / WASD) -- hanya aktif kalau game wrap terbuka.
+  document.addEventListener('keydown', (e) => {
+    if (document.getElementById('liburGameWrap').style.display === 'none') return;
+    const map = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+                  w:'up', s:'down', a:'left', d:'right' };
+    const dir = map[e.key];
+    if (dir) { e.preventDefault(); lgSetDir(dir); lgEnsureRunning(); }
+  });
+
+  // Kontrol sentuh (tombol panah di layar) -- utama untuk kiosk sentuh/tablet.
+  document.getElementById('liburGamePad').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-dir]');
+    if (!btn) return;
+    lgSetDir(btn.dataset.dir);
+    lgEnsureRunning();
+  });
+
+  // Ketuk area canvas juga langsung mulai (buat yang belum ngeh tombolnya).
+  canvas.addEventListener('click', () => lgEnsureRunning());
+
+  lgResetGame();
+}
+
+function lgEnsureRunning() {
+  if (!lgRunning && !lgGameOver) { lgRunning = true; lgStartLoop(); }
+  if (lgGameOver) lgResetGame();
+}
+
+function lgSetDir(dir) {
+  const opposite = { up:'down', down:'up', left:'right', right:'left' };
+  // Cegah belok 180 derajat langsung ke badan sendiri.
+  if (opposite[dir] === lgDir) return;
+  lgNextDir = dir;
+}
+
+function lgResetGame() {
+  lgStopLoop();
+  const mid = Math.floor(LG_COLS / 2);
+  lgSnake = [{x:mid,y:mid}, {x:mid-1,y:mid}, {x:mid-2,y:mid}];
+  lgDir = lgNextDir = 'right';
+  lgSkor = 0;
+  lgSpeedMs = 160;
+  lgRunning = false;
+  lgGameOver = false;
+  lgSpawnFood();
+  document.getElementById('liburGameSkor').textContent = '0';
+  document.getElementById('liburGameRekor').textContent = lgGetRekor();
+  document.getElementById('liburGameHint').textContent = 'Ketuk layar / panah keyboard untuk mulai';
+  lgDraw();
+}
+
+function lgSpawnFood() {
+  let pos;
+  do {
+    pos = { x: Math.floor(Math.random()*LG_COLS), y: Math.floor(Math.random()*LG_ROWS) };
+  } while (lgSnake.some(s => s.x === pos.x && s.y === pos.y));
+  lgFood = pos;
+}
+
+function lgGetRekor() {
+  return parseInt(localStorage.getItem('siabsen_ular_rekor') || '0', 10);
+}
+function lgSimpanRekorJikaBaru() {
+  if (lgSkor > lgGetRekor()) localStorage.setItem('siabsen_ular_rekor', String(lgSkor));
+}
+
+function lgStartLoop() {
+  lgStopLoop();
+  _lgLoopId = setInterval(lgTick, lgSpeedMs);
+}
+function lgStopLoop() {
+  if (_lgLoopId) { clearInterval(_lgLoopId); _lgLoopId = null; }
+}
+
+function lgTick() {
+  lgDir = lgNextDir;
+  const head = { ...lgSnake[0] };
+  if (lgDir === 'up') head.y--;
+  else if (lgDir === 'down') head.y++;
+  else if (lgDir === 'left') head.x--;
+  else head.x++;
+
+  // Tabrak dinding atau badan sendiri -> game over.
+  const nabrakDinding = head.x < 0 || head.x >= LG_COLS || head.y < 0 || head.y >= LG_ROWS;
+  const nabrakBadan = lgSnake.some(s => s.x === head.x && s.y === head.y);
+  if (nabrakDinding || nabrakBadan) {
+    lgGameOver = true;
+    lgRunning = false;
+    lgStopLoop();
+    lgSimpanRekorJikaBaru();
+    document.getElementById('liburGameRekor').textContent = lgGetRekor();
+    document.getElementById('liburGameHint').textContent = '💥 Kalah! Ketuk layar untuk main lagi';
+    lgDraw();
+    return;
+  }
+
+  lgSnake.unshift(head);
+  if (head.x === lgFood.x && head.y === lgFood.y) {
+    lgSkor++;
+    document.getElementById('liburGameSkor').textContent = lgSkor;
+    lgSpawnFood();
+    // Sedikit dipercepat tiap makan, biar makin seru -- dibatasi biar tetap ringan dimainkan.
+    if (lgSpeedMs > 70) { lgSpeedMs -= 4; lgStartLoop(); }
+  } else {
+    lgSnake.pop();
+  }
+  lgDraw();
+}
+
+function lgDraw() {
+  const ctx = _lgCtx;
+  if (!ctx) return;
+  ctx.fillStyle = '#0F172A';
+  ctx.fillRect(0, 0, LG_COLS*LG_CELL, LG_ROWS*LG_CELL);
+
+  // Makanan
+  ctx.fillStyle = '#F59E0B';
+  ctx.beginPath();
+  ctx.arc(lgFood.x*LG_CELL + LG_CELL/2, lgFood.y*LG_CELL + LG_CELL/2, LG_CELL/2 - 2, 0, Math.PI*2);
+  ctx.fill();
+
+  // Ular
+  lgSnake.forEach((s, i) => {
+    ctx.fillStyle = i === 0 ? '#10B981' : '#34D399';
+    ctx.fillRect(s.x*LG_CELL + 1, s.y*LG_CELL + 1, LG_CELL - 2, LG_CELL - 2);
+  });
+
+  if (lgGameOver) {
+    ctx.fillStyle = 'rgba(15,23,42,0.55)';
+    ctx.fillRect(0, 0, LG_COLS*LG_CELL, LG_ROWS*LG_CELL);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Game Over', LG_COLS*LG_CELL/2, LG_ROWS*LG_CELL/2);
+  }
 }
 
 // ── PASANG EVENT LISTENER ONLINE/OFFLINE ─────────────────────────

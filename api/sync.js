@@ -605,6 +605,31 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     return { success: false, permanent: true, tipe: 'siswa', message: `${siswa.nama} sudah absen datang pukul ${absenHariIni.jam_datang}` };
   }
 
+  // PERBAIKAN BUG (SAMA seperti scanKartu() di api/scan.js -- jalur online):
+  // sebelumnya blok ini TIDAK mengecek tabel `keterangan_absensi` sama
+  // sekali sebelum membuat baris `absensi` baru. Akibatnya: kalau siswa
+  // sudah diinput Sakit/Izin lebih dulu (mis. orang tua lapor pagi-pagi
+  // lewat dashboard admin/guru piket, online), tapi siswa itu ternyata
+  // tetap datang dan scan-nya kebetulan terjadi di kiosk yang SEDANG
+  // OFFLINE saat itu, maka begitu kiosk itu online lagi dan antriannya
+  // sync lewat processSingleScan() ini, sistem tetap membuat baris
+  // `absensi` (Hadir/Terlambat) TANPA menyentuh baris `keterangan_absensi`
+  // yang sudah ada -- hasilnya siswa itu tercatat GANDA: Terlambat/Hadir
+  // di `absensi` DAN Sakit/Izin di `keterangan_absensi` untuk tanggal yang
+  // sama. Di Evaluasi Kehadiran (loadEvaluasi() di index.html), dua-duanya
+  // ikut terhitung, jadi satu hari yang sama dihitung 2x untuk siswa itu.
+  // Sekarang: kalau keterangan sudah ada, HAPUS keterangan itu (bukan
+  // ditolak) -- karena siswa TERBUKTI hadir secara fisik (scan kartunya
+  // nyata, cuma laporannya baru sampai server belakangan karena offline),
+  // jadi laporan Sakit/Izin sebelumnya sudah tidak berlaku lagi dan
+  // seharusnya tidak menghalangi absensi yang benar-benar terjadi.
+  const { data: ketHariIniSiswa } = await supabase
+    .from('keterangan_absensi').select('id,status')
+    .eq('id_siswa', siswa.id).eq('tanggal', tanggal).maybeSingle();
+  if (ketHariIniSiswa) {
+    await supabase.from('keterangan_absensi').delete().eq('id', ketHariIniSiswa.id);
+  }
+
   const statusDatang = jam > jamBatasDatang ? 'Terlambat' : 'Hadir';
   const absenId      = generateID('AB');
 
@@ -650,7 +675,8 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
 
   return {
     success: true, tipe: 'siswa', status: statusDatang,
-    message: `${siswa.nama} absen datang - ${jam} (${statusDatang})`,
+    message: `${siswa.nama} absen datang - ${jam} (${statusDatang})`
+      + (ketHariIniSiswa ? ` (catatan ${ketHariIniSiswa.status} sebelumnya hari ini otomatis dihapus karena ternyata hadir)` : ''),
     siswa: { nama: siswa.nama, kelas: siswa.kelas }
   };
 }

@@ -218,6 +218,14 @@ CREATE TABLE IF NOT EXISTS kehadiran_siswa_mapel (
   tanggal DATE NOT NULL,
   jam_scan TEXT,
   metode TEXT,
+  -- BARU: sebelumnya baris di sini SELALU berarti "Hadir" (satu-satunya
+  -- cara masuk ke tabel ini adalah scan kartu fisik). Sekarang tabel ini
+  -- juga menampung hasil checklist manual guru untuk siswa yang TIDAK
+  -- scan kartu (lihat simpanAbsensiKelasManual di api/mengajar.js) --
+  -- jadi butuh kolom status sendiri: 'Hadir' (default, termasuk semua
+  -- baris lama & hasil scan kartu), 'Izin', 'Sakit', atau 'Alpa'.
+  status TEXT NOT NULL DEFAULT 'Hadir',
+  keterangan TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   -- 1 siswa cuma boleh terverifikasi 1x per sesi mengajar. scanSiswaMapel()
   -- di api/mengajar.js menangkap kode 23505 dari constraint ini untuk
@@ -226,6 +234,11 @@ CREATE TABLE IF NOT EXISTS kehadiran_siswa_mapel (
 );
 CREATE INDEX IF NOT EXISTS idx_kehadiransiswamapel_siswa   ON kehadiran_siswa_mapel(id_siswa);
 CREATE INDEX IF NOT EXISTS idx_kehadiransiswamapel_tanggal ON kehadiran_siswa_mapel(tanggal);
+-- MIGRASI (kalau tabel ini sudah ada sebelumnya di database production,
+-- CREATE TABLE IF NOT EXISTS di atas TIDAK menambah kolom baru ke tabel
+-- yang sudah ada -- jalankan manual ini sekali di Supabase SQL Editor):
+--   ALTER TABLE kehadiran_siswa_mapel ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Hadir';
+--   ALTER TABLE kehadiran_siswa_mapel ADD COLUMN IF NOT EXISTS keterangan TEXT;
 
 -- ─── TABEL KETERANGAN MENGAJAR (Izin/Sakit guru, manual oleh admin/TU atau guru sendiri) ──
 CREATE TABLE IF NOT EXISTS keterangan_mengajar (

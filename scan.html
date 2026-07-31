@@ -5218,10 +5218,12 @@ function kelompokkanJadwalPerKelas(jadwal) {
   return { grup, kelasList };
 }
 
-function renderJadwalMengajarGrouped(jadwal) {
+function renderJadwalMengajarGrouped(jadwal, kelasTerbuka) {
   const { grup, kelasList } = kelompokkanJadwalPerKelas(jadwal);
-  return kelasList.map((k, i) => `
-    <details class="bsp-kelas-group"${i === 0 ? ' open' : ''}>
+  return kelasList.map((k, i) => {
+    const terbuka = kelasTerbuka ? kelasTerbuka.has(k) : i === 0;
+    return `
+    <details class="bsp-kelas-group" data-kelas="${esc(k)}"${terbuka ? ' open' : ''}>
       <summary>
         <span class="bsp-kelas-chevron">▶</span>
         <span class="bsp-kelas-label">Kelas ${esc(k)}</span>
@@ -5234,7 +5236,21 @@ function renderJadwalMengajarGrouped(jadwal) {
             <span class="bsp-meta">jam ${esc(g.jamMulai || '-')}-${esc(g.jamSelesai || '-')}</span>
           </div>`).join('')}
       </div>
-    </details>`).join('');
+    </details>`;
+  }).join('');
+}
+
+// BARU: baca kelas mana saja yang SEDANG terbuka di DOM sebelum
+// innerHTML ditulis ulang (dipanggil sebelum re-render, lihat pemanggil
+// di bawah) -- supaya re-render berkala (checkStatus() tiap
+// REFRESH_STATUS_MS, lihat komentarnya) tidak diam-diam menutup paksa
+// accordion yang baru saja dibuka guru. null kalau container belum ada
+// isinya sama sekali (render pertama kali -- biar kelas pertama yang
+// default terbuka, lihat renderJadwalMengajarGrouped di atas).
+function ambilKelasTerbuka(container, selectorClass) {
+  if (!container || !container.children.length) return null;
+  const terbuka = [...container.querySelectorAll(`.${selectorClass}[open]`)].map(d => d.dataset.kelas);
+  return new Set(terbuka); // boleh Set kosong (semua sengaja ditutup guru) -- BUKAN null
 }
 
 // BARU: varian netral (kartu putih/border tipis) dari renderJadwalMengajarGrouped()
@@ -5242,10 +5258,12 @@ function renderJadwalMengajarGrouped(jadwal) {
 // renderJadwalBesokModal()) yang temanya netral, BUKAN indigo seperti
 // panel sidebar/banner libur. Grouping & urutannya sama persis (pakai
 // kelompokkanJadwalPerKelas() yang sama), cuma warnanya menyesuaikan.
-function renderJadwalMengajarGroupedNeutral(jadwal) {
+function renderJadwalMengajarGroupedNeutral(jadwal, kelasTerbuka) {
   const { grup, kelasList } = kelompokkanJadwalPerKelas(jadwal);
-  return kelasList.map((k, i) => `
-    <details class="agb-kelas-group"${i === 0 ? ' open' : ''}>
+  return kelasList.map((k, i) => {
+    const terbuka = kelasTerbuka ? kelasTerbuka.has(k) : i === 0;
+    return `
+    <details class="agb-kelas-group" data-kelas="${esc(k)}"${terbuka ? ' open' : ''}>
       <summary>
         <span class="agb-kelas-chevron">▶</span>
         <span class="agb-kelas-label">Kelas ${esc(k)}</span>
@@ -5258,7 +5276,8 @@ function renderJadwalMengajarGroupedNeutral(jadwal) {
             <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">${esc(g.namaGuru)} · Jam ${esc(g.jamMulai || '-')}–${esc(g.jamSelesai || '-')}</div>
           </div>`).join('')}
       </div>
-    </details>`).join('');
+    </details>`;
+  }).join('');
 }
 
 async function renderBesokSideRail(mode) {
@@ -5309,7 +5328,7 @@ async function renderBesokSideRail(mode) {
 
     const jadwal = r.jadwalMengajar || [];
     elJadwal.innerHTML = jadwal.length
-      ? renderJadwalMengajarGrouped(jadwal)
+      ? renderJadwalMengajarGrouped(jadwal, ambilKelasTerbuka(elJadwal, 'bsp-kelas-group'))
       : `<div class="bsp-empty">Belum ada jadwal mengajar untuk ${esc(labelHari.toLowerCase())}.</div>`;
   } catch (e) {}
 }
@@ -5366,7 +5385,7 @@ async function renderLiburBesokInfo() {
 
     const jadwal = r.jadwalMengajar || [];
     elJadwal.innerHTML = jadwal.length
-      ? renderJadwalMengajarGrouped(jadwal)
+      ? renderJadwalMengajarGrouped(jadwal, ambilKelasTerbuka(elJadwal, 'bsp-kelas-group'))
       : `<div class="bsp-empty">Belum ada jadwal mengajar untuk besok.</div>`;
   } catch (e) {
     panel.style.display = 'none';
@@ -6682,7 +6701,7 @@ function renderJadwalBesokModal(data) {
   const elMengajar = document.getElementById('agBesokMengajar');
   const jadwal = data.jadwalMengajar || [];
   elMengajar.innerHTML = jadwal.length
-    ? renderJadwalMengajarGroupedNeutral(jadwal)
+    ? renderJadwalMengajarGroupedNeutral(jadwal, ambilKelasTerbuka(elMengajar, 'agb-kelas-group'))
     : `<div style="font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada jadwal mengajar untuk besok.</div>`;
 }
 

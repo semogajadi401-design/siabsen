@@ -56,7 +56,21 @@ const handler = async (req, res) => {
     if (action === 'simpanJamPelajaranKelas') return res.json(await simpanJamPelajaranKelas(params));
     if (action === 'hapusJamPelajaranKelas')  return res.json(await hapusJamPelajaranKelas(params));
 
-    if (action === 'getJadwalMengajar')     return res.json(await getJadwalMengajar(params));
+    // BARU: getJadwalMengajar sebelumnya bisa dipanggil siapa saja tanpa
+    // otorisasi sama sekali (beda dengan endpoint baca lain di file ini
+    // yang sudah membatasi guru hanya lihat data sendiri). Sekarang
+    // disamakan: admin/kepsek bebas (dipakai halaman admin "Jadwal
+    // Mengajar" utk lihat semua guru), guru wajib kirim idGuru = dirinya
+    // sendiri (dipakai halaman "Jadwal Mengajar Saya").
+    if (action === 'getJadwalMengajar') {
+      const adminValid = await requireAdminToken(adminToken);
+      if (!adminValid && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || !params.idGuru || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(401).json({ success: false, message: 'Anda hanya bisa melihat jadwal mengajar Anda sendiri.' });
+        }
+      }
+      return res.json(await getJadwalMengajar(params));
+    }
     if (action === 'tambahJadwalMengajar')  return res.json(await tambahJadwalMengajar(params));
     if (action === 'editJadwalMengajar')    return res.json(await editJadwalMengajar(params));
     if (action === 'hapusJadwalMengajar')   return res.json(await hapusJadwalMengajar(params));
@@ -656,11 +670,31 @@ async function hitungUlangStatusVerifikasi(sesi) {
   const ambangEfektif = Math.min(ambangSetting, hadirKelasHariItu || ambangSetting);
   const status = jumlah >= ambangEfektif ? 'Terverifikasi' : 'Perlu Ditinjau';
 
+  // BARU: hitung ulang & PERSISTEN-kan kelengkapan absensi kelas (apakah
+  // SEMUA siswa aktif sudah tercatat) setiap kali status verifikasi
+  // dihitung ulang. Fungsi ini dipanggil dari scanSiswaMapel,
+  // simpanAbsensiKelasManual, selesaiVerifikasi -- DAN dari jalur
+  // sinkronisasi offline (scanSiswaMapelInternal di api/sync.js), jadi
+  // kolom kehadiran_lengkap ikut ter-update juga untuk sesi yang discan
+  // sepenuhnya offline. PENTING: ini cuma mencatat status kelengkapan,
+  // BUKAN mengganti keharusan checklist -- checklist yang menolak menutup
+  // sesi (lihat selesaiVerifikasi) cuma bisa jalan saat online karena
+  // butuh daftar siswa real-time dari server. Jadi sesi yang ditutup
+  // sepenuhnya offline (tanpa pernah lewat checklist) TETAP bisa lolos
+  // tanpa mengisi checklist, TAPI kelihatan "belum lengkap" di rekap
+  // admin/guru alih-alih hilang tanpa jejak -- lihat getRekapKehadiranGuru
+  // & getRekapKehadiranSiswaMapel yang menampilkan kolom ini.
+  const kelengkapan = await cekKelengkapanKehadiranSesi(sesi);
+
   await supabase.from('absensi_mengajar')
-    .update({ jumlah_siswa_terverifikasi: jumlah, status_verifikasi: status })
+    .update({
+      jumlah_siswa_terverifikasi: jumlah, status_verifikasi: status,
+      kehadiran_lengkap: kelengkapan.lengkap,
+      jumlah_siswa_belum_tercatat: kelengkapan.belum.length
+    })
     .eq('id', sesi.id);
 
-  return { jumlah, status };
+  return { jumlah, status, lengkap: kelengkapan.lengkap, belum: kelengkapan.belum };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -844,18 +878,20 @@ async function selesaiVerifikasi({ idAbsensiMengajar, sesiToken }) {
   const { data: sesi } = await supabase.from('absensi_mengajar').select('*').eq('id', idAbsensiMengajar).maybeSingle();
   if (!sesi) return { success: false, message: 'Sesi mengajar tidak ditemukan' };
 
+  // hitungUlangStatusVerifikasi() sekarang sekalian menghitung & menyimpan
+  // kelengkapan (kehadiran_lengkap) -- lihat definisinya. Jadi tidak perlu
+  // query cekKelengkapanKehadiranSesi terpisah lagi di sini.
   const hasil = await hitungUlangStatusVerifikasi(sesi);
 
   // BARU: tolak menutup sesi kalau absensi kelas belum mencakup semua
   // siswa aktif -- kembalikan belumLengkap:true + daftar siswa yang masih
   // kosong, supaya klien (scan.html) membuka kembali checklist absensi
   // kelas alih-alih menutup sesi verifikasi begitu saja.
-  const kelengkapan = await cekKelengkapanKehadiranSesi(sesi);
-  if (!kelengkapan.lengkap) {
+  if (!hasil.lengkap) {
     return {
-      success: true, belumLengkap: true, daftarBelum: kelengkapan.belum,
+      success: true, belumLengkap: true, daftarBelum: hasil.belum,
       jumlahSiswaTerverifikasi: hasil.jumlah, statusVerifikasi: hasil.status,
-      message: `Absensi kelas belum lengkap -- masih ada ${kelengkapan.belum.length} siswa yang belum tercatat kehadirannya (scan kartu atau checklist manual). Lengkapi dulu sebelum menutup sesi.`
+      message: `Absensi kelas belum lengkap -- masih ada ${hasil.belum.length} siswa yang belum tercatat kehadirannya (scan kartu atau checklist manual). Lengkapi dulu sebelum menutup sesi.`
     };
   }
 
@@ -1179,6 +1215,13 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
         jamScan: absen ? absen.jam_scan : null,
         statusVerifikasi: absen ? absen.status_verifikasi : null,
         jumlahSiswaTerverifikasi: absen ? absen.jumlah_siswa_terverifikasi : null,
+        // BARU: apakah absensi kelas sesi ini sudah mencakup semua siswa
+        // aktif -- null kalau sesi ini memang belum pernah discan sama
+        // sekali (absen === null), false kalau sudah discan tapi masih ada
+        // siswa yang belum tercatat (termasuk sesi yang ditutup lewat
+        // sinkronisasi offline tanpa sempat lewat checklist).
+        kehadiranLengkap: absen ? absen.kehadiran_lengkap : null,
+        jumlahSiswaBelumTercatat: absen ? absen.jumlah_siswa_belum_tercatat : null,
         keteranganText: ket ? ket.keterangan : null,
         statusPersetujuan: ket ? ket.status_persetujuan : null,
         buktiUrl: ket ? ket.bukti_url : null,
@@ -1293,6 +1336,12 @@ async function getRekapKehadiranSiswaMapel({ idGuru, mapel, kelas, bulan, tahun 
       idAbsensiMengajar: sesi.id, tanggal: sesi.tanggal, hari: sesi.hari,
       jamScan: sesi.jam_scan, statusVerifikasi: sesi.status_verifikasi,
       jumlahSiswaTerverifikasi: sesi.jumlah_siswa_terverifikasi,
+      // BARU: kelengkapan absensi kelas pertemuan ini -- lihat catatan di
+      // hitungUlangStatusVerifikasi() di api/mengajar.js. Kalau false,
+      // riwayat pertemuan ini kemungkinan tidak mencakup semua siswa
+      // (misalnya sesi yang ditutup lewat sinkronisasi offline).
+      kehadiranLengkap: sesi.kehadiran_lengkap,
+      jumlahSiswaBelumTercatat: sesi.jumlah_siswa_belum_tercatat,
       jumlahTercatat: daftar.length,
       daftarKehadiran: daftar.map(k => ({
         idSiswa: k.id_siswa, nisn: k.nisn, nama: k.nama_siswa,

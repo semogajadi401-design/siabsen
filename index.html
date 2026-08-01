@@ -7744,9 +7744,17 @@ async function loadRekapMengajar() {
     if (r.status === 'Alpa' && r.catatanPenolakan) {
       ketInfo = '<div style="font-size:.72rem;color:var(--danger,#C62828);margin-top:4px">✕ Ditolak: ' + esc(r.catatanPenolakan) + '</div>';
     }
+    // BARU: peringatan kalau absensi kelas sesi ini belum mencakup semua
+    // siswa aktif -- lihat kehadiran_lengkap di api/mengajar.js. Paling
+    // sering muncul untuk sesi yang ditutup lewat sinkronisasi offline
+    // (checklist wajib tidak sempat/tidak bisa dijalankan saat offline).
+    var kelengkapanInfo = '';
+    if (r.kehadiranLengkap === false) {
+      kelengkapanInfo = '<div class="badge badge-warning" style="margin-top:4px;display:inline-block" title="Absensi kelas belum mencakup semua siswa aktif -- kemungkinan sesi ditutup saat offline">⚠️ Belum Lengkap' + (r.jumlahSiswaBelumTercatat ? ' (' + r.jumlahSiswaBelumTercatat + ' siswa)' : '') + '</div>';
+    }
     return '<tr><td data-label="Tanggal">' + r.tanggal + '</td><td data-label="Hari">' + r.hari + '</td><td data-label="Kelas"><span class="badge badge-primary">' + esc(r.kelas) + '</span></td><td data-label="Mapel">' + esc(r.mapel) + '</td><td data-label="Jam Ke">Ke-' + r.jamKeMulai + (r.jamKeSelesai!==r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '') + '</td>'
       + '<td data-label="Status"><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span>' + ketInfo + '</td>'
-      + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' : '-') + '</td>'
+      + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' + kelengkapanInfo : '-') + '</td>'
       + '<td data-label="Aksi">' + aksi + '</td></tr>';
   }).join('');
 }
@@ -8035,14 +8043,23 @@ async function loadRiwayatKehadiranSiswa() {
     return;
   }
   window._rksPertemuan = result.pertemuan;
-  pBody.innerHTML = result.pertemuan.map((p, i) => `
+  pBody.innerHTML = result.pertemuan.map((p, i) => {
+    // BARU: sama seperti di Rekap Kehadiran Guru -- tandai pertemuan yang
+    // absensi kelasnya belum mencakup semua siswa aktif (kemungkinan besar
+    // sesi yang ditutup lewat sinkronisasi offline, karena checklist wajib
+    // cuma bisa jalan online).
+    const kelengkapanInfo = p.kehadiranLengkap === false
+      ? `<div class="badge badge-warning" style="margin-top:4px;display:inline-block" title="Absensi kelas belum mencakup semua siswa aktif -- kemungkinan sesi ditutup saat offline">⚠️ Belum Lengkap${p.jumlahSiswaBelumTercatat ? ' (' + p.jumlahSiswaBelumTercatat + ' siswa)' : ''}</div>`
+      : '';
+    return `
     <tr>
       <td data-label="Tanggal">${p.tanggal}</td>
       <td data-label="Hari">${esc(p.hari || '-')}</td>
       <td data-label="Tercatat">${p.jumlahTercatat} siswa</td>
-      <td data-label="Verifikasi">${p.statusVerifikasi ? `<span class="badge ${p.statusVerifikasi === 'Terverifikasi' ? 'badge-success' : 'badge-warning'}">${p.statusVerifikasi}</span>` : '-'}</td>
+      <td data-label="Verifikasi">${p.statusVerifikasi ? `<span class="badge ${p.statusVerifikasi === 'Terverifikasi' ? 'badge-success' : 'badge-warning'}">${p.statusVerifikasi}</span>` : '-'}${kelengkapanInfo}</td>
       <td data-label="Aksi"><button class="btn btn-outline btn-sm" onclick="bukaDetailPertemuanSiswa(${i})">🔍 Detail</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function bukaDetailPertemuanSiswa(idx) {

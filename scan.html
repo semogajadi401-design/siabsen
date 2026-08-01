@@ -822,6 +822,14 @@ body.is-offline .header{ top:36px; }
 .ck-pulang-row b{color:#0D9488}
 .ck-pulang-track{height:6px;border-radius:4px;background:#EEF2FA;overflow:hidden}
 .ck-pulang-fill{height:100%;background:linear-gradient(90deg,#5EEAD4,#0D9488);border-radius:4px;transition:width .3s}
+/* Baris "Terlambat" (BARU) -- sama gaya dengan .ck-pulang-bar di atas,
+   dipisah class-nya sendiri supaya bisa disembunyikan independen kalau
+   totalTerlambat 0 (lihat ckTerlambatBarHTML() di script). */
+.ck-terlambat-bar{display:none}
+.ck-terlambat-row{display:flex;align-items:center;justify-content:space-between;font-size:.72rem;font-weight:700;color:var(--text-muted);margin-bottom:4px}
+.ck-terlambat-row b{color:#B45309}
+.ck-terlambat-track{height:6px;border-radius:4px;background:#EEF2FA;overflow:hidden}
+.ck-terlambat-fill{height:100%;background:linear-gradient(90deg,#FCD34D,#B45309);border-radius:4px;transition:width .3s}
 
 .ck-detail-kelas{display:none;flex-direction:column;gap:10px;max-height:260px;overflow-y:auto;padding-top:2px;border-top:1px dashed var(--border);margin-top:2px}
 .ck-detail-kelas::-webkit-scrollbar{width:4px}
@@ -837,6 +845,7 @@ body.is-offline .header{ top:36px; }
 @media(min-width:901px){
   .ck-legend{display:flex}
   .ck-pulang-bar{display:block}
+  .ck-terlambat-bar{display:block}
   .ck-detail-kelas{display:flex}
 }
 @media(max-width:900px){
@@ -2428,6 +2437,7 @@ body.is-offline .header{ top:36px; }
           </div>
         </div>
         <div class="ck-legend" id="ckmLegend" style="display:flex"></div>
+        <div class="ck-terlambat-bar" id="ckmTerlambatBar" style="display:block"></div>
         <div class="ck-pulang-bar" id="ckmPulangBar" style="display:block"></div>
         <div style="font-weight:800;font-size:.82rem;color:var(--text);border-top:1px dashed var(--border);padding-top:10px">🏫 Rincian per Kelas</div>
         <div class="ck-detail-kelas" id="ckmKelasList" style="display:flex;max-height:none;border-top:none;margin-top:0;padding-top:0"></div>
@@ -2741,6 +2751,7 @@ body.is-offline .header{ top:36px; }
         <div class="ck-chevron">›</div>
       </button>
       <div class="ck-legend" id="ckLegend"></div>
+      <div class="ck-terlambat-bar" id="ckTerlambatBar"></div>
       <div class="ck-pulang-bar" id="ckPulangBar"></div>
       <div class="ck-detail-kelas" id="ckKelasList"></div>
     </div>
@@ -7233,7 +7244,12 @@ const CK_WARNA = {
   izin:  '#6366F1',   // indigo -- kelompok "izin" (dipisah dari sakit)
   sakit: '#8B5CF6',   // ungu -- kelompok "sakit"
   belum: '#D97706',   // oranye -- sama seperti .stat-box.orange
-  pulang:'#0D9488'    // teal -- sama seperti tombol Cek Aktivitas Guru
+  pulang:'#0D9488',   // teal -- sama seperti tombol Cek Aktivitas Guru
+  terlambat:'#B45309' // amber tua -- sama seperti .status-terlambat/.badge-terlambat.
+                       // CATATAN: "Terlambat" BUKAN kategori terpisah dari "Datang"
+                       // (siswa terlambat tetap dihitung Hadir/Datang) -- jadi TIDAK
+                       // ditambahkan sebagai segmen baru di ring, cukup info tambahan
+                       // (lihat ckTerlambatBarHTML()) sama seperti "Sudah Pulang".
 };
 
 let _chartKehadiranData = null;
@@ -7264,7 +7280,7 @@ function agregasiChartKehadiran(r) {
   const kelasMap = {};
   function getKelas(k) {
     const key = k || '-';
-    if (!kelasMap[key]) kelasMap[key] = { kelas: key, total: 0, hadir: 0, pulang: 0, izin: 0, sakit: 0, belum: 0 };
+    if (!kelasMap[key]) kelasMap[key] = { kelas: key, total: 0, hadir: 0, pulang: 0, izin: 0, sakit: 0, belum: 0, terlambat: 0 };
     return kelasMap[key];
   }
 
@@ -7272,6 +7288,10 @@ function agregasiChartKehadiran(r) {
     const k = getKelas(s.kelas);
     k.total++; k.hadir++;
     if (s.jamPulang) k.pulang++;
+    // statusDatang diisi backend ('Terlambat'/'Hadir') -- lihat getLogHariIni
+    // di api/scan.js. Siswa terlambat TETAP dihitung hadir, jadi ini cuma
+    // sub-hitungan dari k.hadir, bukan tambahan ke k.total.
+    if (String(s.statusDatang || '').toLowerCase() === 'terlambat') k.terlambat++;
   });
   (r.izinSakit || []).forEach(s => {
     const k = getKelas(s.kelas);
@@ -7289,6 +7309,7 @@ function agregasiChartKehadiran(r) {
   const totalIzin   = (r.izinSakit || []).filter(s => String(s.status||'').toLowerCase().indexOf('sakit')===-1).length;
   const totalSakit  = (r.izinSakit || []).filter(s => String(s.status||'').toLowerCase().indexOf('sakit')!==-1).length;
   const totalBelum  = (r.belumHadir || []).length;
+  const totalTerlambat = (r.hadir || []).filter(s => String(s.statusDatang||'').toLowerCase()==='terlambat').length;
   const total       = r.totalSiswa || (totalHadir + totalIzin + totalSakit + totalBelum) || 0;
 
   const kelasList = Object.values(kelasMap).sort((a, b) => {
@@ -7297,7 +7318,7 @@ function agregasiChartKehadiran(r) {
     return String(a.kelas).localeCompare(String(b.kelas));
   });
 
-  return { total, totalHadir, totalPulang, totalIzin, totalSakit, totalBelum, kelasList };
+  return { total, totalHadir, totalPulang, totalIzin, totalSakit, totalBelum, totalTerlambat, kelasList };
 }
 
 // Ring donut SVG multi-segmen (Hadir/Izin/Sakit/Belum) -- tanpa library
@@ -7351,6 +7372,16 @@ function ckPulangBarHTML(data) {
     <div class="ck-pulang-track"><div class="ck-pulang-fill" style="width:${pct}%"></div></div>`;
 }
 
+// Baris info "Terlambat" (BARU) -- dihitung dari data.totalHadir (siswa
+// terlambat tetap Datang/Hadir), jadi persennya terhadap totalHadir,
+// BUKAN terhadap total siswa (beda dengan ckPulangBarHTML di atas).
+function ckTerlambatBarHTML(data) {
+  const hadir = data.totalHadir || 1;
+  const pct = Math.round((data.totalTerlambat || 0) / hadir * 100);
+  return `<div class="ck-terlambat-row"><span>⏰ Terlambat</span><b>${data.totalTerlambat || 0}/${data.totalHadir} datang (${pct}%)</b></div>
+    <div class="ck-terlambat-track"><div class="ck-terlambat-fill" style="width:${pct}%"></div></div>`;
+}
+
 function ckKelasListHTML(data) {
   if (!data.kelasList.length) {
     return `<div style="font-size:.74rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada data kelas.</div>`;
@@ -7368,7 +7399,7 @@ function ckKelasListHTML(data) {
         <div style="width:${pSakit}%;background:${CK_WARNA.sakit}"></div>
         <div style="width:${pBelum}%;background:${CK_WARNA.belum}"></div>
       </div>
-      <div class="ck-kelas-detail">${k.hadir} hadir${k.pulang ? ` (${k.pulang} pulang)` : ''} • ${k.izin} izin • ${k.sakit} sakit • ${k.belum} belum • ${total} siswa</div>
+      <div class="ck-kelas-detail">${k.hadir} hadir${k.terlambat ? ` (${k.terlambat} terlambat)` : ''}${k.pulang ? ` (${k.pulang} pulang)` : ''} • ${k.izin} izin • ${k.sakit} sakit • ${k.belum} belum • ${total} siswa</div>
     </div>`;
   }).join('');
 }
@@ -7388,6 +7419,8 @@ function renderChartKehadiran(data) {
   if (sub) sub.innerHTML = subTxt;
   const legend = document.getElementById('ckLegend');
   if (legend) legend.innerHTML = ckLegendHTML(data);
+  const terlambatBar = document.getElementById('ckTerlambatBar');
+  if (terlambatBar) terlambatBar.innerHTML = ckTerlambatBarHTML(data);
   const pulangBar = document.getElementById('ckPulangBar');
   if (pulangBar) pulangBar.innerHTML = ckPulangBarHTML(data);
   const kelasList = document.getElementById('ckKelasList');
@@ -7400,6 +7433,8 @@ function renderChartKehadiran(data) {
   if (subM) subM.innerHTML = subTxt;
   const legendM = document.getElementById('ckmLegend');
   if (legendM) legendM.innerHTML = ckLegendHTML(data);
+  const terlambatBarM = document.getElementById('ckmTerlambatBar');
+  if (terlambatBarM) terlambatBarM.innerHTML = ckTerlambatBarHTML(data);
   const pulangBarM = document.getElementById('ckmPulangBar');
   if (pulangBarM) pulangBarM.innerHTML = ckPulangBarHTML(data);
   const kelasListM = document.getElementById('ckmKelasList');

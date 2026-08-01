@@ -10,7 +10,7 @@ const {
   // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
   tanggalBesok, hariBesok,
   // ── TAMBAHAN BARU (pengecualian jam pelajaran per Hari + Kelas) ──
-  buatResolverJamPelajaran
+  buatResolverJamPelajaran, hitungDefaultJamPelajaran
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -1143,24 +1143,28 @@ async function getAktivitasGuruHariIni() {
 
   const [
     { data: jadwalHariIni },
-    { data: jamPelajaranHariIni },
+    { data: jamPelajaranSemua },
     { data: absensiMengajarHariIni }
   ] = await Promise.all([
     supabase.from('jadwal_mengajar')
       .select('id,id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
       .eq('hari', hari),
+    // BARU: ambil SEMUA hari (bukan cuma .eq('hari', hari)) supaya bisa
+    // fallback ke jam default hasil sinyal mayoritas antar-hari kalau
+    // hari ini belum punya baris jam_pelajaran-nya sendiri -- lihat
+    // catatan lengkap di buatResolverJamPelajaran()/hitungDefaultJamPelajaran()
+    // di api/_db.js. Ini yang tadinya bikin tampilan "Jam -–-" di sini.
     supabase.from('jam_pelajaran')
-      // BARU: ikut ambil `kelas` supaya pengecualian per Hari+Kelas ikut
-      // terpakai di sini (bukan cuma baris default) -- lihat
-      // buatResolverJamPelajaran() di api/_db.js.
-      .select('jam_ke,jam_mulai,jam_selesai,kelas')
-      .eq('hari', hari).order('jam_ke'),
+      .select('hari,jam_ke,jam_mulai,jam_selesai,kelas')
+      .order('jam_ke'),
     supabase.from('absensi_mengajar')
       .select('id_jadwal_mengajar,nama_guru,kelas,mapel,jam_scan,status,jumlah_siswa_terverifikasi,status_verifikasi')
       .eq('tanggal', today)
   ]);
 
-  const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni);
+  const jamPelajaranHariIni = (jamPelajaranSemua || []).filter(j => j.hari === hari);
+  const fallbackDefault = hitungDefaultJamPelajaran(jamPelajaranSemua);
+  const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni, fallbackDefault);
   const tercatatMap = {};
   (absensiMengajarHariIni || []).forEach(a => { tercatatMap[a.id_jadwal_mengajar] = a; });
 
@@ -1260,7 +1264,7 @@ async function getJadwalUntukTanggal(tanggal, hari) {
   const [
     { data: jadwalPiket },
     { data: jadwalMengajar },
-    { data: jamPelajaran }
+    { data: jamPelajaranSemua }
   ] = await Promise.all([
     supabase.from('jadwal_piket')
       .select('id_guru,nama_guru')
@@ -1268,14 +1272,17 @@ async function getJadwalUntukTanggal(tanggal, hari) {
     supabase.from('jadwal_mengajar')
       .select('id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel')
       .eq('hari', hari),
+    // BARU: ambil SEMUA hari, bukan cuma .eq('hari', hari) -- lihat catatan
+    // sama di getAktivitasGuruHariIni() di atas & buatResolverJamPelajaran()
+    // di api/_db.js.
     supabase.from('jam_pelajaran')
-      // BARU: ikut ambil `kelas` supaya pengecualian per Hari+Kelas ikut
-      // terpakai (lihat catatan sama di getAktivitasGuruHariIni() di atas).
-      .select('jam_ke,jam_mulai,jam_selesai,kelas')
-      .eq('hari', hari).order('jam_ke')
+      .select('hari,jam_ke,jam_mulai,jam_selesai,kelas')
+      .order('jam_ke')
   ]);
 
-  const resolveJp = buatResolverJamPelajaran(jamPelajaran);
+  const jamPelajaran = (jamPelajaranSemua || []).filter(j => j.hari === hari);
+  const fallbackDefault = hitungDefaultJamPelajaran(jamPelajaranSemua);
+  const resolveJp = buatResolverJamPelajaran(jamPelajaran, fallbackDefault);
 
   const jadwalMengajarHasil = (jadwalMengajar || []).map(j => {
     const jpMulai   = resolveJp(j.jam_ke_mulai, j.kelas);

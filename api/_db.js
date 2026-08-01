@@ -535,17 +535,71 @@ function sebutanGuru(nama, jenisKelamin) {
 // cekJadwalMengajarSaatIni (di sini), scanSesiMengajar (api/mengajar.js),
 // dan 2 fungsi tampilan jadwal di api/scan.js -- supaya logika "kelas mana
 // menang" cuma ada di SATU tempat, tidak diduplikasi & berisiko drift.
-function buatResolverJamPelajaran(jamPelajaranHariIni) {
-  const defaultMap = {};   // jam_ke -> baris default (kelas='')
-  const overrideMap = {};  // `${kelas}|${jam_ke}` -> baris override kelas itu
+function buatResolverJamPelajaran(jamPelajaranHariIni, fallbackDefaultRows) {
+  const defaultMap = {};   // jam_ke -> baris default (kelas='') UTK HARI INI SAJA
+  const overrideMap = {};  // `${kelas}|${jam_ke}` -> baris override kelas itu, HARI INI
   (jamPelajaranHariIni || []).forEach(j => {
     if (!j.kelas) defaultMap[j.jam_ke] = j;
     else overrideMap[`${j.kelas}|${j.jam_ke}`] = j;
   });
+
+  // BUG YANG DIPERBAIKI: jam pelajaran "default" TIDAK benar-benar ada
+  // sebagai satu baris global di database -- ia harus disalin (duplikat)
+  // ke SETIAP hari aktif secara eksplisit lewat simpanJamPelajaranDefault()
+  // di halaman admin (lihat catatan di sana). Kalau suatu hari baru saja
+  // diaktifkan di Pengaturan Hari Kerja (atau baris jam_ke tertentu belum
+  // sempat disalin ke hari itu) SEBELUM admin klik ulang "Simpan Jam
+  // Pelajaran Default", maka `defaultMap` di atas kosong/tidak lengkap utk
+  // hari itu -- padahal admin SUDAH bisa membuat jadwal_mengajar utk hari
+  // itu (form Tambah Jadwal menampilkan jam dari perhitungan sinyal
+  // mayoritas antar-hari, bukan dari baris literal hari itu -- lihat
+  // hitungDefaultDanOverride() di index.html). Akibatnya: jadwal terlihat
+  // benar di form, tapi absen scan gagal dengan "Bukan jam pelajaran
+  // sekarang" karena resolve() di bawah gagal menemukan barisnya.
+  //
+  // fallbackDefaultRows (dari hitungDefaultJamPelajaran() di bawah, dihitung
+  // dari SELURUH hari yang sudah ada datanya, pakai algoritma sinyal
+  // mayoritas yang SAMA seperti di admin) dipakai sebagai penyelamat
+  // terakhir per jam_ke yang tidak ditemukan di hari ini -- supaya guru
+  // tetap bisa absen sesuai jam yang memang ditampilkan ke admin saat
+  // membuat jadwalnya.
+  const fallbackMap = {};
+  (fallbackDefaultRows || []).forEach(r => {
+    fallbackMap[r.jamKe] = { jam_ke: r.jamKe, jam_mulai: r.jamMulai, jam_selesai: r.jamSelesai };
+  });
+
   return function resolve(jamKe, kelas) {
     if (kelas && overrideMap[`${kelas}|${jamKe}`]) return overrideMap[`${kelas}|${jamKe}`];
-    return defaultMap[jamKe] || null;
+    if (defaultMap[jamKe]) return defaultMap[jamKe];
+    return fallbackMap[jamKe] || null;
   };
+}
+
+// hitungDefaultJamPelajaran: hitung "jam pelajaran default" yang SAMA
+// persis seperti algoritma hitungDefaultDanOverride() di index.html --
+// dari SEMUA baris jam_pelajaran (semua hari, baris default kelas='' saja),
+// cari signature (urutan jamKe+jamMulai+jamSelesai) yang paling sering
+// dipakai di antara hari-hari yang sudah ada datanya. Dipakai sebagai
+// fallback resolver di atas supaya hari yang belum sempat "disalin ulang"
+// jam defaultnya tidak membuat absen scan gagal total.
+function hitungDefaultJamPelajaran(semuaBarisJamPelajaran) {
+  const perHari = {};
+  (semuaBarisJamPelajaran || []).forEach(j => {
+    if (j.kelas) return; // baris override kelas tidak ikut hitung signature default
+    if (!perHari[j.hari]) perHari[j.hari] = [];
+    perHari[j.hari].push({ jamKe: j.jam_ke, jamMulai: j.jam_mulai, jamSelesai: j.jam_selesai });
+  });
+  Object.keys(perHari).forEach(h => perHari[h].sort((a, b) => Number(a.jamKe) - Number(b.jamKe)));
+
+  const sig = arr => JSON.stringify(arr);
+  let defaultSig = null, jumlahTerbanyak = -1;
+  const jumlahPerSig = {};
+  Object.keys(perHari).forEach(h => {
+    const s = sig(perHari[h]);
+    jumlahPerSig[s] = (jumlahPerSig[s] || 0) + 1;
+    if (jumlahPerSig[s] > jumlahTerbanyak) { jumlahTerbanyak = jumlahPerSig[s]; defaultSig = s; }
+  });
+  return defaultSig ? JSON.parse(defaultSig) : [];
 }
 
 async function cekJadwalMengajarSaatIni({ guruId, hari, jam }) {
@@ -561,14 +615,20 @@ async function cekJadwalMengajarSaatIni({ guruId, hari, jam }) {
   // kelasnya sendiri), baru untuk TIAP baris dihitung jam efektifnya
   // (pakai override kelas itu kalau ada, kalau tidak baru default) dan
   // dicek apakah waktu sekarang jatuh di rentang itu.
-  const [{ data: jadwalGuruHariIni }, { data: jamPelajaranHariIni }] = await Promise.all([
+  const [{ data: jadwalGuruHariIni }, { data: jamPelajaranSemua }] = await Promise.all([
     supabase.from('jadwal_mengajar').select('*').eq('id_guru', guruId).eq('hari', hari),
-    supabase.from('jam_pelajaran').select('*').eq('hari', hari).order('jam_ke')
+    // BARU: ambil SEMUA hari (bukan cuma .eq('hari', hari)) supaya bisa
+    // hitung fallback jam default lewat hitungDefaultJamPelajaran() kalau
+    // hari ini kebetulan belum punya baris defaultnya sendiri -- lihat
+    // catatan lengkap di buatResolverJamPelajaran().
+    supabase.from('jam_pelajaran').select('hari,jam_ke,jam_mulai,jam_selesai,kelas').order('jam_ke')
   ]);
 
   if (!jadwalGuruHariIni || jadwalGuruHariIni.length === 0) return { ada: false };
 
-  const resolve = buatResolverJamPelajaran(jamPelajaranHariIni);
+  const jamPelajaranHariIni = (jamPelajaranSemua || []).filter(j => j.hari === hari);
+  const fallbackDefault = hitungDefaultJamPelajaran(jamPelajaranSemua);
+  const resolve = buatResolverJamPelajaran(jamPelajaranHariIni, fallbackDefault);
 
   for (const jadwal of jadwalGuruHariIni) {
     const jpMulai = resolve(jadwal.jam_ke_mulai, jadwal.kelas);
@@ -1059,7 +1119,7 @@ module.exports = {
   // ── TAMBAHAN BARU (perbaikan performa scan) ──
   fetchJamPulangOverride, computeJamPulangEfektif,
   cekIzinPiket, resolveGuruIdFromToken,
-  cekJadwalMengajarSaatIni, buatResolverJamPelajaran,
+  cekJadwalMengajarSaatIni, buatResolverJamPelajaran, hitungDefaultJamPelajaran,
   generateSesiToken, verifySesiToken,
   ringkasanLiveHariIni, ringkasanRekapPeriode,
   // ── TAMBAHAN BARU (perbaikan keamanan: kiosk token & rate limit) ──

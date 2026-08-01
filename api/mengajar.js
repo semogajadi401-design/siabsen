@@ -14,7 +14,7 @@ const {
   supabase, generateID, setCors, todayStr, jamSekarang, hariIni,
   tambahMenit, isHariLibur, isHariKerja, requireAdminToken,
   resolveGuruIdFromToken, getJamSetting, getSemesterAktif,
-  generateSesiToken, verifySesiToken, buatResolverJamPelajaran
+  generateSesiToken, verifySesiToken, buatResolverJamPelajaran, hitungDefaultJamPelajaran
 } = require('./_db');
 
 // Action yang MENGUBAH data master/pengaturan -> wajib admin.
@@ -466,17 +466,30 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
   const jamSetting = jamSettingDikirim || await getJamSetting();
   const toleransi = Number(jamSetting['TOLERANSI_MENGAJAR_MENIT'] || 15);
 
-  const [{ data: jadwalGuruHariIni }, { data: jamPelajaranHariIni }] = await Promise.all([
+  const [{ data: jadwalGuruHariIni }, { data: jamPelajaranSemua }] = await Promise.all([
     supabase.from('jadwal_mengajar').select('*')
       .eq('id_guru', guruIdTerverifikasi).eq('hari', hariNow),
-    supabase.from('jam_pelajaran').select('*').eq('hari', hariNow).order('jam_ke')
+    // BARU: ambil SEMUA hari (bukan cuma .eq('hari', hariNow)) supaya
+    // resolveJp() di bawah bisa fallback ke jam default hasil hitung
+    // sinyal mayoritas antar-hari (hitungDefaultJamPelajaran()) kalau
+    // hari ini kebetulan belum punya baris jam_pelajaran defaultnya
+    // sendiri -- lihat catatan lengkap di buatResolverJamPelajaran()
+    // (api/_db.js). Ini perbaikan bug: sebelumnya guru yang jadwalnya
+    // terlihat benar di form Tambah Jadwal (karena form itu memakai jam
+    // default hasil hitung yang sama) tetap gagal absen scan dengan pesan
+    // "Bukan jam pelajaran sekarang", karena query di sini HANYA melihat
+    // baris literal utk hariNow -- yang ternyata belum pernah disalin ke
+    // hari itu (mis. hari baru diaktifkan di Pengaturan Hari Kerja).
+    supabase.from('jam_pelajaran').select('hari,jam_ke,jam_mulai,jam_selesai,kelas').order('jam_ke')
   ]);
 
   if (!jadwalGuruHariIni || jadwalGuruHariIni.length === 0) {
     return { success: false, message: 'Tidak ada jadwal mengajar Anda pada jam ini.' };
   }
 
-  const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni);
+  const jamPelajaranHariIni = (jamPelajaranSemua || []).filter(j => j.hari === hariNow);
+  const fallbackDefault = hitungDefaultJamPelajaran(jamPelajaranSemua);
+  const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni, fallbackDefault);
   let jadwal = null, jamKeSekarang = null;
   for (const kandidat of jadwalGuruHariIni) {
     const jpMulai = resolveJp(kandidat.jam_ke_mulai, kandidat.kelas);

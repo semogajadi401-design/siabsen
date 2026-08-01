@@ -1827,13 +1827,23 @@ body.is-offline .header{ top:36px; }
             <div style="font-weight:800;font-size:.98rem">📋 Absensi Kelas</div>
             <div style="font-size:.75rem;color:var(--text-muted)" id="checklistKelasSub">Siswa yang belum scan kartu</div>
           </div>
-          <button onclick="lewatiChecklistKelas()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+          <button onclick="tutupChecklistSementara()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+        </div>
+        <!-- BARU: checklist absensi kelas ini WAJIB -- diisi untuk SEMUA
+             siswa aktif di kelas sebelum sesi bisa ditutup (lihat
+             cekKelengkapanKehadiranSesi di api/mengajar.js). Tombol
+             "Lewati" yang dulu jadi jalan pintas keluar (menutup sesi
+             tanpa melengkapi) sudah dihapus -- diganti "Nanti Dulu" yang
+             cuma menutup modal SEMENTARA, sesi tetap terbuka & guru wajib
+             kembali (lewat "Kirim Verifikasi") untuk melengkapinya. -->
+        <div style="padding:10px 18px 0;font-size:.74rem;color:var(--text-muted);flex-shrink:0">
+          ✅ Wajib diisi untuk semua siswa -- jadi riwayat kehadiran resmi kelas ini per mapel.
         </div>
         <div id="checklistKelasBody" style="overflow-y:auto;flex:1;padding:12px 18px">
           <div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat daftar siswa...</div>
         </div>
         <div style="padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
-          <button type="button" onclick="lewatiChecklistKelas()" style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);font-weight:600;font-size:.82rem;cursor:pointer">Lewati</button>
+          <button type="button" onclick="tutupChecklistSementara()" style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);font-weight:600;font-size:.82rem;cursor:pointer">Nanti Dulu</button>
           <button type="button" id="btnSimpanChecklistKelas" onclick="simpanChecklistAbsensiKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer">💾 Simpan &amp; Selesai</button>
         </div>
       </div>
@@ -2256,6 +2266,10 @@ body.is-offline .header{ top:36px; }
         <details class="pg-item">
           <summary>Bisa absen mengajar walau saya juga piket hari itu? <span class="pg-chev">›</span></summary>
           <div class="pg-a">Bisa, keduanya terpisah. Piket dicatat lewat scan biasa di kamera utama; mengajar lewat tombol <b>📚 Absen Kelas</b>.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kenapa saya tidak bisa langsung menutup sesi mengajar? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Absensi kelas sekarang <b>wajib</b> mencakup semua siswa aktif di kelas itu -- baik yang scan kartu sendiri maupun yang ditandai lewat checklist. Kalau masih ada yang belum tercatat, tekan <b>✅ Kirim Verifikasi</b> lalu lengkapi checklist-nya (Hadir/Alpa/Izin/Sakit) sebelum sesi bisa ditutup. Tombol <b>"Nanti Dulu"</b> cuma menutup jendela checklist sementara -- sesi tetap terbuka sampai benar-benar lengkap.</div>
         </details>
 
         <div class="pg-cat-label">📝 Siswa Tanpa Kartu</div>
@@ -4404,6 +4418,14 @@ async function selesaiModeVerifikasi() {
   const idAbsensiMengajar = verifikasiSesi.idAbsensiMengajar;
   try {
     const result = await api('mengajar', 'selesaiVerifikasi', { idAbsensiMengajar, sesiToken: verifikasiSesi.sesiToken });
+    // BARU: absensi kelas WAJIB mencakup semua siswa aktif -- kalau server
+    // bilang belum lengkap (mis. ada siswa baru ditambah di tengah sesi,
+    // atau ada entri checklist yang gagal tersimpan sebelumnya), JANGAN
+    // tutup sesi. Buka lagi checklist supaya guru melengkapinya dulu.
+    if (result.success && result.belumLengkap) {
+      toast('⚠️ ' + result.message, 5000);
+      return bukaChecklistAbsensiKelas();
+    }
     if (result.success) {
       toast('✅ ' + result.message, 4000);
     } else {
@@ -4568,11 +4590,28 @@ async function simpanChecklistAbsensiKelas() {
   selesaiModeVerifikasi();
 }
 
+// BARU: menutup modal checklist SEMENTARA saja -- TIDAK menutup sesi
+// verifikasi (beda dengan lewatiChecklistKelas di bawah, yang cuma dipakai
+// untuk fallback saat checklist memang tidak tersedia sama sekali, mis.
+// offline). Dipakai oleh tombol × dan "Nanti Dulu" di modal: absensi kelas
+// sekarang wajib, jadi menutup modal tidak lagi otomatis mengakhiri sesi --
+// guru harus menekan "Kirim Verifikasi" lagi untuk melengkapinya nanti.
+function tutupChecklistSementara() {
+  document.getElementById('modalChecklistKelas').style.display = 'none';
+  checklistKelasState = null;
+  resumeScanBerat();
+  toast('📋 Checklist ditutup sementara -- absensi kelas ini masih wajib dilengkapi sebelum sesi bisa ditutup. Tekan "✅ Kirim Verifikasi" lagi untuk melanjutkan.', 4500);
+}
+
+// Fallback (BUKAN untuk tombol UI biasa lagi): dipakai saat checklist
+// memang tidak bisa ditampilkan sama sekali (sesi offline / gagal memuat
+// daftar siswa dari server) -- di kondisi ini sesi tetap ditutup seperti
+// perilaku lama, karena tidak ada cara untuk melengkapi checklist saat itu.
 function lewatiChecklistKelas(diam) {
   document.getElementById('modalChecklistKelas').style.display = 'none';
   checklistKelasState = null;
   resumeScanBerat();
-  if (!diam) toast('Checklist absensi kelas dilewati -- verifikasi tetap ditutup seperti biasa.', 3000);
+  if (!diam) toast('Checklist absensi kelas tidak tersedia -- verifikasi tetap ditutup seperti biasa.', 3000);
   selesaiModeVerifikasi();
 }
 

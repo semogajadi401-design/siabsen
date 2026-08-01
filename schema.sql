@@ -204,6 +204,20 @@ CREATE TABLE IF NOT EXISTS absensi_mengajar (
   status TEXT,                                    -- 'Hadir' | 'Telat'
   jumlah_siswa_terverifikasi INTEGER DEFAULT 0,
   status_verifikasi TEXT DEFAULT 'Perlu Ditinjau', -- 'Perlu Ditinjau' | 'Terverifikasi'
+  -- BARU: menandai apakah SEMUA siswa aktif di kelas ini sudah tercatat
+  -- kehadirannya untuk sesi ini (scan kartu ATAU checklist manual guru) --
+  -- dihitung ulang & disimpan setiap kali hitungUlangStatusVerifikasi()
+  -- dipanggil di api/mengajar.js (dari scanSiswaMapel, simpanAbsensiKelasManual,
+  -- selesaiVerifikasi, MAUPUN dari jalur sinkronisasi offline lewat
+  -- scanSiswaMapelInternal di api/sync.js). PENTING: kolom ini SELALU
+  -- ter-update walau offline, tapi checklist WAJIB-nya sendiri (yang
+  -- menolak menutup sesi) cuma bisa jalan saat online (butuh data siswa
+  -- real-time dari server) -- lihat cekKelengkapanKehadiranSesi() di
+  -- api/mengajar.js. Jadi sesi yang ditutup sepenuhnya offline (tanpa
+  -- pernah lewat checklist) tetap KELIHATAN belum lengkap di sini,
+  -- alih-alih hilang tanpa jejak.
+  kehadiran_lengkap BOOLEAN DEFAULT false,
+  jumlah_siswa_belum_tercatat INTEGER,
   metode TEXT,                                     -- 'online' | dari sync offline
   created_at TIMESTAMPTZ DEFAULT NOW(),
   -- 1 sesi jadwal cuma boleh discan 1x per tanggal. scanSesiMengajar() di
@@ -215,6 +229,11 @@ CREATE TABLE IF NOT EXISTS absensi_mengajar (
 CREATE INDEX IF NOT EXISTS idx_absensimengajar_tanggal ON absensi_mengajar(tanggal);
 CREATE INDEX IF NOT EXISTS idx_absensimengajar_guru    ON absensi_mengajar(id_guru);
 CREATE INDEX IF NOT EXISTS idx_absensimengajar_kelas    ON absensi_mengajar(kelas);
+-- MIGRASI (kalau tabel ini sudah ada sebelumnya di database production,
+-- CREATE TABLE IF NOT EXISTS di atas TIDAK menambah kolom baru ke tabel
+-- yang sudah ada -- jalankan manual ini sekali di Supabase SQL Editor):
+--   ALTER TABLE absensi_mengajar ADD COLUMN IF NOT EXISTS kehadiran_lengkap BOOLEAN DEFAULT false;
+--   ALTER TABLE absensi_mengajar ADD COLUMN IF NOT EXISTS jumlah_siswa_belum_tercatat INTEGER;
 
 -- ─── TABEL KEHADIRAN SISWA PER MAPEL (verifikasi siswa scan saat sesi guru berlangsung) ──
 CREATE TABLE IF NOT EXISTS kehadiran_siswa_mapel (

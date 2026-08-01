@@ -853,6 +853,14 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-teal">Menu Guru</div>
       <div class="nav-item color-teal active" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
       <div class="nav-item color-teal" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Mengajar</span></div>
+      <!-- BARU: Jadwal Mengajar Saya -- jadwal yang diinput admin di
+           jadwal_mengajar, ditampilkan sisi guru sesuai mapel yang diampu
+           saja (idGuru difilter otomatis ke akun yang sedang login). -->
+      <div class="nav-item color-teal" onclick="showPage('jadwalMengajarSaya')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg><span>Jadwal Mengajar Saya</span></div>
+      <!-- BARU: Riwayat Kehadiran Siswa -- riwayat per pertemuan (lengkap
+           dengan detail per siswa) + rangkuman total kehadiran, dipisah per
+           kombinasi mapel+kelas kalau guru mengampu lebih dari satu. -->
+      <div class="nav-item color-teal" onclick="showPage('riwayatKehadiranSiswa')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg><span>Riwayat Kehadiran Siswa</span></div>
       <div class="nav-item color-teal" onclick="showPage('riwayatPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Riwayat Piket Saya</span></div>
       <!-- Item ini SENGAJA default display:none dan HANYA dimunculkan lewat
            cekPiketSayaGuru() (dipanggil di setupUserUI) kalau guru yang login
@@ -1446,6 +1454,59 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         </div>
       </div>
 
+      <!-- BARU: JADWAL MENGAJAR SAYA (khusus akun Guru) -- menampilkan
+           jadwal yang sudah diinput admin di menu Jadwal Mengajar,
+           difilter otomatis ke mapel/kelas yang diampu guru yang sedang
+           login saja. Read-only -- perubahan jadwal tetap lewat admin. -->
+      <div class="page" id="page-jadwalMengajarSaya">
+        <div class="card">
+          <div class="card-header"><h3>🗓️ Jadwal Mengajar Saya</h3></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
+              Jadwal ini diinput oleh admin. Hubungi admin kalau ada jadwal yang perlu diperbaiki.
+            </p>
+            <div id="jmsBody"><div style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BARU: RIWAYAT KEHADIRAN SISWA (khusus akun Guru) -- riwayat
+           kehadiran siswa per pertemuan (lengkap dengan detail per siswa),
+           plus rangkuman total kehadiran, untuk mapel & kelas yang diampu.
+           Kalau guru mengampu lebih dari 1 mapel/kelas, datanya dipisah
+           lewat tab (lihat renderTabRiwayatKehadiranSiswa()). -->
+      <div class="page" id="page-riwayatKehadiranSiswa">
+        <div class="card">
+          <div class="card-header"><h3>📖 Riwayat Kehadiran Siswa</h3></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
+              Riwayat kehadiran siswa per pertemuan untuk mapel & kelas yang Anda ampu -- sekaligus jadi riwayat kehadiran resmi siswa di kelas itu per mapel.
+            </p>
+            <div id="rksTabWrap" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px"></div>
+            <div id="rksLoadingState" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</div>
+            <div id="rksEmptyState" style="display:none;text-align:center;padding:40px;color:var(--text-muted)">Anda belum punya jadwal mengajar tercatat.</div>
+            <div id="rksContent" style="display:none">
+              <div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;align-items:flex-end">
+                <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="rksBulan" onchange="loadRiwayatKehadiranSiswa()"><option value="">Semua</option></select></div>
+                <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="rksTahun" style="width:100px" onchange="loadRiwayatKehadiranSiswa()"></div>
+              </div>
+
+              <h4 style="font-size:.9rem;margin-bottom:10px">📊 Rangkuman Total Kehadiran</h4>
+              <div class="table-responsive" style="margin-bottom:26px"><table class="table-card-mobile">
+                <thead><tr><th>Nama</th><th>NISN</th><th>Hadir</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Total Pertemuan</th><th>% Hadir</th></tr></thead>
+                <tbody id="rksRangkumanBody"><tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data</td></tr></tbody>
+              </table></div>
+
+              <h4 style="font-size:.9rem;margin-bottom:10px">🗓️ Riwayat Per Pertemuan</h4>
+              <div class="table-responsive"><table class="table-card-mobile">
+                <thead><tr><th>Tanggal</th><th>Hari</th><th>Tercatat</th><th>Verifikasi</th><th>Aksi</th></tr></thead>
+                <tbody id="rksPertemuanBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data</td></tr></tbody>
+              </table></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- RIWAYAT PIKET SAYA (khusus akun Guru) -->
       <div class="page" id="page-riwayatPiket">
         <div class="card">
@@ -1881,6 +1942,20 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
     </div>
     <div class="modal-footer"><button class="btn btn-gray" onclick="closeModal('modalGuru')">Batal</button><button class="btn btn-primary" onclick="submitGuru()">💾 Simpan</button></div>
+  </div>
+</div>
+
+<!-- BARU: Modal Detail Kehadiran Per Pertemuan (Riwayat Kehadiran Siswa - Guru) -->
+<div class="modal-backdrop" id="modalDetailPertemuan">
+  <div class="modal">
+    <div class="modal-header"><h3 id="mdpTitle">Detail Pertemuan</h3><button class="modal-close" onclick="closeModal('modalDetailPertemuan')">✕</button></div>
+    <div class="modal-body">
+      <div id="mdpInfo" style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px"></div>
+      <div class="table-responsive"><table class="table-card-mobile">
+        <thead><tr><th>Nama</th><th>NISN</th><th>Status</th><th>Jam</th><th>Keterangan</th></tr></thead>
+        <tbody id="mdpBody"></tbody>
+      </table></div>
+    </div>
   </div>
 </div>
 
@@ -3008,9 +3083,9 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru',jadwalMengajarSaya:'Jadwal Mengajar Saya',riwayatKehadiranSiswa:'Riwayat Kehadiran Siswa'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar,rekapGuru:loadSiswaPerKelasGuru};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar,rekapGuru:loadSiswaPerKelasGuru,jadwalMengajarSaya:loadHalamanJadwalMengajarSaya,riwayatKehadiranSiswa:loadHalamanRiwayatKehadiranSiswa};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
@@ -7810,6 +7885,187 @@ async function konfirmasiTolakKeterangan() {
   const result = await api('mengajar', 'tolakKeteranganMengajar', { id, catatan });
   toast(result.message, result.success ? 'success' : 'error');
   if (result.success) { closeModal('modalTolakKeterangan'); loadKepsekPersetujuan(); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// BARU: JADWAL MENGAJAR SAYA (khusus akun Guru) -- pakai action
+// getJadwalMengajar yang sudah ada (dipakai juga oleh admin), difilter
+// otomatis ke idGuru guru yang sedang login. Dikelompokkan per hari
+// supaya gampang dibaca, urut sesuai hari kerja sekolah.
+// ════════════════════════════════════════════════════════════════
+const JMS_URUTAN_HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+async function loadHalamanJadwalMengajarSaya() {
+  const body = document.getElementById('jmsBody');
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</div>';
+
+  const result = await api('mengajar', 'getJadwalMengajar', { idGuru: APP.user.id });
+  if (!result.success) { body.innerHTML = '<p style="color:var(--danger)">Gagal memuat jadwal: ' + esc(result.message || '') + '</p>'; return; }
+
+  const jadwal = result.data || [];
+  if (!jadwal.length) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">📭 Belum ada jadwal mengajar yang diinput admin untuk Anda.</div>';
+    return;
+  }
+
+  const perHari = {};
+  jadwal.forEach(j => { (perHari[j.hari] = perHari[j.hari] || []).push(j); });
+  Object.keys(perHari).forEach(h => perHari[h].sort((a, b) => a.jamKeMulai - b.jamKeMulai));
+
+  const hariAda = JMS_URUTAN_HARI.filter(h => perHari[h] && perHari[h].length);
+
+  body.innerHTML = hariAda.map(hari => `
+    <div style="margin-bottom:22px">
+      <div style="font-weight:800;font-size:.88rem;color:var(--primary);margin-bottom:8px">📅 ${esc(hari)}</div>
+      <div class="table-responsive"><table class="table-card-mobile">
+        <thead><tr><th>Jam Ke</th><th>Kelas</th><th>Mapel</th></tr></thead>
+        <tbody>
+          ${perHari[hari].map(j => `
+            <tr>
+              <td data-label="Jam Ke">Ke-${j.jamKeMulai}${j.jamKeSelesai !== j.jamKeMulai ? (' s/d Ke-' + j.jamKeSelesai) : ''}</td>
+              <td data-label="Kelas"><span class="badge badge-primary">${esc(j.kelas)}</span></td>
+              <td data-label="Mapel">${esc(j.mapel)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>`).join('');
+}
+
+// ════════════════════════════════════════════════════════════════
+// BARU: RIWAYAT KEHADIRAN SISWA (khusus akun Guru) -- daftar pertemuan
+// lengkap dengan detail kehadiran per siswa, plus rangkuman total, dipisah
+// per kombinasi mapel+kelas (tab) kalau guru mengampu lebih dari satu.
+// ════════════════════════════════════════════════════════════════
+let RKS_STATE = { daftarMapelKelas: [], aktif: null, dataAktif: null };
+
+async function loadHalamanRiwayatKehadiranSiswa() {
+  document.getElementById('rksLoadingState').style.display = 'block';
+  document.getElementById('rksEmptyState').style.display = 'none';
+  document.getElementById('rksContent').style.display = 'none';
+  document.getElementById('rksTabWrap').innerHTML = '';
+
+  const bulanSel = document.getElementById('rksBulan');
+  if (bulanSel && !bulanSel.dataset.filled) {
+    const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    bulanSel.innerHTML = '<option value="">Semua</option>' + namaBulan.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+    bulanSel.dataset.filled = '1';
+  }
+  const tahunInput = document.getElementById('rksTahun');
+  if (tahunInput && !tahunInput.value) tahunInput.value = new Date().getFullYear();
+
+  const result = await api('mengajar', 'getDaftarMapelKelasGuru', { idGuru: APP.user.id });
+  document.getElementById('rksLoadingState').style.display = 'none';
+
+  if (!result.success) { toast(result.message || 'Gagal memuat daftar mapel/kelas.', 'error'); return; }
+
+  RKS_STATE.daftarMapelKelas = result.daftar || [];
+  if (!RKS_STATE.daftarMapelKelas.length) {
+    document.getElementById('rksEmptyState').style.display = 'block';
+    return;
+  }
+
+  // Default: kombinasi pertama yang diampu, atau tetap pertahankan pilihan
+  // sebelumnya kalau masih ada di daftar (misal setelah balik dari halaman
+  // lain lalu kembali lagi ke halaman ini).
+  const masihAda = RKS_STATE.aktif && RKS_STATE.daftarMapelKelas.some(d => d.mapel === RKS_STATE.aktif.mapel && d.kelas === RKS_STATE.aktif.kelas);
+  RKS_STATE.aktif = masihAda ? RKS_STATE.aktif : RKS_STATE.daftarMapelKelas[0];
+
+  renderTabRiwayatKehadiranSiswa();
+  document.getElementById('rksContent').style.display = 'block';
+  await loadRiwayatKehadiranSiswa();
+}
+
+function renderTabRiwayatKehadiranSiswa() {
+  const wrap = document.getElementById('rksTabWrap');
+  // Kalau guru cuma mengampu 1 kombinasi mapel+kelas, tab tidak perlu
+  // ditampilkan sama sekali -- tidak ada yang perlu dipilih.
+  if (RKS_STATE.daftarMapelKelas.length <= 1) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = RKS_STATE.daftarMapelKelas.map(d => {
+    const aktif = RKS_STATE.aktif && d.mapel === RKS_STATE.aktif.mapel && d.kelas === RKS_STATE.aktif.kelas;
+    return `<button type="button" onclick="pilihTabRiwayatKehadiranSiswa('${esc(d.mapel).replace(/'/g, "\\'")}','${esc(d.kelas).replace(/'/g, "\\'")}')"
+      style="padding:8px 14px;border-radius:20px;font-size:.8rem;font-weight:700;cursor:pointer;border:1px solid ${aktif ? 'transparent' : 'var(--border)'};background:${aktif ? 'var(--primary)' : 'transparent'};color:${aktif ? '#fff' : 'var(--text-muted)'}">
+      ${esc(d.mapel)} — ${esc(d.kelas)}
+    </button>`;
+  }).join('');
+}
+
+function pilihTabRiwayatKehadiranSiswa(mapel, kelas) {
+  RKS_STATE.aktif = { mapel, kelas };
+  renderTabRiwayatKehadiranSiswa();
+  loadRiwayatKehadiranSiswa();
+}
+
+async function loadRiwayatKehadiranSiswa() {
+  if (!RKS_STATE.aktif) return;
+  const { mapel, kelas } = RKS_STATE.aktif;
+  const bulan = document.getElementById('rksBulan')?.value || null;
+  const tahun = document.getElementById('rksTahun')?.value || null;
+
+  document.getElementById('rksRangkumanBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
+  document.getElementById('rksPertemuanBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
+
+  const result = await api('mengajar', 'getRekapKehadiranSiswaMapel', {
+    idGuru: APP.user.id, mapel, kelas,
+    bulan: bulan || undefined, tahun: bulan ? tahun : undefined
+  });
+  if (!result.success) { toast(result.message || 'Gagal memuat riwayat kehadiran.', 'error'); return; }
+
+  RKS_STATE.dataAktif = result;
+
+  const rBody = document.getElementById('rksRangkumanBody');
+  if (!result.rangkumanSiswa || !result.rangkumanSiswa.length) {
+    rBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data kehadiran siswa untuk mapel & kelas ini.</td></tr>';
+  } else {
+    rBody.innerHTML = result.rangkumanSiswa.map(r => `
+      <tr>
+        <td data-label="Nama">${esc(r.nama)}</td>
+        <td data-label="NISN">${esc(r.nisn || '-')}</td>
+        <td data-label="Hadir"><span class="badge badge-success">${r.hadir}</span></td>
+        <td data-label="Izin"><span class="badge badge-primary">${r.izin}</span></td>
+        <td data-label="Sakit"><span class="badge badge-primary">${r.sakit}</span></td>
+        <td data-label="Alpa"><span class="badge badge-danger">${r.alpa}</span></td>
+        <td data-label="Total Pertemuan">${r.total}</td>
+        <td data-label="% Hadir">${r.persentaseHadir === null ? '-' : r.persentaseHadir + '%'}</td>
+      </tr>`).join('');
+  }
+
+  const pBody = document.getElementById('rksPertemuanBody');
+  if (!result.pertemuan || !result.pertemuan.length) {
+    pBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada pertemuan tercatat pada periode ini.</td></tr>';
+    return;
+  }
+  window._rksPertemuan = result.pertemuan;
+  pBody.innerHTML = result.pertemuan.map((p, i) => `
+    <tr>
+      <td data-label="Tanggal">${p.tanggal}</td>
+      <td data-label="Hari">${esc(p.hari || '-')}</td>
+      <td data-label="Tercatat">${p.jumlahTercatat} siswa</td>
+      <td data-label="Verifikasi">${p.statusVerifikasi ? `<span class="badge ${p.statusVerifikasi === 'Terverifikasi' ? 'badge-success' : 'badge-warning'}">${p.statusVerifikasi}</span>` : '-'}</td>
+      <td data-label="Aksi"><button class="btn btn-outline btn-sm" onclick="bukaDetailPertemuanSiswa(${i})">🔍 Detail</button></td>
+    </tr>`).join('');
+}
+
+function bukaDetailPertemuanSiswa(idx) {
+  const p = (window._rksPertemuan || [])[idx]; if (!p) return;
+  const aktif = RKS_STATE.aktif || {};
+  document.getElementById('mdpTitle').textContent = `Detail Pertemuan — ${p.tanggal}`;
+  document.getElementById('mdpInfo').textContent = `${aktif.mapel || ''} — Kelas ${aktif.kelas || ''} — ${p.hari || ''}`;
+
+  const badgeStatus = { Hadir: 'badge-success', Izin: 'badge-primary', Sakit: 'badge-primary', Alpa: 'badge-danger' };
+  const body = document.getElementById('mdpBody');
+  if (!p.daftarKehadiran || !p.daftarKehadiran.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">Belum ada siswa tercatat.</td></tr>';
+  } else {
+    body.innerHTML = p.daftarKehadiran.map(k => `
+      <tr>
+        <td data-label="Nama">${esc(k.nama)}</td>
+        <td data-label="NISN">${esc(k.nisn || '-')}</td>
+        <td data-label="Status"><span class="badge ${badgeStatus[k.status] || 'badge-gray'}">${esc(k.status)}</span></td>
+        <td data-label="Jam">${esc(k.jamScan || '-')}</td>
+        <td data-label="Keterangan">${esc(k.keterangan || '-')}</td>
+      </tr>`).join('');
+  }
+  openModal('modalDetailPertemuan');
 }
 </script>
 </body>

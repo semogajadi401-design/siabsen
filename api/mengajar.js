@@ -127,6 +127,30 @@ const handler = async (req, res) => {
       return res.json(await getRekapKehadiranGuru(params));
     }
 
+    // BARU: daftar kombinasi mapel+kelas yang diampu guru (dipakai halaman
+    // "Riwayat Kehadiran Siswa"), dan detail riwayat+rangkuman kehadiran
+    // siswa untuk salah satu kombinasi itu. Otorisasi sama persis dengan
+    // getRekapKehadiranGuru di atas: admin/kepsek bebas, guru hanya bisa
+    // lihat datanya sendiri.
+    if (action === 'getDaftarMapelKelasGuru') {
+      const adminValid = await requireAdminToken(adminToken);
+      if (!adminValid && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(401).json({ success: false, message: 'Anda hanya bisa melihat data mengajar Anda sendiri.' });
+        }
+      }
+      return res.json(await getDaftarMapelKelasGuru(params));
+    }
+    if (action === 'getRekapKehadiranSiswaMapel') {
+      const adminValid = await requireAdminToken(adminToken);
+      if (!adminValid && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(401).json({ success: false, message: 'Anda hanya bisa melihat rekap kehadiran siswa untuk kelas yang Anda ampu sendiri.' });
+        }
+      }
+      return res.json(await getRekapKehadiranSiswaMapel(params));
+    }
+
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -795,18 +819,52 @@ async function simpanAbsensiKelasManual({ idAbsensiMengajar, sesiToken, entries 
   };
 }
 
+// BARU: cek kelengkapan absensi kelas -- SEMUA siswa AKTIF di kelas sesi ini
+// wajib sudah tercatat di kehadiran_siswa_mapel (baik lewat scan kartu
+// sendiri MAUPUN checklist manual guru di simpanAbsensiKelasManual) sebelum
+// sesi boleh benar-benar ditutup. Ini yang membuat data kehadiran_siswa_mapel
+// bisa dipakai sebagai riwayat kehadiran siswa per mapel yang LENGKAP --
+// bukan cuma daftar siswa yang kebetulan sempat scan kartu.
+async function cekKelengkapanKehadiranSesi(sesi) {
+  const [{ data: siswaKelas }, { data: sudahTercatat }] = await Promise.all([
+    supabase.from('siswa').select('id,nisn,nama').eq('kelas', sesi.kelas).eq('status', 'Aktif'),
+    supabase.from('kehadiran_siswa_mapel').select('id_siswa').eq('id_absensi_mengajar', sesi.id)
+  ]);
+  const idTercatat = new Set((sudahTercatat || []).map(r => r.id_siswa));
+  const belum = (siswaKelas || [])
+    .filter(s => !idTercatat.has(s.id))
+    .map(s => ({ idSiswa: s.id, nisn: s.nisn, nama: s.nama }));
+  return { lengkap: belum.length === 0, totalSiswaKelas: (siswaKelas || []).length, belum };
+}
+
 async function selesaiVerifikasi({ idAbsensiMengajar, sesiToken }) {
   if (!verifySesiToken(idAbsensiMengajar, sesiToken))
     return { success: false, message: 'Sesi verifikasi tidak valid atau kedaluwarsa.' };
 
   const { data: sesi } = await supabase.from('absensi_mengajar').select('*').eq('id', idAbsensiMengajar).maybeSingle();
   if (!sesi) return { success: false, message: 'Sesi mengajar tidak ditemukan' };
+
   const hasil = await hitungUlangStatusVerifikasi(sesi);
+
+  // BARU: tolak menutup sesi kalau absensi kelas belum mencakup semua
+  // siswa aktif -- kembalikan belumLengkap:true + daftar siswa yang masih
+  // kosong, supaya klien (scan.html) membuka kembali checklist absensi
+  // kelas alih-alih menutup sesi verifikasi begitu saja.
+  const kelengkapan = await cekKelengkapanKehadiranSesi(sesi);
+  if (!kelengkapan.lengkap) {
+    return {
+      success: true, belumLengkap: true, daftarBelum: kelengkapan.belum,
+      jumlahSiswaTerverifikasi: hasil.jumlah, statusVerifikasi: hasil.status,
+      message: `Absensi kelas belum lengkap -- masih ada ${kelengkapan.belum.length} siswa yang belum tercatat kehadirannya (scan kartu atau checklist manual). Lengkapi dulu sebelum menutup sesi.`
+    };
+  }
+
   return {
-    success: true, jumlahSiswaTerverifikasi: hasil.jumlah, statusVerifikasi: hasil.status,
+    success: true, belumLengkap: false,
+    jumlahSiswaTerverifikasi: hasil.jumlah, statusVerifikasi: hasil.status,
     message: hasil.status === 'Terverifikasi'
-      ? 'Verifikasi selesai, kehadiran terverifikasi.'
-      : 'Jumlah siswa yang discan belum memenuhi ambang minimal. Ditandai "Perlu Ditinjau" untuk dicek admin/kepsek.'
+      ? 'Absensi kelas lengkap & verifikasi selesai, kehadiran terverifikasi.'
+      : 'Absensi kelas lengkap, tapi jumlah siswa yang scan kartu sendiri belum memenuhi ambang minimal verifikasi guru. Ditandai "Perlu Ditinjau" untuk dicek admin/kepsek.'
   };
 }
 
@@ -1142,5 +1200,113 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
     persentaseKehadiran,
     rincian: rincian.sort((a, b) => a.tanggal < b.tanggal ? 1 : -1), // terbaru dulu
     tren: Object.keys(trenMap).sort().map(tgl => ({ tanggal: tgl, ...trenMap[tgl] }))
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// RIWAYAT & REKAP KEHADIRAN SISWA PER MAPEL/KELAS (BARU) — dipakai halaman
+// "Riwayat Kehadiran Siswa" di akun guru. Kalau seorang guru mengampu LEBIH
+// DARI 1 mapel (atau mapel yang sama di kelas berbeda), data SENGAJA
+// dipisah per kombinasi mapel+kelas (bukan digabung semua) supaya riwayat
+// kehadirannya jelas -- lihat getDaftarMapelKelasGuru untuk daftar
+// kombinasinya, lalu getRekapKehadiranSiswaMapel untuk detail salah satu
+// kombinasi yang dipilih.
+// ════════════════════════════════════════════════════════════════
+async function getDaftarMapelKelasGuru({ idGuru }) {
+  if (!idGuru) return { success: false, message: 'ID guru wajib diisi' };
+  const { data, error } = await supabase.from('jadwal_mengajar').select('mapel,kelas').eq('id_guru', idGuru);
+  if (error) return { success: false, message: error.message };
+
+  const map = new Map();
+  (data || []).forEach(j => {
+    const key = `${j.mapel}||${j.kelas}`;
+    if (!map.has(key)) map.set(key, { mapel: j.mapel, kelas: j.kelas });
+  });
+  const daftar = Array.from(map.values())
+    .sort((a, b) => a.mapel.localeCompare(b.mapel) || a.kelas.localeCompare(b.kelas));
+
+  return { success: true, daftar };
+}
+
+// Riwayat tiap pertemuan (lengkap dengan detail kehadiran per siswa) PLUS
+// rangkuman total kehadiran per siswa, untuk satu kombinasi guru+mapel+kelas.
+// bulan/tahun opsional -- kalau tidak dikirim, seluruh riwayat yang ada
+// dikembalikan (guru biasanya cuma mengampu 1-2 mapel/kelas jadi datanya
+// tidak sebesar rekap kehadiran guru bulanan).
+async function getRekapKehadiranSiswaMapel({ idGuru, mapel, kelas, bulan, tahun }) {
+  if (!idGuru || !mapel || !kelas)
+    return { success: false, message: 'idGuru, mapel, dan kelas wajib diisi' };
+
+  const { data: guru } = await supabase.from('guru').select('id,nama').eq('id', idGuru).maybeSingle();
+  if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
+
+  let q = supabase.from('absensi_mengajar').select('*')
+    .eq('id_guru', idGuru).eq('mapel', mapel).eq('kelas', kelas)
+    .order('tanggal', { ascending: false });
+  if (bulan && tahun) {
+    const th = Number(tahun), bl = Number(bulan);
+    const jumlahHari = new Date(th, bl, 0).getDate();
+    q = q.gte('tanggal', `${th}-${String(bl).padStart(2, '0')}-01`)
+         .lte('tanggal', `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHari).padStart(2, '0')}`);
+  }
+  const { data: sesiList, error } = await q;
+  if (error) return { success: false, message: error.message };
+
+  if (!sesiList || sesiList.length === 0) {
+    return {
+      success: true, guru: { id: guru.id, nama: guru.nama }, mapel, kelas,
+      totalPertemuan: 0, pertemuan: [], rangkumanSiswa: [],
+      message: 'Belum ada sesi mengajar tercatat untuk mapel & kelas ini.'
+    };
+  }
+
+  const idSesiList = sesiList.map(s => s.id);
+  const { data: semuaKehadiran } = await supabase
+    .from('kehadiran_siswa_mapel').select('*').in('id_absensi_mengajar', idSesiList);
+
+  const kehadiranPerSesi = {};
+  (semuaKehadiran || []).forEach(k => {
+    (kehadiranPerSesi[k.id_absensi_mengajar] = kehadiranPerSesi[k.id_absensi_mengajar] || []).push(k);
+  });
+
+  const rekapSiswa = new Map(); // idSiswa -> akumulator
+  const pertemuan = sesiList.map(sesi => {
+    const daftar = (kehadiranPerSesi[sesi.id] || [])
+      .sort((a, b) => (a.nama_siswa || '').localeCompare(b.nama_siswa || ''));
+
+    daftar.forEach(k => {
+      if (!rekapSiswa.has(k.id_siswa)) {
+        rekapSiswa.set(k.id_siswa, {
+          idSiswa: k.id_siswa, nisn: k.nisn, nama: k.nama_siswa,
+          hadir: 0, izin: 0, sakit: 0, alpa: 0, total: 0
+        });
+      }
+      const r = rekapSiswa.get(k.id_siswa);
+      r.total++;
+      if (k.status === 'Hadir') r.hadir++;
+      else if (k.status === 'Izin') r.izin++;
+      else if (k.status === 'Sakit') r.sakit++;
+      else if (k.status === 'Alpa') r.alpa++;
+    });
+
+    return {
+      idAbsensiMengajar: sesi.id, tanggal: sesi.tanggal, hari: sesi.hari,
+      jamScan: sesi.jam_scan, statusVerifikasi: sesi.status_verifikasi,
+      jumlahSiswaTerverifikasi: sesi.jumlah_siswa_terverifikasi,
+      jumlahTercatat: daftar.length,
+      daftarKehadiran: daftar.map(k => ({
+        idSiswa: k.id_siswa, nisn: k.nisn, nama: k.nama_siswa,
+        status: k.status, keterangan: k.keterangan, jamScan: k.jam_scan, metode: k.metode
+      }))
+    };
+  });
+
+  const rangkumanSiswa = Array.from(rekapSiswa.values())
+    .map(r => ({ ...r, persentaseHadir: r.total > 0 ? Math.round((r.hadir / r.total) * 1000) / 10 : null }))
+    .sort((a, b) => a.nama.localeCompare(b.nama));
+
+  return {
+    success: true, guru: { id: guru.id, nama: guru.nama }, mapel, kelas,
+    totalPertemuan: pertemuan.length, pertemuan, rangkumanSiswa
   };
 }

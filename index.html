@@ -2612,6 +2612,17 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── FORMAT PERSENTASE ALA INDONESIA (BARU) ────────────────────────
+// Dipakai SERAGAM di semua fitur persentase kehadiran di halaman ini
+// (kartu dashboard, Evaluasi Kehadiran, rekap per bulan per kelas,
+// rekap mengajar guru, dst): 1 angka desimal TETAP (tidak dibulatkan
+// ke bilangan bulat) dan koma sebagai pemisah desimal, mis. 73.5 ->
+// "73,5", supaya konsisten dengan scan.html.
+function fmtPersen(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Number(n).toFixed(1).replace('.', ',');
+}
+
 // ── CONFIG API ───────────────────────────────────────────────────
 const API_BASE = window.location.origin;
 async function api(endpoint, action, params = {}) {
@@ -3173,9 +3184,9 @@ async function loadDashboard() {
         const sakitIzin = d.sakitIzinHariIni;
         const alpha     = d.alphaHariIni;
         const total     = d.totalSiswa || 1;
-        const persen    = Math.round((d.hadirHariIni / total) * 100);
+        const persen    = Math.round((d.hadirHariIni / total) * 1000) / 10;
 
-        document.getElementById('dashPiePersen').textContent  = persen + '%';
+        document.getElementById('dashPiePersen').textContent  = fmtPersen(persen) + '%';
         document.getElementById('dashLegHadir').textContent   = hadir;
         document.getElementById('dashLegTerlambat').textContent = terlambat;
         document.getElementById('dashLegSakitIzin').textContent = sakitIzin;
@@ -6401,7 +6412,7 @@ async function loadEvaluasi() {
   // kehadiran).
   const persenMentah = totalKemungkinanHadir > 0
     ? (totHadir + totTerlambat) / totalKemungkinanHadir * 100 : 0;
-  const persen = Math.min(100, Math.round(persenMentah));
+  const persen = Math.min(100, Math.round(persenMentah * 10) / 10);
 
   // Update kartu ringkasan
   // PERBAIKAN TAMPILAN: sebelumnya kartu cuma menampilkan angka mentah
@@ -6410,18 +6421,18 @@ async function loadEvaluasi() {
   // persentasenya dari total kemungkinan hadir, dan ditambahkan kartu
   // ringkasan periode supaya jelas rentang tanggal & jumlah hari
   // sekolah efektif yang benar-benar dipakai untuk menghitung.
-  const pct = n => totalKemungkinanHadir > 0 ? Math.round(n / totalKemungkinanHadir * 100) : 0;
+  const pct = n => totalKemungkinanHadir > 0 ? Math.round(n / totalKemungkinanHadir * 1000) / 10 : 0;
   document.getElementById('evalTotalHadir').textContent        = totHadir;
-  document.getElementById('evalTotalHadirPct').textContent     = pct(totHadir) + '% dari total hari';
+  document.getElementById('evalTotalHadirPct').textContent     = fmtPersen(pct(totHadir)) + '% dari total hari';
   document.getElementById('evalTotalTerlambat').textContent    = totTerlambat;
-  document.getElementById('evalTotalTerlambatPct').textContent = pct(totTerlambat) + '% dari total hari';
+  document.getElementById('evalTotalTerlambatPct').textContent = fmtPersen(pct(totTerlambat)) + '% dari total hari';
   document.getElementById('evalTotalSakit').textContent        = totSakit;
-  document.getElementById('evalTotalSakitPct').textContent     = pct(totSakit) + '% dari total hari';
+  document.getElementById('evalTotalSakitPct').textContent     = fmtPersen(pct(totSakit)) + '% dari total hari';
   document.getElementById('evalTotalIzin').textContent         = totIzin;
-  document.getElementById('evalTotalIzinPct').textContent      = pct(totIzin) + '% dari total hari';
+  document.getElementById('evalTotalIzinPct').textContent      = fmtPersen(pct(totIzin)) + '% dari total hari';
   document.getElementById('evalTotalAlpha').textContent        = totAlpha;
-  document.getElementById('evalTotalAlphaPct').textContent     = pct(totAlpha) + '% dari total hari';
-  document.getElementById('evalPersen').textContent            = persen + '%';
+  document.getElementById('evalTotalAlphaPct').textContent     = fmtPersen(pct(totAlpha)) + '% dari total hari';
+  document.getElementById('evalPersen').textContent            = fmtPersen(persen) + '%';
   document.getElementById('evalPersenDetail').textContent      =
     `${totHadir + totTerlambat} dari ${totalKemungkinanHadir} kemungkinan hadir`;
   document.getElementById('evalPeriodeInfo').textContent = allSiswa.length
@@ -6450,7 +6461,7 @@ async function loadEvaluasi() {
       // semua siswa -- supaya konsisten dengan kartu ringkasan & dengan
       // bagaimana Alpha itu sendiri dihitung.
       const pct      = jumlahHariSekolah > 0
-        ? Math.round((s.hadir + s.terlambat) / jumlahHariSekolah * 100) : 0;
+        ? Math.round((s.hadir + s.terlambat) / jumlahHariSekolah * 1000) / 10 : 0;
       const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
       // (BARU) Badge peringatan di nama siswa yang punya Alpha -- supaya
       // di rapat/laporan tidak perlu hitung manual satu-satu lagi untuk
@@ -6467,7 +6478,7 @@ async function loadEvaluasi() {
         <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
         <td data-label="Izin"><span class="badge badge-primary">${s.izin}</span></td>
         <td data-label="Alpha"><span class="badge badge-danger">${s.alpha}</span></td>
-        <td data-label="% Hadir"><strong style="color:${pctColor}">${pct}%</strong></td>
+        <td data-label="% Hadir"><strong style="color:${pctColor}">${fmtPersen(pct)}%</strong></td>
       </tr>`;
     }).join('');
   }
@@ -6535,8 +6546,8 @@ function renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzi
             callbacks: {
               label: ctx => {
                 const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-                const pct = total > 0 ? Math.round(ctx.parsed / total * 100) : 0;
-                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                const pct = total > 0 ? Math.round(ctx.parsed / total * 1000) / 10 : 0;
+                return ` ${ctx.label}: ${ctx.parsed} (${fmtPersen(pct)}%)`;
               }
             }
           }
@@ -6625,7 +6636,7 @@ async function renderRekapBulananKelas(tanggalMulai, tanggalSelesaiEfektif, kela
     const denom = jumlahHariBulan * (siswaPerKelas[kls] || 0);
     if (denom <= 0) return null; // belum ada hari sekolah efektif di bulan ini
     const hadir = (hadirPerBulanKelas[bulanKey]?.[kls]) || 0;
-    return Math.min(100, Math.round(hadir / denom * 100));
+    return Math.min(100, Math.round(hadir / denom * 1000) / 10);
   };
   const warnaPct = pct => pct === null ? 'var(--text-muted)' : pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
 
@@ -6633,7 +6644,7 @@ async function renderRekapBulananKelas(tanggalMulai, tanggalSelesaiEfektif, kela
   const bodyRows = kelasList.map(kls => {
     const selBulan = potongan.map(p => {
       const pct = hitungPct(p.kunci, kls, p.jumlahHariSekolah);
-      return `<td style="text-align:center"><strong style="color:${warnaPct(pct)}">${pct === null ? '—' : pct + '%'}</strong></td>`;
+      return `<td style="text-align:center"><strong style="color:${warnaPct(pct)}">${pct === null ? '—' : fmtPersen(pct) + '%'}</strong></td>`;
     }).join('');
     return `<tr><td><span class="badge badge-primary">${esc(kls)}</span></td>${selBulan}</tr>`;
   }).join('');
@@ -6685,7 +6696,7 @@ async function exportEvaluasiPDF() {
     const namaKelas    = kelasEl?.value ? (kelasEl.selectedOptions[0]?.textContent.trim() || kelasEl.value) : 'Semua Kelas';
     const periodeText  = document.getElementById('evalPeriodeInfo')?.textContent || '';
     const persenText   = document.getElementById('evalPersen')?.textContent || '0%';
-    const persenNum    = parseInt(persenText) || 0;
+    const persenNum    = parseFloat(persenText.replace(',', '.')) || 0;
     const persenDetail = document.getElementById('evalPersenDetail')?.textContent || '';
     const warnaPersen  = persenNum >= 80 ? [46,125,50] : persenNum >= 60 ? [245,127,23] : [198,40,40];
 
@@ -6796,7 +6807,7 @@ async function exportEvaluasiPDF() {
     document.querySelectorAll('#evalRankingBody tr').forEach((tr, idx) => {
       const tds = tr.querySelectorAll('td');
       if (tds.length < 9) return;
-      const pctNum = parseInt(tds[8].textContent) || 0;
+      const pctNum = parseFloat(tds[8].textContent.replace(',', '.')) || 0;
       const vals = [
         String(idx+1), tds[1].textContent.trim(), tds[2].textContent.trim(),
         tds[3].textContent.trim(), tds[4].textContent.trim(),
@@ -7707,7 +7718,7 @@ async function loadRekapMengajar() {
   document.getElementById('rmEmptyState').style.display = 'none';
   document.getElementById('rmContent').style.display = 'block';
 
-  document.getElementById('rmPersen').textContent = result.persentaseKehadiran === null ? '-' : result.persentaseKehadiran + '%';
+  document.getElementById('rmPersen').textContent = result.persentaseKehadiran === null ? '-' : fmtPersen(result.persentaseKehadiran) + '%';
   document.getElementById('rmHadir').textContent = result.totalHadir;
   document.getElementById('rmTelat').textContent = result.totalTelat;
   document.getElementById('rmIzin').textContent = result.totalIzin;
@@ -8046,7 +8057,7 @@ async function loadRiwayatKehadiranSiswa() {
         <td data-label="Sakit"><span class="badge badge-primary">${r.sakit}</span></td>
         <td data-label="Alpa"><span class="badge badge-danger">${r.alpa}</span></td>
         <td data-label="Total Pertemuan">${r.total}</td>
-        <td data-label="% Hadir">${r.persentaseHadir === null ? '-' : r.persentaseHadir + '%'}</td>
+        <td data-label="% Hadir">${r.persentaseHadir === null ? '-' : fmtPersen(r.persentaseHadir) + '%'}</td>
       </tr>`).join('');
   }
 

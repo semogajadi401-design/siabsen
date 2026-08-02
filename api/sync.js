@@ -693,9 +693,12 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
 // lewat pencocokan identifier ke tabel guru (SAMA seperti blok guru piket
 // offline di processSingleScan() di atas, dan SAMA seperti kiosk online di
 // api/scan.js) -- BUKAN dari klaim klien. scanSesiMengajarInternal
-// (api/mengajar.js) dipakai ulang APA ADANYA, jadi validasi jam
-// pelajaran/jadwal/toleransi telat sudah otomatis SAMA PERSIS dengan jalur
-// online tanpa perlu ditulis ulang di sini.
+// (api/mengajar.js) dipakai ulang APA ADANYA, jadi validasi hari/jadwal
+// sudah otomatis SAMA PERSIS dengan jalur online tanpa perlu ditulis ulang
+// di sini. SATU beda sengaja: otomatisPilihTerdekat:true dikirim di bawah,
+// karena sync ini jalan di background tanpa guru yang bisa diminta memilih
+// jadwal interaktif kalau kebetulan ada >1 jadwal hari itu yang belum
+// tercatat (lihat catatan lengkap di scanSesiMengajar).
 async function processMengajarOffline({ identifier, tanggal, jam, hari, waktuSimpan }) {
   if (!identifier || !identifier.startsWith('GR'))
     return { success: false, permanent: true, tipe: 'mengajarOffline', message: 'Identifier guru tidak valid' };
@@ -720,7 +723,12 @@ async function processMengajarOffline({ identifier, tanggal, jam, hari, waktuSim
   if (!guru) return { success: false, permanent: true, tipe: 'mengajarOffline', message: 'Guru tidak ditemukan' };
   if (guru.status !== 'Aktif') return { success: false, permanent: true, tipe: 'mengajarOffline', message: 'Akun guru tidak aktif' };
 
-  const hasil = await scanSesiMengajarInternal({ guruIdTerverifikasi: guru.id, tanggal, jam, hari });
+  // BARU: otomatisPilihTerdekat:true -- sync berjalan di background, TIDAK
+  // ada guru yang bisa diminta memilih jadwal secara interaktif kalau
+  // ternyata ada >1 jadwal hari itu yang belum tercatat (beda dengan jalur
+  // online/kiosk di scan.html yang menampilkan pilihan lewat
+  // tampilkanPilihJadwal()). Lihat catatan lengkap di scanSesiMengajar.
+  const hasil = await scanSesiMengajarInternal({ guruIdTerverifikasi: guru.id, tanggal, jam, hari, otomatisPilihTerdekat: true });
 
   if (!hasil.success) {
     // scanSesiMengajar didesain untuk jalur online/realtime, jadi tidak
@@ -730,8 +738,8 @@ async function processMengajarOffline({ identifier, tanggal, jam, hari, waktuSim
     // Selain itu (mis. gagal simpan karena masalah transien database)
     // dibiarkan permanent:false supaya dicoba lagi otomatis.
     const pesanPermanen = [
-      'Hari ini libur', 'bukan hari sekolah', 'Bukan jam pelajaran sekarang',
-      'Tidak ada jadwal mengajar Anda pada jam ini', 'sudah tercatat hari ini'
+      'Hari ini libur', 'bukan hari sekolah',
+      'Tidak ada jadwal mengajar Anda hari ini', 'sudah tercatat hari ini'
     ];
     const permanent = pesanPermanen.some(p => (hasil.message || '').includes(p));
     return { success: false, permanent, tipe: 'mengajarOffline', message: hasil.message };

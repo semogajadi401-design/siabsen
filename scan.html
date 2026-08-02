@@ -1361,14 +1361,12 @@ body.is-offline .header{ top:36px; }
      1. #menungguAbsenKelasBox -- sebelum kartu guru discan/username
         dimasukkan ("Silahkan scan kartu anda atau masukkan username").
      2. #modeVerifikasiBox -- setelah jadwal mengajar tervalidasi,
-        menunggu kartu SISWA. Teksnya di-update jadi progres dinamis
-        ("Silahkan scan kartu siswa (X dari Y)") oleh updateBadgeVerifikasi()
-        tiap scan berhasil. Begitu X mencapai Y, checklist absensi kelas
-        dibuka OTOMATIS oleh fungsi yang sama (tidak ada tombol "Kirim
-        Verifikasi" lagi). Banner ini otomatis ikut hilang saat
-        keluarModeVerifikasi() menyembunyikan seluruh #modeVerifikasiBox --
-        TIDAK butuh JS tambahan apapun karena banner ini anak elemen dari
-        box tsb.
+        menunggu kartu SISWA ("Silahkan scan kartu siswa"), isi teksnya
+        diupdate real-time oleh updateBadgeVerifikasi(). Banner ini
+        otomatis ikut hilang saat keluarModeVerifikasi() menyembunyikan
+        seluruh #modeVerifikasiBox (dipanggil dari selesaiModeVerifikasi()
+        begitu checklist berhasil dikirim) -- TIDAK butuh JS
+        tambahan apapun karena banner ini anak elemen dari box tsb.
    Warna & animasi background (bukan cuma opacity teks seperti
    .blink-text) sengaja dibuat lebih mencolok karena ini instruksi
    AKSI ("lakukan ini sekarang"), bukan sekadar status info. */
@@ -1808,59 +1806,73 @@ body.is-offline .header{ top:36px; }
          alur admin/guru/siswa datang-pulang biasa. -->
     <div class="guru-status ada-guru" id="modeVerifikasiBox" style="display:none">
       <div class="guru-label">📚 Mode Verifikasi Kelas</div>
-      <!-- Banner berkedip -- BARU: teksnya sekarang progres dinamis
-           ("X dari Y"), di-update tiap scan berhasil lewat
-           updateBadgeVerifikasi(). Otomatis hilang bersama seluruh box ini
-           saat sesi ditutup (keluarModeVerifikasi()), tidak perlu logika
-           show/hide sendiri. -->
+      <!-- BARU: tombol manual "Kirim Verifikasi" DIHAPUS -- halaman ini
+           terkunci (tidak ada cara keluar, lihat batalAbsenKelas()) sampai
+           minimal scan (verifikasiSesi.min) tercapai. Begitu tercapai,
+           checklist siswa yang belum discan otomatis terbuka lewat
+           cekBukaChecklistOtomatis() (dipanggil dari updateBadgeVerifikasi()
+           setiap kali ada scan baru) -- guru tidak perlu klik apa pun.
+           Banner ini menampilkan progres real-time & di-update oleh
+           updateBadgeVerifikasi(). -->
       <div class="ak-alert-banner" id="verifikasiBanner">🔴 Silahkan scan kartu siswa</div>
-      <div id="modeVerifikasiContent" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div id="modeVerifikasiContent" style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
         <div>
-          <div id="verifikasiMapelKelas" style="font-weight:700"></div>
-          <div style="font-size:.82rem;color:var(--text-muted)">
+          <div id="verifikasiMapelKelas" style="font-weight:700;text-align:center"></div>
+          <div style="font-size:.82rem;color:var(--text-muted);text-align:center">
             Terverifikasi: <b id="verifikasiCounter">0</b> dari minimal <b id="verifikasiMin">?</b> siswa
           </div>
         </div>
       </div>
-      <!-- BARU: tombol "Kirim Verifikasi" DIHAPUS -- membingungkan karena
-           tampil aktif dari detik pertama walau prosesnya belum selesai.
-           Sekarang checklist absensi kelas dibuka OTOMATIS oleh
-           updateBadgeVerifikasi() begitu jumlah scan mencapai minimal
-           (verifikasiMin), guru tidak perlu klik apa-apa lagi. -->
     </div>
 
-    <!-- BARU: Checklist Absensi Kelas -- dibuka OTOMATIS begitu jumlah scan
-         kartu siswa mencapai minimal dari akun admin (lihat
-         updateBadgeVerifikasi()). Menampilkan SEMUA siswa kelas ini: yang
-         belum scan kartu di atas (wajib diklik statusnya satu-satu, tanpa
-         status bawaan), lalu yang sudah diinput guru piket (read-only),
-         lalu yang sudah scan kartu sendiri paling bawah (read-only) --
-         lihat daftarSiswaKelasSesi/simpanAbsensiKelasManual di
-         api/mengajar.js. Modal ini TIDAK BISA ditutup sebelum selesai --
-         tombol ✕ dan "Nanti Dulu" sengaja dihapus, satu-satunya tombol
-         adalah kirim di bawah. -->
+    <!-- BARU: kotak "Pilih Jadwal Mengajar" -- tampil kalau guru punya
+         lebih dari 1 jadwal mengajar hari ini yang belum tercatat saat
+         kartu guru discan (lihat scanSesiMengajar() di api/mengajar.js,
+         field perluPilihJadwal). Ditampilkan lewat tampilkanPilihJadwal(),
+         diisi lewat pilihJadwalKlik(). Sama seperti box lain di overlay
+         ini, tidak ada cara keluar dari sini selain memilih salah satu
+         (lihat guard sedangPilihJadwal di batalAbsenKelas()). -->
+    <div class="guru-status ada-guru" id="pilihJadwalBox" style="display:none">
+      <div class="guru-label">📚 Pilih Jadwal Mengajar</div>
+      <div class="ak-alert-banner">🔴 Ada lebih dari 1 jadwal hari ini -- pilih yang mau dicatat sekarang</div>
+      <div id="pilihJadwalList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
+    <!-- BARU: Checklist Absensi Kelas -- terbuka OTOMATIS begitu jumlah
+         scan kartu siswa mencapai minimal (lihat cekBukaChecklistOtomatis()).
+         Menampilkan SEMUA siswa kelas: yang belum scan kartu & belum
+         diinput piket (wajib diklik status Hadir/Alpa/Izin/Sakit satu-satu,
+         tanpa default), yang sudah diinput guru piket (read-only), dan yang
+         sudah scan kartu sendiri (read-only, paling bawah) -- sekalian jadi
+         absensi kehadiran siswa resmi di kelas itu (bukan cuma verifikasi
+         lagi). Lihat daftarSiswaKelasSesi/simpanAbsensiKelasManual di
+         api/mengajar.js. -->
     <div id="modalChecklistKelas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:16px">
       <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
         <div style="padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0">
           <div style="font-weight:800;font-size:.98rem">📋 Absensi Kelas</div>
-          <div style="font-size:.75rem;color:var(--text-muted)" id="checklistKelasSub">Memuat daftar siswa...</div>
+          <div style="font-size:.75rem;color:var(--text-muted)" id="checklistKelasSub">Memuat...</div>
         </div>
-        <!-- Checklist ini WAJIB -- diisi untuk SEMUA siswa aktif sebelum
-             sesi bisa ditutup (lihat cekKelengkapanKehadiranSesi di
-             api/mengajar.js). Tidak ada status bawaan (dulu default
-             "Hadir") -- guru wajib klik status tiap siswa satu-satu supaya
-             tidak ada yang tercatat Hadir karena lupa dicek. -->
+        <!-- BARU: checklist absensi kelas ini WAJIB -- diisi untuk SEMUA
+             siswa aktif di kelas sebelum sesi bisa ditutup (lihat
+             cekKelengkapanKehadiranSesi di api/mengajar.js). Halaman ini
+             TIDAK BISA ditutup/ditunda sama sekali -- tombol × dan "Nanti
+             Dulu" DIHAPUS. Guru wajib klik status setiap siswa (tanpa
+             default) baru bisa menekan tombol kirim di bawah -- kalau
+             masih ada yang belum diklik, ditolak & dijelaskan siswa mana
+             saja lewat simpanChecklistAbsensiKelas(). -->
         <div style="padding:10px 18px 0;font-size:.74rem;color:var(--text-muted);flex-shrink:0">
-          ✅ Klik status setiap siswa -- jadi riwayat kehadiran resmi kelas ini per mapel.
+          ✅ Wajib pilih status kehadiran satu-satu untuk semua siswa -- jadi riwayat kehadiran resmi kelas ini per mapel. Halaman ini tidak bisa ditutup sebelum semua terisi & terkirim.
         </div>
         <div id="checklistKelasBody" style="overflow-y:auto;flex:1;padding:12px 18px">
           <div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat daftar siswa...</div>
         </div>
         <div style="padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
-          <button type="button" id="btnSimpanChecklistKelas" onclick="simpanChecklistAbsensiKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;width:100%">📤 Kirim Riwayat Mengajar Saya</button>
+          <button type="button" id="btnSimpanChecklistKelas" onclick="simpanChecklistAbsensiKelas()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer">📤 Kirim Riwayat Mengajar Saya</button>
         </div>
       </div>
     </div>
+
 
     <!-- Menunggu scan kartu guru -- tampil setelah tombol "Absen Kelas"
          diklik, sebelum mode verifikasi benar-benar mulai (lihat
@@ -2274,7 +2286,7 @@ body.is-offline .header{ top:36px; }
         </details>
         <details class="pg-item">
           <summary>Bagaimana siswa absen setelah saya mulai sesi mengajar? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Setelah kartu Anda berhasil discan (sesi dimulai), siswa di kelas itu tinggal scan kartunya masing-masing satu per satu ke kamera yang sama.</div>
+          <div class="pg-a">Setelah kartu Anda berhasil discan (sesi dimulai), siswa di kelas itu tinggal scan kartunya masing-masing satu per satu ke kamera yang sama, sampai jumlah minimal yang ditentukan admin tercapai.</div>
         </details>
         <details class="pg-item">
           <summary>Bisa absen mengajar walau saya juga piket hari itu? <span class="pg-chev">›</span></summary>
@@ -2282,7 +2294,11 @@ body.is-offline .header{ top:36px; }
         </details>
         <details class="pg-item">
           <summary>Kenapa saya tidak bisa langsung menutup sesi mengajar? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Absensi kelas <b>wajib</b> mencakup semua siswa aktif di kelas itu. Begitu jumlah scan kartu siswa mencapai minimal yang ditentukan admin, checklist absensi kelas terbuka <b>otomatis</b> -- lengkapi status (Hadir/Alpa/Izin/Sakit) untuk siswa yang belum discan, lalu tekan <b>📤 Kirim Riwayat Mengajar Saya</b>. Sesi baru bisa ditutup setelah semua siswa terisi.</div>
+          <div class="pg-a">Absensi kelas sekarang <b>wajib</b> mencakup semua siswa aktif di kelas itu -- baik yang scan kartu sendiri maupun yang ditandai lewat checklist. Begitu jumlah scan kartu siswa mencapai minimal, daftar siswa yang belum discan <b>otomatis muncul</b> -- Anda wajib klik status kehadiran (Hadir/Alpa/Izin/Sakit) satu per satu untuk semua nama di situ, lalu tekan <b>📤 Kirim Riwayat Mengajar Saya</b>. Halaman ini tidak bisa ditutup atau ditunda sampai semuanya terisi & terkirim.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kenapa saya diminta memilih jadwal setelah scan kartu? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Ini muncul kalau hari itu Anda punya lebih dari satu jadwal mengajar yang belum dicatat (mis. jam ke-1 di kelas 7A dan jam ke-4 di kelas 7B). Tinggal pilih kelas/jadwal mana yang mau dicatat sekarang.</div>
         </details>
 
         <div class="pg-cat-label">📝 Siswa Tanpa Kartu</div>
@@ -3049,12 +3065,20 @@ let _tabPulangCountTerakhir = 0;
 // datang-pulang di luar mode ini tetap punya dukungan offline seperti
 // biasa, tidak terpengaruh.
 let modeVerifikasiAktif = false;
-let verifikasiSesi      = null; // { idAbsensiMengajar, mapel, kelas, min, jumlah }
+let verifikasiSesi      = null; // { idAbsensiMengajar, mapel, kelas, min, jumlah, checklistDibuka }
 // menungguAbsenKelas: true setelah tombol "Absen Kelas" diklik, SEBELUM
 // kartu guru discan. Selama true, processQR()/processQRWithOffline()
 // mengarahkan scan berikutnya ke processScanGuruAbsenKelas() (bukan
 // jalur scanKartu biasa) -- lihat mulaiAbsenKelas() di bawah.
 let menungguAbsenKelas  = false;
+// BARU: sedangPilihJadwal -- true di antara "kartu guru berhasil discan"
+// dan "guru sudah pilih salah satu jadwal" saat ada >1 jadwal mengajar
+// hari itu yang belum tercatat (lihat tampilkanPilihJadwal()/
+// pilihJadwalKlik() di bawah). Sama seperti modeVerifikasiAktif, selama
+// true halaman terkunci -- tidak ada cara keluar dari overlay Absen Kelas
+// (lihat guard di batalAbsenKelas()).
+let sedangPilihJadwal   = false;
+let pilihJadwalState    = null; // { guruId, tanggal, pilihToken, guru }
 // ── STATE MODE "KELOLA KEHADIRAN" (PIKET) — BARU ──────────────────
 // menungguKelolaPiket: true setelah tombol "Kelola Kehadiran" diklik,
 // SEBELUM kartu guru berhasil discan & terverifikasi piket hari ini
@@ -3587,7 +3611,7 @@ function setMode(mode) {
 // tidak terpengaruh (state ini murni per-tab, sama seperti
 // modeVerifikasiAktif).
 function mulaiAbsenKelas() {
-  if (modeVerifikasiAktif) { toast('📚 Sedang dalam sesi verifikasi kelas.'); return; }
+  if (modeVerifikasiAktif || sedangPilihJadwal) { toast('📚 Sedang dalam sesi verifikasi kelas.'); return; }
   menungguAbsenKelas = true;
   document.getElementById('btnAbsenKelas').style.display = 'none';
   document.getElementById('menungguAbsenKelasBox').style.display = '';
@@ -3597,11 +3621,8 @@ function mulaiAbsenKelas() {
 }
 
 function batalAbsenKelas() {
-  // Sesuai alur yang diminta: begitu guru mulai Mode Verifikasi Kelas,
-  // TIDAK ADA cara keluar dari halaman ini sampai seluruh proses selesai
-  // (minimal scan tercapai -> checklist terisi lengkap -> sesi tertutup
-  // otomatis, lihat updateBadgeVerifikasi()/simpanChecklistAbsensiKelas()).
-  if (modeVerifikasiAktif) { toast('📚 Sesi verifikasi sedang berjalan — lanjutkan scan kartu siswa sampai selesai untuk bisa keluar.'); return; }
+  if (modeVerifikasiAktif) { toast('📚 Sesi verifikasi sedang berjalan — lengkapi & kirim checklist untuk keluar.'); return; }
+  if (sedangPilihJadwal) { toast('📚 Pilih dulu jadwal mengajar yang mau dicatat sekarang.'); return; }
   menungguAbsenKelas = false;
   document.getElementById('btnAbsenKelas').style.display = '';
   document.getElementById('menungguAbsenKelasBox').style.display = 'none';
@@ -4200,8 +4221,14 @@ async function processScanGuruAbsenKelas(data) {
     // biasa lewat cabang else-nya).
     if (result.success) {
       menungguAbsenKelas = false;
-      document.getElementById('btnAbsenKelas').style.display = '';
       document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+      // BARU: kalau hasilnya perluPilihJadwal, overlay TETAP terkunci --
+      // lanjut ke tahap pilih jadwal (tampilkanPilihJadwal(), dipanggil
+      // dari handleScanResult di bawah), jadi tombol "Absen Kelas" belum
+      // boleh muncul lagi.
+      if (!result.perluPilihJadwal) {
+        document.getElementById('btnAbsenKelas').style.display = '';
+      }
     }
     handleScanResult(result, data, now);
   } catch (e) {
@@ -4209,6 +4236,98 @@ async function processScanGuruAbsenKelas(data) {
     // supaya guru bisa langsung scan ulang begitu koneksi kembali.
     toast('❌ Gagal memproses. Cek koneksi lalu scan ulang kartu guru.');
     resumeScanSetelahJeda();
+  }
+}
+
+// Hasil absen sesi mengajar (dari scan langsung ATAU setelah guru memilih
+// salah satu jadwal lewat pilihJadwalKlik()). Kalau berhasil (atau memang
+// sudah pernah tercatat hari ini -- result.sudahScan), masuk Mode
+// Verifikasi Kelas supaya guru bisa lanjut scan kartu siswa satu-satu.
+function lanjutkanHasilMengajar(result) {
+  const namaGuru = (result.guru && result.guru.nama) || '';
+  const infoJadwal = result.jadwal ? `${result.jadwal.mapel} - ${result.jadwal.kelas}` : '';
+
+  // PERBAIKAN BUG (guru bisa Absen Kelas berkali-kali tanpa batas):
+  // SEBELUMNYA begitu result.idAbsensiMengajar ada -- BAIK untuk sesi
+  // BARU maupun sesi yang sudah pernah tercatat & SUDAH TERVERIFIKASI
+  // hari ini (result.sudahScan true, result.statusVerifikasi ===
+  // 'Terverifikasi') -- kode selalu masuk mulaiModeVerifikasi() lagi
+  // dari nol. Guru yang menekan "Absen Kelas" lalu scan kartu sendiri
+  // berulang kali untuk kelas & jam yang SAMA terus-menerus dibukakan
+  // mode verifikasi, seolah kelas itu belum pernah diverifikasi --
+  // padahal sesinya sudah selesai & sudah cukup siswa terverifikasi.
+  // Sekarang: kalau sesi sudah tercatat DAN statusnya sudah
+  // 'Terverifikasi', JANGAN buka mode verifikasi lagi -- cukup
+  // info-kan ke guru bahwa sesi ini sudah selesai. Kalau sudah
+  // tercatat tapi BELUM cukup siswa (statusVerifikasi masih 'Perlu
+  // Ditinjau'), tetap dibuka seperti biasa -- itu memang perlu supaya
+  // guru bisa melanjutkan scan siswa yang belum sampai ambang minimal.
+  if (result.sudahScan && result.statusVerifikasi === 'Terverifikasi') {
+    showFlash('guru', '✅', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
+    toast(`✅ Absen kelas ${infoJadwal || 'ini'} sudah tercatat & terverifikasi (${result.jumlahSiswaTerverifikasi || 0} siswa) hari ini. Tidak perlu discan ulang.`, 5000);
+    // Sesi tidak jadi dibuka -- pastikan overlay Absen Kelas (yang
+    // sudah dibuka di mulaiAbsenKelas() sebelum kartu guru discan)
+    // ikut ditutup, karena modeVerifikasiBox (yang biasanya jadi jalan
+    // keluarnya lewat checklist) tidak pernah tampil di jalur ini.
+    tutupOverlayAbsenKelas();
+  } else {
+    showFlash('guru', '📚', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
+    toast('✅ ' + result.message);
+    if (result.idAbsensiMengajar) {
+      mulaiModeVerifikasi(result);
+    }
+  }
+}
+
+// BARU: ditampilkan saat scanSesiMengajar (api/mengajar.js) membalas
+// perluPilihJadwal:true -- guru punya >1 jadwal mengajar hari ini yang
+// belum tercatat (mis. jam ke-1 kelas 7A & jam ke-4 kelas 7B). Guru pilih
+// sendiri kelas/jadwal mana yang mau dicatat sekarang. guruId/tanggal/
+// pilihToken & info guru (untuk pesan di lanjutkanHasilMengajar nanti)
+// disimpan di pilihJadwalState sampai guru menekan salah satu kandidat.
+function tampilkanPilihJadwal(result) {
+  sedangPilihJadwal = true;
+  pilihJadwalState = {
+    guruId: result.guruId, tanggal: result.tanggal, pilihToken: result.pilihToken,
+    guru: result.guru || null
+  };
+  document.getElementById('menungguAbsenKelasBox').style.display = 'none';
+  document.getElementById('modeVerifikasiBox').style.display = 'none';
+  document.getElementById('pilihJadwalBox').style.display = '';
+  const list = document.getElementById('pilihJadwalList');
+  list.innerHTML = (result.kandidat || []).map(k => `
+    <button type="button" onclick="pilihJadwalKlik('${k.idJadwal}')" style="text-align:left;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit">
+      <div style="font-weight:700;font-size:.88rem">${esc(k.mapel)} — Kelas ${esc(k.kelas)}</div>
+      <div style="font-size:.74rem;color:var(--text-muted);margin-top:2px">Jam ke-${esc(String(k.jamKe))} • ${esc(k.jamMulai || '-')}–${esc(k.jamSelesai || '-')}</div>
+    </button>`).join('');
+  toast(`📚 Ada ${(result.kandidat || []).length} jadwal mengajar Anda hari ini yang belum dicatat. Pilih salah satu.`, 4500);
+}
+
+async function pilihJadwalKlik(idJadwal) {
+  if (!pilihJadwalState) return;
+  const list = document.getElementById('pilihJadwalList');
+  list.querySelectorAll('button').forEach(b => b.disabled = true);
+  try {
+    const result = await api('mengajar', 'pilihJadwalMengajar', {
+      guruId: pilihJadwalState.guruId, tanggal: pilihJadwalState.tanggal,
+      pilihToken: pilihJadwalState.pilihToken, idJadwal
+    });
+    if (!result.success) {
+      toast('⚠️ ' + (result.message || 'Gagal mencatat pilihan jadwal.'), 4000);
+      list.querySelectorAll('button').forEach(b => b.disabled = false);
+      return;
+    }
+    // guru info tidak ikut dibalas pilihJadwalMengajar (dipanggil langsung,
+    // bukan lewat scanKartu di scan.js) -- ambil dari hasil scan awal yang
+    // sudah disimpan di tampilkanPilihJadwal().
+    result.guru = pilihJadwalState.guru;
+    sedangPilihJadwal = false;
+    pilihJadwalState = null;
+    document.getElementById('pilihJadwalBox').style.display = 'none';
+    lanjutkanHasilMengajar(result);
+  } catch (e) {
+    toast('❌ Gagal memproses pilihan. Cek koneksi lalu coba lagi.', 4000);
+    list.querySelectorAll('button').forEach(b => b.disabled = false);
   }
 }
 
@@ -4231,8 +4350,8 @@ function mulaiModeVerifikasi(result) {
     kelas: (result.jadwal && result.jadwal.kelas) || '',
     min: MIN_VERIFIKASI_SISWA,
     jumlah: result.jumlahSiswaTerverifikasi || 0,
-    // BARU: penanda supaya checklist cuma di-auto-buka SEKALI saat jumlah
-    // scan pertama kali mencapai minimal -- lihat updateBadgeVerifikasi().
+    // BARU: penanda checklist sudah/belum pernah dibuka otomatis untuk
+    // sesi ini -- lihat cekBukaChecklistOtomatis().
     checklistDibuka: false
   };
 
@@ -4257,27 +4376,36 @@ function updateBadgeVerifikasi() {
   document.getElementById('verifikasiCounter').textContent = verifikasiSesi.jumlah;
   document.getElementById('verifikasiMin').textContent = verifikasiSesi.min;
 
-  // BARU: banner progres jelas ("X dari Y"), gantikan tombol "Kirim
-  // Verifikasi" yang lama -- guru tidak perlu menebak tinggal berapa lagi.
+  // BARU: banner progres real-time ("X dari Y") -- pesan jelas selama
+  // minimal belum tercapai, halaman terkunci di sini (lihat batalAbsenKelas()).
   const banner = document.getElementById('verifikasiBanner');
   if (banner) {
-    const sisa = Math.max(0, (verifikasiSesi.min || 0) - (verifikasiSesi.jumlah || 0));
+    const sisa = Math.max(0, verifikasiSesi.min - verifikasiSesi.jumlah);
     banner.textContent = sisa > 0
-      ? `🔴 Silahkan scan kartu siswa (${verifikasiSesi.jumlah} dari ${verifikasiSesi.min})`
-      : `🟢 Minimal tercapai (${verifikasiSesi.jumlah} dari ${verifikasiSesi.min}) — membuka absensi kelas...`;
+      ? `🔴 Scan kartu siswa (${verifikasiSesi.jumlah} dari ${verifikasiSesi.min})`
+      : `🟢 Minimal terpenuhi (${verifikasiSesi.jumlah} dari ${verifikasiSesi.min}) — memuat daftar siswa...`;
   }
 
-  // BARU: begitu jumlah scan mencapai minimal dari akun admin, checklist
-  // absensi kelas dibuka OTOMATIS -- guru tidak perlu klik apa-apa lagi.
-  // Guard checklistDibuka supaya hanya terpicu SEKALI per sesi (bukan tiap
-  // scan tambahan setelah minimal terlampaui), dan hanya untuk sesi ONLINE
-  // yang idAbsensiMengajar-nya sudah ada (sesi offline murni tetap
-  // menunggu sampai sinkron, lihat processScanSiswaVerifikasi).
-  if (verifikasiSesi.idAbsensiMengajar && !verifikasiSesi.checklistDibuka
-      && (verifikasiSesi.jumlah || 0) >= (verifikasiSesi.min || 0)) {
-    verifikasiSesi.checklistDibuka = true;
-    bukaChecklistAbsensiKelas();
-  }
+  cekBukaChecklistOtomatis();
+}
+
+// BARU: begitu jumlah scan kartu siswa mencapai minimal (verifikasiSesi.min),
+// checklist siswa yang belum discan OTOMATIS terbuka -- tidak ada lagi
+// tombol manual "Kirim Verifikasi". checklistDibuka dipakai supaya ini
+// cuma dipicu SEKALI per sesi (bukan tiap kali updateBadgeVerifikasi()
+// dipanggil ulang). Kalau sesi masih murni offline (idAbsensiMengajar
+// belum ada) atau koneksi sedang putus, checklist tidak bisa dimuat dari
+// server -- dibiarkan menunggu, akan otomatis dicoba lagi di scan
+// berikutnya (atau saat online kembali) selama syarat minimal masih
+// terpenuhi.
+function cekBukaChecklistOtomatis() {
+  if (!verifikasiSesi || verifikasiSesi.checklistDibuka) return;
+  if (verifikasiSesi.jumlah < verifikasiSesi.min) return;
+  if (!verifikasiSesi.idAbsensiMengajar || !isOnline) return;
+  const modal = document.getElementById('modalChecklistKelas');
+  if (modal && modal.style.display === 'flex') return; // sudah terbuka
+  verifikasiSesi.checklistDibuka = true;
+  bukaChecklistAbsensiKelas();
 }
 
 // Dipanggil dari processQR() saat modeVerifikasiAktif true. Sengaja TIDAK
@@ -4300,11 +4428,11 @@ async function processScanSiswaVerifikasi(data) {
     return;
   }
   // Kartu guru (GR...) atau QR lain yang kepencet saat mode verifikasi
-  // aktif -- bukan error fatal, cukup kasih tahu supaya guru scan kartu
-  // siswa atau tekan "Kirim Verifikasi".
+  // aktif -- bukan error fatal, cukup kasih tahu supaya guru lanjut scan
+  // kartu siswa saja.
   if (raw.startsWith('GR') || raw.startsWith('ADMIN|') || raw.startsWith('GURU_LOGIN|') || isKartuMonitorUrl(raw)) {
     showFlash('warning','⚠️','Itu bukan kartu siswa');
-    toast('⚠️ Sedang Mode Verifikasi Kelas. Lanjutkan scan kartu siswa satu-satu.');
+    toast('⚠️ Sedang Mode Verifikasi Kelas. Lanjut scan kartu siswa satu-satu ya, Pak/Bu.');
     resumeScanSetelahJeda();
     return;
   }
@@ -4471,10 +4599,7 @@ async function selesaiModeVerifikasi() {
       return bukaChecklistAbsensiKelas();
     }
     if (result.success) {
-      // BARU: pesan akhir yang jelas & singkat -- guru langsung tahu
-      // proses sudah benar-benar selesai, sesuai jumlah siswa yang
-      // terverifikasi lewat scan kartu maupun checklist manual.
-      toast(`✅ Absen kelas selesai — ${result.jumlahSiswaTerverifikasi} siswa terverifikasi hadir.`, 4000);
+      toast('✅ ' + result.message, 4000);
     } else {
       toast('⚠️ ' + (result.message || 'Gagal menutup sesi verifikasi.'), 4000);
     }
@@ -4525,20 +4650,31 @@ async function bukaChecklistAbsensiKelas() {
     });
     if (!r.success) {
       toast('⚠️ ' + (r.message || 'Gagal memuat daftar siswa.'), 4000);
-      if (verifikasiSesi) verifikasiSesi.checklistDibuka = false;
       return lewatiChecklistKelas(true);
     }
-    // BARU: tanpa status bawaan (dulu default 'Hadir') -- guru wajib klik
-    // status tiap siswa yang belum scan & belum diinput piket sendiri,
-    // supaya tidak ada yang ikut tercatat Hadir karena lupa dicek.
-    checklistKelasState = { daftar: r.daftar || [], pilihan: {} };
-    const perluDiisi = (r.daftar || []).filter(s => !s.sudahDiinputPiket && !s.sudahScanKartu).length;
+    // BARU: server sekarang mengembalikan SEMUA siswa kelas ini (bukan cuma
+    // yang belum scan kartu), ditandai sudahScanKartu. Urutkan supaya yang
+    // sudah scan kartu sendiri ditampilkan PALING BAWAH (read-only), yang
+    // masih butuh input guru (belum scan & belum diinput piket) tetap di
+    // atas. Array.prototype.sort JS stabil, jadi urutan alfabetis dari
+    // server tetap terjaga di dalam masing-masing kelompok.
+    const daftarUrut = (r.daftar || []).slice()
+      .sort((a, b) => (a.sudahScanKartu === b.sudahScanKartu) ? 0 : (a.sudahScanKartu ? 1 : -1));
+    checklistKelasState = { daftar: daftarUrut, pilihan: {} };
+    // BARU: TIDAK ada default status lagi -- guru wajib klik satu-satu
+    // untuk tiap siswa yang belum scan kartu & belum diinput piket (lihat
+    // validasi di simpanChecklistAbsensiKelas()).
+    daftarUrut.forEach(s => {
+      if (!s.sudahDiinputPiket && !s.sudahScanKartu) checklistKelasState.pilihan[s.idSiswa] = { status: null, keterangan: '' };
+    });
+    const wajibDiisi = daftarUrut.filter(s => !s.sudahDiinputPiket && !s.sudahScanKartu).length;
+    const sudahScanKartu = daftarUrut.filter(s => s.sudahScanKartu).length;
+    const sudahPiket = daftarUrut.filter(s => s.sudahDiinputPiket).length;
     document.getElementById('checklistKelasSub').textContent =
-      `Kelas ${r.kelas} -- ${perluDiisi} siswa perlu diisi, ${r.jumlahSudahScan} sudah scan kartu`;
+      `Kelas ${r.kelas} — ${wajibDiisi} wajib diisi, ${sudahPiket} sudah diinput piket, ${sudahScanKartu} sudah scan kartu`;
     renderChecklistKelas();
   } catch (e) {
     toast('❌ Gagal memuat daftar siswa. Cek koneksi.', 4000);
-    if (verifikasiSesi) verifikasiSesi.checklistDibuka = false;
     lewatiChecklistKelas(true);
   }
 }
@@ -4547,15 +4683,16 @@ function renderChecklistKelas() {
   const body = document.getElementById('checklistKelasBody');
   const daftar = checklistKelasState ? checklistKelasState.daftar : [];
   if (!daftar.length) {
-    body.innerHTML = '<div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">🎉 Tidak ada siswa aktif di kelas ini.</div>';
+    body.innerHTML = '<div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">🎉 Semua siswa kelas ini sudah scan kartu sendiri.</div>';
     return;
   }
   body.innerHTML = daftar.map(s => {
-    // Sudah scan kartu sendiri -- read-only, ditampilkan paling bawah
-    // (lihat urutan dari daftarSiswaKelasSesi di api/mengajar.js).
+    // BARU: siswa yang sudah scan kartu sendiri -- read-only, ditampilkan
+    // paling bawah (lihat pengurutan di bukaChecklistAbsensiKelas()), TIDAK
+    // butuh input guru & TIDAK ikut divalidasi wajib-pilih-status.
     if (s.sudahScanKartu) {
       return `
-      <div id="cakRow_${s.idSiswa}" style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.7">
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.85">
         <div style="font-weight:700;font-size:.88rem">${esc(s.nama)}</div>
         <div style="font-size:.7rem;color:var(--text-muted)">${esc(s.nisn || '-')}</div>
         <div style="margin-top:6px;font-size:.76rem;background:var(--accent-soft,#EEF2FA);border-radius:8px;padding:6px 10px;display:inline-block">
@@ -4563,10 +4700,9 @@ function renderChecklistKelas() {
         </div>
       </div>`;
     }
-    // Sudah diinput guru piket -- read-only, tidak boleh ditimpa guru mengajar.
     if (s.sudahDiinputPiket) {
       return `
-      <div id="cakRow_${s.idSiswa}" style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.85">
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.85">
         <div style="font-weight:700;font-size:.88rem">${esc(s.nama)}</div>
         <div style="font-size:.7rem;color:var(--text-muted)">${esc(s.nisn || '-')}</div>
         <div style="margin-top:6px;font-size:.76rem;background:var(--accent-soft,#EEF2FA);border-radius:8px;padding:6px 10px;display:inline-block">
@@ -4574,24 +4710,27 @@ function renderChecklistKelas() {
         </div>
       </div>`;
     }
-    // BARU: TIDAK ada status bawaan (dulu default 'Hadir') -- pilihan
-    // kosong sampai guru benar-benar mengklik salah satu tombol status.
-    const pilihan = checklistKelasState.pilihan[s.idSiswa] || null;
+    // BARU: TIDAK ada default -- pilihan.status null selama guru belum
+    // klik salah satu tombol. Baris yang belum dipilih diberi id (dipakai
+    // simpanChecklistAbsensiKelas untuk scroll otomatis) & highlight halus
+    // supaya kelihatan jelas mana yang masih perlu diisi.
+    const pilihan = checklistKelasState.pilihan[s.idSiswa] || { status: null, keterangan: '' };
+    const belumPilih = !pilihan.status;
     const statusList = ['Hadir', 'Alpa', 'Izin', 'Sakit'];
     return `
-      <div id="cakRow_${s.idSiswa}" style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div id="cakRow_${s.idSiswa}" style="padding:10px;margin:4px 0;border-radius:10px;border:1px solid ${belumPilih ? 'var(--danger,#DC2626)' : 'var(--border)'};${belumPilih ? 'background:rgba(220,38,38,.06)' : ''}">
         <div style="font-weight:700;font-size:.88rem">${esc(s.nama)}</div>
-        <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:6px">${esc(s.nisn || '-')}</div>
+        <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:6px">${esc(s.nisn || '-')}${belumPilih ? ' • <span style="color:var(--danger,#DC2626);font-weight:700">⚠️ Belum dipilih</span>' : ''}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${statusList.map(st => `
             <button type="button" onclick="pilihStatusCAK('${s.idSiswa}','${st}')"
-              style="padding:6px 12px;border-radius:20px;font-size:.76rem;font-weight:700;cursor:pointer;border:1px solid ${pilihan && pilihan.status === st ? 'transparent' : 'var(--border)'};background:${pilihan && pilihan.status === st ? statusWarnaCAK(st) : 'transparent'};color:${pilihan && pilihan.status === st ? '#fff' : 'var(--text-muted)'}">
+              style="padding:6px 12px;border-radius:20px;font-size:.76rem;font-weight:700;cursor:pointer;border:1px solid ${pilihan.status === st ? 'transparent' : 'var(--border)'};background:${pilihan.status === st ? statusWarnaCAK(st) : 'transparent'};color:${pilihan.status === st ? '#fff' : 'var(--text-muted)'}">
               ${st}
             </button>`).join('')}
         </div>
         <textarea id="cakKet_${s.idSiswa}" oninput="ubahKeteranganCAK('${s.idSiswa}', this.value)"
           placeholder="Keterangan Izin/Sakit (opsional)" rows="2"
-          style="display:${pilihan && (pilihan.status === 'Izin' || pilihan.status === 'Sakit') ? 'block' : 'none'};width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:.78rem;background:var(--surface);color:var(--text)">${esc(pilihan ? (pilihan.keterangan || '') : '')}</textarea>
+          style="display:${(pilihan.status === 'Izin' || pilihan.status === 'Sakit') ? 'block' : 'none'};width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:.78rem;background:var(--surface);color:var(--text)">${esc(pilihan.keterangan || '')}</textarea>
       </div>`;
   }).join('');
 }
@@ -4614,33 +4753,26 @@ function ubahKeteranganCAK(idSiswa, val) {
 async function simpanChecklistAbsensiKelas() {
   if (!checklistKelasState || !verifikasiSesi) return lewatiChecklistKelas(true);
 
-  // BARU: validasi wajib -- setiap siswa yang belum scan kartu & belum
-  // diinput piket HARUS sudah diklik statusnya (tidak ada default lagi).
-  // Kalau masih ada yang kosong, tolak kirim, kasih pesan jelas, lalu
-  // highlight + scroll ke siswa pertama yang belum diisi supaya guru
-  // langsung tahu siapa yang terlewat.
-  const belumDiisi = checklistKelasState.daftar.find(s =>
-    !s.sudahDiinputPiket && !s.sudahScanKartu && !checklistKelasState.pilihan[s.idSiswa]
+  // BARU: TIDAK ada default status lagi -- tolak kirim kalau masih ada
+  // siswa (yang wajib diisi manual, bukan yang sudah scan kartu/diinput
+  // piket) yang belum diklik status apa pun. Halaman TETAP di sini,
+  // dengan pesan jelas + highlight + auto-scroll ke siswa pertama yang
+  // belum diisi (lihat renderChecklistKelas -- baris #cakRow_<id>).
+  const belumDipilih = checklistKelasState.daftar.filter(s =>
+    !s.sudahDiinputPiket && !s.sudahScanKartu &&
+    (!checklistKelasState.pilihan[s.idSiswa] || !checklistKelasState.pilihan[s.idSiswa].status)
   );
-  if (belumDiisi) {
-    toast(`⚠️ Status ${belumDiisi.nama} belum dipilih -- klik salah satu status (Hadir/Alpa/Izin/Sakit) dulu.`, 4000);
-    const row = document.getElementById('cakRow_' + belumDiisi.idSiswa);
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      row.style.background = 'rgba(220,38,38,.12)';
-      row.style.borderRadius = '10px';
-      setTimeout(() => { row.style.background = ''; }, 1800);
-    }
+  if (belumDipilih.length) {
+    renderChecklistKelas();
+    toast(`⚠️ Masih ada ${belumDipilih.length} siswa yang belum dipilih statusnya (Hadir/Alpa/Izin/Sakit). Lengkapi dulu semua sebelum mengirim.`, 4500);
+    const el = document.getElementById(`cakRow_${belumDipilih[0].idSiswa}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
 
   const entries = [];
   checklistKelasState.daftar.forEach(s => {
-    if (s.sudahScanKartu) {
-      // Sudah tercatat lewat scan kartu sendiri -- tidak perlu dikirim
-      // ulang lewat checklist manual (menghindari entry duplikat).
-      return;
-    }
+    if (s.sudahScanKartu) return; // sudah tercatat lewat kehadiran_siswa_mapel, tidak dikirim ulang
     if (s.sudahDiinputPiket) {
       // Ikut disertakan supaya tercatat juga di riwayat sesi ini --
       // backend akan otomatis MENGIKUTI status yang sudah diinput piket,
@@ -4655,41 +4787,39 @@ async function simpanChecklistAbsensiKelas() {
   if (!entries.length) return lewatiChecklistKelas(true);
 
   const btn = document.getElementById('btnSimpanChecklistKelas');
-  btn.disabled = true; btn.textContent = '⏳ Menyimpan...';
+  btn.disabled = true; btn.textContent = '⏳ Mengirim...';
 
   try {
     const r = await api('mengajar', 'simpanAbsensiKelasManual', {
       idAbsensiMengajar: verifikasiSesi.idAbsensiMengajar, sesiToken: verifikasiSesi.sesiToken, entries
     });
-    if (r.success) {
-      toast(r.gagal && r.gagal.length
-        ? `⚠️ ${r.message}`
-        : `✅ Riwayat mengajar tersimpan (${r.disimpan} siswa dilengkapi).`, 4500);
-    } else {
-      toast('⚠️ ' + (r.message || 'Gagal menyimpan absensi kelas.'), 4000);
+    if (!r.success) {
+      toast('⚠️ ' + (r.message || 'Gagal mengirim riwayat mengajar.'), 4000);
       btn.disabled = false; btn.textContent = '📤 Kirim Riwayat Mengajar Saya';
       return;
     }
   } catch (e) {
-    toast('❌ Gagal menyimpan (cek koneksi). Coba lagi sebelum menutup sesi.', 4000);
+    toast('❌ Gagal mengirim (cek koneksi). Coba lagi -- halaman ini belum bisa ditutup.', 4000);
     btn.disabled = false; btn.textContent = '📤 Kirim Riwayat Mengajar Saya';
     return;
   }
 
+  const totalScanKartu = checklistKelasState.daftar.filter(s => s.sudahScanKartu).length;
   document.getElementById('modalChecklistKelas').style.display = 'none';
   checklistKelasState = null;
   resumeScanBerat();
-  // BARU: selesaiModeVerifikasi() menutup sesi & menampilkan pesan akhir
-  // yang jelas (lihat komentar di fungsi itu) -- overlay Absen Kelas
-  // otomatis tertutup begitu proses ini selesai, sesuai alur yang diminta.
+  // BARU: pesan selesai yang jelas & tidak membingungkan -- gabungan siswa
+  // yang sudah scan kartu sendiri + yang baru saja dilengkapi manual lewat
+  // checklist ini, supaya guru tahu persis totalnya begitu sesi ditutup.
+  toast(`✅ Riwayat mengajar berhasil dikirim — ${totalScanKartu} siswa terverifikasi kartu, ${entries.length} dilengkapi manual.`, 5000);
   selesaiModeVerifikasi();
 }
 
-// Fallback (BUKAN untuk tombol UI biasa -- tidak ada lagi tombol × atau
-// "Nanti Dulu" di modal ini, checklist WAJIB diselesaikan): dipakai saat
-// memang tidak bisa ditampilkan sama sekali (sesi offline / gagal memuat
-// daftar siswa dari server) -- di kondisi ini sesi tetap ditutup seperti
-// perilaku lama, karena tidak ada cara untuk melengkapi checklist saat itu.
+
+// Fallback (BUKAN untuk tombol UI biasa): dipakai saat checklist memang
+// tidak bisa ditampilkan sama sekali (sesi offline / gagal memuat daftar
+// siswa dari server) -- di kondisi ini sesi tetap ditutup seperti perilaku
+// lama, karena tidak ada cara untuk melengkapi checklist saat itu.
 function lewatiChecklistKelas(diam) {
   document.getElementById('modalChecklistKelas').style.display = 'none';
   checklistKelasState = null;
@@ -6273,44 +6403,15 @@ function handleScanResult(result, data, now) {
       simpanGuruOffline(result.guru.nama, result.guru.id || '', result.guru.jam);
       checkStatus();
     } else if (result.tipe === 'mengajar') {
-      // Hasil absen sesi mengajar, setelah guru memilih "Absen Mengajar" di
-      // modal pilihan. Kalau berhasil (atau memang sudah pernah tercatat
-      // hari ini -- result.sudahScan), masuk Mode Verifikasi Kelas supaya
-      // guru bisa lanjut scan kartu siswa satu-satu (sub-langkah 3).
-      const namaGuru = (result.guru && result.guru.nama) || '';
-      const infoJadwal = result.jadwal ? `${result.jadwal.mapel} - ${result.jadwal.kelas}` : '';
-
-      // PERBAIKAN BUG (guru bisa Absen Kelas berkali-kali tanpa batas):
-      // SEBELUMNYA begitu result.idAbsensiMengajar ada -- BAIK untuk sesi
-      // BARU maupun sesi yang sudah pernah tercatat & SUDAH TERVERIFIKASI
-      // hari ini (result.sudahScan true, result.statusVerifikasi ===
-      // 'Terverifikasi') -- kode selalu masuk mulaiModeVerifikasi() lagi
-      // dari nol. Guru yang menekan "Absen Kelas" lalu scan kartu sendiri
-      // berulang kali untuk kelas & jam yang SAMA terus-menerus dibukakan
-      // mode verifikasi, seolah kelas itu belum pernah diverifikasi --
-      // padahal sesinya sudah selesai & sudah cukup siswa terverifikasi.
-      // Sekarang: kalau sesi sudah tercatat DAN statusnya sudah
-      // 'Terverifikasi', JANGAN buka mode verifikasi lagi -- cukup
-      // info-kan ke guru bahwa sesi ini sudah selesai. Kalau sudah
-      // tercatat tapi BELUM cukup siswa (statusVerifikasi masih 'Perlu
-      // Ditinjau'), tetap dibuka seperti biasa -- itu memang perlu supaya
-      // guru bisa melanjutkan scan siswa yang belum sampai ambang minimal.
-      if (result.sudahScan && result.statusVerifikasi === 'Terverifikasi') {
-        showFlash('guru', '✅', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
-        toast(`✅ Absen kelas ${infoJadwal || 'ini'} sudah tercatat & terverifikasi (${result.jumlahSiswaTerverifikasi || 0} siswa) hari ini. Tidak perlu discan ulang.`, 5000);
-        // Sesi tidak jadi dibuka -- pastikan overlay Absen Kelas (yang
-        // sudah dibuka di mulaiAbsenKelas() sebelum kartu guru discan)
-        // ikut ditutup, karena modeVerifikasiBox (yang biasanya jadi jalan
-        // keluarnya setelah checklist absensi kelas selesai) tidak pernah
-        // tampil di jalur ini.
-        tutupOverlayAbsenKelas();
-      } else {
-        showFlash('guru', '📚', namaGuru + (infoJadwal ? '\n' + infoJadwal : ''));
-        toast('✅ ' + result.message);
-        if (result.idAbsensiMengajar) {
-          mulaiModeVerifikasi(result);
-        }
+      // BARU: guru punya >1 jadwal mengajar hari ini yang belum tercatat
+      // -- minta guru pilih sendiri lewat tampilkanPilihJadwal(), BELUM
+      // masuk Mode Verifikasi sampai salah satu dipilih (lihat
+      // pilihJadwalKlik() di bawah).
+      if (result.perluPilihJadwal) {
+        tampilkanPilihJadwal(result);
+        return;
       }
+      lanjutkanHasilMengajar(result);
     } else {
       const isLate   = result.status === 'Terlambat';
       const isPulang = result.status === 'Pulang';
@@ -7944,9 +8045,10 @@ async function jalankanSync(antrian) {
         sesiIdMap[item.localSesiId] = r.idAbsensiMengajar;
         sesiTokenMap[item.localSesiId] = r.sesiToken;
         // Kalau Mode Verifikasi Kelas untuk sesi INI masih aktif di layar
-        // (checklist belum dibuka/diselesaikan), sambungkan juga sesi yang
-        // sedang berjalan ke id asli supaya kartu siswa BERIKUTNYA (belum
-        // discan) langsung lewat jalur online, tidak perlu antri lagi.
+        // (guru belum tekan "Kirim Verifikasi"), sambungkan juga sesi
+        // yang sedang berjalan ke id asli supaya kartu siswa BERIKUTNYA
+        // (belum discan) langsung lewat jalur online, tidak perlu antri
+        // lagi.
         if (verifikasiSesi && verifikasiSesi.localSesiId === item.localSesiId) {
           verifikasiSesi.idAbsensiMengajar = r.idAbsensiMengajar;
           verifikasiSesi.sesiToken = r.sesiToken;
@@ -7956,11 +8058,6 @@ async function jalankanSync(antrian) {
             const mkEl = document.getElementById('verifikasiMapelKelas');
             if (mkEl) mkEl.textContent = `${verifikasiSesi.mapel} - ${verifikasiSesi.kelas}`;
           }
-          // BARU: kalau minimal scan ternyata sudah tercapai SEBELUM sesi
-          // ini sempat tersambung ke id asli (mis. semua scan siswa terjadi
-          // saat masih offline), checklist tetap harus otomatis terbuka
-          // sekarang -- tidak menunggu kartu siswa berikutnya.
-          updateBadgeVerifikasi();
         }
       }
 

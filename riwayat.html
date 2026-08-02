@@ -226,6 +226,14 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── FORMAT PERSENTASE ALA INDONESIA (BARU) ────────────────────────
+// Seragam dengan scan.html/index.html: 1 angka desimal TETAP (tidak
+// dibulatkan ke bilangan bulat), koma sebagai pemisah desimal.
+function fmtPersen(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Number(n).toFixed(1).replace('.', ',');
+}
+
 const API_BASE = window.location.origin;
 // Batas waktu tunggu fetch. PENTING: navigator.onLine cuma mendeteksi
 // kartu jaringan mati total (mode pesawat/WiFi off) -- kalau HP
@@ -460,7 +468,7 @@ function render(r) {
           <div class="sub">Kelas ${info.siswa.kelas} &nbsp;•&nbsp; NISN ${info.siswa.nisn}</div>
         </div>
         <div class="persen-chip">
-          <div class="n">${st.persentaseKehadiran}%</div>
+          <div class="n">${fmtPersen(st.persentaseKehadiran)}%</div>
           <div class="l">Kehadiran</div>
         </div>
       </div>

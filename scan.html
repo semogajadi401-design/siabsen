@@ -430,6 +430,23 @@ body.is-offline .header{ top:36px; }
   transition:transform .15s;
 }
 .btn-kelola-piket:active{transform:scale(.96)}
+
+/* ── TOMBOL PERSENTASE KEHADIRAN (BARU) ─────────────────────────────
+   Pintasan read-only untuk guru piket melihat TREN persentase
+   kehadiran siswa (per hari selama seminggu, atau per minggu selama
+   sebulan) langsung dari kios scan -- lihat bukaModalPersentaseKehadiran()
+   dan getTrenPersentaseKehadiran() di api/_db.js. Warna biru supaya beda
+   dari 3 tombol lain (Absen Kelas = ungu, Cek Aktivitas = teal,
+   Kelola Piket = amber) -- konsisten dengan pola "1 warna per tombol"
+   yang sudah ada. */
+.btn-persentase-kehadiran{
+  width:100%;padding:12px 10px;border:none;border-radius:16px;
+  background:linear-gradient(160deg,#60A5FA,#2563EB);
+  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
+  box-shadow:0 6px 16px -6px rgba(37,99,235,0.55),inset 0 1px 1px rgba(255,255,255,.35);
+  transition:transform .15s;
+}
+.btn-persentase-kehadiran:active{transform:scale(.96)}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
   /* PERBAIKAN TATA LETAK MOBILE: sebelumnya tombol Absen Kelas & Cek
@@ -445,7 +462,7 @@ body.is-offline .header{ top:36px; }
      berdampingan, berbagi lebar rata lewat flex:1) supaya rapi dan
      tidak ada yang tersembunyi. */
   .aksi-kelas-wrap{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;max-width:none;gap:10px}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket{flex:1 1 0;width:auto}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran{flex:1 1 0;width:auto}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -461,8 +478,53 @@ body.is-offline .header{ top:36px; }
      sempit untuk teks "Cek Aktivitas Guru" -- tumpuk vertikal saja
      supaya teks & ikon tetap jelas terbaca, bukan terpotong. */
   .aksi-kelas-wrap{flex-direction:column}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru{width:100%}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran{width:100%}
 }
+
+/* ── MODAL PERSENTASE KEHADIRAN (BARU) ──────────────────────────────
+   Chart batang custom (CSS, tanpa library eksternal) + kartu kesimpulan
+   tren berwarna sesuai arah (naik=hijau, turun=merah, stabil=abu-abu).
+   Lihat markup #modalPersentaseKehadiran & renderPersentaseKehadiran(). */
+.pk-select{
+  width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-family:inherit;font-size:.8rem;font-weight:600;
+  cursor:pointer;
+}
+.pk-chart-wrap{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:6px;
+  height:150px;padding:10px 6px 0;margin-top:6px;
+}
+.pk-bar-col{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  height:100%;gap:6px;min-width:0;
+}
+.pk-bar-val{font-size:.66rem;font-weight:800;color:var(--text);white-space:nowrap}
+.pk-bar-track{
+  width:100%;max-width:34px;flex:1;display:flex;align-items:flex-end;
+  background:var(--bg);border-radius:8px;overflow:hidden;
+}
+.pk-bar-fill{
+  width:100%;border-radius:8px 8px 0 0;
+  background:linear-gradient(180deg,#60A5FA,#2563EB);
+  transition:height .5s cubic-bezier(.22,1,.36,1);
+  min-height:3px;
+}
+.pk-bar-fill.pk-libur{background:repeating-linear-gradient(135deg,var(--border),var(--border) 4px,transparent 4px,transparent 8px);min-height:3px}
+.pk-bar-label{font-size:.68rem;font-weight:700;color:var(--text-muted);white-space:nowrap}
+.pk-tren-card{
+  border-radius:12px;padding:12px 14px;font-size:.82rem;font-weight:700;
+  line-height:1.45;margin-top:16px;display:flex;gap:10px;align-items:flex-start;
+}
+.pk-tren-naik{background:var(--success-soft,#DCFCE7);color:var(--success,#16A34A)}
+.pk-tren-turun{background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626)}
+.pk-tren-stabil{background:#EEF2FA;color:var(--text-muted)}
+.pk-tren-kosong{background:#EEF2FA;color:var(--text-muted)}
+.pk-rata-row{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:.76rem;color:var(--text-muted);font-weight:600;margin-top:14px;
+  padding-top:12px;border-top:1px solid var(--border);
+}
+.pk-rata-val{font-weight:800;color:var(--text);font-size:.92rem}
 
 /* ── KAMERA BULAT DENGAN FRAME SCANNER AI ── */
 /* PERBAIKAN TATA LETAK (11 Juli 2026, revisi ke-2): ukuran sebelumnya
@@ -2195,6 +2257,15 @@ body.is-offline .header{ top:36px; }
       <button type="button" class="btn-kelola-piket" id="btnKelolaPiket" onclick="mulaiKelolaPiket()">
         📋 Edit Kehadiran Siswa (Guru Piket)
       </button>
+
+      <!-- Tombol Persentase Kehadiran (BARU) -- ringkasan read-only tren
+           kehadiran siswa (per hari seminggu / per minggu sebulan),
+           tidak menyentuh proses scan sama sekali, boleh dibuka kapan
+           saja. Lihat bukaModalPersentaseKehadiran() & modal
+           #modalPersentaseKehadiran di bawah. -->
+      <button type="button" class="btn-persentase-kehadiran" id="btnPersentaseKehadiran" onclick="bukaModalPersentaseKehadiran()">
+        📊 Persentase Kehadiran
+      </button>
     </div>
 
     <!-- Slot desktop untuk widget diagram kehadiran (BARU) -- diisi via JS
@@ -2433,6 +2504,62 @@ body.is-offline .header{ top:36px; }
           </div>
         </div>
 
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: PERSENTASE KEHADIRAN (BARU) ══════
+       Dibuka lewat tombol "📊 Persentase Kehadiran" (lihat #btnPersentaseKehadiran
+       di atas). Read-only murni, publik, boleh dibuka kapan saja termasuk
+       saat menunggu kartu di mode lain -- lihat bukaModalPersentaseKehadiran()
+       & getTrenPersentaseKehadiran() di api/_db.js. -->
+  <div id="modalPersentaseKehadiran" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-weight:800;font-size:.98rem">📊 Persentase Kehadiran</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px">Tren kehadiran siswa</div>
+        </div>
+        <button onclick="tutupModalPersentaseKehadiran()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Kontrol: periode (Minggu/Bulan) + filter kelas -->
+      <div style="padding:14px 20px 0;flex-shrink:0">
+        <div class="log-tabs">
+          <button type="button" class="log-tab active" id="pkTabMinggu" onclick="switchPkRentang('minggu')">📆 Per Minggu</button>
+          <button type="button" class="log-tab" id="pkTabBulan" onclick="switchPkRentang('bulan')">🗓️ Per Bulan</button>
+        </div>
+        <select class="pk-select" id="pkKelasSelect" style="margin-top:10px" onchange="loadPersentaseKehadiran()">
+          <option value="">Semua Kelas</option>
+        </select>
+      </div>
+
+      <!-- Isi (loading / konten / error) -->
+      <div id="pkIsi" style="overflow-y:auto;flex:1;padding:16px 20px 20px">
+        <div id="pkLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+        <div id="pkError" style="display:none;text-align:center;padding:30px 10px;color:var(--danger,#DC2626);font-size:.82rem;font-weight:600"></div>
+
+        <div id="pkKonten" style="display:none">
+          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center" id="pkSubjudul"></div>
+
+          <!-- Chart batang -->
+          <div class="pk-chart-wrap" id="pkChart"></div>
+
+          <!-- Kartu kesimpulan tren -->
+          <div id="pkTrenCard" class="pk-tren-card">
+            <span id="pkTrenIcon"></span>
+            <span id="pkTrenPesan"></span>
+          </div>
+
+          <!-- Rata-rata -->
+          <div class="pk-rata-row">
+            <span>Rata-rata periode ini</span>
+            <span class="pk-rata-val" id="pkRataRata">-</span>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -6926,6 +7053,143 @@ function renderJadwalBesokModal(data) {
   elMengajar.innerHTML = jadwal.length
     ? renderJadwalMengajarGroupedNeutral(jadwal, ambilKelasTerbuka(elMengajar, 'agb-kelas-group'))
     : `<div style="font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">Belum ada jadwal mengajar untuk besok.</div>`;
+}
+
+// ══════ PERSENTASE KEHADIRAN (BARU) — read-only, boleh dibuka kapan
+// saja termasuk saat menunggu kartu di mode lain, karena tidak
+// menyentuh state scanner sama sekali (lihat getTrenPersentaseKehadiran()
+// di api/_db.js, dipanggil lewat action 'getPersentaseKehadiran' di
+// api/scan.js). Dua kontrol yang mempengaruhi data yang ditampilkan:
+//   - _pkRentang: 'minggu' (7 hari terakhir) atau 'bulan' (4 minggu
+//     terakhir) -- lihat switchPkRentang().
+//   - dropdown #pkKelasSelect: '' (semua kelas digabung) atau nama
+//     kelas tertentu -- diisi via loadPkKelasOptions() memakai
+//     api('siswa','getKelasList',{}) yang memang sudah publik (dipakai
+//     juga oleh dropdown kelas lain di kios ini).
+let _pkRentang = 'minggu';
+let _pkKelasLoaded = false;
+
+async function bukaModalPersentaseKehadiran() {
+  pauseScanBerat();
+  document.getElementById('modalPersentaseKehadiran').style.display = 'flex';
+  // Selalu mulai dari tab "Per Minggu" setiap modal dibuka lagi, supaya
+  // tampilan konsisten & prediktif buat guru piket.
+  _pkRentang = 'minggu';
+  document.getElementById('pkTabMinggu').classList.add('active');
+  document.getElementById('pkTabBulan').classList.remove('active');
+
+  if (!_pkKelasLoaded) {
+    _pkKelasLoaded = true;
+    loadPkKelasOptions(); // tidak perlu ditunggu -- dropdown boleh terisi belakangan
+  }
+
+  await loadPersentaseKehadiran();
+}
+
+function tutupModalPersentaseKehadiran() {
+  document.getElementById('modalPersentaseKehadiran').style.display = 'none';
+  resumeScanBerat();
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+function switchPkRentang(rentang) {
+  if (rentang === _pkRentang) return;
+  _pkRentang = rentang;
+  document.getElementById('pkTabMinggu').classList.toggle('active', rentang === 'minggu');
+  document.getElementById('pkTabBulan').classList.toggle('active', rentang === 'bulan');
+  loadPersentaseKehadiran();
+}
+
+// Dropdown kelas -- dibiarkan gagal diam-diam (fallback ke "Semua Kelas"
+// saja) kalau koneksi bermasalah, supaya tombol ini tetap bisa dipakai
+// untuk rekap gabungan walau daftar kelas belum sempat termuat.
+async function loadPkKelasOptions() {
+  try {
+    const r = await api('siswa', 'getKelasList', {});
+    if (!r || !r.success) return;
+    const sel = document.getElementById('pkKelasSelect');
+    const nilaiSekarang = sel.value;
+    (r.data || []).forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k; opt.textContent = k;
+      sel.appendChild(opt);
+    });
+    sel.value = nilaiSekarang;
+  } catch (e) {
+    // diam saja -- dropdown tetap berfungsi dengan "Semua Kelas"
+  }
+}
+
+async function loadPersentaseKehadiran() {
+  const loading = document.getElementById('pkLoading');
+  const konten  = document.getElementById('pkKonten');
+  const errBox  = document.getElementById('pkError');
+  loading.style.display = '';
+  konten.style.display = 'none';
+  errBox.style.display = 'none';
+
+  const kelas = document.getElementById('pkKelasSelect').value;
+  try {
+    const r = await api('scan', 'getPersentaseKehadiran', { rentang: _pkRentang, kelas });
+    if (!r || !r.success) {
+      loading.style.display = 'none';
+      errBox.style.display = '';
+      errBox.textContent = (r && r.message) || 'Gagal memuat data persentase kehadiran.';
+      return;
+    }
+    renderPersentaseKehadiran(r);
+  } catch (e) {
+    loading.style.display = 'none';
+    errBox.style.display = '';
+    errBox.textContent = 'Gagal memuat data. Cek koneksi.';
+  }
+}
+
+function renderPersentaseKehadiran(data) {
+  document.getElementById('pkLoading').style.display = 'none';
+  document.getElementById('pkKonten').style.display = '';
+
+  const namaKelas = data.kelas ? `Kelas ${data.kelas}` : 'Semua Kelas';
+  document.getElementById('pkSubjudul').textContent = data.rentang === 'minggu'
+    ? `${namaKelas} · 7 hari terakhir`
+    : `${namaKelas} · 4 minggu terakhir`;
+
+  // ── Chart batang ──
+  const nilaiValid = (data.poin || []).filter(p => p.persen !== null).map(p => p.persen);
+  const maxNilai = nilaiValid.length ? Math.max(100, ...nilaiValid) : 100;
+  const chart = document.getElementById('pkChart');
+  chart.innerHTML = (data.poin || []).map(p => {
+    if (p.persen === null) {
+      return `
+        <div class="pk-bar-col">
+          <div class="pk-bar-val" style="color:var(--text-muted)">–</div>
+          <div class="pk-bar-track"><div class="pk-bar-fill pk-libur" style="height:100%"></div></div>
+          <div class="pk-bar-label">${esc(p.label)}</div>
+        </div>`;
+    }
+    const tinggi = Math.max(3, Math.round((p.persen / maxNilai) * 100));
+    return `
+      <div class="pk-bar-col">
+        <div class="pk-bar-val">${p.persen}%</div>
+        <div class="pk-bar-track"><div class="pk-bar-fill" style="height:${tinggi}%"></div></div>
+        <div class="pk-bar-label">${esc(p.label)}</div>
+      </div>`;
+  }).join('');
+
+  // ── Kartu kesimpulan tren ──
+  const tren = data.tren || { arah: 'kosong', pesan: '' };
+  const card = document.getElementById('pkTrenCard');
+  card.className = 'pk-tren-card ' + (
+    tren.arah === 'naik'   ? 'pk-tren-naik'   :
+    tren.arah === 'turun'  ? 'pk-tren-turun'  :
+    tren.arah === 'stabil' ? 'pk-tren-stabil' : 'pk-tren-kosong'
+  );
+  const ikon = tren.arah === 'naik' ? '📈' : tren.arah === 'turun' ? '📉' : tren.arah === 'stabil' ? '➡️' : 'ℹ️';
+  document.getElementById('pkTrenIcon').textContent = ikon;
+  document.getElementById('pkTrenPesan').textContent = tren.pesan || '';
+
+  // ── Rata-rata ──
+  document.getElementById('pkRataRata').textContent = data.rataRata === null ? '-' : data.rataRata + '%';
 }
 
 async function verifikasiTanpaKartu() {

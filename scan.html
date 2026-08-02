@@ -29,6 +29,16 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── FORMAT PERSENTASE ALA INDONESIA (BARU) ────────────────────────
+// Dipakai SERAGAM di semua fitur persentase kehadiran di halaman ini
+// (widget "Chart Kehadiran" hari ini & modal "Persentase Kehadiran"
+// tren mingguan/bulanan): 1 angka desimal TETAP (tidak dibulatkan ke
+// bilangan bulat) dan koma sebagai pemisah desimal, mis. 73.5 -> "73,5".
+function fmtPersen(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Number(n).toFixed(1).replace('.', ',');
+}
+
 // ── DURASI TERLAMBAT (untuk tabel kehadiran tab 'hadir') ──────────
 // Backend (api/scan.js) menghitung statusDatang ('Terlambat'/'Hadir')
 // dengan cara: jamBatasDatang = JAM_DATANG_SELESAI + TOLERANSI_MENIT
@@ -7170,7 +7180,7 @@ function renderPersentaseKehadiran(data) {
     const tinggi = Math.max(3, Math.round((p.persen / maxNilai) * 100));
     return `
       <div class="pk-bar-col">
-        <div class="pk-bar-val">${p.persen}%</div>
+        <div class="pk-bar-val">${fmtPersen(p.persen)}%</div>
         <div class="pk-bar-track"><div class="pk-bar-fill" style="height:${tinggi}%"></div></div>
         <div class="pk-bar-label">${esc(p.label)}</div>
       </div>`;
@@ -7189,7 +7199,7 @@ function renderPersentaseKehadiran(data) {
   document.getElementById('pkTrenPesan').textContent = tren.pesan || '';
 
   // ── Rata-rata ──
-  document.getElementById('pkRataRata').textContent = data.rataRata === null ? '-' : data.rataRata + '%';
+  document.getElementById('pkRataRata').textContent = data.rataRata === null ? '-' : fmtPersen(data.rataRata) + '%';
 }
 
 async function verifikasiTanpaKartu() {
@@ -7784,12 +7794,12 @@ function svgRingKehadiran(data, size) {
       transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
     offset += len;
   });
-  const pct = total ? Math.round(data.totalHadir / total * 100) : 0;
+  const pct = total ? Math.round(data.totalHadir / total * 1000) / 10 : 0;
   const fontPct = Math.round(size * 0.22);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     ${circles}
     <text x="${cx}" y="${cy + fontPct*0.32}" text-anchor="middle" font-size="${fontPct}" font-weight="800"
-      font-family="Poppins,Inter,sans-serif" fill="${CK_WARNA.hadir}">${pct}%</text>
+      font-family="Poppins,Inter,sans-serif" fill="${CK_WARNA.hadir}">${fmtPersen(pct)}%</text>
   </svg>`;
 }
 
@@ -7804,8 +7814,8 @@ function ckLegendHTML(data) {
 
 function ckPulangBarHTML(data) {
   const total = data.total || 1;
-  const pct = Math.round(data.totalPulang / total * 100);
-  return `<div class="ck-pulang-row"><span>🏠 Sudah Pulang</span><b>${data.totalPulang}/${total} (${pct}%)</b></div>
+  const pct = Math.round(data.totalPulang / total * 1000) / 10;
+  return `<div class="ck-pulang-row"><span>🏠 Sudah Pulang</span><b>${data.totalPulang}/${total} (${fmtPersen(pct)}%)</b></div>
     <div class="ck-pulang-track"><div class="ck-pulang-fill" style="width:${pct}%"></div></div>`;
 }
 
@@ -7814,8 +7824,8 @@ function ckPulangBarHTML(data) {
 // BUKAN terhadap total siswa (beda dengan ckPulangBarHTML di atas).
 function ckTerlambatBarHTML(data) {
   const hadir = data.totalHadir || 1;
-  const pct = Math.round((data.totalTerlambat || 0) / hadir * 100);
-  return `<div class="ck-terlambat-row"><span>⏰ Terlambat</span><b>${data.totalTerlambat || 0}/${data.totalHadir} datang (${pct}%)</b></div>
+  const pct = Math.round((data.totalTerlambat || 0) / hadir * 1000) / 10;
+  return `<div class="ck-terlambat-row"><span>⏰ Terlambat</span><b>${data.totalTerlambat || 0}/${data.totalHadir} datang (${fmtPersen(pct)}%)</b></div>
     <div class="ck-terlambat-track"><div class="ck-terlambat-fill" style="width:${pct}%"></div></div>`;
 }
 
@@ -7827,9 +7837,9 @@ function ckKelasListHTML(data) {
     const total = k.total || 1;
     const pHadir = k.hadir / total * 100, pIzin = k.izin / total * 100,
           pSakit = k.sakit / total * 100, pBelum = k.belum / total * 100;
-    const pctHadir = Math.round(k.hadir / total * 100);
+    const pctHadir = Math.round(k.hadir / total * 1000) / 10;
     return `<div class="ck-kelas-row">
-      <div class="ck-kelas-top"><span class="ck-kelas-label">Kelas ${esc(k.kelas)}</span><span class="ck-kelas-pct">${pctHadir}% hadir</span></div>
+      <div class="ck-kelas-top"><span class="ck-kelas-label">Kelas ${esc(k.kelas)}</span><span class="ck-kelas-pct">${fmtPersen(pctHadir)}% hadir</span></div>
       <div class="ck-kelas-bar">
         <div style="width:${pHadir}%;background:${CK_WARNA.hadir}"></div>
         <div style="width:${pIzin}%;background:${CK_WARNA.izin}"></div>

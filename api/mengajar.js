@@ -736,16 +736,30 @@ async function daftarSiswaKelasSesi({ idAbsensiMengajar, sesiToken }) {
   const idSudahScan = new Set((sudahScan || []).map(r => r.id_siswa));
   const ketMap = new Map((keteranganHariIni || []).map(k => [k.id_siswa, k]));
 
+  // BARU: sebelumnya siswa yang sudah scan kartu sendiri DIFILTER KELUAR
+  // total dari daftar ini -- guru tidak pernah melihat mereka di checklist.
+  // Sekarang tetap disertakan (ditandai sudahScanKartu:true) supaya
+  // checklist menampilkan SATU daftar lengkap kelas itu: yang masih perlu
+  // diisi guru di atas, yang sudah scan kartu read-only di bawah -- guru
+  // tidak perlu menebak siapa saja yang sudah/belum tercatat.
   const daftar = (siswaKelas || [])
-    .filter(s => !idSudahScan.has(s.id))
     .map(s => {
       const ket = ketMap.get(s.id);
       return {
         idSiswa: s.id, nisn: s.nisn, nama: s.nama,
+        sudahScanKartu: idSudahScan.has(s.id),
         sudahDiinputPiket: !!ket,
         statusPiket: ket ? ket.status : null,
         keteranganPiket: ket ? (ket.keterangan || '') : ''
       };
+    })
+    // Urutan tampilan: yang masih wajib diisi guru (belum scan & belum
+    // piket) duluan, lalu yang sudah diinput piket (read-only), lalu yang
+    // sudah scan kartu sendiri paling akhir (read-only) -- diurutkan di
+    // server supaya konsisten walau daftar dimuat ulang.
+    .sort((a, b) => {
+      const rank = x => x.sudahScanKartu ? 2 : (x.sudahDiinputPiket ? 1 : 0);
+      return rank(a) - rank(b);
     });
 
   return {

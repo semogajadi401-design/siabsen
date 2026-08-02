@@ -10,7 +10,9 @@ const {
   // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
   tanggalBesok, hariBesok,
   // ── TAMBAHAN BARU (pengecualian jam pelajaran per Hari + Kelas) ──
-  buatResolverJamPelajaran, hitungDefaultJamPelajaran
+  buatResolverJamPelajaran, hitungDefaultJamPelajaran,
+  // ── TAMBAHAN BARU (fitur tombol "Persentase Kehadiran") ──
+  getTrenPersentaseKehadiran
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -99,6 +101,13 @@ module.exports = async (req, res) => {
     // tapi belum sampai jamMulai), lihat getJadwalHariIni() & catatan
     // lengkapnya di dekat definisinya.
     if (action === 'getJadwalHariIni')    return res.json(await getJadwalHariIni());
+    // BARU: tren persentase kehadiran per minggu (per hari) / per bulan
+    // (per minggu, 4 titik) untuk tombol "📊 Persentase Kehadiran" di
+    // kios scan. Read-only murni (tidak menyentuh state scanner sama
+    // sekali), jadi TIDAK perlu kioskToken -- sama pola dengan
+    // getAktivitasGuruHariIni() di atas. Lihat getTrenPersentaseKehadiran()
+    // di api/_db.js untuk detail perhitungannya.
+    if (action === 'getPersentaseKehadiran') return res.json(await getTrenPersentaseKehadiran(params));
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     if (action === 'absenKelasUsername')  return res.json(await absenKelasUsername(params));

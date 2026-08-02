@@ -121,6 +121,14 @@ function esc(s){
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// ── FORMAT PERSENTASE ALA INDONESIA (BARU) ────────────────────────
+// Seragam dengan scan.html/index.html/riwayat.html: 1 angka desimal
+// TETAP (tidak dibulatkan ke bilangan bulat), koma sebagai pemisah
+// desimal, mis. 73.5 -> "73,5".
+function fmtPersen(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Number(n).toFixed(1).replace('.', ',');
+}
 const API_BASE = window.location.origin;
 const API_TIMEOUT_MS = 8000;
 
@@ -411,7 +419,7 @@ function renderRekapPeriode(d) {
         ${statBox(k.lupaAbsenPulang || 0, 'Lupa Absen Pulang', (k.lupaAbsenPulang || 0) > 0 ? 'danger' : '')}
       </div>
       <div class="pct-bar-wrap"><div class="pct-bar" style="width:${k.persentaseKehadiran}%"></div></div>
-      <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Persentase kehadiran: <b>${k.persentaseKehadiran}%</b></div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Persentase kehadiran: <b>${fmtPersen(k.persentaseKehadiran)}%</b></div>
     </div>
 
     <div class="section">

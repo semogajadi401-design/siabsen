@@ -10,6 +10,7 @@
 // pertimbangan keputusan (dashboard kehadiran per guru untuk kepsek/admin,
 // dan guru sendiri bisa lihat rekapnya). Makanya action rekap di bawah
 // dinamai getRekapKehadiranGuru, bukan "rekap honor".
+const crypto = require('crypto');
 const {
   supabase, generateID, setCors, todayStr, jamSekarang, hariIni,
   tambahMenit, isHariLibur, isHariKerja, requireAdminToken,
@@ -80,6 +81,11 @@ const handler = async (req, res) => {
     if (action === 'resetJadwalMengajarHari') return res.json(await resetJadwalMengajarHari(params));
 
     if (action === 'scanSesiMengajar')      return res.json(await scanSesiMengajar({ ...params, guruIdTerverifikasi }));
+    // BARU: konfirmasi pilihan jadwal ketika scanSesiMengajar membalas
+    // perluPilihJadwal:true (guru punya >1 jadwal hari itu yang belum
+    // tercatat). Aksi "terbuka" seperti daftarSiswaKelasSesi/dsb di bawah
+    // -- dilindungi pilihToken-nya sendiri, bukan guruToken/adminToken.
+    if (action === 'pilihJadwalMengajar')   return res.json(await pilihJadwalMengajar(params));
     if (action === 'scanSiswaMapel')        return res.json(await scanSiswaMapel(params));
     if (action === 'selesaiVerifikasi')     return res.json(await selesaiVerifikasi(params));
     // BARU: checklist absensi kelas -- lanjutan setelah ambang verifikasi
@@ -454,19 +460,22 @@ async function importJadwalMengajar({ rows }) {
 // ════════════════════════════════════════════════════════════════
 // SCAN SESI MENGAJAR (guru scan kartu sendiri di kelas)
 // ════════════════════════════════════════════════════════════════
-// Belum dipanggil dari scan.html (itu langkah integrasi berikutnya). Fungsi
-// ini mencari sesi jadwal_mengajar guru yang SEDANG BERLANGSUNG sekarang
-// (dicocokkan lewat jam_pelajaran), lalu mencatat absensi_mengajar. Kalau
-// tidak ada sesi yang cocok saat ini, ditolak dengan pesan jelas -- bukan
-// asal dicatat, sesuai keputusan sebelumnya.
-// PERBAIKAN PERFORMA: parameter jamSetting sekarang OPSIONAL. Kalau
-// pemanggil (mis. scanKartu di scan.js, yang sudah lebih dulu mengambil
-// jamSetting untuk validasi jam operasional) sudah punya nilainya, kirim di
-// sini supaya tidak query tabel pengaturan dari nol lagi untuk baca satu
-// angka toleransi (TOLERANSI_MENGAJAR_MENIT). Kalau tidak dikirim (mis.
-// dipanggil lewat endpoint HTTP /api/mengajar action scanSesiMengajar
-// langsung, tanpa lewat scan.js), tetap di-fetch sendiri seperti sebelumnya
-// -- tidak ada perilaku yang berubah untuk jalur itu.
+// UBAHAN (permintaan: jangan tolak hanya karena "sudah lewat waktu
+// mengajar di jadwal" -- yang penting masih di HARI yang sama): validasi
+// jam_pelajaran (jam_mulai..jam_selesai+toleransi) DIHAPUS dari sini.
+// Sekarang cukup dicek: guru ini punya jadwal_mengajar di HARI ini
+// (hariNow), dan jadwalnya belum tercatat (belum ada absensi_mengajar
+// utk tanggal ini). TOLERANSI_MENGAJAR_MENIT jadi tidak dipakai lagi di
+// fungsi ini.
+//
+// Konsekuensinya: bisa saja dalam satu hari guru punya LEBIH DARI SATU
+// jadwal yang sama-sama belum tercatat (mis. jam ke-1 kelas 7A & jam
+// ke-4 kelas 7B, guru baru sempat scan sore hari). Kalau begitu, fungsi
+// ini TIDAK langsung menebak salah satu -- dikembalikan sebagai daftar
+// kandidat (perluPilihJadwal:true) supaya guru pilih sendiri di
+// scan.html, lalu klien memanggil pilihJadwalMengajar() dengan pilihan
+// itu. Kalau kandidatnya cuma satu, langsung dicatat otomatis seperti
+// perilaku lama (tidak perlu apa-apa dari guru).
 async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSetting: jamSettingDikirim }) {
   if (!guruIdTerverifikasi)
     return { success: false, message: 'Identitas guru tidak terverifikasi. Silakan login ulang.' };
@@ -489,21 +498,11 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
   if (cekLibur.libur) return { success: false, message: `Hari ini libur (${cekLibur.keterangan || '-'})` };
   if (!hariAktif) return { success: false, message: `${hariNow} bukan hari sekolah` };
 
-  // 1. Cari jadwal_mengajar guru ini hari ini DULU (tiap baris sudah punya
-  //    kelasnya sendiri), baru resolve jam efektif tiap baris (pakai
-  //    pengecualian per Hari+Kelas kalau ada, kalau tidak baru jam
-  //    default) dan cek mana yang sedang berlangsung sekarang.
-  //
-  //    PERBAIKAN (sadar kelas): SEBELUMNYA jam_ke "sekarang" ditentukan
-  //    lebih dulu dari jam_pelajaran GLOBAL saja (tanpa tahu kelas), baru
-  //    dicocokkan ke jadwal_mengajar guru -- akibatnya pengecualian jam
-  //    per kelas (mis. Kamis kelas X-1 pulang lebih cepat) tidak pernah
-  //    ikut terpakai di sini, karena kelasnya belum diketahui saat jam_ke
-  //    dicari. Sekarang dibalik: kelas didapat lebih dulu dari jadwal
-  //    guru, baru jam efektifnya di-resolve.
-  const jamSetting = jamSettingDikirim || await getJamSetting();
-  const toleransi = Number(jamSetting['TOLERANSI_MENGAJAR_MENIT'] || 15);
-
+  // 1. Cari SEMUA jadwal_mengajar guru ini hari ini (tiap baris sudah
+  //    punya kelasnya sendiri), baru resolve jam efektif tiap baris
+  //    (pakai pengecualian per Hari+Kelas kalau ada, kalau tidak baru
+  //    jam default) -- jam ini dipakai untuk INFORMASI ke guru (ditampilkan
+  //    kalau perlu pilih jadwal), BUKAN lagi untuk syarat lolos/tidaknya.
   const [{ data: jadwalGuruHariIni }, { data: jamPelajaranSemua }] = await Promise.all([
     supabase.from('jadwal_mengajar').select('*')
       .eq('id_guru', guruIdTerverifikasi).eq('hari', hariNow),
@@ -512,57 +511,87 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
     // sinyal mayoritas antar-hari (hitungDefaultJamPelajaran()) kalau
     // hari ini kebetulan belum punya baris jam_pelajaran defaultnya
     // sendiri -- lihat catatan lengkap di buatResolverJamPelajaran()
-    // (api/_db.js). Ini perbaikan bug: sebelumnya guru yang jadwalnya
-    // terlihat benar di form Tambah Jadwal (karena form itu memakai jam
-    // default hasil hitung yang sama) tetap gagal absen scan dengan pesan
-    // "Bukan jam pelajaran sekarang", karena query di sini HANYA melihat
-    // baris literal utk hariNow -- yang ternyata belum pernah disalin ke
-    // hari itu (mis. hari baru diaktifkan di Pengaturan Hari Kerja).
+    // (api/_db.js).
     supabase.from('jam_pelajaran').select('hari,jam_ke,jam_mulai,jam_selesai,kelas').order('jam_ke')
   ]);
 
   if (!jadwalGuruHariIni || jadwalGuruHariIni.length === 0) {
-    return { success: false, message: 'Tidak ada jadwal mengajar Anda pada jam ini.' };
+    return { success: false, message: 'Tidak ada jadwal mengajar Anda hari ini.' };
   }
 
   const jamPelajaranHariIni = (jamPelajaranSemua || []).filter(j => j.hari === hariNow);
   const fallbackDefault = hitungDefaultJamPelajaran(jamPelajaranSemua);
   const resolveJp = buatResolverJamPelajaran(jamPelajaranHariIni, fallbackDefault);
-  let jadwal = null, jamKeSekarang = null;
-  for (const kandidat of jadwalGuruHariIni) {
-    const jpMulai = resolveJp(kandidat.jam_ke_mulai, kandidat.kelas);
-    const jpSelesai = resolveJp(kandidat.jam_ke_selesai, kandidat.kelas) || jpMulai;
-    if (!jpMulai || !jpSelesai) continue;
-    if (jamNow >= jpMulai.jam_mulai && jamNow <= tambahMenit(jpSelesai.jam_selesai, toleransi)) {
-      jadwal = kandidat; jamKeSekarang = jpMulai; break;
+
+  // 2. Cek jadwal mana saja yang SUDAH tercatat hari ini (satu query utk
+  //    semua jadwal guru ini sekaligus), lalu susun kandidat dari jadwal
+  //    yang BELUM tercatat.
+  const idJadwalList = jadwalGuruHariIni.map(j => j.id);
+  const { data: sudahTercatatList } = await supabase
+    .from('absensi_mengajar')
+    .select('id,id_jadwal_mengajar,status,jumlah_siswa_terverifikasi,status_verifikasi')
+    .eq('tanggal', today).in('id_jadwal_mengajar', idJadwalList);
+  const tercatatMap = new Map((sudahTercatatList || []).map(r => [r.id_jadwal_mengajar, r]));
+
+  const kandidat = [];
+  for (const j of jadwalGuruHariIni) {
+    if (tercatatMap.has(j.id)) continue;
+    const jpMulai = resolveJp(j.jam_ke_mulai, j.kelas);
+    const jpSelesai = resolveJp(j.jam_ke_selesai, j.kelas) || jpMulai;
+    if (!jpMulai) continue;
+    kandidat.push({
+      idJadwal: j.id, kelas: j.kelas, mapel: j.mapel, jamKe: j.jam_ke_mulai,
+      jamMulai: jpMulai.jam_mulai, jamSelesai: (jpSelesai || jpMulai).jam_selesai
+    });
+  }
+
+  if (kandidat.length === 0) {
+    // Semua jadwal guru ini hari ini sudah tercatat -- info-kan sesi yang
+    // sudah ada (ambil salah satu yang sudah tercatat) supaya pesannya
+    // tetap informatif seperti perilaku lama, bukan ditolak generik.
+    const jSudah = jadwalGuruHariIni.find(j => tercatatMap.has(j.id));
+    const rec = jSudah ? tercatatMap.get(jSudah.id) : null;
+    if (jSudah && rec) {
+      return {
+        success: true, sudahScan: true,
+        idAbsensiMengajar: rec.id, status: rec.status,
+        jumlahSiswaTerverifikasi: rec.jumlah_siswa_terverifikasi,
+        statusVerifikasi: rec.status_verifikasi,
+        jadwal: { kelas: jSudah.kelas, mapel: jSudah.mapel },
+        message: 'Sesi ini sudah tercatat hari ini.',
+        // BARU: sesiToken tetap diterbitkan ulang di sini (bukan cuma saat
+        // sesi baru dibuat) supaya kiosk yang reconnect/reload di tengah
+        // sesi yang sama tetap dapat token yang sah untuk lanjut verifikasi.
+        sesiToken: generateSesiToken(rec.id)
+      };
     }
+    return { success: false, message: 'Tidak ada jadwal mengajar Anda hari ini.' };
   }
 
-  if (!jadwal) {
-    return { success: false, message: 'Bukan jam pelajaran sekarang. Absen mengajar hanya bisa dilakukan saat sesi berlangsung.' };
-  }
-
-  // 3. Cek belum pernah scan untuk sesi jadwal ini hari ini (constraint DB
-  //    juga menjaga ini, tapi dicek dulu supaya pesannya ramah).
-  const { data: sudahAda } = await supabase
-    .from('absensi_mengajar').select('id,status,jumlah_siswa_terverifikasi,status_verifikasi')
-    .eq('id_jadwal_mengajar', jadwal.id).eq('tanggal', today).maybeSingle();
-
-  if (sudahAda) {
+  if (kandidat.length > 1) {
+    // Lebih dari satu jadwal hari ini yang belum tercatat -- guru pilih
+    // sendiri lewat pilihJadwalMengajar(). pilihToken mengikat pilihan ini
+    // ke guru+tanggal ini saja (dicek ulang di pilihJadwalMengajar),
+    // supaya klien tidak bisa memalsukan idGuru sembarangan.
     return {
-      success: true, sudahScan: true,
-      idAbsensiMengajar: sudahAda.id, status: sudahAda.status,
-      jumlahSiswaTerverifikasi: sudahAda.jumlah_siswa_terverifikasi,
-      statusVerifikasi: sudahAda.status_verifikasi,
-      jadwal: { kelas: jadwal.kelas, mapel: jadwal.mapel },
-      message: 'Sesi ini sudah tercatat hari ini.',
-      // BARU: sesiToken tetap diterbitkan ulang di sini (bukan cuma saat
-      // sesi baru dibuat) supaya kiosk yang reconnect/reload di tengah
-      // sesi yang sama tetap dapat token yang sah untuk lanjut verifikasi.
-      sesiToken: generateSesiToken(sudahAda.id)
+      success: true, perluPilihJadwal: true,
+      guruId: guruIdTerverifikasi, tanggal: today,
+      pilihToken: generatePilihJadwalToken(guruIdTerverifikasi, today),
+      kandidat,
+      message: `Ada ${kandidat.length} jadwal mengajar Anda hari ini yang belum dicatat. Pilih salah satu.`
     };
   }
 
+  // Tepat satu kandidat -- langsung dicatat otomatis, guru tidak perlu
+  // memilih apa-apa (sama seperti alur lama).
+  const jadwalTerpilih = jadwalGuruHariIni.find(j => j.id === kandidat[0].idJadwal);
+  return buatSesiMengajarBaru({ jadwal: jadwalTerpilih, guruId: guruIdTerverifikasi, tanggal: today, jamNow });
+}
+
+// ── BUAT SESI ABSENSI_MENGAJAR BARU (BARU) ─────────────────────────
+// Diekstrak dari isi asli scanSesiMengajar() supaya bisa dipakai ulang
+// oleh pilihJadwalMengajar() di bawah tanpa duplikasi logika insert.
+async function buatSesiMengajarBaru({ jadwal, guruId, tanggal, jamNow }) {
   // Status telat DIHAPUS (sengaja tidak dihitung lagi): selama guru masih
   // bisa scan sama sekali, jam operasional pasti belum selesai (tombol
   // scan absen kelas otomatis disembunyikan begitu jam operasional habis
@@ -573,9 +602,9 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
 
   const id = generateID('AM');
   const { error } = await supabase.from('absensi_mengajar').insert({
-    id, id_jadwal_mengajar: jadwal.id, id_guru: guruIdTerverifikasi,
+    id, id_jadwal_mengajar: jadwal.id, id_guru: guruId,
     nama_guru: jadwal.nama_guru, kelas: jadwal.kelas, mapel: jadwal.mapel,
-    tanggal: today, hari: hariNow, jam_scan: jamNow, status,
+    tanggal, hari: jadwal.hari, jam_scan: jamNow, status,
     jumlah_siswa_terverifikasi: 0, status_verifikasi: 'Perlu Ditinjau', metode: 'online'
   });
   if (error) {
@@ -593,6 +622,54 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
     // dibawa balik saat scanSiswaMapel/selesaiVerifikasi untuk sesi ini.
     sesiToken: generateSesiToken(id)
   };
+}
+
+// ── PILIH JADWAL MENGAJAR (BARU) ────────────────────────────────────
+// Dipanggil saat scanSesiMengajar() membalas perluPilihJadwal:true (guru
+// punya lebih dari satu jadwal hari itu yang belum tercatat). guruId &
+// tanggal di sini TIDAK dipercaya mentah dari klien -- wajib disertai
+// pilihToken yang sah (diterbitkan scanSesiMengajar() utk kombinasi
+// guruId+tanggal itu persis), sama pola keamanannya dengan sesiToken.
+function generatePilihJadwalToken(guruId, tanggal) {
+  const secret = process.env.SESI_MENGAJAR_SECRET || process.env.SUPABASE_SERVICE_KEY || '';
+  return crypto.createHmac('sha256', secret).update(`${guruId}|${tanggal}`).digest('hex');
+}
+function verifyPilihJadwalToken(guruId, tanggal, token) {
+  if (!token) return false;
+  const expected = generatePilihJadwalToken(guruId, tanggal);
+  const a = Buffer.from(String(token));
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+async function pilihJadwalMengajar({ guruId, tanggal, pilihToken, idJadwal }) {
+  if (!guruId || !tanggal || !idJadwal) return { success: false, message: 'Data tidak lengkap.' };
+  if (!verifyPilihJadwalToken(guruId, tanggal, pilihToken)) {
+    return { success: false, message: 'Sesi pemilihan jadwal tidak valid atau kedaluwarsa. Scan ulang kartu guru.' };
+  }
+
+  const { data: jadwal } = await supabase.from('jadwal_mengajar').select('*')
+    .eq('id', idJadwal).eq('id_guru', guruId).maybeSingle();
+  if (!jadwal) return { success: false, message: 'Jadwal tidak ditemukan atau bukan milik Anda.' };
+
+  // Jaga-jaga race condition (mis. terpilih dari 2 perangkat sekaligus).
+  const { data: sudahAda } = await supabase
+    .from('absensi_mengajar').select('id,status,jumlah_siswa_terverifikasi,status_verifikasi')
+    .eq('id_jadwal_mengajar', jadwal.id).eq('tanggal', tanggal).maybeSingle();
+  if (sudahAda) {
+    return {
+      success: true, sudahScan: true,
+      idAbsensiMengajar: sudahAda.id, status: sudahAda.status,
+      jumlahSiswaTerverifikasi: sudahAda.jumlah_siswa_terverifikasi,
+      statusVerifikasi: sudahAda.status_verifikasi,
+      jadwal: { kelas: jadwal.kelas, mapel: jadwal.mapel },
+      message: 'Sesi ini sudah tercatat hari ini.',
+      sesiToken: generateSesiToken(sudahAda.id)
+    };
+  }
+
+  return buatSesiMengajarBaru({ jadwal, guruId, tanggal, jamNow: jamSekarang() });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -736,12 +813,11 @@ async function daftarSiswaKelasSesi({ idAbsensiMengajar, sesiToken }) {
   const idSudahScan = new Set((sudahScan || []).map(r => r.id_siswa));
   const ketMap = new Map((keteranganHariIni || []).map(k => [k.id_siswa, k]));
 
-  // BARU: sebelumnya siswa yang sudah scan kartu sendiri DIFILTER KELUAR
-  // total dari daftar ini -- guru tidak pernah melihat mereka di checklist.
-  // Sekarang tetap disertakan (ditandai sudahScanKartu:true) supaya
-  // checklist menampilkan SATU daftar lengkap kelas itu: yang masih perlu
-  // diisi guru di atas, yang sudah scan kartu read-only di bawah -- guru
-  // tidak perlu menebak siapa saja yang sudah/belum tercatat.
+  // BARU: dulu siswa yang sudah scan kartu sendiri difilter keluar total
+  // (tidak pernah dikirim ke checklist). Sekarang tetap disertakan, ditandai
+  // sudahScanKartu:true -- klien (scan.html) menampilkannya read-only di
+  // bagian paling bawah checklist ("Hadir (Scan kartu)"), TIDAK butuh
+  // input guru & TIDAK ikut divalidasi wajib-pilih-status.
   const daftar = (siswaKelas || [])
     .map(s => {
       const ket = ketMap.get(s.id);
@@ -752,14 +828,6 @@ async function daftarSiswaKelasSesi({ idAbsensiMengajar, sesiToken }) {
         statusPiket: ket ? ket.status : null,
         keteranganPiket: ket ? (ket.keterangan || '') : ''
       };
-    })
-    // Urutan tampilan: yang masih wajib diisi guru (belum scan & belum
-    // piket) duluan, lalu yang sudah diinput piket (read-only), lalu yang
-    // sudah scan kartu sendiri paling akhir (read-only) -- diurutkan di
-    // server supaya konsisten walau daftar dimuat ulang.
-    .sort((a, b) => {
-      const rank = x => x.sudahScanKartu ? 2 : (x.sudahDiinputPiket ? 1 : 0);
-      return rank(a) - rank(b);
     });
 
   return {

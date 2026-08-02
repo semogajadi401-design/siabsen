@@ -458,6 +458,16 @@ async function importJadwalMengajar({ rows }) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// Helper kecil: 'HH:MM' -> menit sejak 00:00, dipakai otomatisPilihTerdekat
+// (lihat scanSesiMengajar) untuk cari jadwal dengan jam mulai paling dekat.
+function menitDariJam(jamStr) {
+  if (!jamStr) return null;
+  const parts = String(jamStr).split(':');
+  const h = Number(parts[0]), m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
 // SCAN SESI MENGAJAR (guru scan kartu sendiri di kelas)
 // ════════════════════════════════════════════════════════════════
 // UBAHAN (permintaan: jangan tolak hanya karena "sudah lewat waktu
@@ -476,7 +486,7 @@ async function importJadwalMengajar({ rows }) {
 // scan.html, lalu klien memanggil pilihJadwalMengajar() dengan pilihan
 // itu. Kalau kandidatnya cuma satu, langsung dicatat otomatis seperti
 // perilaku lama (tidak perlu apa-apa dari guru).
-async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSetting: jamSettingDikirim }) {
+async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSetting: jamSettingDikirim, otomatisPilihTerdekat }) {
   if (!guruIdTerverifikasi)
     return { success: false, message: 'Identitas guru tidak terverifikasi. Silakan login ulang.' };
 
@@ -569,6 +579,25 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
   }
 
   if (kandidat.length > 1) {
+    if (otomatisPilihTerdekat) {
+      // BARU: dipakai dari sinkronisasi offline (api/sync.js) -- saat sync
+      // berjalan di background, TIDAK ADA guru yang bisa diminta memilih
+      // secara interaktif (beda dengan jalur online/kiosk di scan.html).
+      // Supaya tetap deterministik & masuk akal, pilih jadwal yang jam
+      // mulainya PALING DEKAT dengan jam sebenarnya saat kartu discan
+      // (jamNow, direkam di perangkat waktu offline) -- ini kira-kira
+      // perilaku yang sama seperti validasi jam lama, tapi tanpa menolak
+      // sama sekali kalau jamnya sudah lewat.
+      const menitNow = menitDariJam(jamNow);
+      let terpilih = kandidat[0], selisihTerkecil = Infinity;
+      for (const k of kandidat) {
+        const menitK = menitDariJam(k.jamMulai);
+        const selisih = (menitNow !== null && menitK !== null) ? Math.abs(menitNow - menitK) : Infinity;
+        if (selisih < selisihTerkecil) { selisihTerkecil = selisih; terpilih = k; }
+      }
+      const jadwalOtomatis = jadwalGuruHariIni.find(j => j.id === terpilih.idJadwal);
+      return buatSesiMengajarBaru({ jadwal: jadwalOtomatis, guruId: guruIdTerverifikasi, tanggal: today, jamNow });
+    }
     // Lebih dari satu jadwal hari ini yang belum tercatat -- guru pilih
     // sendiri lewat pilihJadwalMengajar(). pilihToken mengikat pilihan ini
     // ke guru+tanggal ini saja (dicek ulang di pilihJadwalMengajar),
@@ -652,6 +681,12 @@ async function pilihJadwalMengajar({ guruId, tanggal, pilihToken, idJadwal }) {
   const { data: jadwal } = await supabase.from('jadwal_mengajar').select('*')
     .eq('id', idJadwal).eq('id_guru', guruId).maybeSingle();
   if (!jadwal) return { success: false, message: 'Jadwal tidak ditemukan atau bukan milik Anda.' };
+  // BARU: pilihToken cuma mengikat guruId+tanggal, BUKAN idJadwal spesifik
+  // -- jadi tetap perlu dicek di sini supaya idJadwal yang dikirim memang
+  // jadwal untuk HARI INI (bukan hari lain milik guru yang sama).
+  if (jadwal.hari !== hariIni()) {
+    return { success: false, message: 'Jadwal itu bukan untuk hari ini.' };
+  }
 
   // Jaga-jaga race condition (mis. terpilih dari 2 perangkat sekaligus).
   const { data: sudahAda } = await supabase

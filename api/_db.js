@@ -345,6 +345,17 @@ const TIMEZONE_OFFSET_HOURS = Number(process.env.TIMEZONE_OFFSET_HOURS || 8);
 const TZ_OFFSET_MS = TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000;
 function witaNow() { return new Date(Date.now() + TZ_OFFSET_MS); }
 
+// (BARU) Format angka persentase ala Indonesia: 1 angka desimal TETAP
+// (tidak dibulatkan ke bilangan bulat) dan pakai koma sebagai pemisah
+// desimal (mis. 73.5 -> "73,5"), bukan titik seperti default JS.
+// Dipakai supaya SEMUA fitur persentase kehadiran (widget hari ini,
+// tren mingguan/bulanan, evaluasi semester, rekap mengajar guru, dst)
+// menampilkan format yang seragam ke pengguna.
+function fmtPersenID(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Number(n).toFixed(1).replace('.', ',');
+}
+
 function todayStr() {
   return witaNow().toISOString().split('T')[0];
 }
@@ -1218,17 +1229,17 @@ async function getTrenPersentaseKehadiran(params = {}) {
     if (arah === 'naik') {
       tren = {
         arah, selisih,
-        pesan: `📈 Tren membaik — kehadiran ${satuan} terakhir naik ${selisih}% dibanding ${satuan} sebelumnya.`
+        pesan: `📈 Tren membaik — kehadiran ${satuan} terakhir naik ${fmtPersenID(selisih)}% dibanding ${satuan} sebelumnya.`
       };
     } else if (arah === 'turun') {
       tren = {
         arah, selisih,
-        pesan: `📉 Tren menurun — kehadiran ${satuan} terakhir turun ${Math.abs(selisih)}% dibanding ${satuan} sebelumnya. Perlu perhatian.`
+        pesan: `📉 Tren menurun — kehadiran ${satuan} terakhir turun ${fmtPersenID(Math.abs(selisih))}% dibanding ${satuan} sebelumnya. Perlu perhatian.`
       };
     } else {
       tren = {
         arah, selisih,
-        pesan: `➡️ Tren stabil — kehadiran ${satuan} terakhir relatif sama dengan ${satuan} sebelumnya (${selisih > 0 ? '+' : ''}${selisih}%).`
+        pesan: `➡️ Tren stabil — kehadiran ${satuan} terakhir relatif sama dengan ${satuan} sebelumnya (${selisih > 0 ? '+' : ''}${fmtPersenID(selisih)}%).`
       };
     }
   } else if (poinValid.length === 1) {

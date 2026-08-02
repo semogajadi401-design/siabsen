@@ -1107,6 +1107,142 @@ async function ringkasanRekapPeriode(rentang) {
   };
 }
 
+// ── TREN PERSENTASE KEHADIRAN (BARU) ──────────────────────────────
+// Dipakai tombol "📊 Persentase Kehadiran" di scan.html (dibuka guru
+// piket langsung dari kios, TANPA perlu login/scan kartu -- read-only
+// murni, sama semangatnya dengan getAktivitasGuruHariIni() di
+// api/scan.js). Dua mode:
+//   - rentang='minggu' -> persentase kehadiran PER HARI untuk 7 hari
+//     kalender terakhir (termasuk hari ini).
+//   - rentang='bulan'  -> persentase kehadiran PER MINGGU untuk 4
+//     minggu (28 hari) terakhir, tiap titik = agregat 1 minggu.
+// Opsional difilter per `kelas` (kalau kosong/tidak diisi -> semua
+// kelas digabung), sesuai keputusan produk (lihat catatan di PR/chat).
+// "Hari sekolah" dihitung dengan pola SAMA PERSIS seperti
+// ringkasanRekapPeriode() di atas (pengaturan_hari_kerja + tabel
+// hari_kerja sebagai kalender libur override) supaya kedua rekap ini
+// tidak pernah berbeda angka untuk rentang yang sama.
+// Kesimpulan tren dihitung dengan membandingkan DUA TITIK TERAKHIR yang
+// punya data (bukan hari/minggu tanpa sekolah) -- "periode terakhir vs
+// periode sebelumnya", sesuai definisi yang disepakati: untuk mode
+// minggu itu berarti hari sekolah terakhir vs hari sekolah sebelum itu,
+// untuk mode bulan berarti minggu terakhir vs minggu sebelum itu.
+async function getTrenPersentaseKehadiran(params = {}) {
+  const rentang = params.rentang === 'bulan' ? 'bulan' : 'minggu';
+  const kelas   = (params.kelas || '').trim();
+
+  const today = todayStr();
+  const totalHari = rentang === 'minggu' ? 7 : 28;
+  const startDate = new Date(today + 'T00:00:00Z');
+  startDate.setUTCDate(startDate.getUTCDate() - (totalHari - 1));
+  const start = startDate.toISOString().substring(0, 10);
+
+  let qSiswa = supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status', 'Aktif');
+  if (kelas) qSiswa = qSiswa.eq('kelas', kelas);
+
+  let qAbsen = supabase.from('absensi').select('tanggal,status_datang').gte('tanggal', start).lte('tanggal', today);
+  if (kelas) qAbsen = qAbsen.eq('kelas', kelas);
+
+  const [{ count: totalSiswa }, { data: absenRange }, { data: liburRows }, { data: hariKerjaSetting }] = await Promise.all([
+    qSiswa, qAbsen,
+    supabase.from('hari_kerja').select('tanggal').gte('tanggal', start).lte('tanggal', today),
+    supabase.from('pengaturan_hari_kerja').select('*')
+  ]);
+
+  const liburSet = new Set((liburRows || []).map(r => String(r.tanggal).substring(0, 10)));
+  const hariAktifMap = {};
+  (hariKerjaSetting || []).forEach(h => { hariAktifMap[h.hari] = h.aktif; });
+  const namaHariArr = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const namaHariSingkat = { Minggu: 'Min', Senin: 'Sen', Selasa: 'Sel', Rabu: 'Rab', Kamis: 'Kam', Jumat: 'Jum', Sabtu: 'Sab' };
+
+  const hadirPerTanggal = {};
+  (absenRange || []).forEach(a => {
+    if (a.status_datang === 'Hadir' || a.status_datang === 'Terlambat') {
+      hadirPerTanggal[a.tanggal] = (hadirPerTanggal[a.tanggal] || 0) + 1;
+    }
+  });
+
+  function isHariSekolah(tgl, namaHari) {
+    const aktif = hariAktifMap.hasOwnProperty(namaHari) ? hariAktifMap[namaHari] : false;
+    return aktif && !liburSet.has(tgl);
+  }
+
+  const poin = [];
+  if (rentang === 'minggu') {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDate); d.setUTCDate(d.getUTCDate() + i);
+      const tgl = d.toISOString().substring(0, 10);
+      const namaHari = namaHariArr[d.getUTCDay()];
+      const sekolah = isHariSekolah(tgl, namaHari);
+      const persen = (sekolah && totalSiswa) ? Math.round(((hadirPerTanggal[tgl] || 0) / totalSiswa) * 1000) / 10 : null;
+      poin.push({ label: namaHariSingkat[namaHari], tanggal: tgl, persen, sekolah });
+    }
+  } else {
+    for (let w = 0; w < 4; w++) {
+      const wStart = new Date(startDate); wStart.setUTCDate(wStart.getUTCDate() + w * 7);
+      const wEnd = new Date(wStart); wEnd.setUTCDate(wEnd.getUTCDate() + 6);
+      let hadirMinggu = 0, kemungkinanMinggu = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(wStart); d.setUTCDate(d.getUTCDate() + i);
+        const tgl = d.toISOString().substring(0, 10);
+        const namaHari = namaHariArr[d.getUTCDay()];
+        if (isHariSekolah(tgl, namaHari) && totalSiswa) {
+          kemungkinanMinggu += totalSiswa;
+          hadirMinggu += (hadirPerTanggal[tgl] || 0);
+        }
+      }
+      const persen = kemungkinanMinggu > 0 ? Math.round((hadirMinggu / kemungkinanMinggu) * 1000) / 10 : null;
+      poin.push({
+        label: `Minggu ${w + 1}`,
+        tanggalMulai: wStart.toISOString().substring(0, 10),
+        tanggalSelesai: wEnd.toISOString().substring(0, 10),
+        persen, sekolah: persen !== null
+      });
+    }
+  }
+
+  const poinValid = poin.filter(p => p.persen !== null);
+  const rataRata = poinValid.length
+    ? Math.round((poinValid.reduce((s, p) => s + p.persen, 0) / poinValid.length) * 10) / 10 : null;
+
+  let tren = { arah: 'kosong', selisih: 0, pesan: 'Belum ada data kehadiran di periode ini.' };
+  if (poinValid.length >= 2) {
+    const terakhir = poinValid[poinValid.length - 1];
+    const sebelumnya = poinValid[poinValid.length - 2];
+    const selisih = Math.round((terakhir.persen - sebelumnya.persen) * 10) / 10;
+    let arah = 'stabil';
+    if (selisih >= 1) arah = 'naik';
+    else if (selisih <= -1) arah = 'turun';
+
+    const satuan = rentang === 'minggu' ? 'hari' : 'minggu';
+    if (arah === 'naik') {
+      tren = {
+        arah, selisih,
+        pesan: `📈 Tren membaik — kehadiran ${satuan} terakhir naik ${selisih}% dibanding ${satuan} sebelumnya.`
+      };
+    } else if (arah === 'turun') {
+      tren = {
+        arah, selisih,
+        pesan: `📉 Tren menurun — kehadiran ${satuan} terakhir turun ${Math.abs(selisih)}% dibanding ${satuan} sebelumnya. Perlu perhatian.`
+      };
+    } else {
+      tren = {
+        arah, selisih,
+        pesan: `➡️ Tren stabil — kehadiran ${satuan} terakhir relatif sama dengan ${satuan} sebelumnya (${selisih > 0 ? '+' : ''}${selisih}%).`
+      };
+    }
+  } else if (poinValid.length === 1) {
+    tren = { arah: 'kosong', selisih: 0, pesan: 'Baru ada 1 periode dengan data, tren belum bisa dibandingkan.' };
+  }
+
+  return {
+    success: true,
+    rentang, kelas: kelas || null,
+    totalSiswa: totalSiswa || 0,
+    poin, rataRata, tren
+  };
+}
+
 module.exports = {
   supabase, hashPassword, verifyPassword, generateID, generateUsername,
   generatePassword, setCors, getJamSetting, todayStr,
@@ -1128,7 +1264,9 @@ module.exports = {
   // ── TAMBAHAN BARU (perbaikan bug: % Kehadiran Evaluasi Semester) ──
   hitungJumlahHariSekolah, hitungTanggalEvaluasiEfektif,
   // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
-  tanggalBesok, hariBesok
+  tanggalBesok, hariBesok,
+  // ── TAMBAHAN BARU (fitur tombol "Persentase Kehadiran" di scan.html) ──
+  getTrenPersentaseKehadiran
 };
 
 // ── HITUNG JUMLAH HARI SEKOLAH EFEKTIF DALAM RENTANG TANGGAL BEBAS ──

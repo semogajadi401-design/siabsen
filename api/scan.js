@@ -117,20 +117,64 @@ module.exports = async (req, res) => {
   }
 };
 
+// ── CACHE RINGAN UNTUK KONFIGURASI YANG JARANG BERUBAH (BARU) ───────
+// PERBAIKAN EGRESS: getStatus() dipanggil scan.html tiap beberapa detik
+// (polling checkStatus), padahal isi hari_kerja/pengaturan_hari_kerja/
+// semester/jam_setting nyaris tidak pernah berubah dalam hitungan detik
+// -- biasanya cuma diubah admin sesekali lewat menu Pengaturan. Tanpa
+// cache, SETIAP panggilan getStatus() menembak ulang 5 query konfigurasi
+// ke Supabase yang hasilnya sama persis dengan beberapa detik sebelumnya.
+// Ini salah satu penyumbang terbesar egress berlebih (lihat Usage ->
+// Egress di dashboard Supabase). Cache disimpan di memori instance
+// server, bertahan selama instance masih "hangat" -- sama seperti
+// mekanisme checkRateLimit() di _db.js -- dengan TTL singkat (30 detik)
+// supaya perubahan admin tetap kepakai dalam hitungan puluhan detik,
+// cukup untuk kebutuhan absensi sekolah (bukan aplikasi realtime kritis).
+// sesi_piket & jadwal_piket SENGAJA TIDAK ikut di-cache di sini karena
+// keduanya berubah tiap kali ada guru piket scan -- itu justru bagian
+// yang perlu tetap "hidup"/terbaru tiap polling.
+const CACHE_KONFIG_TTL_MS = 30000; // 30 detik
+let _cacheKonfig   = null;
+let _cacheKonfigAt = 0;
+
+async function getKonfigurasiTerkache(today, hari) {
+  const now = Date.now();
+  if (_cacheKonfig
+      && (now - _cacheKonfigAt) < CACHE_KONFIG_TTL_MS
+      && _cacheKonfig.today === today
+      && _cacheKonfig.hari  === hari) {
+    return _cacheKonfig;
+  }
+  const [cekLibur, hariAktif, semester, jamSetting] = await Promise.all([
+    isHariLibur(today),
+    isHariKerja(hari),
+    getSemesterAktif(),
+    getJamSetting()
+  ]);
+  // getJamPulangEfektif butuh jamSetting di atas, jadi menyusul
+  // (bukan ikut Promise.all), tapi tetap 1x query per siklus cache,
+  // bukan 1x per polling seperti sebelumnya.
+  const jamPulangEfektif = await getJamPulangEfektif(hari, jamSetting);
+
+  _cacheKonfig   = { today, hari, cekLibur, hariAktif, semester, jamSetting, jamPulangEfektif };
+  _cacheKonfigAt = now;
+  return _cacheKonfig;
+}
+
 // ── GET STATUS HARI INI ───────────────────────────────────────────
 async function getStatus() {
   const today = todayStr();
   const hari  = hariIni();
 
-  const cekLibur = await isHariLibur(today);
+  const { cekLibur, hariAktif, semester, jamSetting, jamPulangEfektif } =
+    await getKonfigurasiTerkache(today, hari);
+
   if (cekLibur.libur)
     return { success: true, bisaAbsen: false, alasan: 'libur', keterangan: cekLibur.keterangan };
 
-  const hariAktif = await isHariKerja(hari);
   if (!hariAktif)
     return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} - Sekolah libur, sistem pun diliburkan supaya bisa beristirahat sejenak 😄` };
 
-  const semester = await getSemesterAktif();
   if (!semester)
     return { success: true, bisaAbsen: false, alasan: 'no_semester', keterangan: 'Tidak ada semester aktif' };
 
@@ -140,12 +184,11 @@ async function getStatus() {
     return { success: true, bisaAbsen: false, alasan: 'luar_semester', keterangan: `Di luar periode semester (${semester.nama})` };
 
   // Cek jam operasional
-  const jamSetting = await getJamSetting();
   const jam = jamSekarang();
   const jamMulai   = jamSetting['JAM_DATANG_MULAI']   || '06:00';
   // Jam pulang efektif HARI INI — bisa berbeda dari nilai global kalau
   // admin sudah override-nya khusus untuk hari ini di Pengaturan Semester.
-  const jamPulangEfektif = await getJamPulangEfektif(hari, jamSetting);
+  // (sekarang diambil dari cache getKonfigurasiTerkache() di atas)
   const jamSelesai = jamPulangEfektif.jamPulangSelesai;
 
   // Ambil sesi piket hari ini
@@ -1079,12 +1122,21 @@ async function getLogHariIni({ kelas }) {
   const { data: siswaSemua } = await qSiswa;
 
   // Ambil absensi hari ini
-  let qAbsen = supabase.from('absensi').select('*').eq('tanggal', today);
+  // PERBAIKAN EGRESS: sebelumnya select('*') -- menarik SEMUA kolom
+  // (termasuk nisn, nama_siswa, metode, created_at, id_guru_piket, dll
+  // yang tidak dipakai sama sekali di bawah). Endpoint ini dipoll tiap
+  // beberapa detik oleh scan.html, jadi kelebihan kolom ini terbawa
+  // berkali-kali lipat. Cukup ambil kolom yang benar-benar dipakai.
+  let qAbsen = supabase.from('absensi')
+    .select('id_siswa,jam_datang,status_datang,jam_pulang')
+    .eq('tanggal', today);
   if (kelas) qAbsen = qAbsen.eq('kelas', kelas);
   const { data: absenData } = await qAbsen;
 
   // Ambil keterangan sakit/izin hari ini (sudah diinput guru piket/admin)
-  let qKet = supabase.from('keterangan_absensi').select('*').eq('tanggal', today);
+  let qKet = supabase.from('keterangan_absensi')
+    .select('id_siswa,status,keterangan,diinput_oleh')
+    .eq('tanggal', today);
   if (kelas) qKet = qKet.eq('kelas', kelas);
   const { data: ketData } = await qKet;
 

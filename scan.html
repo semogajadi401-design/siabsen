@@ -2918,7 +2918,7 @@ body.is-offline .header{ top:36px; }
       <select id="filterKelas" onchange="loadLog()">
         <option value="">Semua Kelas</option>
       </select>
-      <button class="btn-refresh" onclick="loadLog();loadChartKehadiran()">🔄</button>
+      <button class="btn-refresh" onclick="refreshLogDanChart()">🔄</button>
     </div>
 
     <!-- Tabs -->
@@ -3124,9 +3124,16 @@ let _lastPingOk  = navigator.onLine;
 // per siklus jauh lebih tahan banting dibanding koneksi persisten yang butuh
 // deteksi+sambung ulang. Dikumpulkan di sini (bukan angka mentah di tiap
 // setInterval) supaya gampang di-tuning ulang kalau perlu.
-const REFRESH_STATUS_MS         = 5000;  // guru piket + info jam (checkStatus)
-const REFRESH_LOG_MS            = 8000;  // log kehadiran siswa (loadLog)
-const REFRESH_AKTIVITAS_GURU_MS = 6000;  // modal Cek Aktivitas Guru, HANYA selagi modal terbuka
+// PERBAIKAN EGRESS (BARU): angka-angka ini sebelumnya 5000/8000/6000 --
+// terlalu agresif untuk kiosk yang dibiarkan terbuka SEPANJANG hari
+// sekolah (bisa 2000+ request/jam per kiosk kalau dijumlah semua
+// interval di bawah). Diperlonggar supaya tetap terasa "cepat" buat
+// guru piket, tapi tidak membebani kuota egress Supabase. Kalau nanti
+// upgrade ke Supabase Pro (kuota lebih longgar) atau pindah ke
+// Realtime push, angka ini bisa diperketat lagi.
+const REFRESH_STATUS_MS         = 15000; // guru piket + info jam (checkStatus)
+const REFRESH_LOG_MS            = 20000; // log kehadiran siswa (loadLog)
+const REFRESH_AKTIVITAS_GURU_MS = 15000; // modal Cek Aktivitas Guru, HANYA selagi modal terbuka
 
 // Penjaga in-flight: kalau siklus sebelumnya belum selesai (koneksi lambat),
 // siklus setInterval berikutnya di-SKIP dulu, bukan ikut menembak request
@@ -5101,8 +5108,7 @@ async function init() {
   // paling berat dan baru jalan setelah pingServer() selesai.
   tandaiSplashAktif('kehadiran');
   await checkStatus();
-  if (isOnline) await loadLog();
-  if (isOnline) loadChartKehadiran(); // diagram kehadiran (BARU) -- tidak perlu ditunggu (await), tidak menghalangi splash
+  if (isOnline) await refreshLogDanChart();
   tandaiSplashSelesai('kehadiran');
 
   // Update badge & tawarkan sync untuk data offline sisa dari sesi
@@ -5113,8 +5119,16 @@ async function init() {
   tandaiSplashSelesai('sync');
 
   // Auto refresh — hanya jika online
-  setInterval(() => { if (isOnline) loadLog(); }, REFRESH_LOG_MS);
-  setInterval(() => { if (isOnline) loadChartKehadiran(); }, REFRESH_LOG_MS); // diagram kehadiran (BARU)
+  // PERBAIKAN EGRESS (BARU): sebelumnya loadLog() & loadChartKehadiran()
+  // masing-masing punya setInterval SENDIRI dengan jeda yang sama persis
+  // (REFRESH_LOG_MS) -- akibatnya keduanya jalan nyaris bersamaan tiap
+  // siklus, dan begitu dropdown #filterKelas kosong (tidak memfilter),
+  // KEDUANYA menembak endpoint getLogHariIni dengan parameter yang PERSIS
+  // SAMA -- satu query dobel, sia-sia, tiap siklus. Sekarang digabung
+  // jadi satu fungsi berurutan (lihat refreshLogDanChart()) supaya
+  // loadChartKehadiran() bisa numpang hasil loadLog() yang baru saja
+  // selesai, alih-alih fetch ulang dari nol.
+  setInterval(() => { if (isOnline) refreshLogDanChart(); }, REFRESH_LOG_MS);
   setInterval(() => { if (isOnline) checkStatus(); }, REFRESH_STATUS_MS);
 }
 
@@ -7702,13 +7716,39 @@ const CK_WARNA = {
 let _chartKehadiranData = null;
 let _loadChartInFlight  = false;
 
+// ── REFRESH GABUNGAN (BARU, PERBAIKAN EGRESS) ─────────────────────
+// Jalankan loadLog() dulu sampai selesai, BARU loadChartKehadiran() --
+// supaya urutannya terjamin (chart bisa numpang logData yang benar-benar
+// baru, bukan yang basi) dan supaya kedua fungsi ini tidak lagi jalan
+// "balapan" lewat dua setInterval terpisah seperti sebelumnya.
+async function refreshLogDanChart() {
+  await loadLog();
+  loadChartKehadiran(); // tidak perlu await -- render chart tidak menghalangi apa pun
+}
+
 async function loadChartKehadiran() {
   if (_loadChartInFlight) return;
   _loadChartInFlight = true;
   try {
-    // kelas:'' sengaja SELALU kosong -- lihat catatan di atas fungsi ini.
-    const r = await api('scan', 'getLogHariIni', { kelas: '' });
-    if (!r.success) return;
+    // Chart ini HARUS selalu menampilkan gambaran SEMUA kelas, terlepas
+    // dropdown #filterKelas sedang memfilter satu kelas tertentu untuk
+    // daftar di bawahnya (lihat catatan asli di atas).
+    //
+    // PERBAIKAN EGRESS (BARU): kalau dropdown filter SEDANG KOSONG (tidak
+    // memfilter apa pun), maka data yang dibutuhkan chart ini PERSIS SAMA
+    // dengan yang baru saja diambil loadLog() ke `logData` -- jadi tidak
+    // perlu fetch API kedua kalinya, tinggal pakai ulang. Request API
+    // terpisah HANYA dibuat kalau dropdown sedang memfilter satu kelas
+    // (karena saat itu logData sudah ter-filter per kelas, sedangkan
+    // chart tetap wajib menampilkan semua kelas).
+    const kelasFilter = document.getElementById('filterKelas').value;
+    let r;
+    if (!kelasFilter) {
+      r = logData;
+    } else {
+      r = await api('scan', 'getLogHariIni', { kelas: '' });
+    }
+    if (!r || !r.success) return;
     _chartKehadiranData = agregasiChartKehadiran(r);
     renderChartKehadiran(_chartKehadiranData);
   } catch (e) {

@@ -6,12 +6,18 @@
 <title>SIABSEN - Absensi</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
-<!-- FITUR SAPAAN WAJAH PEMBUAT (easter egg) -- self-hosted supaya tetap
-     jalan walau koneksi lemah/terpencil (sama alasannya dengan jsQR di
-     atas yang juga dipasang fallback). Kalau file lokal /face-api.min.js
-     belum diupload ke server, otomatis jatuh ke CDN jsdelivr. -->
-<script src="/face-api.min.js"></script>
-<script>if(typeof faceapi==='undefined'){var fa=document.createElement('script');fa.src='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';document.head.appendChild(fa);}</script>
+<!-- FITUR SAPAAN WAJAH PEMBUAT (easter egg): script face-api.min.js
+     (~652KB, blocking) SENGAJA TIDAK dimuat statis di sini lagi --
+     PERBAIKAN PERFORMA: sebelumnya library ini SELALU diunduh & dieksekusi
+     di setiap pemuatan scan.html, bahkan saat FITUR_SAPAAN_WAJAH_AKTIF di
+     bawah bernilai false (fitur mati total). Saklar itu cuma menghentikan
+     PEMAKAIAN-nya, bukan PEMUATAN-nya -- jadi 652KB JS tetap jadi beban
+     render-blocking sia-sia di kios setiap kali halaman dibuka. Sekarang
+     dipindah jadi dimuat secara DINAMIS (lihat muatSkripFaceApi() &
+     mulaiCekWajahPembuat() di bawah), persis sama polanya dengan file
+     model wajah (12MB) yang memang sudah lebih dulu benar hanya dimuat
+     saat fitur ini aktif -- fallback ke CDN jsdelivr tetap dipertahankan.
+-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script>
@@ -3431,9 +3437,40 @@ let _wajahLainMulaiTampil = null;
 // diandalkan -- itu bukan lagi soal "detektor kurang canggih", tapi
 // memang datanya sendiri sudah tidak cukup buat dikenali (lihat catatan
 // REFERENCE_DESCRIPTOR di atas soal foto yang dibuang).
+// ── PEMUAT DINAMIS SCRIPT face-api.min.js (BARU — perbaikan performa) ──
+// Sebelumnya <script src="/face-api.min.js"> dipasang statis di <head>,
+// jadi SELALU diunduh+dieksekusi di setiap pemuatan scan.html walau
+// FITUR_SAPAAN_WAJAH_AKTIF di bawah bernilai false. Sekarang script
+// (~652KB) baru dimuat kalau mulaiCekWajahPembuat() benar-benar
+// dipanggil DAN fiturnya aktif -- self-hosted dulu (supaya tetap jalan
+// walau koneksi lemah/terpencil), fallback ke CDN jsdelivr kalau file
+// lokal gagal (belum diupload/404), sama persis perilaku sebelumnya.
+// Dipanggil paling banyak sekali (hasil promise-nya di-cache di
+// _skripFaceApiPromise) supaya tidak menyisipkan <script> berkali-kali
+// kalau mulaiCekWajahPembuat() entah bagaimana terpanggil ulang.
+let _skripFaceApiPromise = null;
+function muatSkripFaceApi() {
+  if (typeof faceapi !== 'undefined') return Promise.resolve();
+  if (_skripFaceApiPromise) return _skripFaceApiPromise;
+  _skripFaceApiPromise = new Promise((resolve) => {
+    const coba = (src, onGagal) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.onload = () => resolve();
+      el.onerror = () => { if (onGagal) onGagal(); else resolve(); };
+      document.head.appendChild(el);
+    };
+    coba('/face-api.min.js', () => {
+      coba('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+    });
+  });
+  return _skripFaceApiPromise;
+}
+
 async function muatModelWajah() {
   try {
-    if (typeof faceapi === 'undefined') return; // library gagal dimuat, diamkan saja
+    await muatSkripFaceApi();
+    if (typeof faceapi === 'undefined') return; // library gagal dimuat (lokal & CDN), diamkan saja
 
     // PERBAIKAN KECEPATAN (backend): tanpa ini, tfjs kadang diam-diam
     // jatuh ke backend CPU (terutama di browser/device yang WebGL-nya

@@ -4885,12 +4885,25 @@ function buildKartuInnerHTML(s, settings) {
     ? `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0"><img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain"></div>`
     : `<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;line-height:1">🏫</div>`;
 
+  // KEAMANAN (perbaikan bug fatal — stored XSS): SEMUA nilai di sini
+  // dibungkus esc() sebelum dirender lewat innerHTML di bawah. Sebelumnya
+  // hanya s.nama yang di-esc(), sementara tempatLahir/agama/jenisKelamin
+  // dirender MENTAH -- siapa pun yang bisa input/edit data siswa (mis.
+  // lewat form Tambah Siswa atau import CSV) bisa menyisipkan HTML/JS
+  // (mis. <img src=x onerror=...>) di field tempatLahir/agama, yang lalu
+  // otomatis TEREKSEKUSI di browser admin/kepsek lain begitu mereka
+  // membuka menu Kelola Siswa atau mencetak/mengunduh kartu pelajar --
+  // bisa dipakai untuk mencuri qrToken (adminToken) dari localStorage
+  // (lihat saveSession()) dan mengambil alih akun admin. tglLahir aman
+  // (hasil Date.toLocaleDateString() / fallback string tanggal mentah
+  // dari database, bukan free-text form), tapi tetap ikut di-esc() di
+  // sini sebagai pengaman berlapis kalau sumber datanya berubah nanti.
   const dataRows = [
-    { label:'NISN',         val: s.nisn || '-' },
-    { label:'Tempat Lahir', val: s.tempatLahir || '-' },
-    { label:'Tgl Lahir',    val: tglLahir },
-    { label:'Agama',        val: s.agama || '-' },
-    { label:'Jenis Kelamin',val: s.jenisKelamin || '-' },
+    { label:'NISN',         val: esc(s.nisn || '-') },
+    { label:'Tempat Lahir', val: esc(s.tempatLahir || '-') },
+    { label:'Tgl Lahir',    val: esc(tglLahir) },
+    { label:'Agama',        val: esc(s.agama || '-') },
+    { label:'Jenis Kelamin',val: esc(s.jenisKelamin || '-') },
   ];
 
   return `

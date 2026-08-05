@@ -1748,6 +1748,16 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                  (Hadir/Terlambat/Sakit/Izin/Alpha) tetap ada di bawahnya
                  sebagai konteks, masing-masing dengan % dari total hari agar
                  mudah dibandingkan tanpa perlu fokus ke angka mentahnya. -->
+            <!-- (BARU) Notice "jam absen hari ini belum dimulai" -- muncul
+                 hanya kalau backend (hitungTanggalEvaluasiEfektif, _db.js)
+                 menandai belumMulaiHariIni=true. Sengaja ditulis jelas &
+                 netral (bukan warna merah/alert) supaya admin langsung
+                 paham KENAPA hari ini tidak muncul di hitungan, bukan
+                 mengira datanya hilang/error. -->
+            <div id="evalBelumMulaiNotice" class="card" style="display:none;padding:12px 16px;margin-bottom:16px;background:#FFF8E1;border:1px solid #FFD54F;display:flex;align-items:center;gap:10px">
+              <span style="font-size:1.3rem;line-height:1">⏳</span>
+              <span style="font-size:.85rem;color:#7A5B00" id="evalBelumMulaiText"></span>
+            </div>
             <div class="card" style="padding:20px 24px;margin-bottom:20px;background:var(--primary-pale);border:1px solid var(--primary)">
               <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between">
                 <div>
@@ -6303,6 +6313,12 @@ function formatTanggal(tgl) {
 // ══════════════════════════════════════════════════════════
 let grafikBar = null;
 let grafikPie = null;
+// (BARU) Menyimpan snapshot data terakhir yang berhasil dimuat loadEvaluasi()
+// -- dipakai exportEvaluasiPDF() supaya PDF dibuat dari DATA TERSTRUKTUR
+// asli (bukan "membaca ulang" teks dari tabel HTML yang rapuh terhadap
+// perubahan format tampilan), dan supaya notice "jam absen belum dimulai"
+// bisa ikut ditampilkan di PDF, konsisten dengan yang ada di layar.
+let lastEvalData = null;
 
 async function loadEvaluasi() {
   // Load semester dulu agar dropdown terisi
@@ -6352,6 +6368,20 @@ async function loadEvaluasi() {
   const tanggalSelesaiEfektif = hariResult?.success && hariResult.tanggalSelesaiEfektif
     ? hariResult.tanggalSelesaiEfektif
     : tanggalMulai; // fallback aman: rentang kosong, bukan rentang semester penuh
+
+  // (BARU) Tampilkan notice kalau hari ini belum ikut dihitung karena jam
+  // absen datang belum dimulai -- lihat hitungTanggalEvaluasiEfektif()
+  // (_db.js). Tanpa notice ini, admin yang buka halaman pagi-pagi sebelum
+  // jam absen akan bingung kenapa jumlah hari sekolah / % kehadiran
+  // terlihat "tertinggal" satu hari dari tanggal hari ini.
+  const noticeEl = document.getElementById('evalBelumMulaiNotice');
+  const noticeTextEl = document.getElementById('evalBelumMulaiText');
+  if (hariResult?.belumMulaiHariIni) {
+    noticeTextEl.textContent = `Jam absen datang hari ini belum dimulai (mulai pukul ${hariResult.jamMulaiAbsen || '06:30'}) -- data hari ini belum dimasukkan ke perhitungan di bawah, supaya tidak ada siswa yang salah tampil "Alpha" padahal belum sempat absen.`;
+    noticeEl.style.display = 'flex';
+  } else {
+    noticeEl.style.display = 'none';
+  }
 
   const [absenResult, ketResult, siswaResult] = await Promise.all([
     api('absensi', 'rekapBulananRange', { tanggalMulai, tanggalSelesai: tanggalSelesaiEfektif, kelas }),
@@ -6499,6 +6529,19 @@ async function loadEvaluasi() {
   // Render grafik & rekap per bulan per kelas
   renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin);
   await renderRekapBulananKelas(tanggalMulai, tanggalSelesaiEfektif, kelas, allSiswa);
+
+  // (BARU) Simpan snapshot data terstruktur untuk dipakai exportEvaluasiPDF()
+  // -- lihat catatan di deklarasi `lastEvalData` di atas.
+  lastEvalData = {
+    namaSemester: semesterEl?.selectedOptions?.[0]?.textContent?.trim() || '-',
+    namaKelas: kelasEl?.value ? (kelasEl.selectedOptions[0]?.textContent.trim() || kelasEl.value) : 'Semua Kelas',
+    tanggalMulai, tanggalSelesaiEfektif, jumlahHariSekolah,
+    allSiswa: sorted,
+    totHadir, totTerlambat, totSakit, totIzin, totAlpha,
+    totalKemungkinanHadir, persen,
+    belumMulaiHariIni: !!hariResult?.belumMulaiHariIni,
+    jamMulaiAbsen: hariResult?.jamMulaiAbsen || '06:30'
+  };
 }
 
 function renderGrafikEvaluasi(allSiswa, totHadir, totTerlambat, totSakit, totIzin) {
@@ -6693,36 +6736,112 @@ async function exportEvaluasiExcel() {
   toast('Excel berhasil didownload', 'success');
 }
 
+// (DIROMBAK) PDF Evaluasi Kehadiran -- sebelumnya sudah ada versi dasar
+// (gauge + grafik + tabel), tapi masih terasa seperti "print layar":
+// tidak ada kop surat sekolah, tidak ada ringkasan/insight yang langsung
+// bisa dibaca tanpa harus scan seluruh tabel, dan tidak ada nomor
+// halaman/keterangan cetak -- jadi kurang pantas dipakai untuk laporan
+// resmi ke kepala sekolah/rapat. Versi ini menambahkan:
+//   1. Kop surat (nama sekolah + alamat/telp/email dari Profil Sekolah)
+//   2. Notice "jam absen hari ini belum dimulai" kalau sedang aktif --
+//      supaya PDF tidak membingungkan (kenapa hari ini tidak masuk hitungan)
+//   3. Kotak "Catatan Cepat" -- siswa yang paling perlu diperhatikan
+//      (Alpha terbanyak) ditulis eksplisit, tidak perlu cari manual di tabel
+//   4. Legenda singkatan status di atas tabel ranking
+//   5. Footer nomor halaman + tanggal cetak di SETIAP halaman
+//   6. Blok tanda tangan Kepala Sekolah di halaman terakhir
+// Sumber datanya sekarang `lastEvalData` (snapshot terstruktur dari
+// loadEvaluasi(), lihat deklarasi di atas) -- bukan lagi "membaca ulang"
+// teks dari tabel HTML, supaya angka di PDF dijamin sinkron dengan yang
+// dipakai untuk menghitung, dan tidak rapuh kalau format tabel di layar
+// berubah nanti.
 async function exportEvaluasiPDF() {
+  if (!lastEvalData || !lastEvalData.allSiswa) {
+    toast('Muat data evaluasi terlebih dahulu (pilih semester)', 'warning');
+    return;
+  }
   toast('Menyiapkan PDF...', 'info', 3000);
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const marginX = 14, pageW = 297, pageBottom = 195;
+    const marginX = 14, pageW = 297, pageH = 210, pageBottom = 188;
 
-    // ── Info konteks (semester/kelas/periode) diambil dari elemen yang
-    // sama dipakai halaman evaluasi, supaya PDF selalu konsisten dengan
-    // yang tampil di layar tanpa perlu hitung ulang. ──
-    const semesterEl  = document.getElementById('evalSemester');
-    const namaSemester = semesterEl?.selectedOptions?.[0]?.textContent?.trim() || '-';
-    const kelasEl      = document.getElementById('evalKelas');
-    const namaKelas    = kelasEl?.value ? (kelasEl.selectedOptions[0]?.textContent.trim() || kelasEl.value) : 'Semua Kelas';
-    const periodeText  = document.getElementById('evalPeriodeInfo')?.textContent || '';
-    const persenText   = document.getElementById('evalPersen')?.textContent || '0%';
-    const persenNum    = parseFloat(persenText.replace(',', '.')) || 0;
-    const persenDetail = document.getElementById('evalPersenDetail')?.textContent || '';
-    const warnaPersen  = persenNum >= 80 ? [46,125,50] : persenNum >= 60 ? [245,127,23] : [198,40,40];
+    const d = lastEvalData;
+    const persenText   = fmtPersen(d.persen) + '%';
+    const warnaPersen  = d.persen >= 80 ? [46,125,50] : d.persen >= 60 ? [245,127,23] : [198,40,40];
 
-    // ── Halaman 1: Ringkasan (angka besar + gauge + grafik) ──
-    pdf.setFontSize(16);
-    pdf.setTextColor(21,101,192);
-    pdf.text('Evaluasi Kehadiran Siswa', marginX, 15);
+    // ── Profil sekolah (kop surat) -- diambil langsung dari server supaya
+    // selalu sesuai Pengaturan > Profil Sekolah, tanpa perlu disimpan di
+    // state terpisah. ──
+    let sekolah = {};
+    try {
+      const set = await api('settings', 'getJamSetting');
+      sekolah = set?.data || {};
+    } catch (e) { /* tetap lanjut tanpa kop surat kalau gagal ambil */ }
+    const namaSekolah = (sekolah['NAMA_SEKOLAH'] || 'Nama Sekolah').toUpperCase();
+    const alamatSekolah = sekolah['ALAMAT_SEKOLAH'] || '';
+    const kontakParts = [sekolah['TELP_SEKOLAH'], sekolah['EMAIL_SEKOLAH']].filter(Boolean).join('  •  ');
+
+    const tanggalCetak = new Date().toLocaleString('id-ID', {
+      day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+
+    // ── Kop surat: dipanggil ulang di TIAP halaman baru supaya laporan
+    // tetap terasa "resmi" walau dibuka langsung di halaman tengah. ──
+    const drawKopSurat = () => {
+      pdf.setFontSize(13);
+      pdf.setTextColor(21,101,192);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(namaSekolah, marginX, 14);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(110,110,110);
+      if (alamatSekolah) pdf.text(alamatSekolah, marginX, 19);
+      if (kontakParts) pdf.text(kontakParts, marginX, 23.5);
+      pdf.setDrawColor(21,101,192);
+      pdf.setLineWidth(0.6);
+      pdf.line(marginX, 26, pageW - marginX, 26);
+    };
+
+    // ── Footer: nomor halaman diisi belakangan (total halaman belum
+    // diketahui saat halaman pertama dibuat), jadi di sini cuma ditulis
+    // teks tanggal cetak -- nomor halaman ditambahkan di loop terakhir. ──
+    const drawFooterBase = () => {
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(140,140,140);
+      pdf.text(`Dicetak otomatis oleh SIABSEN pada ${tanggalCetak}`, marginX, 204);
+    };
+
+    // ══════════════════ HALAMAN 1: RINGKASAN ══════════════════
+    drawKopSurat();
+    pdf.setFontSize(13);
+    pdf.setTextColor(20,20,20);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('LAPORAN EVALUASI KEHADIRAN SISWA', marginX, 33);
+    pdf.setFont(undefined, 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(90,90,90);
-    pdf.text(`Semester: ${namaSemester}   |   Kelas: ${namaKelas}`, marginX, 21);
-    if (periodeText) pdf.text(periodeText, marginX, 26);
+    pdf.text(`Semester: ${d.namaSemester}   |   Kelas: ${d.namaKelas}   |   Periode: ${formatTanggal(d.tanggalMulai)} – ${formatTanggal(d.tanggalSelesaiEfektif)}`, marginX, 39);
+    pdf.text(`${d.jumlahHariSekolah} hari sekolah efektif  ×  ${d.allSiswa.length} siswa dievaluasi`, marginX, 44);
 
-    let y = 40;
+    let y = 44;
+
+    // Notice jam absen belum dimulai (kalau aktif) -- konsisten dengan
+    // banner yang tampil di layar (lihat loadEvaluasi()).
+    if (d.belumMulaiHariIni) {
+      y += 6;
+      const boxH = 10;
+      pdf.setFillColor(255,248,225);
+      pdf.setDrawColor(255,213,79);
+      pdf.roundedRect(marginX, y, pageW - marginX*2, boxH, 1.5, 1.5, 'FD');
+      pdf.setFontSize(8);
+      pdf.setTextColor(122,91,0);
+      const pesan = `Jam absen datang hari ini belum dimulai (mulai pukul ${d.jamMulaiAbsen}) -- data hari ini belum ikut dihitung di laporan ini.`;
+      pdf.text(pesan, marginX + 4, y + 6.5, { maxWidth: pageW - marginX*2 - 8 });
+      y += boxH;
+    }
+
+    y += 12;
     // Kartu % Kehadiran (hero) + gauge bar
     pdf.setFontSize(10);
     pdf.setTextColor(60,60,60);
@@ -6734,26 +6853,25 @@ async function exportEvaluasiPDF() {
     pdf.setFillColor(225,228,232);
     pdf.roundedRect(gaugeX, gaugeY, gaugeW, gaugeH, 1.5, 1.5, 'F');
     pdf.setFillColor(...warnaPersen);
-    pdf.roundedRect(gaugeX, gaugeY, gaugeW * Math.max(0, Math.min(100, persenNum)) / 100, gaugeH, 1.5, 1.5, 'F');
+    pdf.roundedRect(gaugeX, gaugeY, gaugeW * Math.max(0, Math.min(100, d.persen)) / 100, gaugeH, 1.5, 1.5, 'F');
     pdf.setFontSize(8);
     pdf.setTextColor(120,120,120);
-    if (persenDetail) pdf.text(persenDetail, gaugeX, gaugeY + 12);
+    pdf.text(`${d.totHadir + d.totTerlambat} dari ${d.totalKemungkinanHadir} kemungkinan hadir`, gaugeX, gaugeY + 12);
 
     // Rincian per status, sejajar di kanan kartu hero
     const statusRincian = [
-      ['evalTotalHadir', 'Hadir', [46,125,50]],
-      ['evalTotalTerlambat', 'Terlambat', [245,127,23]],
-      ['evalTotalSakit', 'Sakit', [21,101,192]],
-      ['evalTotalIzin', 'Izin', [0,151,167]],
-      ['evalTotalAlpha', 'Alpha', [198,40,40]]
+      [d.totHadir, 'Hadir', [46,125,50]],
+      [d.totTerlambat, 'Terlambat', [245,127,23]],
+      [d.totSakit, 'Sakit', [21,101,192]],
+      [d.totIzin, 'Izin', [0,151,167]],
+      [d.totAlpha, 'Alpha', [198,40,40]]
     ];
     let sx = 160;
-    statusRincian.forEach(([id, label, color]) => {
-      const val = document.getElementById(id)?.textContent || '0';
+    statusRincian.forEach(([val, label, color]) => {
       pdf.setFontSize(8); pdf.setTextColor(120,120,120);
       pdf.text(label, sx, y);
       pdf.setFontSize(15); pdf.setTextColor(...color);
-      pdf.text(val, sx, y + 10);
+      pdf.text(String(val), sx, y + 10);
       sx += 26;
     });
 
@@ -6769,7 +6887,7 @@ async function exportEvaluasiPDF() {
         const availW  = pageW - marginX * 2;
         const colGap  = 8;
         const colW    = (availW - colGap) / 2;
-        const maxH    = 78;
+        const maxH    = 62;
         const fit = (canvas) => {
           const ratio = canvas.width / canvas.height;
           let w = colW, h = w / ratio;
@@ -6784,27 +6902,51 @@ async function exportEvaluasiPDF() {
         pdf.text('Proporsi Status Kehadiran', marginX + colW + colGap, y);
         pdf.addImage(barCanvas.toDataURL('image/png', 1.0), 'PNG', marginX, y + 3, barSize.w, barSize.h);
         pdf.addImage(pieCanvas.toDataURL('image/png', 1.0), 'PNG', marginX + colW + colGap, y + 3, pieSize.w, pieSize.h);
-        y += Math.max(barSize.h, pieSize.h) + 12;
+        y += Math.max(barSize.h, pieSize.h) + 10;
       } catch (imgErr) {
         // Kalau gagal ambil gambar grafik (mis. belum sempat dirender),
-        // lewati saja bagian ini -- tetap lanjut ke tabel supaya PDF
-        // tidak gagal total hanya karena grafiknya tidak ada.
+        // lewati saja bagian ini -- tetap lanjut ke insight/tabel supaya
+        // PDF tidak gagal total hanya karena grafiknya tidak ada.
       }
     }
 
-    // ── Halaman berikutnya: tabel ranking per siswa. Header tabel
-    // ditulis lewat fungsi supaya bisa diulang otomatis tiap ganti
-    // halaman (sebelumnya cuma ditulis sekali di awal, jadi kalau
-    // tabelnya panjang, halaman lanjutannya tidak ada judul kolom sama
-    // sekali). ──
+    // ── Catatan Cepat: siswa dengan Alpha terbanyak -- supaya pembaca
+    // tidak perlu menyisir seluruh tabel ranking untuk tahu siapa yang
+    // paling perlu ditindaklanjuti. Hanya ditampilkan kalau memang ada
+    // siswa Alpha (kalau nol, laporan tetap rapi tanpa kotak kosong). ──
+    const siswaAlpha = d.allSiswa.filter(s => s.alpha > 0).sort((a,b) => b.alpha - a.alpha).slice(0, 5);
+    if (siswaAlpha.length && y < pageBottom - 22) {
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(30,30,30);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Catatan Cepat -- Siswa Perlu Perhatian (Alpha terbanyak)', marginX, y + 6);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(70,70,70);
+      const catatan = siswaAlpha.map(s => `${esc(s.nama)} (${s.kelas}) — ${s.alpha}x Alpha`).join('    |    ');
+      pdf.text(catatan, marginX, y + 12, { maxWidth: pageW - marginX * 2 });
+    }
+
+    drawFooterBase();
+
+    // ══════════════════ HALAMAN 2+: TABEL RANKING ══════════════════
     pdf.addPage();
-    y = 20;
+    drawKopSurat();
+    y = 33;
     const headers = ['No','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','Alpha','% Hadir'];
     const colW = [10, 62, 20, 18, 22, 15, 15, 15, 20];
-    const drawTableHeader = () => {
+    const drawTableHeader = (withLegend) => {
       pdf.setFontSize(11); pdf.setTextColor(0,0,0);
+      pdf.setFont(undefined, 'bold');
       pdf.text('Ranking Kehadiran Siswa', marginX, y);
-      y += 8;
+      pdf.setFont(undefined, 'normal');
+      if (withLegend) {
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(120,120,120);
+        pdf.text('Keterangan: H = Hadir, T = Terlambat, S = Sakit, I = Izin, A = Alpha (tanpa keterangan)', marginX, y + 5);
+        y += 5;
+      }
+      y += 6;
       pdf.setFontSize(9);
       headers.forEach((h, i) => {
         const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
@@ -6816,16 +6958,14 @@ async function exportEvaluasiPDF() {
       y += 7;
       pdf.setTextColor(0,0,0);
     };
-    drawTableHeader();
-    document.querySelectorAll('#evalRankingBody tr').forEach((tr, idx) => {
-      const tds = tr.querySelectorAll('td');
-      if (tds.length < 9) return;
-      const pctNum = parseFloat(tds[8].textContent.replace(',', '.')) || 0;
+    drawTableHeader(true);
+    d.allSiswa.forEach((s, idx) => {
+      const pct = d.jumlahHariSekolah > 0
+        ? Math.round((s.hadir + s.terlambat) / d.jumlahHariSekolah * 1000) / 10 : 0;
       const vals = [
-        String(idx+1), tds[1].textContent.trim(), tds[2].textContent.trim(),
-        tds[3].textContent.trim(), tds[4].textContent.trim(),
-        tds[5].textContent.trim(), tds[6].textContent.trim(),
-        tds[7].textContent.trim(), tds[8].textContent.trim()
+        String(idx+1), s.nama, s.kelas,
+        String(s.hadir), String(s.terlambat), String(s.sakit), String(s.izin), String(s.alpha),
+        fmtPersen(pct) + '%'
       ];
       if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
       pdf.setTextColor(0,0,0);
@@ -6835,17 +6975,52 @@ async function exportEvaluasiPDF() {
         // sama seperti badge di tabel pada layar (hijau/oranye/merah),
         // supaya siswa yang perlu perhatian langsung terlihat di PDF.
         if (i === vals.length - 1) {
-          const warna = pctNum >= 80 ? [46,125,50] : pctNum >= 60 ? [245,127,23] : [198,40,40];
+          const warna = pct >= 80 ? [46,125,50] : pct >= 60 ? [245,127,23] : [198,40,40];
           pdf.setTextColor(...warna);
         } else {
           pdf.setTextColor(0,0,0);
         }
-        pdf.text(v.substring(0,32), x+1, y);
+        pdf.text(String(v).substring(0,32), x+1, y);
       });
       y += 7;
-      if (y > pageBottom) { pdf.addPage(); y = 20; drawTableHeader(); }
+      if (y > pageBottom) {
+        drawFooterBase();
+        pdf.addPage();
+        drawKopSurat();
+        y = 33;
+        drawTableHeader(false);
+      }
     });
-    pdf.save('Evaluasi_Kehadiran.pdf');
+
+    // ── Blok tanda tangan -- muat kalau masih ada ruang, kalau tidak
+    // dorong ke halaman baru supaya tidak terpotong. ──
+    if (y > pageBottom - 32) {
+      drawFooterBase();
+      pdf.addPage();
+      drawKopSurat();
+      y = 40;
+    } else {
+      y += 14;
+    }
+    pdf.setFontSize(9);
+    pdf.setTextColor(60,60,60);
+    const tglTtd = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    pdf.text(`${alamatSekolah ? (alamatSekolah.split(',').pop().trim() + ', ') : ''}${tglTtd}`, pageW - marginX - 60, y);
+    pdf.text('Kepala Sekolah,', pageW - marginX - 60, y + 6);
+    pdf.text('_________________________', pageW - marginX - 60, y + 30);
+    drawFooterBase();
+
+    // ── Nomor halaman -- ditambahkan di akhir setelah total halaman
+    // diketahui, supaya format "Halaman X dari Y" akurat. ──
+    const totalHalaman = pdf.internal.getNumberOfPages();
+    for (let p = 1; p <= totalHalaman; p++) {
+      pdf.setPage(p);
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(140,140,140);
+      pdf.text(`Halaman ${p} dari ${totalHalaman}`, pageW - marginX - 30, 204);
+    }
+
+    pdf.save(`Evaluasi_Kehadiran_${d.tanggalMulai}_${d.tanggalSelesaiEfektif}.pdf`);
     toast('PDF berhasil didownload', 'success');
   } catch(e) { toast('Gagal: ' + e.message, 'error'); }
 }

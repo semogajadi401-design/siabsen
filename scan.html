@@ -5171,7 +5171,13 @@ async function init() {
   // jadi satu fungsi berurutan (lihat refreshLogDanChart()) supaya
   // loadChartKehadiran() bisa numpang hasil loadLog() yang baru saja
   // selesai, alih-alih fetch ulang dari nol.
-  setInterval(() => { if (isOnline) refreshLogDanChart(); }, REFRESH_LOG_MS);
+  // PERBAIKAN EGRESS (BARU): sebelumnya refreshLogDanChart() langsung
+  // dipanggil tiap siklus -- sekarang lewat pollLogVersiDanRefreshJikaBerubah()
+  // yang cuma cek versi ringan dulu (lihat catatan lengkap di dekat
+  // definisinya). refreshLogDanChart() TETAP dipakai apa adanya di
+  // tempat lain (tombol refresh manual & init() awal) karena di situ
+  // memang selalu mau data terbaru, bukan dibandingkan versi dulu.
+  setInterval(() => { if (isOnline) pollLogVersiDanRefreshJikaBerubah(); }, REFRESH_LOG_MS);
   setInterval(() => { if (isOnline) checkStatus(); }, REFRESH_STATUS_MS);
 }
 
@@ -7564,6 +7570,16 @@ async function loadLog() {
         }));
       } catch(e) {}
     }
+
+    // BARU (PERBAIKAN EGRESS): setiap kali data LENGKAP ini berhasil
+    // diambil (dari sini -- baik lewat refresh manual, ganti filter
+    // kelas, maupun karena pollLogVersiDanRefreshJikaBerubah() di bawah
+    // mendeteksi versi berubah), lupakan versi ringan yang lama. Siklus
+    // polling versi berikutnya akan mengambil versi SAAT INI sebagai
+    // baseline baru, bukan dibandingkan ke versi basi dari kelas/momen
+    // sebelumnya. Lihat pollLogVersiDanRefreshJikaBerubah() untuk alur
+    // lengkapnya.
+    _lastLogVersi = null;
   } catch(e) {
   } finally {
     _loadLogInFlight = false;
@@ -7773,6 +7789,51 @@ let _loadChartInFlight  = false;
 async function refreshLogDanChart() {
   await loadLog();
   loadChartKehadiran(); // tidak perlu await -- render chart tidak menghalangi apa pun
+}
+
+// ── POLLING VERSI RINGAN (BARU, PERBAIKAN EGRESS) ──────────────────
+// Dipakai di setInterval sebagai GANTI memanggil refreshLogDanChart()
+// langsung setiap siklus. refreshLogDanChart() berat (menarik SELURUH
+// roster siswa lewat getLogHariIni()) -- kalau dipanggil polos tiap
+// REFRESH_LOG_MS, payload penuh itu terkirim ulang walau tidak ada
+// satu pun siswa baru yang scan/dikasih keterangan sejak siklus
+// sebelumnya. Ini kontributor egress terbesar di kiosk sebelum
+// perbaikan ini (lihat obrolan soal dashboard Supabase Usage).
+//
+// Di sini, tiap siklus cuma minta getLogVersi() -- endpoint MURAH yang
+// cuma COUNT baris (bukan SELECT datanya). refreshLogDanChart() (berat)
+// CUMA dipanggil kalau versi yang baru didapat BEDA dari versi terakhir
+// yang sudah dipegang klien. Lihat catatan lengkap + batasannya di
+// getLogVersi() (api/scan.js).
+let _lastLogVersi     = null;
+let _pollVersiInFlight = false;
+
+async function pollLogVersiDanRefreshJikaBerubah() {
+  // Penjaga in-flight yang sama polanya dengan loadLog()/checkStatus() --
+  // cegah request getLogVersi menumpuk kalau koneksi sekolah lambat.
+  if (_pollVersiInFlight) return;
+  _pollVersiInFlight = true;
+  try {
+    const kelas = document.getElementById('filterKelas').value;
+    const r = await api('scan', 'getLogVersi', { kelas });
+    if (!r || !r.success) return; // gagal diam-diam -- siklus berikutnya coba lagi
+
+    if (_lastLogVersi === null) {
+      // Baru pertama kali dibandingkan sejak halaman dibuka / kelas
+      // difilter ulang -- data yang sedang tampil sudah pasti fresh
+      // (dari refreshLogDanChart() di init()/ganti filter), jadi cukup
+      // simpan sebagai baseline, TIDAK perlu langsung refresh berat.
+      _lastLogVersi = r.versi;
+      return;
+    }
+    if (r.versi !== _lastLogVersi) {
+      // Ada perubahan (siswa baru scan datang/pulang, atau keterangan
+      // baru diinput) -- baru sekarang tarik data lengkapnya.
+      await refreshLogDanChart();
+    }
+  } finally {
+    _pollVersiInFlight = false;
+  }
 }
 
 async function loadChartKehadiran() {

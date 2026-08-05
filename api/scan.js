@@ -88,6 +88,9 @@ module.exports = async (req, res) => {
     if (action === 'getStatus')       return res.json(await getStatus());
     if (action === 'scanKartu')       return res.json(await scanKartu(params));
     if (action === 'getLogHariIni')   return res.json(await getLogHariIni(params));
+    // BARU (PERBAIKAN EGRESS): versi ringan dari getLogHariIni() di atas --
+    // lihat catatan lengkap di getLogVersi() di bawah untuk alasannya.
+    if (action === 'getLogVersi')     return res.json(await getLogVersi(params));
     if (action === 'getAktivitasGuruHariIni') return res.json(await getAktivitasGuruHariIni());
     // BARU: jadwal & guru piket BESOK -- dipakai tab "Besok" di modal
     // "Cek Aktivitas Guru" (selagi jam operasional), dan di panel Rekap
@@ -1181,6 +1184,56 @@ async function getLogHariIni({ kelas }) {
     totalBelum: belumHadir.length,
     hadir, izinSakit, belumHadir
   };
+}
+
+// ── VERSI RINGAN LOG HARI INI (BARU, PERBAIKAN EGRESS) ─────────────
+// getLogHariIni() di atas dipoll scan.html tiap REFRESH_LOG_MS (lihat
+// refreshLogDanChart()), dan SETIAP kali dipanggil ia menarik SELURUH
+// roster siswa aktif -- walaupun tidak ada satu pun yang berubah sejak
+// polling sebelumnya. Untuk sekolah dengan ratusan siswa, itu berarti
+// payload penuh dikirim ulang berkali-kali per menit, jadi kontributor
+// egress terbesar di kiosk ini.
+//
+// Endpoint ini gantinya: HANYA menghitung (COUNT, bukan SELECT data)
+// jumlah baris absen datang, absen pulang, dan keterangan hari ini,
+// lalu digabung jadi satu string "versi" yang kecil. scan.html
+// membandingkan versi ini dengan versi terakhir yang sudah ia pegang --
+// getLogHariIni() (yang berat) baru dipanggil kalau versinya BERBEDA.
+// COUNT query jauh lebih murah dari SELECT karena Postgres/PostgREST
+// tidak perlu mengirim baris datanya sama sekali, cuma angkanya.
+//
+// CATATAN JUJUR (batasannya): karena berbasis COUNT (bukan kolom
+// updated_at, yang memang tidak ada di skema absensi/keterangan_absensi
+// saat ini), EDIT pada keterangan yang SUDAH ADA (mis. guru piket ubah
+// "Sakit" jadi "Izin" lewat fitur "Edit Kehadiran Siswa (Guru Piket)")
+// TIDAK mengubah jumlah baris -- jadi tidak akan mengubah versi, dan
+// kiosk tidak otomatis menyegarkan tampilan itu sampai ada scan/
+// keterangan BARU berikutnya (baru versi ikut berubah). Ini cuma
+// keterlambatan tampilan di kiosk, BUKAN data yang salah -- guru piket
+// yang mengedit tetap langsung melihat hasil editnya di layarnya
+// sendiri, dan tombol refresh manual (🔄) di kiosk selalu ambil data
+// terbaru apa pun versinya. Trade-off ini disengaja demi menghindari
+// migrasi skema (nambah kolom updated_at + trigger) yang lebih berisiko
+// untuk sistem yang sudah berjalan di produksi.
+async function getLogVersi({ kelas }) {
+  const today = todayStr();
+
+  let qDatang = supabase.from('absensi')
+    .select('id', { count: 'exact', head: true }).eq('tanggal', today);
+  if (kelas) qDatang = qDatang.eq('kelas', kelas);
+
+  let qPulang = supabase.from('absensi')
+    .select('id', { count: 'exact', head: true }).eq('tanggal', today).not('jam_pulang', 'is', null);
+  if (kelas) qPulang = qPulang.eq('kelas', kelas);
+
+  let qKet = supabase.from('keterangan_absensi')
+    .select('id', { count: 'exact', head: true }).eq('tanggal', today);
+  if (kelas) qKet = qKet.eq('kelas', kelas);
+
+  const [{ count: cDatang }, { count: cPulang }, { count: cKet }] =
+    await Promise.all([qDatang, qPulang, qKet]);
+
+  return { success: true, versi: `${cDatang || 0}.${cPulang || 0}.${cKet || 0}` };
 }
 
 // ── CEK AKTIVITAS GURU HARI INI (BARU) ────────────────────────────

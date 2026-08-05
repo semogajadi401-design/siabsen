@@ -1374,16 +1374,45 @@ async function hitungJumlahHariSekolah(tanggalMulai, tanggalSelesai) {
 // dihitung di kedua sisi, dan hari ini dihitung di KEDUA sisi kalau
 // sudah masuk rentang semester (bukan cuma di satu sisi seperti bug
 // sebelumnya).
-function hitungTanggalEvaluasiEfektif(tanggalMulaiSemester, tanggalSelesaiSemester) {
+//
+// PERBAIKAN BARU (bug "Alpha 1" muncul padahal jam absen belum buka):
+// Sebelumnya begitu HARI INI masuk rentang semester, hari itu LANGSUNG
+// dihitung sebagai hari sekolah efektif (masuk ke penyebut) walaupun
+// jam absen datang (JAM_DATANG_MULAI) belum mulai sama sekali -- jadi
+// dari tengah malam sampai sebelum jam absen dibuka, SEMUA siswa
+// otomatis kehilangan 1 hari "kemungkinan hadir" yang belum sempat
+// mereka penuhi sama sekali -> tampil "Alpha 1" massal yang menyesatkan.
+// Sekarang dipakai pola yang sama dengan getTrenPersentaseKehadiran()
+// di atas: kalau tanggalSelesaiEfektif jatuh persis di hari ini DAN
+// jam sekarang masih sebelum JAM_DATANG_MULAI, hari ini dianggap
+// "belum bisa dievaluasi" -> tanggalSelesaiEfektif dimundurkan ke
+// kemarin, sehingga hari ini tidak ikut dihitung di kedua sisi
+// (pembilang maupun penyebut) sampai jam absen benar-benar dibuka.
+async function hitungTanggalEvaluasiEfektif(tanggalMulaiSemester, tanggalSelesaiSemester) {
   const hariIniStr = todayStr();
-  const tanggalMulaiEfektif   = tanggalMulaiSemester;
-  const tanggalSelesaiEfektif = tanggalSelesaiSemester < hariIniStr
+  const tanggalMulaiEfektif = tanggalMulaiSemester;
+  let tanggalSelesaiEfektif = tanggalSelesaiSemester < hariIniStr
     ? tanggalSelesaiSemester   // semester sudah berakhir sebelum hari ini
     : hariIniStr;              // semester masih berjalan -> batasi sampai hari ini
-  // Semester belum mulai (mis. tanggal mulai masih di masa depan) ->
-  // belum ada satu hari pun yang bisa dievaluasi.
+
+  let belumMulaiHariIni = false;
+  let jamMulaiAbsen = '06:30';
+  if (tanggalSelesaiEfektif === hariIniStr) {
+    const jamSetting = await getJamSetting();
+    jamMulaiAbsen = jamSetting['JAM_DATANG_MULAI'] || '06:30';
+    if (jamSekarang() < jamMulaiAbsen) {
+      belumMulaiHariIni = true;
+      const kemarin = new Date(hariIniStr + 'T00:00:00Z');
+      kemarin.setUTCDate(kemarin.getUTCDate() - 1);
+      tanggalSelesaiEfektif = kemarin.toISOString().substring(0, 10);
+    }
+  }
+
+  // Semester belum mulai (mis. tanggal mulai masih di masa depan), ATAU
+  // hari ini dimundurkan ke kemarin di atas padahal semester baru mulai
+  // hari ini juga -> belum ada satu hari pun yang bisa dievaluasi.
   const belumMulai = tanggalMulaiEfektif > tanggalSelesaiEfektif;
-  return { tanggalMulaiEfektif, tanggalSelesaiEfektif, belumMulai };
+  return { tanggalMulaiEfektif, tanggalSelesaiEfektif, belumMulai, belumMulaiHariIni, jamMulaiAbsen };
 }
 
 async function requireAdminToken(token) {

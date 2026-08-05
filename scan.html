@@ -526,6 +526,7 @@ body.is-offline .header{ top:36px; }
   min-height:3px;
 }
 .pk-bar-fill.pk-libur{background:repeating-linear-gradient(135deg,var(--border),var(--border) 4px,transparent 4px,transparent 8px);min-height:3px}
+.pk-bar-fill.pk-menunggu{background:repeating-linear-gradient(135deg,#FDE68A,#FDE68A 4px,transparent 4px,transparent 8px)}
 .pk-bar-label{font-size:.68rem;font-weight:700;color:var(--text-muted);white-space:nowrap}
 .pk-tren-card{
   border-radius:12px;padding:12px 14px;font-size:.82rem;font-weight:700;
@@ -535,6 +536,11 @@ body.is-offline .header{ top:36px; }
 .pk-tren-turun{background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626)}
 .pk-tren-stabil{background:#EEF2FA;color:var(--text-muted)}
 .pk-tren-kosong{background:#EEF2FA;color:var(--text-muted)}
+/* BARU: dipakai saat jam absen datang hari ini BELUM dimulai -- lihat
+   catatan "belumMulai" di getTrenPersentaseKehadiran() (api/_db.js).
+   Warna netral (amber, bukan merah) supaya guru piket tidak salah kira
+   ini sinyal kehadiran jelek -- ini cuma info "belum waktunya". */
+.pk-tren-menunggu{background:var(--warning-soft,#FEF3C7);color:#B45309}
 .pk-rata-row{
   display:flex;justify-content:space-between;align-items:center;
   font-size:.76rem;color:var(--text-muted);font-weight:600;margin-top:14px;
@@ -7221,10 +7227,15 @@ function renderPersentaseKehadiran(data) {
   const chart = document.getElementById('pkChart');
   chart.innerHTML = (data.poin || []).map(p => {
     if (p.persen === null) {
+      // BARU: bedakan tampilan hari libur (hatch abu-abu, label "–")
+      // dengan hari sekolah yang jam absen datangnya belum dimulai
+      // (hatch amber, label "⏳") -- supaya guru piket langsung paham
+      // batang itu bukan "0% hadir", tapi "belum waktunya scan".
+      const belumMulai = !!p.belumMulai;
       return `
         <div class="pk-bar-col">
-          <div class="pk-bar-val" style="color:var(--text-muted)">–</div>
-          <div class="pk-bar-track"><div class="pk-bar-fill pk-libur" style="height:100%"></div></div>
+          <div class="pk-bar-val" style="color:${belumMulai ? '#B45309' : 'var(--text-muted)'}">${belumMulai ? '⏳' : '–'}</div>
+          <div class="pk-bar-track"><div class="pk-bar-fill pk-libur${belumMulai ? ' pk-menunggu' : ''}" style="height:100%"></div></div>
           <div class="pk-bar-label">${esc(p.label)}</div>
         </div>`;
     }
@@ -7241,11 +7252,12 @@ function renderPersentaseKehadiran(data) {
   const tren = data.tren || { arah: 'kosong', pesan: '' };
   const card = document.getElementById('pkTrenCard');
   card.className = 'pk-tren-card ' + (
-    tren.arah === 'naik'   ? 'pk-tren-naik'   :
-    tren.arah === 'turun'  ? 'pk-tren-turun'  :
-    tren.arah === 'stabil' ? 'pk-tren-stabil' : 'pk-tren-kosong'
+    tren.arah === 'naik'     ? 'pk-tren-naik'     :
+    tren.arah === 'turun'    ? 'pk-tren-turun'    :
+    tren.arah === 'stabil'   ? 'pk-tren-stabil'   :
+    tren.arah === 'menunggu' ? 'pk-tren-menunggu' : 'pk-tren-kosong'
   );
-  const ikon = tren.arah === 'naik' ? '📈' : tren.arah === 'turun' ? '📉' : tren.arah === 'stabil' ? '➡️' : 'ℹ️';
+  const ikon = tren.arah === 'naik' ? '📈' : tren.arah === 'turun' ? '📉' : tren.arah === 'stabil' ? '➡️' : tren.arah === 'menunggu' ? '⏳' : 'ℹ️';
   document.getElementById('pkTrenIcon').textContent = ikon;
   document.getElementById('pkTrenPesan').textContent = tren.pesan || '';
 

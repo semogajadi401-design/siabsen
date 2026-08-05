@@ -1212,12 +1212,47 @@ async function getTrenPersentaseKehadiran(params = {}) {
     }
   }
 
+  // ── PERBAIKAN: titik "HARI INI" jangan dihitung 0% kalau jam absen
+  // datang belum dimulai ────────────────────────────────────────────
+  // Sebelum perbaikan ini, titik hari ini selalu dihitung
+  // (hadirPerTanggal[tgl]||0)/totalSiswa -- yang, sebelum jam
+  // JAM_DATANG_MULAI, HAMPIR SELALU menghasilkan 0,0% (karena memang
+  // belum ada siswa yang sempat scan), lalu dibandingkan ke hari
+  // sekolah sebelumnya yang datanya sudah lengkap -> muncul pesan
+  // "Tren menurun ... turun 89,2%" yang MENYESATKAN, seolah-olah
+  // kehadiran hari ini benar-benar anjlok, padahal sekolah belum buka
+  // jam absen sama sekali. Di sini titik hari ini di-null-kan (supaya
+  // tidak masuk hitungan tren & rata-rata) dan ditandai `belumMulai`
+  // kalau memang jam sekarang masih sebelum JAM_DATANG_MULAI, supaya
+  // frontend bisa menampilkan pesan yang jelas ("belum dimulai"),
+  // bukan angka 0,0% yang terkesan sebagai kehadiran gagal.
+  let belumMulaiHariIni = false;
+  let jamMulaiAbsen = '06:30';
+  if (rentang === 'minggu') {
+    const jamSetting = await getJamSetting();
+    jamMulaiAbsen = jamSetting['JAM_DATANG_MULAI'] || '06:30';
+    const titikHariIni = poin[poin.length - 1];
+    if (titikHariIni && titikHariIni.tanggal === today && titikHariIni.sekolah && jamSekarang() < jamMulaiAbsen) {
+      titikHariIni.persen = null;
+      titikHariIni.belumMulai = true;
+      belumMulaiHariIni = true;
+    }
+  }
+
   const poinValid = poin.filter(p => p.persen !== null);
   const rataRata = poinValid.length
     ? Math.round((poinValid.reduce((s, p) => s + p.persen, 0) / poinValid.length) * 10) / 10 : null;
 
   let tren = { arah: 'kosong', selisih: 0, pesan: 'Belum ada data kehadiran di periode ini.' };
-  if (poinValid.length >= 2) {
+  if (belumMulaiHariIni) {
+    // Pesan jelas & netral (bukan merah/"turun") -- ini bukan sinyal
+    // kehadiran buruk, cuma jam absen datang belum dimulai.
+    tren = {
+      arah: 'menunggu', selisih: 0,
+      pesan: `⏳ Jam absen datang hari ini belum dimulai (mulai pukul ${jamMulaiAbsen}). Data hari ini belum dihitung -- tren di bawah dibandingkan dari hari-hari sekolah sebelumnya.`
+    };
+  }
+  if (!belumMulaiHariIni && poinValid.length >= 2) {
     const terakhir = poinValid[poinValid.length - 1];
     const sebelumnya = poinValid[poinValid.length - 2];
     const selisih = Math.round((terakhir.persen - sebelumnya.persen) * 10) / 10;
@@ -1242,7 +1277,7 @@ async function getTrenPersentaseKehadiran(params = {}) {
         pesan: `➡️ Tren stabil — kehadiran ${satuan} terakhir relatif sama dengan ${satuan} sebelumnya (${selisih > 0 ? '+' : ''}${fmtPersenID(selisih)}%).`
       };
     }
-  } else if (poinValid.length === 1) {
+  } else if (!belumMulaiHariIni && poinValid.length === 1) {
     tren = { arah: 'kosong', selisih: 0, pesan: 'Baru ada 1 periode dengan data, tren belum bisa dibandingkan.' };
   }
 

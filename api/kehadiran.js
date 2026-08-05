@@ -118,16 +118,29 @@ module.exports = async (req, res) => {
       // dikirim balik ke frontend supaya dipakai juga oleh
       // rekapBulananRange & rekapKeteranganRange (pembilang) -- jadi
       // kedua sisi PASTI memakai rentang tanggal yang sama persis.
-      const { tanggalSelesaiEfektif, belumMulai } =
-        hitungTanggalEvaluasiEfektif(tanggalMulai, tanggalSelesai);
+      // (BARU) Fungsi ini sekarang async -- lihat catatan di
+      // hitungTanggalEvaluasiEfektif() (_db.js): dia juga mengecek apakah
+      // jam absen datang hari ini sudah mulai, supaya hari ini tidak ikut
+      // dihitung sebagai hari sekolah efektif kalau belum (mencegah bug
+      // "Alpha 1" massal sebelum jam absen dibuka).
+      const { tanggalSelesaiEfektif, belumMulai, belumMulaiHariIni, jamMulaiAbsen } =
+        await hitungTanggalEvaluasiEfektif(tanggalMulai, tanggalSelesai);
 
       if (belumMulai) {
-        // Semester belum mulai / baru mulai setelah hari ini -- belum
-        // ada satu pun hari yang bisa dievaluasi.
-        return res.json({ success: true, jumlahHariSekolah: 0, tanggalSelesaiEfektif: tanggalMulai });
+        // Semester belum mulai / baru mulai setelah hari ini, ATAU
+        // satu-satunya hari yang tersisa (hari ini) belum bisa dievaluasi
+        // karena jam absen belum dimulai -- belum ada satu pun hari yang
+        // bisa dievaluasi.
+        return res.json({
+          success: true, jumlahHariSekolah: 0, tanggalSelesaiEfektif: tanggalMulai,
+          belumMulaiHariIni, jamMulaiAbsen
+        });
       }
       const jumlahHariSekolah = await hitungJumlahHariSekolah(tanggalMulai, tanggalSelesaiEfektif);
-      return res.json({ success: true, jumlahHariSekolah, tanggalSelesaiEfektif });
+      return res.json({
+        success: true, jumlahHariSekolah, tanggalSelesaiEfektif,
+        belumMulaiHariIni, jamMulaiAbsen
+      });
     }
     // Dipakai frontend (guruNav) untuk tahu apakah menu "Kehadiran Hari Ini"
     // perlu ditampilkan: true hanya kalau guru YANG SEDANG LOGIN (dibuktikan

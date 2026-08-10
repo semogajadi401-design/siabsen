@@ -525,8 +525,18 @@ body.is-offline .header{ top:36px; }
   transition:height .5s cubic-bezier(.22,1,.36,1);
   min-height:3px;
 }
-.pk-bar-fill.pk-libur{background:repeating-linear-gradient(135deg,var(--border),var(--border) 4px,transparent 4px,transparent 8px);min-height:3px}
+.pk-bar-fill.pk-libur{background:repeating-linear-gradient(135deg,var(--border),var(--border) 4px,transparent 4px,transparent 8px);min-height:3px;position:relative}
 .pk-bar-fill.pk-menunggu{background:repeating-linear-gradient(135deg,#FDE68A,#FDE68A 4px,transparent 4px,transparent 8px)}
+/* BARU: label "Libur" tersusun vertikal di dalam batang hari libur --
+   supaya langsung kebaca batang itu "Libur", bukan cuma diarsir kosong.
+   Hanya dipasang untuk batang libur sungguhan (bukan yang "belumMulai"),
+   lihat pemasangannya di renderPersentaseKehadiran(). */
+.pk-bar-libur-text{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  writing-mode:vertical-rl;text-orientation:mixed;
+  font-size:.62rem;font-weight:800;letter-spacing:.5px;
+  color:var(--text-muted);white-space:nowrap;pointer-events:none;
+}
 .pk-bar-label{font-size:.68rem;font-weight:700;color:var(--text-muted);white-space:nowrap}
 .pk-tren-card{
   border-radius:12px;padding:12px 14px;font-size:.82rem;font-weight:700;
@@ -7290,10 +7300,14 @@ function renderPersentaseKehadiran(data) {
       // (hatch amber, label "⏳") -- supaya guru piket langsung paham
       // batang itu bukan "0% hadir", tapi "belum waktunya scan".
       const belumMulai = !!p.belumMulai;
+      // BARU: batang hari libur sungguhan (bukan "belumMulai") dikasih
+      // label "Libur" tersusun vertikal di dalam batangnya sendiri,
+      // supaya kelihatan jelas beda dari sekadar arsiran kosong.
+      const teksLibur = belumMulai ? '' : `<span class="pk-bar-libur-text">Libur</span>`;
       return `
         <div class="pk-bar-col">
           <div class="pk-bar-val" style="color:${belumMulai ? '#B45309' : 'var(--text-muted)'}">${belumMulai ? '⏳' : '–'}</div>
-          <div class="pk-bar-track"><div class="pk-bar-fill pk-libur${belumMulai ? ' pk-menunggu' : ''}" style="height:100%"></div></div>
+          <div class="pk-bar-track"><div class="pk-bar-fill pk-libur${belumMulai ? ' pk-menunggu' : ''}" style="height:100%">${teksLibur}</div></div>
           <div class="pk-bar-label">${esc(p.label)}</div>
         </div>`;
     }

@@ -3319,6 +3319,29 @@ let _scanBeratPaused = false;
 function pauseScanBerat() { _scanBeratPaused = true; }
 function resumeScanBerat() { _scanBeratPaused = false; }
 
+// PERBAIKAN BUG KAMERA BENTROK ANTARA KAMERA UTAMA & OVERLAY ABSEN
+// KELAS/KELOLA PIKET (BARU): dipanggil setelah node .scanner-visual
+// dipindah (baik masuk ke overlay maupun kembali ke halaman utama).
+// video#scanVideo-nya SELALU elemen yang sama (dipindah, bukan dibuat
+// ulang), tapi pada sejumlah browser (terutama WebKit/Safari di HP)
+// video kamera live bisa ke-pause diam-diam sesaat setelah dipindah di
+// DOM -- tanpa ini, video tampak "hilang"/beku baik di overlay MAUPUN
+// setelah kembali ke halaman utama, walau stream kameranya sendiri
+// (scanStream) masih hidup & valid. play() aman dipanggil berulang kali
+// (no-op kalau videonya memang sudah berjalan), jadi fungsi ini boleh
+// dipanggil "just in case" tiap kali .scanner-visual selesai dipindah.
+function resumeScanVideoPlayback() {
+  const video = document.getElementById('scanVideo');
+  if (!video || !video.srcObject) return;
+  if (video.paused) {
+    video.play().catch(() => {
+      // Diamkan -- kalau gagal (mis. autoplay policy di momen aneh),
+      // scanLoop() tetap akan mencoba lagi tiap frame lewat pengecekan
+      // video.readyState, jadi tidak fatal.
+    });
+  }
+}
+
 // ══════ DRAWER MENU (BARU) ═══════════════════════════════════════
 // Saat drawer terbuka, kamera "dinonaktifkan" secara FUNGSIONAL: loop
 // scanLoop() tetap jalan (requestAnimationFrame-nya tidak diberhentikan
@@ -4147,23 +4170,38 @@ async function submitAkUserForm() {
   }
 }
 
-// Overlay layar-penuh "Absen Kelas" (BARU) -- membuat mode ini terasa
-// sebagai halaman/mode terpisah dari Scan Datang/Pulang, alih-alih cuma
-// kotak kecil yang menumpang di halaman scan biasa. Kamera (.scanner-visual,
-// berikut #scanVideo/#scanCanvas yang streamnya sudah aktif) dipindah
-// UTUH ke dalam overlay -- bukan diinisialisasi ulang -- supaya proses
-// scan tidak terputus dan tidak perlu minta izin kamera dua kali.
+// PERBAIKAN BUG KAMERA BENTROK (BARU): sebelumnya urutannya adalah
+// "pindah dulu (appendChild ke akCameraSlot yang MASIH di dalam overlay
+// display:none), baru TAMPILKAN overlay-nya". Itu artinya video#scanVideo
+// yang sedang live sempat "numpang" sesaat di dalam subtree display:none
+// sebelum overlay-nya sendiri dibuka. Di sejumlah browser/WebKit versi
+// mobile, <video> yang sumbernya stream kamera live bisa berhenti
+// men-decode/render (macet di frame terakhir atau blank) begitu sempat
+// berada di dalam ancestor display:none -- dan TIDAK otomatis pulih
+// walau elemennya dipindah lagi ke tempat yang terlihat, kecuali video
+// di-play() ulang secara eksplisit. Ini yang menyebabkan kamera di
+// overlay Absen Kelas tidak tampil, DAN kamera utama juga ikut mati
+// setelah overlay ditutup (video-nya sama, dipindah bolak-balik).
+//
+// PERBAIKANNYA: balik urutannya -- TAMPILKAN overlay dulu (supaya
+// akCameraSlot sudah punya display:flex sebelum menerima video), BARU
+// pindahkan .scanner-visual ke dalamnya. Ditambah panggilan video.play()
+// setelah dipindah, sebagai jaga-jaga kalau videonya sempat ke-pause
+// oleh browser selama proses pindah (play() aman dipanggil walau video
+// sudah main -- no-op).
 function bukaOverlayAbsenKelas() {
+  const overlay = document.getElementById('absenKelasOverlay');
+  if (overlay) overlay.classList.add('show');
   const slot   = document.getElementById('akCameraSlot');
   const visual = document.querySelector('.scanner-visual');
   if (slot && visual && !slot.contains(visual)) slot.appendChild(visual);
-  const overlay = document.getElementById('absenKelasOverlay');
-  if (overlay) overlay.classList.add('show');
+  resumeScanVideoPlayback();
 }
 function tutupOverlayAbsenKelas() {
   const anchor = document.getElementById('scannerVisualAnchor');
   const visual = document.querySelector('.scanner-visual');
   if (anchor && visual && anchor.parentNode) anchor.parentNode.insertBefore(visual, anchor.nextSibling);
+  resumeScanVideoPlayback();
   const overlay = document.getElementById('absenKelasOverlay');
   if (overlay) overlay.classList.remove('show');
 }
@@ -4209,18 +4247,22 @@ function batalKelolaPiket() {
 
 // Kamera (.scanner-visual) dipindah UTUH ke overlay ini, sama persis
 // pola bukaOverlayAbsenKelas()/tutupOverlayAbsenKelas() -- lihat catatan
-// lengkap di sana soal kenapa dipindah, bukan diinisialisasi ulang.
+// lengkap di sana soal kenapa dipindah, bukan diinisialisasi ulang, DAN
+// soal kenapa urutannya harus "tampilkan overlay dulu, baru pindahkan
+// video" (bukan sebaliknya) supaya kamera tidak macet/mati di WebKit.
 function bukaOverlayKelolaPiket() {
+  const overlay = document.getElementById('kelolaPiketOverlay');
+  if (overlay) overlay.classList.add('show');
   const slot   = document.getElementById('kpCameraSlot');
   const visual = document.querySelector('.scanner-visual');
   if (slot && visual && !slot.contains(visual)) slot.appendChild(visual);
-  const overlay = document.getElementById('kelolaPiketOverlay');
-  if (overlay) overlay.classList.add('show');
+  resumeScanVideoPlayback();
 }
 function tutupOverlayKelolaPiket() {
   const anchor = document.getElementById('scannerVisualAnchor');
   const visual = document.querySelector('.scanner-visual');
   if (anchor && visual && anchor.parentNode) anchor.parentNode.insertBefore(visual, anchor.nextSibling);
+  resumeScanVideoPlayback();
   const overlay = document.getElementById('kelolaPiketOverlay');
   if (overlay) overlay.classList.remove('show');
 }

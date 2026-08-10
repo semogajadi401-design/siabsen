@@ -182,70 +182,115 @@ body.is-offline .header{ top:36px; }
 }
 .btn-fullscreen:hover{background:var(--accent-soft);color:var(--primary-dark);border-color:rgba(16,185,129,.3)}
 
-/* ── MAIN LAYOUT ── */
-.main{
-  display:grid;
-  grid-template-columns:236px 1fr;
-  gap:20px;
-  padding:16px 22px;
-  max-width:1500px;
-  margin:0 auto;
-  height:calc(100vh - 58px);
-  min-height:0;
+/* ══════ DRAWER MENU (BARU) ════════════════════════════════════════
+   Membungkus semua kontrol/panel yang BUKAN "kamera + info pendukung
+   inti": judul halaman, tombol Absen Kelas/Cek Aktivitas Guru/Kelola
+   Piket/Persentase Kehadiran, widget chart kehadiran, panel Info
+   Besok, rekap harian, filter+tab+daftar siswa lengkap, serta tombol
+   Petunjuk & Login Admin (dipindah dari header). Semuanya DIPINDAH
+   (bukan diduplikasi/dihapus) lewat initDrawerLayout() di script
+   bawah, supaya semua ID & fungsi JS yang sudah ada tetap jalan apa
+   adanya. Dibuka lewat ikon ☰ di header, geser dari kanan (drawer). */
+.app-drawer-backdrop{
+  position:fixed;inset:0;background:rgba(15,23,42,.55);
+  z-index:9400;opacity:0;visibility:hidden;
+  transition:opacity .25s ease;
 }
-@media(max-width:900px){
-  .main{grid-template-columns:1fr;gap:16px;padding:14px;height:auto;min-height:calc(100vh - 58px)}
-  /* CATATAN: override .content-col/.scanner-stage/.log-panel untuk mobile
-     SENGAJA TIDAK diletakkan di sini lagi -- lihat penjelasan lengkap di
-     media query yang sama persis, ditaruh SETELAH base rule masing-masing
-     (dekat .log-panel di bawah). Taruh di sini (SEBELUM base rule-nya)
-     menyebabkan override-nya kalah oleh base rule yang sumbernya datang
-     belakangan di stylesheet -- sama-sama single class selector jadi
-     specificity-nya seri, dan CSS memenangkan aturan yang urutannya lebih
-     akhir, TERLEPAS dari apakah dia di dalam media query yang cocok atau
-     tidak. Akibatnya .content-col tetap 2 kolom grid di HP (tidak pernah
-     benar-benar bertumpuk), bikin halaman overflow ke samping -- itu
-     penyebab tombol/kolom kehadiran siswa tampak terpotong/aneh di HP. */
-}
-
-/* ── SIDEBAR KIRI — kontrol (judul, status guru piket, switch mode) ── */
-.side-rail{
-  display:flex;flex-direction:column;gap:16px;
+.app-drawer-backdrop.show{opacity:1;visibility:visible}
+.app-drawer{
+  position:fixed;top:0;right:0;height:100%;
+  width:min(380px,92vw);
   background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:18px;padding:18px 16px;
-  box-shadow:var(--shadow-soft);
-  min-height:0;overflow-y:auto;
+  box-shadow:-14px 0 40px rgba(15,23,42,.22);
+  z-index:9500;
+  display:flex;flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .28s cubic-bezier(.4,0,.2,1);
 }
-.side-rail::-webkit-scrollbar{width:4px}
-.side-rail::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.app-drawer.show{transform:translateX(0)}
+.app-drawer-head{
+  flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px;border-bottom:1px solid var(--border);
+}
+.app-drawer-title{font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--text)}
+.app-drawer-close{
+  width:34px;height:34px;border-radius:10px;flex-shrink:0;
+  background:var(--bg);border:1px solid var(--border);color:var(--text-muted);
+  font-size:1.2rem;cursor:pointer;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.app-drawer-close:hover{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+.app-drawer-body{
+  flex:1;min-height:0;overflow-y:auto;
+  padding:16px 16px 28px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.app-drawer-body::-webkit-scrollbar{width:4px}
+.app-drawer-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+/* .side-rail dipindah UTUH ke dalam drawer -- lepas gaya "kartu"-nya
+   (border/shadow/padding sendiri) supaya tidak dobel dengan panel
+   drawer yang sudah membungkusnya. */
+.app-drawer .side-rail{
+  background:none;border:none;box-shadow:none;padding:0;
+  overflow-y:visible;flex-direction:column;flex-wrap:nowrap;
+  align-items:stretch;justify-content:flex-start;
+}
+.app-drawer .side-rail .scan-title{flex:none}
+.app-drawer .aksi-kelas-wrap{max-width:none}
+.drawer-header-btns{display:flex;gap:8px;flex-wrap:wrap}
+.drawer-header-btns button{flex:1 1 auto}
+.drawer-section-title{
+  font-family:var(--font-display);font-weight:800;font-size:.86rem;
+  color:var(--text);padding-top:4px;border-top:1px solid var(--border);
+  padding-top:14px;
+}
+/* Tombol pemicu ☰ -- dipakai ulang gaya .btn-fullscreen supaya konsisten
+   dengan tombol header lain, cukup tambah class ini untuk beda kecil. */
+.btn-menu{position:relative}
+/* Kamera "dijeda" secara visual saat drawer terbuka (scanLoop-nya juga
+   benar-benar berhenti memproses lewat pauseScanBerat(), lihat JS) --
+   supaya jelas bagi guru kalau kamera sedang tidak aktif membaca QR. */
+body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-events:none}
+
+/* ── MAIN LAYOUT (BARU: 1 kolom terpusat) ──────────────────────────
+   SEBELUMNYA .main adalah grid 2 kolom (side-rail 236px + content-col
+   1fr). Sekarang side-rail (judul, tombol aksi, chart, info besok) dan
+   bagian "detail" dari log-panel (chart, filter, tab, daftar siswa)
+   dipindah KE DRAWER menu (☰) via initDrawerLayout() di script bawah
+   -- TIDAK ADA yang dihapus, cuma dipindah lokasi. Yang tersisa di
+   layar utama cuma kamera + informasi pendukung penting (status guru
+   piket, switch mode Datang/Pulang, hasil scan terakhir, ringkasan
+   angka kehadiran). Makanya .main sekarang 1 kolom, dibuat sempit &
+   terpusat (seperti kartu tunggal) supaya tetap rapi di layar lebar
+   maupun HP, tanpa perlu override grid terpisah untuk mobile lagi. */
+.main{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:16px;
+  padding:16px 22px 28px;
+  max-width:560px;
+  margin:0 auto;
+  min-height:calc(100vh - 58px);
+}
 @media(max-width:900px){
-  /* PERBAIKAN: baris .mode-switch-wrap sering cuma diisi 1 elemen
-     (karena .scan-title & .aksi-kelas-wrap dipaksa flex:1 1 100% jadi
-     baris sendiri-sendiri) -- tanpa justify-content, flex-wrap membuat
-     tiap "baris" rata kiri (flex-start bawaan), jadi tombol Datang/
-     Pulang nampak nempel ke kiri, bukan di tengah. justify-content:center
-     merapikan SETIAP baris (termasuk baris berisi satu elemen) ke tengah,
-     tanpa mengubah tata letak baris yang sudah penuh lebar. */
-  .side-rail{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px}
-  .side-rail .scan-title{flex:1 1 100%}
+  .main{padding:14px 14px 24px}
 }
 
-/* ── KOLOM KANAN — kamera & statistik/daftar berdampingan, tidak perlu scroll ── */
+/* ── KOLOM KAMERA — sekarang satu-satunya isi layar utama ── */
 .content-col{
-  display:grid;
-  grid-template-columns:minmax(300px,400px) 1fr;
-  gap:16px;min-height:0;height:100%;
+  display:flex;flex-direction:column;gap:16px;
+  width:100%;min-height:0;
 }
 
 /* Panggung kamera (kartu berdiri sendiri) */
 .scanner-stage{
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:18px;padding:clamp(12px,2vh,20px) clamp(14px,2vw,22px);
+  border-radius:18px;padding:clamp(14px,2vh,22px) clamp(14px,2vw,22px);
   box-shadow:var(--shadow-soft);
   display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.2vh,10px);
-  height:100%;min-height:0;overflow-y:auto;
+  width:100%;min-height:0;overflow-y:visible;
 }
 .scanner-stage::-webkit-scrollbar{width:4px}
 .scanner-stage::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
@@ -852,28 +897,20 @@ body.is-offline .header{ top:36px; }
 }
 .manual-input button:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,185,129,0.4)}
 
-/* ── PANEL LOG (statistik + daftar), sekarang di bawah kamera dalam kolom kanan ── */
-.log-panel{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0}
+/* ── PANEL LOG (BARU): sekarang cuma wadah kosong -- isinya (rekap
+   harian, chart, filter, tab, daftar siswa) sudah dipindah ke drawer
+   menu (☰) via initDrawerLayout(). Dibiarkan display:none begitu
+   kosong (diatur oleh JS) supaya tidak menyisakan celah ruang kosong
+   di layar utama. ── */
+.log-panel{display:flex;flex-direction:column;gap:12px;min-height:0}
 
-/* PERBAIKAN BUG LAMA (bukan dari sesi ini -- baru ketahuan sekarang):
-   override mobile untuk .content-col/.scanner-stage/.log-panel HARUS
-   berada SETELAH baris base rule masing-masing di atas (bukan di media
-   query dekat .main paling atas file, tempatnya semula) supaya benar-
-   benar menang -- lihat catatan panjang di media query dekat .main.
-   Tanpa ini, .content-col tetap grid 2 kolom (minmax(300px,400px) 1fr)
-   di layar HP yang lebih sempit dari 300px+konten kolom kanan, sehingga
-   halaman overflow ke samping dan ke-clip oleh overflow-x:hidden di
-   body -- persis gejala tombol/teks "kepotong ke kanan" dan kolom
-   kehadiran siswa yang "aneh" di HP. */
-@media(max-width:900px){
-  .content-col{display:flex;flex-direction:column;height:auto;min-height:0}
-  .scanner-stage{height:auto;overflow-y:visible}
-  .log-panel{height:auto}
-}
-
-/* Stats */
+/* Stats -- SATU-SATUNYA bagian dari log-panel lama yang SENGAJA tetap
+   tampil di layar utama (dipindah ke dalam .scanner-stage, di bawah
+   kamera): ringkasan angka cepat Hadir/Izin-Sakit/Belum/Total/
+   Terlambat. Detail lengkap (daftar nama per siswa) ada di drawer. */
 .stats-row{
   display:grid;grid-template-columns:repeat(5,1fr);gap:8px;flex-shrink:0;
+  width:100%;margin-top:4px;
 }
 /* BARU: 5 kartu jadi agak sesak kalau dipaksa 1 baris di layar HP (<=900px)
    -- diturunkan jadi 3 kolom (3 atas + 2 bawah) supaya angka & label
@@ -2195,8 +2232,26 @@ body.is-offline .header{ top:36px; }
     <button class="btn-fullscreen" id="btnPetunjuk" onclick="bukaPetunjukGuru()" title="Petunjuk untuk Guru">❓</button>
     <button class="btn-fullscreen" id="btnLoginAdmin" onclick="window.location.href='/'" title="Login Admin / Guru" style="width:auto;padding:0 12px;gap:6px;font-size:.82rem;font-weight:700">🔑 Login</button>
     <button class="btn-fullscreen" id="btnFullscreen" onclick="toggleFullscreen()" title="Layar penuh">⛶</button>
+    <!-- Tombol Menu (BARU) -- membuka drawer berisi tombol aksi (Absen
+         Kelas dkk.), chart kehadiran, info besok, rekap harian, dan
+         daftar siswa lengkap. Lihat #appDrawer & initDrawerLayout(). -->
+    <button class="btn-fullscreen btn-menu" id="btnMenu" onclick="toggleDrawer()" title="Menu" aria-label="Buka menu" aria-haspopup="true" aria-expanded="false">☰</button>
   </div>
 </div>
+
+<!-- ══════ DRAWER MENU (BARU) ══════════════════════════════════════
+     Isinya (#drawerBody) diisi ULANG lewat JS oleh initDrawerLayout()
+     -- memindah node .side-rail, rekapHarianPanel, chart, filter, tab,
+     daftar siswa, serta tombol Petunjuk/Login dari lokasi aslinya ke
+     sini. Tidak ada elemen yang diduplikasi/dihapus, cuma dipindah. -->
+<div class="app-drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+<aside class="app-drawer" id="appDrawer" aria-hidden="true">
+  <div class="app-drawer-head">
+    <div class="app-drawer-title">☰ Menu</div>
+    <button type="button" class="app-drawer-close" id="btnDrawerClose" onclick="closeDrawer()" aria-label="Tutup menu">×</button>
+  </div>
+  <div class="app-drawer-body" id="drawerBody"></div>
+</aside>
 
 <!-- LIBUR BANNER (tersembunyi default) -->
 <div class="libur-banner" id="liburBanner" style="display:none">
@@ -3263,6 +3318,129 @@ let scanAnimFrame = null;
 let _scanBeratPaused = false;
 function pauseScanBerat() { _scanBeratPaused = true; }
 function resumeScanBerat() { _scanBeratPaused = false; }
+
+// ══════ DRAWER MENU (BARU) ═══════════════════════════════════════
+// Saat drawer terbuka, kamera "dinonaktifkan" secara FUNGSIONAL: loop
+// scanLoop() tetap jalan (requestAnimationFrame-nya tidak diberhentikan
+// total) tapi langsung return di baris paling atas begitu
+// _scanBeratPaused true (lihat scanLoop()), jadi TIDAK ADA decode QR
+// atau proses berat lain yang jalan -- sengaja TIDAK stream.getTracks().
+// stop() (yang benar-benar mematikan hardware kamera), karena itu akan
+// bikin preview kamera nge-blank & harus reinit dari nol (delay/flicker)
+// tiap kali drawer dibuka-tutup. Pola pause/resume ini sudah dipakai di
+// tempat lain untuk alasan yang sama (lihat pauseScanBerat/
+// resumeScanBerat di atas, dipakai modal-modal lain). Preview kamera
+// juga diberi efek visual pudar+abu-abu (lihat CSS body.drawer-open
+// .scanner-visual) supaya jelas kelihatan "nonaktif sementara".
+let _drawerOpen = false;
+function toggleDrawer(){ _drawerOpen ? closeDrawer() : openDrawer(); }
+function openDrawer(){
+  if (_drawerOpen) return;
+  _drawerOpen = true;
+  document.getElementById('appDrawer').classList.add('show');
+  document.getElementById('appDrawer').setAttribute('aria-hidden','false');
+  document.getElementById('drawerBackdrop').classList.add('show');
+  document.getElementById('btnMenu').setAttribute('aria-expanded','true');
+  document.body.classList.add('drawer-open');
+  pauseScanBerat();
+}
+function closeDrawer(){
+  if (!_drawerOpen) return;
+  _drawerOpen = false;
+  document.getElementById('appDrawer').classList.remove('show');
+  document.getElementById('appDrawer').setAttribute('aria-hidden','true');
+  document.getElementById('drawerBackdrop').classList.remove('show');
+  document.getElementById('btnMenu').setAttribute('aria-expanded','false');
+  document.body.classList.remove('drawer-open');
+  resumeScanBerat();
+  // Jaga-jaga kalau scanLoop() sempat berhenti total (mis. tab HP
+  // dijeda browser sementara drawer terbuka) -- pastikan loop jalan
+  // lagi begitu drawer ditutup.
+  if (scanActive && !scanAnimFrame) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// Menyusun ulang layar scan: layar utama HANYA kamera + info pendukung
+// inti (status guru piket, switch mode Datang/Pulang, hasil scan
+// terakhir, ringkasan angka kehadiran). SEMUA elemen lain (judul,
+// tombol Absen Kelas/Cek Aktivitas Guru/Kelola Piket/Persentase
+// Kehadiran, widget chart, panel Info Besok, rekap harian, filter+tab+
+// daftar siswa lengkap, tombol Petunjuk & Login Admin) DIPINDAH ke
+// drawer (☰) -- BUKAN dihapus/diduplikasi, jadi seluruh ID & fungsi JS
+// yang sudah ada (getElementById/querySelector) tetap bekerja persis
+// sama walau lokasi node-nya berubah. Dipanggil sekali saat halaman
+// dimuat, sebelum init() -- lihat pemanggilannya di akhir file.
+function initDrawerLayout(){
+  const drawerBody = document.getElementById('drawerBody');
+  if (!drawerBody) return;
+
+  // 1) Switch mode Datang/Pulang TETAP di layar utama (dipakai tiap
+  //    kali mau scan) -- taruh tepat setelah status Guru Piket,
+  //    sebelum kamera, supaya alurnya: status guru piket → pilih mode
+  //    → kamera.
+  const modeSwitchWrap = document.querySelector('.mode-switch-wrap');
+  const guruStatusBox  = document.getElementById('guruStatusBox');
+  if (modeSwitchWrap && guruStatusBox && guruStatusBox.parentNode) {
+    guruStatusBox.parentNode.insertBefore(modeSwitchWrap, guruStatusBox.nextSibling);
+  }
+
+  // 2) Tombol Petunjuk & Login Admin dari header -> ke atas drawer.
+  const btnPetunjuk   = document.getElementById('btnPetunjuk');
+  const btnLoginAdmin = document.getElementById('btnLoginAdmin');
+  if (btnPetunjuk || btnLoginAdmin) {
+    const wrap = document.createElement('div');
+    wrap.className = 'drawer-header-btns';
+    if (btnPetunjuk)   wrap.appendChild(btnPetunjuk);
+    if (btnLoginAdmin) wrap.appendChild(btnLoginAdmin);
+    drawerBody.appendChild(wrap);
+  }
+
+  // 3) Sisa sidebar (judul halaman, tombol Absen Kelas/Cek Aktivitas
+  //    Guru/Kelola Piket/Persentase Kehadiran, slot chart desktop,
+  //    panel Info Besok) -> UTUH ke drawer.
+  const sideRail = document.querySelector('.side-rail');
+  if (sideRail) drawerBody.appendChild(sideRail);
+
+  // 4) Bagian "detail" dari log-panel -> ke drawer. Baris statistik
+  //    (.stats-row) SENGAJA DIKECUALIKAN -- dipindah ke .scanner-stage
+  //    supaya tetap tampil ringkas di layar utama (sesuai permintaan:
+  //    kamera + info pendukung saja yang langsung terlihat).
+  const rekapHarianPanel  = document.getElementById('rekapHarianPanel');
+  const statsRow          = document.querySelector('.stats-row');
+  const chartAnchorMobile = document.getElementById('chartAnchorMobile');
+  const chartWidget       = document.getElementById('chartKehadiranWidget');
+  const filterRow         = document.querySelector('.filter-row');
+  const logTabsBar        = document.getElementById('logTabsBar');
+  const logContainer      = document.getElementById('logContainer');
+
+  if (rekapHarianPanel) drawerBody.appendChild(rekapHarianPanel);
+
+  const daftarHeading = document.createElement('div');
+  daftarHeading.className = 'drawer-section-title';
+  daftarHeading.textContent = '👥 Daftar Kehadiran Siswa';
+  [chartWidget, chartAnchorMobile, daftarHeading, filterRow, logTabsBar, logContainer]
+    .forEach(el => { if (el) drawerBody.appendChild(el); });
+
+  // Ringkasan angka (.stats-row) -> pindah ke scanner-stage, di bagian
+  // paling bawah (setelah tombol "Input Kehadiran Tanpa Kartu").
+  const scannerStage = document.querySelector('.scanner-stage');
+  if (statsRow && scannerStage) scannerStage.appendChild(statsRow);
+
+  // log-panel lama sekarang kosong total -- sembunyikan supaya tidak
+  // menyisakan celah ruang kosong di layar utama.
+  const logPanel = document.querySelector('.log-panel');
+  if (logPanel) logPanel.style.display = 'none';
+
+  // Tutup drawer otomatis begitu salah satu tombol aksi di dalamnya
+  // diklik (Absen Kelas, Cek Aktivitas Guru, Kelola Piket, Persentase
+  // Kehadiran, Petunjuk, Login Admin) -- supaya guru langsung fokus ke
+  // overlay/modal yang terbuka, bukan ketutupan drawer di belakangnya.
+  ['btnAbsenKelas','btnCekAktivitasGuru','btnKelolaPiket','btnPersentaseKehadiran','btnPetunjuk','btnLoginAdmin']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', closeDrawer);
+    });
+}
+initDrawerLayout();
 let logData       = { hadir:[], izinSakit:[], belumHadir:[] };
 let activeTab     = 'belum';
 

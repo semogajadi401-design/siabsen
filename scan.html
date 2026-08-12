@@ -1165,6 +1165,36 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   text-align:left;margin:18px auto 0;max-width:380px;
 }
 
+/* ── GAMBAR + PESAN LIBUR (BARU) ──────────────────────────────────
+   Ditampilkan oleh renderBannerLibur() (lihat JS) kalau admin
+   melampirkan gambar/pesan opsional saat input hari libur (lihat
+   modalTambahLibur di index.html). Gambarnya data URL base64 langsung
+   dari kolom hari_kerja.gambar_url -- tidak ada request tambahan.
+   Disembunyikan default (display:none), ditampilkan lewat JS hanya
+   kalau memang ada isinya, supaya banner libur "polos" (tanpa gambar/
+   pesan) tetap tampil rapi seperti sebelumnya. */
+.libur-gambar-wrap{
+  display:none;margin:14px auto 0;max-width:420px;
+  border-radius:18px;overflow:hidden;
+  box-shadow:0 16px 40px -14px rgba(180,83,9,0.45);
+  border:1px solid rgba(251,191,36,0.35);
+  animation:liburGambarMasuk .5s cubic-bezier(.2,.8,.2,1);
+}
+.libur-gambar-wrap img{
+  display:block;width:100%;max-height:280px;object-fit:cover;
+}
+@keyframes liburGambarMasuk{
+  from{opacity:0;transform:translateY(10px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.libur-pesan{
+  display:none;margin:14px auto 0;max-width:420px;
+  background:var(--surface);border:1px solid rgba(251,191,36,0.35);
+  border-radius:14px;padding:12px 16px;
+  font-size:.86rem;line-height:1.55;color:var(--text);
+  white-space:pre-wrap;text-align:left;
+}
+
 /* ── GAME ULAR DI BANNER LIBUR (BARU) ──
    Tombol pembuka + kotak game, cuma tampil kalau liburBanner aktif
    (lihat toggleLiburGame() di JS). Dibuat ringan (canvas 2D polos,
@@ -2258,6 +2288,14 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   <div class="libur-banner-icon">🏖️</div>
   <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
   <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
+
+  <!-- BARU: gambar + pesan opsional dari admin (lihat renderBannerLibur()
+       di JS & modalTambahLibur di index.html). Kosong/disembunyikan
+       kalau admin tidak melampirkan apa-apa saat input hari libur. -->
+  <div class="libur-gambar-wrap" id="liburGambarWrap">
+    <img id="liburGambar" alt="Gambar hari libur">
+  </div>
+  <div class="libur-pesan" id="liburPesan"></div>
 
   <!-- BARU: panel "Info Besok" di dalam banner libur -- SEBELUMNYA begitu
        hari ini libur, banner ini cuma nampilin judul/sub + game ular,
@@ -5511,6 +5549,7 @@ async function checkStatus() {
       liburBanner.style.display = 'block';
       mainContent.style.display = 'none';
       document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
+      renderBannerLibur(r);
       updateJamInfoBar(r);
       renderLiburBesokInfo();
       return;
@@ -6080,6 +6119,34 @@ async function renderBesokSideRail(mode) {
 //    piket/jadwal (kosong, tidak relevan) dan tampilkan pesan singkat
 //    yang menjelaskan kenapa (pakai keteranganLibur dari server kalau
 //    ada, misal "Libur Semester").
+// BARU: tampilkan gambar + pesan opsional yang dilampirkan admin saat
+// input hari libur (lihat modalTambahLibur di index.html, dikirim lewat
+// getStatus() -> r.gambarUrl/r.pesan). Dipanggil dari checkStatus()
+// setiap kali banner libur ditampilkan. Kedua elemen disembunyikan lagi
+// kalau memang tidak ada isinya (mis. libur biasa tanpa gambar/pesan),
+// supaya tampilan tetap rapi seperti sebelum fitur ini ada.
+function renderBannerLibur(r) {
+  const gambarWrap = document.getElementById('liburGambarWrap');
+  const gambarImg  = document.getElementById('liburGambar');
+  const pesanEl    = document.getElementById('liburPesan');
+
+  if (r.gambarUrl) {
+    gambarImg.src = r.gambarUrl;
+    gambarWrap.style.display = 'block';
+  } else {
+    gambarWrap.style.display = 'none';
+    gambarImg.removeAttribute('src');
+  }
+
+  if (r.pesan && r.pesan.trim()) {
+    pesanEl.textContent = r.pesan.trim();
+    pesanEl.style.display = 'block';
+  } else {
+    pesanEl.style.display = 'none';
+    pesanEl.textContent = '';
+  }
+}
+
 async function renderLiburBesokInfo() {
   const panel = document.getElementById('liburBesokPanel');
   if (!panel) return;

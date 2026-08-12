@@ -404,9 +404,34 @@ async function isHariLibur(tanggal) {
     .select('keterangan,pesan,gambar_url,grup_id')
     .eq('tanggal', tanggal)
     .maybeSingle();
-  return data
-    ? { libur: true, keterangan: data.keterangan, pesan: data.pesan || null, gambarUrl: data.gambar_url || null, grupId: data.grup_id || null }
-    : { libur: false };
+  if (!data) return { libur: false };
+
+  // BARU: kalau baris ini bagian dari rentang tanggal (grup_id, lihat
+  // setHariLibur() di api/settings.js), cari tanggal awal & akhir
+  // SELURUH rentangnya -- dipakai scan.html untuk menampilkan teks
+  // "Periode Libur: 13 - 15 Agustus 2026" secara otomatis di banner,
+  // bukan cuma mengandalkan admin menuliskannya manual di gambar.
+  let rentangMulai = tanggal, rentangSelesai = tanggal;
+  if (data.grup_id) {
+    const { data: rentang } = await supabase
+      .from('hari_kerja')
+      .select('tanggal')
+      .eq('grup_id', data.grup_id)
+      .order('tanggal', { ascending: true });
+    if (rentang && rentang.length) {
+      rentangMulai   = rentang[0].tanggal;
+      rentangSelesai = rentang[rentang.length - 1].tanggal;
+    }
+  }
+
+  return {
+    libur: true,
+    keterangan: data.keterangan,
+    pesan: data.pesan || null,
+    gambarUrl: data.gambar_url || null,
+    grupId: data.grup_id || null,
+    rentangMulai, rentangSelesai
+  };
 }
 
 // ── CEK HARI KERJA (sesuai pengaturan admin di Pengaturan Semester) ──

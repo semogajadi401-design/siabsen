@@ -1194,6 +1194,17 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   font-size:.86rem;line-height:1.55;color:var(--text);
   white-space:pre-wrap;text-align:left;
 }
+/* BARU: badge "Periode Libur: ..." -- dihitung otomatis di server dari
+   rentang tanggal yang tersimpan (bukan diketik manual), jadi tetap
+   akurat walau admin tidak mencantumkannya di gambar. Hanya tampil
+   kalau rentangnya lebih dari 1 hari (libur 1 hari saja sudah cukup
+   jelas dari judul banner, tidak perlu diulang). */
+.libur-periode{
+  display:none;margin:12px auto 0;max-width:420px;
+  background:#B45309;color:#fff;
+  border-radius:999px;padding:7px 16px;
+  font-size:.78rem;font-weight:700;letter-spacing:.2px;
+}
 
 /* ── GAME ULAR DI BANNER LIBUR (BARU) ──
    Tombol pembuka + kotak game, cuma tampil kalau liburBanner aktif
@@ -2289,9 +2300,11 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
   <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
 
-  <!-- BARU: gambar + pesan opsional dari admin (lihat renderBannerLibur()
-       di JS & modalTambahLibur di index.html). Kosong/disembunyikan
-       kalau admin tidak melampirkan apa-apa saat input hari libur. -->
+  <!-- BARU: gambar + pesan + periode (rentang tanggal) opsional dari
+       admin (lihat renderBannerLibur() di JS & modalTambahLibur di
+       index.html). Kosong/disembunyikan kalau admin tidak melampirkan
+       apa-apa saat input hari libur. -->
+  <div class="libur-periode" id="liburPeriode"></div>
   <div class="libur-gambar-wrap" id="liburGambarWrap">
     <img id="liburGambar" alt="Gambar hari libur">
   </div>
@@ -6119,16 +6132,41 @@ async function renderBesokSideRail(mode) {
 //    piket/jadwal (kosong, tidak relevan) dan tampilkan pesan singkat
 //    yang menjelaskan kenapa (pakai keteranganLibur dari server kalau
 //    ada, misal "Libur Semester").
-// BARU: tampilkan gambar + pesan opsional yang dilampirkan admin saat
-// input hari libur (lihat modalTambahLibur di index.html, dikirim lewat
-// getStatus() -> r.gambarUrl/r.pesan). Dipanggil dari checkStatus()
-// setiap kali banner libur ditampilkan. Kedua elemen disembunyikan lagi
-// kalau memang tidak ada isinya (mis. libur biasa tanpa gambar/pesan),
+// BARU: format tanggal ala Indonesia (mis. "13 Agustus 2026"). tanggal
+// berupa string "YYYY-MM-DD" -- ditambah "T00:00:00" supaya tidak
+// digeser mundur sehari oleh konversi timezone browser.
+function formatTanggalID(tgl) {
+  if (!tgl) return '';
+  try {
+    return new Date(tgl + 'T00:00:00').toLocaleDateString('id-ID', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+  } catch (e) { return tgl; }
+}
+
+// BARU: tampilkan gambar + pesan + periode (rentang tanggal) opsional
+// yang dilampirkan admin saat input hari libur (lihat modalTambahLibur
+// di index.html, dikirim lewat getStatus() -> r.gambarUrl/r.pesan/
+// r.rentangMulai/r.rentangSelesai). Dipanggil dari checkStatus() setiap
+// kali banner libur ditampilkan. Ketiga elemen disembunyikan lagi kalau
+// memang tidak ada isinya (mis. libur biasa 1 hari tanpa gambar/pesan),
 // supaya tampilan tetap rapi seperti sebelum fitur ini ada.
 function renderBannerLibur(r) {
+  const periodeEl  = document.getElementById('liburPeriode');
   const gambarWrap = document.getElementById('liburGambarWrap');
   const gambarImg  = document.getElementById('liburGambar');
   const pesanEl    = document.getElementById('liburPesan');
+
+  // Periode cuma ditampilkan kalau rentangnya LEBIH dari 1 hari --
+  // libur 1 hari saja sudah jelas dari judul banner, tidak perlu
+  // diulang lagi sebagai badge terpisah.
+  if (r.rentangMulai && r.rentangSelesai && r.rentangMulai !== r.rentangSelesai) {
+    periodeEl.textContent = `📅 ${formatTanggalID(r.rentangMulai)} — ${formatTanggalID(r.rentangSelesai)}`;
+    periodeEl.style.display = 'inline-block';
+  } else {
+    periodeEl.style.display = 'none';
+    periodeEl.textContent = '';
+  }
 
   if (r.gambarUrl) {
     gambarImg.src = r.gambarUrl;

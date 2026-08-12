@@ -468,6 +468,18 @@ CREATE TABLE IF NOT EXISTS hari_kerja (
   tipe TEXT DEFAULT 'Libur'
 );
 
+-- BARU: libur rentang tanggal + gambar/pesan opsional (lihat
+-- setHariLibur() di api/settings.js). gambar_url disimpan sebagai data
+-- URL base64 langsung di kolom TEXT (pola yang sama dipakai bukti_url
+-- di keterangan_mengajar) -- sederhana, tidak perlu bucket storage
+-- terpisah. grup_id menandai baris-baris (1 per tanggal dalam rentang)
+-- yang berasal dari satu kali input rentang yang sama, supaya bisa
+-- ditampilkan/dihapus sebagai satu kesatuan di halaman admin.
+ALTER TABLE hari_kerja ADD COLUMN IF NOT EXISTS pesan TEXT;
+ALTER TABLE hari_kerja ADD COLUMN IF NOT EXISTS gambar_url TEXT;
+ALTER TABLE hari_kerja ADD COLUMN IF NOT EXISTS grup_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_hari_kerja_grup ON hari_kerja(grup_id);
+
 -- ─── TABEL JAM SETTING ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS jam_setting (
   kunci TEXT PRIMARY KEY,

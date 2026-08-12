@@ -173,7 +173,10 @@ async function getStatus() {
     await getKonfigurasiTerkache(today, hari);
 
   if (cekLibur.libur)
-    return { success: true, bisaAbsen: false, alasan: 'libur', keterangan: cekLibur.keterangan };
+    // BARU: ikut kirim pesan opsional + gambar libur (base64) ke
+    // scan.html supaya banner liburnya bisa tampil lebih "keren" --
+    // lihat renderBannerLibur() di scan.html.
+    return { success: true, bisaAbsen: false, alasan: 'libur', keterangan: cekLibur.keterangan, pesan: cekLibur.pesan, gambarUrl: cekLibur.gambarUrl };
 
   if (!hariAktif)
     return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} - Sekolah libur, sistem pun diliburkan supaya bisa beristirahat sejenak 😄` };

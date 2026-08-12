@@ -1164,6 +1164,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <select class="form-control" style="padding:8px 12px;font-size:.82rem" id="calMonth" onchange="renderCalendar()"></select>
               <select class="form-control" style="padding:8px 12px;font-size:.82rem" id="calYear" onchange="renderCalendar()"></select>
+              <button class="btn btn-primary btn-sm" onclick="bukaModalTambahLibur()">+ Tambah Hari Libur</button>
             </div>
           </div>
           <div class="card-body">
@@ -2584,6 +2585,37 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalKeteranganMengajar')">Batal</button>
       <button class="btn btn-primary" id="kmBtnSimpan" onclick="simpanKeteranganMengajar()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- BARU: Tambah/Edit Hari Libur -- mendukung rentang tanggal (bukan
+     cuma 1 hari), gambar opsional (ditampilkan juga di banner libur
+     scan.html, lihat renderBannerLibur()), dan pesan opsional. Dibuka
+     baik dari klik tanggal di kalender (tanggalMulai=tanggalSelesai=
+     tanggal yang diklik) maupun tombol "+ Tambah Hari Libur" di atas
+     kalender (kosong, admin isi manual) -- lihat bukaModalTambahLibur(). -->
+<div class="modal-backdrop" id="modalTambahLibur">
+  <div class="modal">
+    <div class="modal-header"><h3>📅 Tambah Hari Libur</h3><button class="modal-close" onclick="closeModal('modalTambahLibur')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="form-group" style="flex:1;min-width:140px"><label>Tanggal Mulai</label><input type="date" class="form-control" id="tlTanggalMulai" onchange="tlSinkronTanggalSelesai()"></div>
+        <div class="form-group" style="flex:1;min-width:140px"><label>Tanggal Selesai</label><input type="date" class="form-control" id="tlTanggalSelesai"></div>
+      </div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin:-8px 0 14px">Isi tanggal selesai yang sama dengan tanggal mulai kalau liburnya cuma 1 hari.</div>
+      <div class="form-group"><label>Nama Hari Libur</label><input type="text" class="form-control" id="tlKeterangan" placeholder="mis. Libur Hari Raya Idul Fitri"></div>
+      <div class="form-group"><label>Pesan (opsional)</label><textarea class="form-control" id="tlPesan" rows="3" placeholder="Pesan tambahan yang ditampilkan di halaman scan, mis. ucapan atau info tanggal masuk kembali"></textarea></div>
+      <div class="form-group">
+        <label>Gambar (opsional)</label>
+        <input type="file" class="form-control" id="tlGambarFile" accept="image/*" onchange="tlPreviewGambar()">
+        <div id="tlGambarPreview" style="margin-top:8px"></div>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Ditampilkan bersama pesan di halaman scan selama hari libur. Maksimal ±2MB.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalTambahLibur')">Batal</button>
+      <button class="btn btn-primary" id="tlBtnSimpan" onclick="simpanTambahLibur()">💾 Simpan</button>
     </div>
   </div>
 </div>
@@ -4373,7 +4405,7 @@ async function renderCalendar(){
   const tahun=parseInt(document.getElementById('calYear').value);
   const result=await api('settings','getHariKerja',{bulan,tahun});
   hariLiburData=result.success?result.data:[];
-  const liburDates=hariLiburData.map(h=>({date:new Date(h.tanggal).getUTCDate(),ket:h.keterangan,tgl:h.tanggal}));
+  const liburDates=hariLiburData.map(h=>({date:new Date(h.tanggal).getUTCDate(),ket:h.keterangan||'',tgl:h.tanggal}));
   const now=new Date();
   const firstDay=new Date(tahun,bulan-1,1).getDay();
   const daysInMonth=new Date(tahun,bulan,0).getDate();
@@ -4392,19 +4424,119 @@ async function renderCalendar(){
   }
   html+='</div>';
   document.getElementById('calendarWrap').innerHTML=html;
+  // BARU: kelompokkan baris hari_kerja per grupId supaya satu input
+  // rentang tanggal (mis. 5 hari libur Idul Fitri) tampil sebagai SATU
+  // entri, bukan 5 baris terpisah -- lihat setHariLibur() di
+  // api/settings.js. Baris lama (dari sebelum fitur rentang ada, tidak
+  // punya grupId) tetap tampil sendiri-sendiri lewat fallback key unik
+  // per tanggal, jadi tidak ketuker/tergabung dengan grup lain.
   if(hariLiburData.length>0){
-    document.getElementById('liburList').innerHTML=`<h4 style="font-size:.88rem;font-weight:700;margin-bottom:10px">📌 Hari Libur Bulan Ini:</h4>${hariLiburData.map(h=>{const d=new Date(h.tanggal);return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.88rem">${d.getUTCDate()} — ${esc(h.keterangan)}</span><button class="btn btn-danger btn-sm" onclick="hapusLibur('${h.tanggal}')">Hapus</button></div>`;}).join('')}`;
+    const grupMap=new Map();
+    hariLiburData.forEach(h=>{
+      const key=h.grupId||('single:'+h.tanggal);
+      if(!grupMap.has(key)) grupMap.set(key,[]);
+      grupMap.get(key).push(h);
+    });
+    const grupList=Array.from(grupMap.values())
+      .map(list=>list.sort((a,b)=>a.tanggal.localeCompare(b.tanggal)))
+      .sort((a,b)=>a[0].tanggal.localeCompare(b[0].tanggal));
+
+    document.getElementById('liburList').innerHTML=`<h4 style="font-size:.88rem;font-weight:700;margin-bottom:10px">📌 Hari Libur Bulan Ini:</h4>${grupList.map(list=>{
+      const first=list[0], last=list[list.length-1];
+      const dAwal=new Date(first.tanggal).getUTCDate();
+      const dAkhir=new Date(last.tanggal).getUTCDate();
+      const rangeLabel=list.length>1?`${dAwal}–${dAkhir}`:`${dAwal}`;
+      const thumb=first.gambarUrl?`<img src="${first.gambarUrl}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;margin-right:8px;border:1px solid var(--border)">`:'';
+      const pesanTanda=first.pesan?' <span title="Ada pesan" style="font-size:.76rem">💬</span>':'';
+      const delAction=first.grupId?`hapusLiburGrup('${first.grupId}')`:`hapusLibur('${first.tanggal}')`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.88rem;display:flex;align-items:center">${thumb}${rangeLabel} — ${esc(first.keterangan||'')}${pesanTanda}</span>
+        <button class="btn btn-danger btn-sm" onclick="${delAction}">Hapus</button>
+      </div>`;
+    }).join('')}`;
   } else { document.getElementById('liburList').innerHTML=''; }
 }
 async function toggleLibur(dateStr,day){
   const existing=hariLiburData.find(h=>new Date(h.tanggal).getUTCDate()===day);
-  if(existing){await hapusLibur(dateStr);return;}
-  const ket=prompt('Nama hari libur:','Hari Libur Nasional');
-  if(!ket)return;
-  const r=await api('settings','setHariLibur',{tanggal:dateStr,keterangan:ket});
-  toast(r.message,r.success?'success':'error'); if(r.success)renderCalendar();
+  // BARU: kalau tanggal itu sudah ditandai libur, klik lagi = hapus
+  // (hapus SELURUH rentangnya kalau ini bagian dari grup, lihat
+  // hapusLiburGrup()) -- kalau belum, buka modal Tambah Hari Libur
+  // (bukan prompt() sederhana lagi) supaya admin bisa isi rentang
+  // tanggal, pesan, dan gambar opsional sekalian.
+  if(existing){
+    if(existing.grupId) await hapusLiburGrup(existing.grupId);
+    else await hapusLibur(dateStr);
+    return;
+  }
+  bukaModalTambahLibur(dateStr);
 }
 async function hapusLibur(dateStr){ if(!confirm('Hapus hari libur ini?'))return; const r=await api('settings','hapusHariLibur',{tanggal:dateStr}); toast(r.message,r.success?'success':'error'); if(r.success)renderCalendar(); }
+// BARU: hapus SEMUA baris hari_kerja yang berasal dari satu input
+// rentang tanggal yang sama (grupId) sekaligus -- lihat hapusHariLibur()
+// di api/settings.js.
+async function hapusLiburGrup(grupId){
+  if(!confirm('Hapus hari libur ini? Kalau ini bagian dari rentang tanggal, SELURUH rentangnya akan ikut terhapus.'))return;
+  const r=await api('settings','hapusHariLibur',{grupId});
+  toast(r.message,r.success?'success':'error'); if(r.success)renderCalendar();
+}
+
+// ── MODAL TAMBAH HARI LIBUR (BARU) — rentang tanggal + gambar + pesan opsional ──
+let _tlGambarBase64=null;
+function bukaModalTambahLibur(tanggalAwal){
+  document.getElementById('tlTanggalMulai').value=tanggalAwal||'';
+  document.getElementById('tlTanggalSelesai').value=tanggalAwal||'';
+  document.getElementById('tlKeterangan').value='';
+  document.getElementById('tlPesan').value='';
+  document.getElementById('tlGambarFile').value='';
+  document.getElementById('tlGambarPreview').innerHTML='';
+  _tlGambarBase64=null;
+  openModal('modalTambahLibur');
+}
+// Kalau tanggal selesai masih kosong atau jadi lebih awal dari tanggal
+// mulai yang baru diubah, ikutkan otomatis ke tanggal mulai -- supaya
+// kasus paling umum (libur cuma 1 hari) tidak perlu isi kolom kedua.
+function tlSinkronTanggalSelesai(){
+  const mulai=document.getElementById('tlTanggalMulai').value;
+  const selesaiEl=document.getElementById('tlTanggalSelesai');
+  if(!selesaiEl.value||selesaiEl.value<mulai) selesaiEl.value=mulai;
+}
+async function tlPreviewGambar(){
+  const fileInput=document.getElementById('tlGambarFile');
+  const file=fileInput.files&&fileInput.files[0];
+  const preview=document.getElementById('tlGambarPreview');
+  if(!file){ preview.innerHTML=''; _tlGambarBase64=null; return; }
+  try{
+    _tlGambarBase64=await bacaFileSebagaiBase64(file);
+    preview.innerHTML=`<img src="${_tlGambarBase64}" style="max-width:180px;max-height:130px;border-radius:8px;border:1px solid var(--border);display:block">`;
+  }catch(e){
+    toast(e.message,'error');
+    fileInput.value='';
+    preview.innerHTML='';
+    _tlGambarBase64=null;
+  }
+}
+async function simpanTambahLibur(){
+  const tanggalMulai=document.getElementById('tlTanggalMulai').value;
+  const tanggalSelesai=document.getElementById('tlTanggalSelesai').value||tanggalMulai;
+  const keterangan=document.getElementById('tlKeterangan').value.trim();
+  const pesan=document.getElementById('tlPesan').value.trim();
+  if(!tanggalMulai){ toast('Tanggal mulai wajib diisi','error'); return; }
+  if(!keterangan){ toast('Nama hari libur wajib diisi','error'); return; }
+  if(tanggalSelesai<tanggalMulai){ toast('Tanggal selesai tidak boleh sebelum tanggal mulai','error'); return; }
+  const btn=document.getElementById('tlBtnSimpan');
+  btn.disabled=true; btn.textContent='Menyimpan...';
+  try{
+    const r=await api('settings','setHariLibur',{
+      tanggalMulai, tanggalSelesai, keterangan,
+      pesan: pesan||null,
+      gambarUrl: _tlGambarBase64||null
+    });
+    toast(r.message,r.success?'success':'error');
+    if(r.success){ closeModal('modalTambahLibur'); renderCalendar(); }
+  } finally {
+    btn.disabled=false; btn.textContent='💾 Simpan';
+  }
+}
 
 // ── PENGATURAN ───────────────────────────────────────────────────
 async function loadPengaturan(){

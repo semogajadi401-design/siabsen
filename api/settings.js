@@ -145,22 +145,92 @@ async function getHariKerjaKalender({ bulan, tahun }) {
     data: (data || []).map(h => ({
       tanggal: h.tanggal,
       keterangan: h.keterangan,
-      tipe: h.tipe
+      tipe: h.tipe,
+      // BARU: pesan opsional + gambar (data URL base64) + grupId --
+      // grupId dipakai frontend untuk mengelompokkan baris-baris hari
+      // libur yang berasal dari satu input rentang yang sama (lihat
+      // renderLiburList() di index.html), supaya rentang 5 hari libur
+      // tampil sebagai SATU entri, bukan 5 baris terpisah.
+      pesan: h.pesan || null,
+      gambarUrl: h.gambar_url || null,
+      grupId: h.grup_id || null
     }))
   };
 }
 
-async function setHariLibur({ tanggal, keterangan }) {
-  const { error } = await supabase
-    .from('hari_kerja')
-    .upsert({ tanggal, keterangan, tipe: 'Libur' }, { onConflict: 'tanggal' });
-  if (error) return { success: false, message: error.message };
-  return { success: true, message: 'Hari libur berhasil disimpan' };
+// Batas ukuran gambar hari libur (base64 data URL). Base64 menggemukkan
+// ukuran asli ~1.37x, jadi ~2MB file asli -> ~2.7 juta karakter. Dibatasi
+// di server (bukan cuma di klien) supaya endpoint ini tidak bisa dipakai
+// menyimpan payload raksasa sembarangan ke kolom TEXT.
+const BATAS_PANJANG_GAMBAR_LIBUR = 2_900_000;
+// Batas rentang tanggal per input -- cukup luas untuk libur semester
+// panjang (mis. libur Ramadhan/kenaikan kelas), tapi tetap menahan input
+// yang salah ketik/kelewat besar (mis. tahun ketuker).
+const MAKS_HARI_RENTANG_LIBUR = 120;
+
+function daftarTanggalRentang(mulai, selesai) {
+  const hasil = [];
+  const cur = new Date(mulai + 'T00:00:00Z');
+  const akhir = new Date(selesai + 'T00:00:00Z');
+  while (cur <= akhir) {
+    hasil.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return hasil;
 }
 
-async function hapusHariLibur({ tanggal }) {
+// BARU: sekarang menerima rentang tanggal (tanggalMulai..tanggalSelesai)
+// -- SEBELUMNYA cuma satu `tanggal` tunggal per panggilan (dipertahankan
+// lewat parameter `tanggal` sebagai alias tanggalMulai, supaya pemanggil
+// lama tidak rusak). Sekaligus dukung gambar (opsional, base64 dari
+// klien lewat bacaFileSebagaiBase64(), pola yang sama dengan bukti_url
+// di keterangan_mengajar) dan pesan bebas (opsional, ditampilkan di
+// banner libur scan.html bersama gambarnya).
+async function setHariLibur({ tanggal, tanggalMulai, tanggalSelesai, keterangan, pesan, gambarUrl }) {
+  const mulai   = tanggalMulai || tanggal;
+  const selesai = tanggalSelesai || mulai;
+
+  if (!mulai) return { success: false, message: 'Tanggal wajib diisi' };
+  if (selesai < mulai) return { success: false, message: 'Tanggal selesai tidak boleh sebelum tanggal mulai' };
+
+  const daftarTanggal = daftarTanggalRentang(mulai, selesai);
+  if (daftarTanggal.length > MAKS_HARI_RENTANG_LIBUR)
+    return { success: false, message: `Rentang tanggal maksimal ${MAKS_HARI_RENTANG_LIBUR} hari sekali input` };
+
+  if (gambarUrl && gambarUrl.length > BATAS_PANJANG_GAMBAR_LIBUR)
+    return { success: false, message: 'Ukuran gambar terlalu besar (maksimal ±2MB)' };
+
+  // grup_id: satu ID yang sama untuk semua baris di rentang ini, supaya
+  // nanti bisa ditampilkan/dihapus sebagai satu kesatuan (lihat
+  // renderLiburList() di index.html dan hapusHariLibur() di bawah).
+  const grupId = generateID('LIBUR');
+  const rows = daftarTanggal.map(tgl => ({
+    tanggal: tgl,
+    keterangan: keterangan || null,
+    tipe: 'Libur',
+    pesan: pesan || null,
+    gambar_url: gambarUrl || null,
+    grup_id: grupId
+  }));
+
   const { error } = await supabase
-    .from('hari_kerja').delete().eq('tanggal', tanggal);
+    .from('hari_kerja')
+    .upsert(rows, { onConflict: 'tanggal' });
+  if (error) return { success: false, message: error.message };
+
+  const pesanSukses = daftarTanggal.length > 1
+    ? `Hari libur (${daftarTanggal.length} hari) berhasil disimpan`
+    : 'Hari libur berhasil disimpan';
+  return { success: true, message: pesanSukses, grupId };
+}
+
+// BARU: bisa hapus satu tanggal (pola lama, dipertahankan) ATAU satu
+// grupId sekaligus (hapus seluruh rentang yang berasal dari satu input
+// yang sama) -- lihat renderLiburList()/hapusLibur() di index.html.
+async function hapusHariLibur({ tanggal, grupId }) {
+  let query = supabase.from('hari_kerja').delete();
+  query = grupId ? query.eq('grup_id', grupId) : query.eq('tanggal', tanggal);
+  const { error } = await query;
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Hari libur berhasil dihapus' };
 }

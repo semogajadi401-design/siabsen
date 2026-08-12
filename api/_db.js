@@ -398,10 +398,15 @@ function tambahMenit(jamStr, menit) {
 async function isHariLibur(tanggal) {
   const { data } = await supabase
     .from('hari_kerja')
-    .select('keterangan')
+    // BARU: ikut ambil pesan/gambar_url/grup_id -- dipakai getStatus()
+    // di api/scan.js supaya scan.html bisa menampilkan gambar +
+    // pesan opsional di banner libur, bukan cuma judulnya saja.
+    .select('keterangan,pesan,gambar_url,grup_id')
     .eq('tanggal', tanggal)
     .maybeSingle();
-  return data ? { libur: true, keterangan: data.keterangan } : { libur: false };
+  return data
+    ? { libur: true, keterangan: data.keterangan, pesan: data.pesan || null, gambarUrl: data.gambar_url || null, grupId: data.grup_id || null }
+    : { libur: false };
 }
 
 // ── CEK HARI KERJA (sesuai pengaturan admin di Pengaturan Semester) ──

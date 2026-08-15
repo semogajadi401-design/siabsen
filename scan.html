@@ -2828,261 +2828,14 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
        sistem modal masing-masing file) juga ditaruh di index.html supaya
        guru yang membuka lewat akun dashboard-nya melihat petunjuk yang
        konsisten. -->
-  <div id="modalPetunjukGuru" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
-      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div>
-          <div style="font-weight:800;font-size:.98rem">❓ Tanya Jawab untuk Guru</div>
-          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px">Ketuk pertanyaan untuk lihat jawabannya</div>
-        </div>
-        <button onclick="tutupPetunjukGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
-      </div>
-      <div style="overflow-y:auto;flex:1;padding:16px 20px 20px">
-        <style>
-          .pg-cat-label{font-weight:800;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--primary);margin:16px 0 8px;display:flex;align-items:center;gap:6px}
-          .pg-cat-label:first-child{margin-top:0}
-          .pg-item{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
-          .pg-item summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;font-size:.84rem;color:var(--text)}
-          .pg-item summary::-webkit-details-marker{display:none}
-          .pg-item summary .pg-chev{transition:transform .2s ease;color:var(--text-muted);flex-shrink:0;font-size:.9rem}
-          .pg-item[open] summary .pg-chev{transform:rotate(90deg)}
-          .pg-item[open] summary{border-bottom:1px solid var(--border);background:var(--bg)}
-          .pg-item summary:hover{background:var(--bg)}
-          .pg-a{padding:12px 14px;font-size:.82rem;line-height:1.55;color:var(--text-muted)}
-        </style>
-
-        <div class="pg-cat-label">🛡️ Piket</div>
-        <details class="pg-item">
-          <summary>Bagaimana cara saya tercatat sebagai guru piket? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Arahkan QR halaman <b>DEPAN</b> kartu Anda ke kamera utama -- tidak perlu tekan tombol apapun dulu. Kalau hari itu memang giliran Anda, langsung tercatat sebagai guru piket.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Kenapa muncul "Jadi guru piket pengganti?" <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Guru piket yang terjadwal hari itu belum scan, dan Anda scan duluan. Tekan <b>Ya</b> kalau bersedia menggantikan hari itu; kalau tidak, tekan Batal dan biarkan guru yang terjadwal scan sendiri nanti.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Kenapa muncul "sudah tercatat sebagai guru piket hari ini"? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Setiap guru cuma bisa tercatat piket <b>1x per hari</b>. Kalau Anda sudah scan sebelumnya, tidak perlu scan ulang.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Switch ☀️ Datang / 🌙 Pulang di layar scan itu untuk siapa? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Itu khusus untuk absen datang/pulang <b>siswa</b>, bukan untuk guru. Guru tidak punya absen datang/pulang pribadi -- abaikan switch ini saat Anda scan untuk piket.</div>
-        </details>
-
-        <div class="pg-cat-label">📚 Absen Mengajar</div>
-        <details class="pg-item">
-          <summary>Bagaimana cara absen mengajar? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Tekan tombol <b>📚 Absen Kelas</b>, lalu scan QR halaman <b>DEPAN</b> kartu Anda. Sistem otomatis mencocokkan dengan jadwal mengajar Anda hari ini & jam berapa.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Bagaimana siswa absen setelah saya mulai sesi mengajar? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Setelah kartu Anda berhasil discan (sesi dimulai), siswa di kelas itu tinggal scan kartunya masing-masing satu per satu ke kamera yang sama, sampai jumlah minimal yang ditentukan admin tercapai.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Bisa absen mengajar walau saya juga piket hari itu? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Bisa, keduanya terpisah. Piket dicatat lewat scan biasa di kamera utama; mengajar lewat tombol <b>📚 Absen Kelas</b>.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Kenapa saya tidak bisa langsung menutup sesi mengajar? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Absensi kelas sekarang <b>wajib</b> mencakup semua siswa aktif di kelas itu -- baik yang scan kartu sendiri maupun yang ditandai lewat checklist. Begitu jumlah scan kartu siswa mencapai minimal, daftar siswa yang belum discan <b>otomatis muncul</b> -- Anda wajib klik status kehadiran (Hadir/Alpa/Izin/Sakit) satu per satu untuk semua nama di situ, lalu tekan <b>📤 Kirim Riwayat Mengajar Saya</b>. Halaman ini tidak bisa ditutup atau ditunda sampai semuanya terisi & terkirim.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Kenapa saya diminta memilih jadwal setelah scan kartu? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Ini muncul kalau hari itu Anda punya lebih dari satu jadwal mengajar yang belum dicatat (mis. jam ke-1 di kelas 7A dan jam ke-4 di kelas 7B). Tinggal pilih kelas/jadwal mana yang mau dicatat sekarang.</div>
-        </details>
-
-        <div class="pg-cat-label">📝 Siswa Tanpa Kartu</div>
-        <details class="pg-item">
-          <summary>Kapan tombol "Input Kehadiran Tanpa Kartu" dipakai? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Khusus untuk <b>siswa</b> yang kartunya hilang, rusak, atau ketinggalan -- bukan untuk guru. Tekan tombol <b>📝 Input Kehadiran Tanpa Kartu</b> di bawah kamera, lalu masukkan username & password akun <b>guru piket hari ini</b> untuk verifikasi sebelum bisa mencatat kehadiran siswa secara manual.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Bisa dipakai kalau internet sedang mati? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Bisa. Sama seperti scan kartu biasa, data yang diinput lewat menu ini tetap tersimpan di perangkat dan otomatis terkirim ke server begitu koneksi kembali.</div>
-        </details>
-
-        <div class="pg-cat-label">📋 Edit Kehadiran Siswa (Guru Piket)</div>
-        <details class="pg-item">
-          <summary>Siapa yang boleh mengedit keterangan siswa (Sakit/Izin/dll)? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Hanya guru piket yang <b>sedang bertugas hari itu</b>. Server yang memutuskan boleh/tidaknya, bukan sekadar tombolnya.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Bagaimana caranya? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Tekan tombol <b>📋 Edit Kehadiran Siswa (Guru Piket)</b>, lalu scan QR halaman <b>BELAKANG</b> kartu Anda (bukan depan).</div>
-        </details>
-        <details class="pg-item">
-          <summary>Saya piket tapi tidak bisa masuk menu ini, kenapa? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Kemungkinan Anda scan QR halaman <b>DEPAN</b> (kartu kebalik). Untuk menu ini wajib scan halaman <b>BELAKANG</b> kartu.</div>
-        </details>
-
-        <div class="pg-cat-label">🪪 Kartu & Kamera</div>
-        <details class="pg-item">
-          <summary>Apa bedanya QR depan dan belakang kartu? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">QR <b>DEPAN</b> → Piket & Absen Mengajar.<br>QR <b>BELAKANG</b> → Login Dashboard & Edit Kehadiran Siswa (piket).</div>
-        </details>
-        <details class="pg-item">
-          <summary>Kamera menyala tapi kartu tidak pernah terbaca (khusus iPhone)? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Ini bug lama khusus Safari/iPhone yang sudah diperbaiki di versi terbaru aplikasi. Kalau masih terjadi, coba refresh halaman; kalau tetap bermasalah, laporkan ke admin supaya dicek versinya.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Kartu tidak terbaca sama sekali, harus bagaimana? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Pastikan kartu bersih (tidak buram/tergores), pencahayaan cukup, dan jarak kartu ke kamera sekitar 15-20 cm. Coba juga pastikan halaman kartunya sudah benar (depan/belakang) sesuai menu yang dituju.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Internet mati, apakah scan masih bisa jalan? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Bisa. Akan muncul badge <b>📴 Offline</b>, data disimpan sementara di perangkat, dan otomatis terkirim ke server begitu koneksi kembali (atau ketuk badge itu untuk kirim manual).</div>
-        </details>
-
-        <div class="pg-cat-label">🔐 Akun</div>
-        <details class="pg-item">
-          <summary>Saya lupa password akun guru, bagaimana? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Minta admin sekolah mereset password Anda lewat menu <b>Data Guru</b> di dashboard admin.</div>
-        </details>
-        <details class="pg-item">
-          <summary>Saya tiba-tiba masuk ke akun ini padahal tidak login sendiri, kenapa? <span class="pg-chev">›</span></summary>
-          <div class="pg-a">Admin punya wewenang masuk ke akun guru mana pun (mis. untuk bantu troubleshooting) tanpa perlu tahu password Anda. Kalau ini terjadi, akan muncul banner kuning <b>"Mode Admin"</b> di bagian atas layar dashboard.</div>
-        </details>
-
-      </div>
-    </div>
-  </div>
 
   <!-- ══════ MODAL: AKTIVITAS GURU HARI INI ══════ -->
-  <div id="modalAktivitasGuru" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
-
-      <!-- Header -->
-      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div style="font-weight:800;font-size:.98rem">👨‍🏫 Aktivitas Guru</div>
-        <button onclick="tutupModalAktivitasGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
-      </div>
-
-      <!-- Tab Hari Ini / Besok (BARU) -- "Hari Ini" tetap sesuai isi lama
-           (siapa sudah/belum mengajar). "Besok" isinya cuma jadwal +
-           guru piket besok (belum ada status sudah/belum karena harinya
-           belum berjalan) -- lihat getJadwalBesok() di api/scan.js. -->
-      <div class="log-tabs" style="margin:14px 20px 0;flex-shrink:0">
-        <button type="button" class="log-tab active" id="agTabHariIni" onclick="switchAgTab('hariini')">📆 Hari Ini</button>
-        <button type="button" class="log-tab" id="agTabBesok" onclick="switchAgTab('besok')">📅 Besok</button>
-      </div>
-
-      <!-- Isi (loading / konten / error) -->
-      <div id="agIsi" style="overflow-y:auto;flex:1;padding:16px 20px">
-
-        <!-- Panel: Hari Ini -->
-        <div id="agPanelHariIni">
-          <div id="agLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
-
-          <div id="agKonten" style="display:none">
-
-            <!-- Ringkasan singkat -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
-              <div style="background:var(--success-soft,#DCFCE7);border-radius:10px;padding:10px 6px;text-align:center">
-                <div id="agTotalSudah" style="font-weight:800;font-size:1.1rem;color:var(--success,#16A34A)">0</div>
-                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Sudah Mengajar</div>
-              </div>
-              <div style="background:var(--danger-soft,#FEE2E2);border-radius:10px;padding:10px 6px;text-align:center">
-                <div id="agTotalBelum" style="font-weight:800;font-size:1.1rem;color:var(--danger,#DC2626)">0</div>
-                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Belum Mengajar</div>
-              </div>
-              <div style="background:#EDE9FE;border-radius:10px;padding:10px 6px;text-align:center">
-                <div id="agTotalSiswa" style="font-weight:800;font-size:1.1rem;color:#7C3AED">0</div>
-                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Siswa Terverifikasi</div>
-              </div>
-            </div>
-
-            <div id="agLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
-
-            <!-- Sudah mengajar -->
-            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--success,#16A34A)">✅ Sudah Mengajar</div>
-            <div id="agListSudah" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
-            <div id="agKosongSudah" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0 18px">Belum ada guru yang mengajar hari ini.</div>
-
-            <!-- Belum mengajar -->
-            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--danger,#DC2626)">⏳ Belum Mengajar</div>
-            <div id="agListBelum" style="display:flex;flex-direction:column;gap:8px"></div>
-            <div id="agKosongBelum" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">🎉 Semua guru terjadwal sudah mengajar.</div>
-
-          </div>
-        </div>
-
-        <!-- Panel: Besok (BARU) -->
-        <div id="agPanelBesok" style="display:none">
-          <div id="agBesokLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
-
-          <div id="agBesokKonten" style="display:none">
-            <div id="agBesokLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
-
-            <!-- Guru piket besok -->
-            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px">🛡️ Guru Piket Besok</div>
-            <div id="agBesokPiket" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
-
-            <!-- Jadwal mengajar besok -->
-            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px">📚 Jadwal Mengajar Besok</div>
-            <div id="agBesokMengajar" style="display:flex;flex-direction:column;gap:8px"></div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  </div>
 
   <!-- ══════ MODAL: PERSENTASE KEHADIRAN (BARU) ══════
        Dibuka lewat tombol "📊 Persentase Kehadiran" (lihat #btnPersentaseKehadiran
        di atas). Read-only murni, publik, boleh dibuka kapan saja termasuk
        saat menunggu kartu di mode lain -- lihat bukaModalPersentaseKehadiran()
        & getTrenPersentaseKehadiran() di api/_db.js. -->
-  <div id="modalPersentaseKehadiran" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
-
-      <!-- Header -->
-      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div>
-          <div style="font-weight:800;font-size:.98rem">📊 Persentase Kehadiran</div>
-          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px">Tren kehadiran siswa</div>
-        </div>
-        <button onclick="tutupModalPersentaseKehadiran()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
-      </div>
-
-      <!-- Kontrol: periode (Minggu/Bulan) + filter kelas -->
-      <div style="padding:14px 20px 0;flex-shrink:0">
-        <div class="log-tabs">
-          <button type="button" class="log-tab active" id="pkTabMinggu" onclick="switchPkRentang('minggu')">📆 Per Minggu</button>
-          <button type="button" class="log-tab" id="pkTabBulan" onclick="switchPkRentang('bulan')">🗓️ Per Bulan</button>
-        </div>
-        <select class="pk-select" id="pkKelasSelect" style="margin-top:10px" onchange="loadPersentaseKehadiran()">
-          <option value="">Semua Kelas</option>
-        </select>
-      </div>
-
-      <!-- Isi (loading / konten / error) -->
-      <div id="pkIsi" style="overflow-y:auto;flex:1;padding:16px 20px 20px">
-        <div id="pkLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
-        <div id="pkError" style="display:none;text-align:center;padding:30px 10px;color:var(--danger,#DC2626);font-size:.82rem;font-weight:600"></div>
-
-        <div id="pkKonten" style="display:none">
-          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center" id="pkSubjudul"></div>
-
-          <!-- Chart batang -->
-          <div class="pk-chart-wrap" id="pkChart"></div>
-
-          <!-- Kartu kesimpulan tren -->
-          <div id="pkTrenCard" class="pk-tren-card">
-            <span id="pkTrenIcon"></span>
-            <span id="pkTrenPesan"></span>
-          </div>
-
-          <!-- Rata-rata -->
-          <div class="pk-rata-row">
-            <span>Rata-rata periode ini</span>
-            <span class="pk-rata-val" id="pkRataRata">-</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
 
   <!-- ══════ MODAL: RANKING IZIN & ALPHA (BARU) ══════
        Dibuka lewat tombol "⚠️ Siswa Sering Izin/Alpa" (lihat
@@ -3093,59 +2846,12 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
        (semester berjalan) sampai yang tidak ada sama sekali (0), tiap
        baris bisa diklik/tap untuk buka-tutup rincian keterangan Izin-nya
        (kalau ada) -- lihat riaToggleBaris() & CSS .ria-row. -->
-  <div id="modalRankingIzinAlpha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
-
-      <!-- Header -->
-      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div>
-          <div style="font-weight:800;font-size:.98rem">⚠️ Siswa Sering Izin/Alpa</div>
-          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px" id="riaSubjudul">Semester berjalan</div>
-        </div>
-        <button onclick="tutupModalRankingIzinAlpha()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
-      </div>
-
-      <!-- Isi (loading / konten / error) -->
-      <div id="riaIsi" style="overflow-y:auto;flex:1;padding:16px 20px 20px">
-        <div id="riaLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
-        <div id="riaError" style="display:none;text-align:center;padding:30px 10px;color:var(--danger,#DC2626);font-size:.82rem;font-weight:600"></div>
-        <div id="riaKosong" style="display:none;text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">Belum ada data untuk periode ini.</div>
-
-        <div id="riaKonten" style="display:none">
-          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center;margin-bottom:12px" id="riaPeriodeInfo"></div>
-          <div id="riaList" style="display:flex;flex-direction:column;gap:8px"></div>
-        </div>
-      </div>
-
-    </div>
-  </div>
 
   <!-- ══════ MODAL: DETAIL DIAGRAM KEHADIRAN (BARU) ══════
        Dibuka lewat tap widget ringkas #chartKehadiranWidget (khusus HP,
        lihat CSS .ck-chevron/.ck-header). Isinya rincian lengkap yang di
        desktop sudah langsung kelihatan di sidebar (ring besar, legend,
        + rincian per kelas) -- lihat renderChartKehadiran() di script. -->
-  <div id="modalChartKehadiran" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:440px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
-      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div style="font-weight:800;font-size:.98rem">📊 Kehadiran Hari Ini</div>
-        <button onclick="tutupModalChartKehadiran()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
-      </div>
-      <div style="overflow-y:auto;flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
-        <div style="display:flex;align-items:center;gap:14px">
-          <div id="ckmRingWrap" style="flex-shrink:0;line-height:0"></div>
-          <div style="flex:1;min-width:0">
-            <div id="ckmSubText" style="font-size:.82rem;font-weight:700;color:var(--text-muted)">Memuat data...</div>
-          </div>
-        </div>
-        <div class="ck-legend" id="ckmLegend" style="display:flex"></div>
-        <div class="ck-terlambat-bar" id="ckmTerlambatBar" style="display:block"></div>
-        <div class="ck-pulang-bar" id="ckmPulangBar" style="display:block"></div>
-        <div style="font-weight:800;font-size:.82rem;color:var(--text);border-top:1px dashed var(--border);padding-top:10px">🏫 Rincian per Kelas</div>
-        <div class="ck-detail-kelas" id="ckmKelasList" style="display:flex;max-height:none;border-top:none;margin-top:0;padding-top:0"></div>
-      </div>
-    </div>
-  </div>
 
 
   <!-- KOLOM KANAN: kamera + statistik/daftar -->
@@ -3236,16 +2942,6 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
       </div>
 
       <!-- Modal konfirmasi jadi guru piket pengganti -->
-      <div id="modalKonfirmasiPiket" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-        <div style="background:var(--surface);color:#1E293B;border-radius:14px;max-width:380px;width:100%;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)">
-          <div style="font-size:2.4rem;margin-bottom:8px">🙋</div>
-          <div id="konfirmasiPiketText" style="font-size:1rem;line-height:1.5;margin-bottom:20px"></div>
-          <div style="display:flex;gap:10px;justify-content:center">
-            <button onclick="batalKonfirmasiPiket()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.95rem;cursor:pointer" id="btnBatalKonfirmasiPiket">Batal</button>
-            <button onclick="yaKonfirmasiPiket()" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">Ya</button>
-          </div>
-        </div>
-      </div>
 
 
       <div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="transition:none"></div></div>
@@ -3300,50 +2996,6 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
          karena teks itu berasal dari elemen lain di luar mainContent. -->
 
     <!-- ══════ MODAL: INPUT TANPA KARTU ══════ -->
-    <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-      <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:420px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
-
-        <!-- Header -->
-        <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-          <div style="font-weight:800;font-size:.98rem">📝 Input Tanpa Kartu</div>
-          <button onclick="tutupModalTanpaKartu()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
-        </div>
-
-        <!-- STEP 1: Verifikasi guru piket -->
-        <div id="tkStepVerifikasi" style="padding:22px 20px">
-          <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
-            Fitur ini khusus untuk siswa yang kartunya hilang, rusak, atau ketinggalan.
-            Masukkan <strong>username dan password akun guru piket hari ini</strong> untuk melanjutkan.
-          </div>
-          <input type="text" id="tkUsername" placeholder="Username guru piket..." autocomplete="username"
-            onkeyup="if(event.key==='Enter')document.getElementById('tkPassword').focus()"
-            style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
-          <input type="password" id="tkPassword" placeholder="Password guru piket..." autocomplete="current-password"
-            onkeyup="if(event.key==='Enter')verifikasiTanpaKartu()"
-            style="width:100%;margin-top:10px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
-          <div id="tkVerifError" style="display:none;color:var(--danger);font-size:.78rem;margin-top:8px;padding:8px 10px;background:var(--danger-soft);border-radius:8px"></div>
-          <button onclick="verifikasiTanpaKartu()" id="tkBtnVerifikasi"
-            style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.88rem;cursor:pointer;font-family:inherit">
-            Verifikasi
-          </button>
-        </div>
-
-        <!-- STEP 2: Checklist siswa -->
-        <div id="tkStepChecklist" style="display:none;flex-direction:column;min-height:0;flex:1">
-          <div style="padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
-            <div style="font-size:.82rem;color:var(--text)">
-              Diverifikasi sebagai <strong id="tkNamaGuru">-</strong> — pilih siswa yang tidak membawa kartu:
-            </div>
-          </div>
-          <div id="tkChecklistContainer" style="overflow-y:auto;flex:1;padding:6px 20px"></div>
-          <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:10px">
-            <button onclick="tutupModalTanpaKartu()" style="flex:1;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-muted);font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Batal</button>
-            <button onclick="simpanTanpaKartu()" id="tkBtnSimpan" style="flex:2;padding:12px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Simpan (<span id="tkJumlahTerpilih">0</span>)</button>
-          </div>
-        </div>
-
-      </div>
-    </div>
 
     <!-- Statistik + daftar siswa -->
     <div class="log-panel">
@@ -3520,6 +3172,366 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   </div>
 </div>
 
+<!-- Modal-modal berikut SENGAJA diletakkan DI LUAR #mainContent (lihat pola
+     #overlayEksternal di bawah ini) -- SEBELUMNYA modal-modal ini ada DI DALAM
+     #mainContent, jadi begitu #mainContent di-hide (display:none) pada hari
+     libur, modal-modal ini ikut tersembunyi walau .style.display sudah diset
+     "flex" oleh bukaModalXxx()/bukaPetunjukGuru() -- itu sebabnya tombol
+     "Siswa Sering Izin/Alpa", "Persentase Kehadiran", "Cek Aktivitas Guru",
+     "Petunjuk", "Grafik Kehadiran", dan konfirmasi piket pengganti/Input Tanpa
+     Kartu tampak "tidak merespon" (fungsinya jalan, cuma hasilnya kepotong
+     parent yang display:none). Dipindah ke sini supaya tetap tampil terlepas
+     dari status hari libur, sama seperti #overlayEksternal. -->
+  <div id="modalPetunjukGuru" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-weight:800;font-size:.98rem">❓ Tanya Jawab untuk Guru</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px">Ketuk pertanyaan untuk lihat jawabannya</div>
+        </div>
+        <button onclick="tutupPetunjukGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:16px 20px 20px">
+        <style>
+          .pg-cat-label{font-weight:800;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--primary);margin:16px 0 8px;display:flex;align-items:center;gap:6px}
+          .pg-cat-label:first-child{margin-top:0}
+          .pg-item{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
+          .pg-item summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;font-size:.84rem;color:var(--text)}
+          .pg-item summary::-webkit-details-marker{display:none}
+          .pg-item summary .pg-chev{transition:transform .2s ease;color:var(--text-muted);flex-shrink:0;font-size:.9rem}
+          .pg-item[open] summary .pg-chev{transform:rotate(90deg)}
+          .pg-item[open] summary{border-bottom:1px solid var(--border);background:var(--bg)}
+          .pg-item summary:hover{background:var(--bg)}
+          .pg-a{padding:12px 14px;font-size:.82rem;line-height:1.55;color:var(--text-muted)}
+        </style>
+
+        <div class="pg-cat-label">🛡️ Piket</div>
+        <details class="pg-item">
+          <summary>Bagaimana cara saya tercatat sebagai guru piket? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Arahkan QR halaman <b>DEPAN</b> kartu Anda ke kamera utama -- tidak perlu tekan tombol apapun dulu. Kalau hari itu memang giliran Anda, langsung tercatat sebagai guru piket.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kenapa muncul "Jadi guru piket pengganti?" <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Guru piket yang terjadwal hari itu belum scan, dan Anda scan duluan. Tekan <b>Ya</b> kalau bersedia menggantikan hari itu; kalau tidak, tekan Batal dan biarkan guru yang terjadwal scan sendiri nanti.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kenapa muncul "sudah tercatat sebagai guru piket hari ini"? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Setiap guru cuma bisa tercatat piket <b>1x per hari</b>. Kalau Anda sudah scan sebelumnya, tidak perlu scan ulang.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Switch ☀️ Datang / 🌙 Pulang di layar scan itu untuk siapa? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Itu khusus untuk absen datang/pulang <b>siswa</b>, bukan untuk guru. Guru tidak punya absen datang/pulang pribadi -- abaikan switch ini saat Anda scan untuk piket.</div>
+        </details>
+
+        <div class="pg-cat-label">📚 Absen Mengajar</div>
+        <details class="pg-item">
+          <summary>Bagaimana cara absen mengajar? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Tekan tombol <b>📚 Absen Kelas</b>, lalu scan QR halaman <b>DEPAN</b> kartu Anda. Sistem otomatis mencocokkan dengan jadwal mengajar Anda hari ini & jam berapa.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Bagaimana siswa absen setelah saya mulai sesi mengajar? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Setelah kartu Anda berhasil discan (sesi dimulai), siswa di kelas itu tinggal scan kartunya masing-masing satu per satu ke kamera yang sama, sampai jumlah minimal yang ditentukan admin tercapai.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Bisa absen mengajar walau saya juga piket hari itu? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Bisa, keduanya terpisah. Piket dicatat lewat scan biasa di kamera utama; mengajar lewat tombol <b>📚 Absen Kelas</b>.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kenapa saya tidak bisa langsung menutup sesi mengajar? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Absensi kelas sekarang <b>wajib</b> mencakup semua siswa aktif di kelas itu -- baik yang scan kartu sendiri maupun yang ditandai lewat checklist. Begitu jumlah scan kartu siswa mencapai minimal, daftar siswa yang belum discan <b>otomatis muncul</b> -- Anda wajib klik status kehadiran (Hadir/Alpa/Izin/Sakit) satu per satu untuk semua nama di situ, lalu tekan <b>📤 Kirim Riwayat Mengajar Saya</b>. Halaman ini tidak bisa ditutup atau ditunda sampai semuanya terisi & terkirim.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kenapa saya diminta memilih jadwal setelah scan kartu? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Ini muncul kalau hari itu Anda punya lebih dari satu jadwal mengajar yang belum dicatat (mis. jam ke-1 di kelas 7A dan jam ke-4 di kelas 7B). Tinggal pilih kelas/jadwal mana yang mau dicatat sekarang.</div>
+        </details>
+
+        <div class="pg-cat-label">📝 Siswa Tanpa Kartu</div>
+        <details class="pg-item">
+          <summary>Kapan tombol "Input Kehadiran Tanpa Kartu" dipakai? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Khusus untuk <b>siswa</b> yang kartunya hilang, rusak, atau ketinggalan -- bukan untuk guru. Tekan tombol <b>📝 Input Kehadiran Tanpa Kartu</b> di bawah kamera, lalu masukkan username & password akun <b>guru piket hari ini</b> untuk verifikasi sebelum bisa mencatat kehadiran siswa secara manual.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Bisa dipakai kalau internet sedang mati? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Bisa. Sama seperti scan kartu biasa, data yang diinput lewat menu ini tetap tersimpan di perangkat dan otomatis terkirim ke server begitu koneksi kembali.</div>
+        </details>
+
+        <div class="pg-cat-label">📋 Edit Kehadiran Siswa (Guru Piket)</div>
+        <details class="pg-item">
+          <summary>Siapa yang boleh mengedit keterangan siswa (Sakit/Izin/dll)? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Hanya guru piket yang <b>sedang bertugas hari itu</b>. Server yang memutuskan boleh/tidaknya, bukan sekadar tombolnya.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Bagaimana caranya? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Tekan tombol <b>📋 Edit Kehadiran Siswa (Guru Piket)</b>, lalu scan QR halaman <b>BELAKANG</b> kartu Anda (bukan depan).</div>
+        </details>
+        <details class="pg-item">
+          <summary>Saya piket tapi tidak bisa masuk menu ini, kenapa? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Kemungkinan Anda scan QR halaman <b>DEPAN</b> (kartu kebalik). Untuk menu ini wajib scan halaman <b>BELAKANG</b> kartu.</div>
+        </details>
+
+        <div class="pg-cat-label">🪪 Kartu & Kamera</div>
+        <details class="pg-item">
+          <summary>Apa bedanya QR depan dan belakang kartu? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">QR <b>DEPAN</b> → Piket & Absen Mengajar.<br>QR <b>BELAKANG</b> → Login Dashboard & Edit Kehadiran Siswa (piket).</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kamera menyala tapi kartu tidak pernah terbaca (khusus iPhone)? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Ini bug lama khusus Safari/iPhone yang sudah diperbaiki di versi terbaru aplikasi. Kalau masih terjadi, coba refresh halaman; kalau tetap bermasalah, laporkan ke admin supaya dicek versinya.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Kartu tidak terbaca sama sekali, harus bagaimana? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Pastikan kartu bersih (tidak buram/tergores), pencahayaan cukup, dan jarak kartu ke kamera sekitar 15-20 cm. Coba juga pastikan halaman kartunya sudah benar (depan/belakang) sesuai menu yang dituju.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Internet mati, apakah scan masih bisa jalan? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Bisa. Akan muncul badge <b>📴 Offline</b>, data disimpan sementara di perangkat, dan otomatis terkirim ke server begitu koneksi kembali (atau ketuk badge itu untuk kirim manual).</div>
+        </details>
+
+        <div class="pg-cat-label">🔐 Akun</div>
+        <details class="pg-item">
+          <summary>Saya lupa password akun guru, bagaimana? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Minta admin sekolah mereset password Anda lewat menu <b>Data Guru</b> di dashboard admin.</div>
+        </details>
+        <details class="pg-item">
+          <summary>Saya tiba-tiba masuk ke akun ini padahal tidak login sendiri, kenapa? <span class="pg-chev">›</span></summary>
+          <div class="pg-a">Admin punya wewenang masuk ke akun guru mana pun (mis. untuk bantu troubleshooting) tanpa perlu tahu password Anda. Kalau ini terjadi, akan muncul banner kuning <b>"Mode Admin"</b> di bagian atas layar dashboard.</div>
+        </details>
+
+      </div>
+    </div>
+  </div>
+  <div id="modalAktivitasGuru" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-weight:800;font-size:.98rem">👨‍🏫 Aktivitas Guru</div>
+        <button onclick="tutupModalAktivitasGuru()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Tab Hari Ini / Besok (BARU) -- "Hari Ini" tetap sesuai isi lama
+           (siapa sudah/belum mengajar). "Besok" isinya cuma jadwal +
+           guru piket besok (belum ada status sudah/belum karena harinya
+           belum berjalan) -- lihat getJadwalBesok() di api/scan.js. -->
+      <div class="log-tabs" style="margin:14px 20px 0;flex-shrink:0">
+        <button type="button" class="log-tab active" id="agTabHariIni" onclick="switchAgTab('hariini')">📆 Hari Ini</button>
+        <button type="button" class="log-tab" id="agTabBesok" onclick="switchAgTab('besok')">📅 Besok</button>
+      </div>
+
+      <!-- Isi (loading / konten / error) -->
+      <div id="agIsi" style="overflow-y:auto;flex:1;padding:16px 20px">
+
+        <!-- Panel: Hari Ini -->
+        <div id="agPanelHariIni">
+          <div id="agLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+
+          <div id="agKonten" style="display:none">
+
+            <!-- Ringkasan singkat -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+              <div style="background:var(--success-soft,#DCFCE7);border-radius:10px;padding:10px 6px;text-align:center">
+                <div id="agTotalSudah" style="font-weight:800;font-size:1.1rem;color:var(--success,#16A34A)">0</div>
+                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Sudah Mengajar</div>
+              </div>
+              <div style="background:var(--danger-soft,#FEE2E2);border-radius:10px;padding:10px 6px;text-align:center">
+                <div id="agTotalBelum" style="font-weight:800;font-size:1.1rem;color:var(--danger,#DC2626)">0</div>
+                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Belum Mengajar</div>
+              </div>
+              <div style="background:#EDE9FE;border-radius:10px;padding:10px 6px;text-align:center">
+                <div id="agTotalSiswa" style="font-weight:800;font-size:1.1rem;color:#7C3AED">0</div>
+                <div style="font-size:.68rem;color:var(--text-muted);font-weight:600">Siswa Terverifikasi</div>
+              </div>
+            </div>
+
+            <div id="agLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
+
+            <!-- Sudah mengajar -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--success,#16A34A)">✅ Sudah Mengajar</div>
+            <div id="agListSudah" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
+            <div id="agKosongSudah" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0 18px">Belum ada guru yang mengajar hari ini.</div>
+
+            <!-- Belum mengajar -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--danger,#DC2626)">⏳ Belum Mengajar</div>
+            <div id="agListBelum" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div id="agKosongBelum" style="display:none;font-size:.78rem;color:var(--text-muted);text-align:center;padding:10px 0">🎉 Semua guru terjadwal sudah mengajar.</div>
+
+          </div>
+        </div>
+
+        <!-- Panel: Besok (BARU) -->
+        <div id="agPanelBesok" style="display:none">
+          <div id="agBesokLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+
+          <div id="agBesokKonten" style="display:none">
+            <div id="agBesokLiburBox" style="display:none;background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626);border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:600;margin-bottom:14px"></div>
+
+            <!-- Guru piket besok -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px">🛡️ Guru Piket Besok</div>
+            <div id="agBesokPiket" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px"></div>
+
+            <!-- Jadwal mengajar besok -->
+            <div style="font-weight:800;font-size:.82rem;margin-bottom:8px">📚 Jadwal Mengajar Besok</div>
+            <div id="agBesokMengajar" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+  <div id="modalPersentaseKehadiran" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-weight:800;font-size:.98rem">📊 Persentase Kehadiran</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px">Tren kehadiran siswa</div>
+        </div>
+        <button onclick="tutupModalPersentaseKehadiran()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Kontrol: periode (Minggu/Bulan) + filter kelas -->
+      <div style="padding:14px 20px 0;flex-shrink:0">
+        <div class="log-tabs">
+          <button type="button" class="log-tab active" id="pkTabMinggu" onclick="switchPkRentang('minggu')">📆 Per Minggu</button>
+          <button type="button" class="log-tab" id="pkTabBulan" onclick="switchPkRentang('bulan')">🗓️ Per Bulan</button>
+        </div>
+        <select class="pk-select" id="pkKelasSelect" style="margin-top:10px" onchange="loadPersentaseKehadiran()">
+          <option value="">Semua Kelas</option>
+        </select>
+      </div>
+
+      <!-- Isi (loading / konten / error) -->
+      <div id="pkIsi" style="overflow-y:auto;flex:1;padding:16px 20px 20px">
+        <div id="pkLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+        <div id="pkError" style="display:none;text-align:center;padding:30px 10px;color:var(--danger,#DC2626);font-size:.82rem;font-weight:600"></div>
+
+        <div id="pkKonten" style="display:none">
+          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center" id="pkSubjudul"></div>
+
+          <!-- Chart batang -->
+          <div class="pk-chart-wrap" id="pkChart"></div>
+
+          <!-- Kartu kesimpulan tren -->
+          <div id="pkTrenCard" class="pk-tren-card">
+            <span id="pkTrenIcon"></span>
+            <span id="pkTrenPesan"></span>
+          </div>
+
+          <!-- Rata-rata -->
+          <div class="pk-rata-row">
+            <span>Rata-rata periode ini</span>
+            <span class="pk-rata-val" id="pkRataRata">-</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div id="modalRankingIzinAlpha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-weight:800;font-size:.98rem">⚠️ Siswa Sering Izin/Alpa</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px" id="riaSubjudul">Semester berjalan</div>
+        </div>
+        <button onclick="tutupModalRankingIzinAlpha()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Isi (loading / konten / error) -->
+      <div id="riaIsi" style="overflow-y:auto;flex:1;padding:16px 20px 20px">
+        <div id="riaLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+        <div id="riaError" style="display:none;text-align:center;padding:30px 10px;color:var(--danger,#DC2626);font-size:.82rem;font-weight:600"></div>
+        <div id="riaKosong" style="display:none;text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">Belum ada data untuk periode ini.</div>
+
+        <div id="riaKonten" style="display:none">
+          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center;margin-bottom:12px" id="riaPeriodeInfo"></div>
+          <div id="riaList" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div id="modalChartKehadiran" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:440px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-weight:800;font-size:.98rem">📊 Kehadiran Hari Ini</div>
+        <button onclick="tutupModalChartKehadiran()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="ckmRingWrap" style="flex-shrink:0;line-height:0"></div>
+          <div style="flex:1;min-width:0">
+            <div id="ckmSubText" style="font-size:.82rem;font-weight:700;color:var(--text-muted)">Memuat data...</div>
+          </div>
+        </div>
+        <div class="ck-legend" id="ckmLegend" style="display:flex"></div>
+        <div class="ck-terlambat-bar" id="ckmTerlambatBar" style="display:block"></div>
+        <div class="ck-pulang-bar" id="ckmPulangBar" style="display:block"></div>
+        <div style="font-weight:800;font-size:.82rem;color:var(--text);border-top:1px dashed var(--border);padding-top:10px">🏫 Rincian per Kelas</div>
+        <div class="ck-detail-kelas" id="ckmKelasList" style="display:flex;max-height:none;border-top:none;margin-top:0;padding-top:0"></div>
+      </div>
+    </div>
+  </div>
+      <div id="modalKonfirmasiPiket" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:var(--surface);color:#1E293B;border-radius:14px;max-width:380px;width:100%;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)">
+          <div style="font-size:2.4rem;margin-bottom:8px">🙋</div>
+          <div id="konfirmasiPiketText" style="font-size:1rem;line-height:1.5;margin-bottom:20px"></div>
+          <div style="display:flex;gap:10px;justify-content:center">
+            <button onclick="batalKonfirmasiPiket()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#E2E8F0;color:#334155;font-weight:600;font-size:.95rem;cursor:pointer" id="btnBatalKonfirmasiPiket">Batal</button>
+            <button onclick="yaKonfirmasiPiket()" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--success);color:#fff;font-weight:600;font-size:.95rem;cursor:pointer">Ya</button>
+          </div>
+        </div>
+      </div>
+    <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:420px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+        <!-- Header -->
+        <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="font-weight:800;font-size:.98rem">📝 Input Tanpa Kartu</div>
+          <button onclick="tutupModalTanpaKartu()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+        </div>
+
+        <!-- STEP 1: Verifikasi guru piket -->
+        <div id="tkStepVerifikasi" style="padding:22px 20px">
+          <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+            Fitur ini khusus untuk siswa yang kartunya hilang, rusak, atau ketinggalan.
+            Masukkan <strong>username dan password akun guru piket hari ini</strong> untuk melanjutkan.
+          </div>
+          <input type="text" id="tkUsername" placeholder="Username guru piket..." autocomplete="username"
+            onkeyup="if(event.key==='Enter')document.getElementById('tkPassword').focus()"
+            style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
+          <input type="password" id="tkPassword" placeholder="Password guru piket..." autocomplete="current-password"
+            onkeyup="if(event.key==='Enter')verifikasiTanpaKartu()"
+            style="width:100%;margin-top:10px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
+          <div id="tkVerifError" style="display:none;color:var(--danger);font-size:.78rem;margin-top:8px;padding:8px 10px;background:var(--danger-soft);border-radius:8px"></div>
+          <button onclick="verifikasiTanpaKartu()" id="tkBtnVerifikasi"
+            style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.88rem;cursor:pointer;font-family:inherit">
+            Verifikasi
+          </button>
+        </div>
+
+        <!-- STEP 2: Checklist siswa -->
+        <div id="tkStepChecklist" style="display:none;flex-direction:column;min-height:0;flex:1">
+          <div style="padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+            <div style="font-size:.82rem;color:var(--text)">
+              Diverifikasi sebagai <strong id="tkNamaGuru">-</strong> — pilih siswa yang tidak membawa kartu:
+            </div>
+          </div>
+          <div id="tkChecklistContainer" style="overflow-y:auto;flex:1;padding:6px 20px"></div>
+          <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:10px">
+            <button onclick="tutupModalTanpaKartu()" style="flex:1;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-muted);font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Batal</button>
+            <button onclick="simpanTanpaKartu()" id="tkBtnSimpan" style="flex:2;padding:12px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Simpan (<span id="tkJumlahTerpilih">0</span>)</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
 <!-- overlayEksternal (popup riwayat/monitor) SENGAJA diletakkan di sini,
      DI LUAR #mainContent, supaya visibilitasnya tidak ikut disembunyikan
      saat #mainContent di-hide pada hari libur. Lihat catatan lengkap di
@@ -3530,41 +3542,6 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
 </div>
 
 <script>
-// ══════ DEBUG SEMENTARA (HAPUS setelah bug tombol drawer selesai
-// dilacak) — supaya error JS yang biasanya cuma kelihatan di DevTools
-// Console langsung muncul sebagai toast di layar, tanpa perlu buka
-// DevTools sama sekali. ══════
-window.addEventListener('error', function(e) {
-  try {
-    toast('🔧 DEBUG ERROR: ' + (e.message || 'error tidak diketahui') +
-          ' (baris ' + (e.lineno || '?') + ')', 8000);
-  } catch (err) {
-    alert('DEBUG ERROR: ' + (e.message || 'error tidak diketahui'));
-  }
-});
-window.addEventListener('unhandledrejection', function(e) {
-  try {
-    const pesan = (e.reason && e.reason.message) ? e.reason.message : String(e.reason);
-    toast('🔧 DEBUG PROMISE ERROR: ' + pesan, 8000);
-  } catch (err) {
-    alert('DEBUG PROMISE ERROR: ' + e.reason);
-  }
-});
-// DEBUG TAMBAHAN: laporkan elemen APAPUN yang benar-benar menerima klik
-// di dalam area drawer -- supaya ketahuan kalau ada elemen lain yang
-// "menutupi" tombol secara tak kasat mata (klik jatuh ke elemen itu,
-// bukan ke tombolnya). Capture:true supaya ini jalan PALING AWAL,
-// sebelum listener lain sempat menutup drawer / stop propagation.
-document.addEventListener('click', function(e) {
-  const drawer = document.getElementById('appDrawer');
-  if (!drawer || !drawer.classList.contains('show')) return; // cuma pas drawer terbuka
-  const t = e.target;
-  const info = (t.tagName || '?') +
-    (t.id ? '#' + t.id : '') +
-    (t.className && typeof t.className === 'string' ? '.' + t.className.split(' ').join('.') : '');
-  toast('🎯 DEBUG TARGET KLIK: ' + info, 6000);
-}, true);
-
 const API = window.location.origin;
 
 // ── ZONA WAKTU ────────────────────────────────────────────────────
@@ -7895,7 +7872,6 @@ function tutupModalTanpaKartu() {
 // petunjuk. Boleh dibuka kapan saja, termasuk saat menunggu kartu di
 // mode Absen Kelas/Kelola Piket, karena read-only murni. ══════
 function bukaPetunjukGuru() {
-  toast('🔧 DEBUG: bukaPetunjukGuru() dipanggil', 4000); // TEMP
   pauseScanBerat();
   document.getElementById('modalPetunjukGuru').style.display = 'flex';
 }
@@ -8128,7 +8104,6 @@ let _pkRentang = 'minggu';
 let _pkKelasLoaded = false;
 
 async function bukaModalPersentaseKehadiran() {
-  toast('🔧 DEBUG: bukaModalPersentaseKehadiran() dipanggil', 4000); // TEMP
   pauseScanBerat();
   document.getElementById('modalPersentaseKehadiran').style.display = 'flex';
   // Selalu mulai dari tab "Per Minggu" setiap modal dibuka lagi, supaya
@@ -8269,7 +8244,6 @@ function renderPersentaseKehadiran(data) {
 // getRankingIzinAlpha() di api/_db.js untuk cara hitungnya (semester
 // aktif, sama persis dengan halaman Evaluasi Kehadiran di index.html).
 async function bukaModalRankingIzinAlpha() {
-  toast('🔧 DEBUG: bukaModalRankingIzinAlpha() dipanggil', 4000); // TEMP
   pauseScanBerat();
   document.getElementById('modalRankingIzinAlpha').style.display = 'flex';
   await loadRankingIzinAlpha();

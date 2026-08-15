@@ -8540,7 +8540,7 @@ async function downloadPDFPertemuan() {
       pdf.roundedRect(marginX, y, pageW - marginX*2, boxH, 1.5, 1.5, 'FD');
       pdf.setFontSize(8);
       pdf.setTextColor(122,91,0);
-      const pesan = `⚠️ Absensi kelas ini belum mencakup semua siswa aktif${p.jumlahSiswaBelumTercatat ? ' (' + p.jumlahSiswaBelumTercatat + ' siswa belum tercatat)' : ''} -- kemungkinan sesi ditutup saat offline.`;
+      const pesan = `Peringatan: Absensi kelas ini belum mencakup semua siswa aktif${p.jumlahSiswaBelumTercatat ? ' (' + p.jumlahSiswaBelumTercatat + ' siswa belum tercatat)' : ''} -- kemungkinan sesi ditutup saat offline.`;
       pdf.text(pesan, marginX + 4, y + 6.5, { maxWidth: pageW - marginX*2 - 8 });
       y += boxH;
     }

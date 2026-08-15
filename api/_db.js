@@ -1342,8 +1342,48 @@ module.exports = {
   // ── TAMBAHAN BARU (fitur Jadwal Besok) ──
   tanggalBesok, hariBesok,
   // ── TAMBAHAN BARU (fitur tombol "Persentase Kehadiran" di scan.html) ──
-  getTrenPersentaseKehadiran
+  getTrenPersentaseKehadiran,
+  // ── TAMBAHAN BARU (perbaikan bug: query terpotong diam-diam di 1000 baris) ──
+  fetchAllRows
 };
+
+// ── AMBIL SEMUA BARIS TANPA TERPOTONG BATAS DEFAULT SUPABASE (1000) ──
+// (BARU) PostgREST/Supabase secara default membatasi hasil SETIAP query
+// maksimal 1000 baris per request -- walau tidak ada .limit() eksplisit
+// di kode sama sekali, dan TANPA memunculkan error apa pun. Baris ke-1001
+// dst begitu saja tidak ikut kebawa.
+// Ini pernah bikin % Kehadiran di halaman Evaluasi Kehadiran salah kalau
+// filter "Semua Kelas" dipilih: rekapBulananRange/rekapKeteranganRange
+// (api/absensi.js, api/kehadiran.js) query ke tabel absensi/
+// keterangan_absensi UNTUK SATU SEKOLAH SEKALIGUS tanpa filter kelas --
+// gampang lewat 1000 baris kalau direntang satu semester penuh (contoh
+// nyata: 13 hari sekolah x 101 siswa = 1.313 baris kemungkinan >1000).
+// Baris yang "hilang" itu membuat sebagian siswa terhitung kurang
+// hadirnya, jadi % Kehadiran globalnya lebih RENDAH dari kalau dilihat
+// per kelas (yang jumlah barisnya jauh di bawah 1000, jadi selalu utuh).
+//
+// Helper ini membaca ulang query per halaman (pageSize baris, pakai
+// .range()) sampai halaman yang didapat lebih pendek dari pageSize --
+// tandanya sudah baris terakhir -- lalu menggabungkan semua halaman jadi
+// satu array utuh.
+//
+// PENTING: queryFactory HARUS berupa FUNGSI yang mengembalikan query
+// Supabase BARU (belum pernah di-await) setiap kali dipanggil -- bukan
+// query yang sudah pernah dieksekusi -- karena query builder Supabase
+// cuma bisa dieksekusi/di-range() sekali. Pemanggilan yang benar:
+//   fetchAllRows(() => supabase.from('absensi').select('*').eq('kelas','X'))
+async function fetchAllRows(queryFactory, pageSize = 1000) {
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await queryFactory().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break; // halaman terakhir
+    from += pageSize;
+  }
+  return { data: all, error: null };
+}
 
 // ── HITUNG JUMLAH HARI SEKOLAH EFEKTIF DALAM RENTANG TANGGAL BEBAS ──
 // (BARU) Sebelumnya logika "jumlah hari sekolah dalam rentang" cuma ada

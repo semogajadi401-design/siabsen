@@ -359,7 +359,7 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
   }
 
   const { data: sesiList, error: eSesi } = await supabase
-    .from('sesi_piket').select('tanggal,id_guru,nama_guru')
+    .from('sesi_piket').select('tanggal,id_guru,nama_guru,terlambat')
     .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
   if (eSesi) return { success: false, message: eSesi.message };
 
@@ -400,7 +400,8 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
     if (!rekap[idGuru]) {
       rekap[idGuru] = {
         idGuru, namaGuru,
-        hadirTepat: 0, digantikan: 0, tanpaPiketSamaSekali: 0, jadiPengganti: 0
+        hadirTepat: 0, digantikan: 0, tanpaPiketSamaSekali: 0, jadiPengganti: 0,
+        terlambatPiket: 0
       };
     }
     return rekap[idGuru];
@@ -434,7 +435,10 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
       terjadwalHariIni.forEach(t => {
         const r = ambilRekap(t.idGuru, t.namaGuru);
         const scanSendiri = sesiHariIni.find(s => s.id_guru === t.idGuru);
-        if (scanSendiri) r.hadirTepat++;
+        if (scanSendiri) {
+          r.hadirTepat++;
+          if (scanSendiri.terlambat === true) r.terlambatPiket++;
+        }
         else if (sesiHariIni.length) r.digantikan++;
         else r.tanpaPiketSamaSekali++;
       });
@@ -445,6 +449,7 @@ async function getLaporanKepatuhanPiket({ tanggalMulai, tanggalSelesai }) {
         if (!idTerjadwal.includes(s.id_guru)) {
           const r = ambilRekap(s.id_guru, s.nama_guru);
           r.jadiPengganti++;
+          if (s.terlambat === true) r.terlambatPiket++;
         }
       });
     }
@@ -496,7 +501,7 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
   if (tanggalSelesai > todayWita) tanggalSelesai = todayWita;
 
   const { data: sesiList, error: eSesi } = await supabase
-    .from('sesi_piket').select('tanggal,id_guru,nama_guru,jam_scan')
+    .from('sesi_piket').select('tanggal,id_guru,nama_guru,jam_scan,terlambat')
     .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
   if (eSesi) return { success: false, message: eSesi.message };
 
@@ -524,7 +529,7 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
     h => (jadwalPerHari[h] || []).some(t => t.idGuru === idGuru)
   );
 
-  const ringkasan = { piketSendiri: 0, digantikan: 0, kosong: 0, jadiPengganti: 0 };
+  const ringkasan = { piketSendiri: 0, digantikan: 0, kosong: 0, jadiPengganti: 0, terlambatPiket: 0 };
   const detail = [];
 
   const cursor = new Date(tanggalMulai + 'T00:00:00Z');
@@ -540,7 +545,8 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
     if (akuTerjadwal) {
       if (sesiKu) {
         ringkasan.piketSendiri++;
-        detail.push({ tanggal: tglStr, hari, status: 'sendiri', jamScan: sesiKu.jam_scan });
+        if (sesiKu.terlambat === true) ringkasan.terlambatPiket++;
+        detail.push({ tanggal: tglStr, hari, status: 'sendiri', jamScan: sesiKu.jam_scan, terlambat: sesiKu.terlambat });
       } else if (sesiHariIni.length) {
         ringkasan.digantikan++;
         detail.push({
@@ -556,9 +562,11 @@ async function getRiwayatPiketGuru({ idGuru, tanggalMulai, tanggalSelesai }) {
       // Aku bukan yang terjadwal hari ini, tapi tetap scan piket -->
       // aku yang menutup kekosongan (guru pengganti di luar jadwal sendiri).
       ringkasan.jadiPengganti++;
+      if (sesiKu.terlambat === true) ringkasan.terlambatPiket++;
       detail.push({
         tanggal: tglStr, hari, status: 'pengganti',
         jamScan: sesiKu.jam_scan,
+        terlambat: sesiKu.terlambat,
         digantikanUntuk: terjadwalHariIni.map(t => t.namaGuru).join(', ') || null
       });
     }

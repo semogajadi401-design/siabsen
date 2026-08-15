@@ -3530,6 +3530,41 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
 </div>
 
 <script>
+// ══════ DEBUG SEMENTARA (HAPUS setelah bug tombol drawer selesai
+// dilacak) — supaya error JS yang biasanya cuma kelihatan di DevTools
+// Console langsung muncul sebagai toast di layar, tanpa perlu buka
+// DevTools sama sekali. ══════
+window.addEventListener('error', function(e) {
+  try {
+    toast('🔧 DEBUG ERROR: ' + (e.message || 'error tidak diketahui') +
+          ' (baris ' + (e.lineno || '?') + ')', 8000);
+  } catch (err) {
+    alert('DEBUG ERROR: ' + (e.message || 'error tidak diketahui'));
+  }
+});
+window.addEventListener('unhandledrejection', function(e) {
+  try {
+    const pesan = (e.reason && e.reason.message) ? e.reason.message : String(e.reason);
+    toast('🔧 DEBUG PROMISE ERROR: ' + pesan, 8000);
+  } catch (err) {
+    alert('DEBUG PROMISE ERROR: ' + e.reason);
+  }
+});
+// DEBUG TAMBAHAN: laporkan elemen APAPUN yang benar-benar menerima klik
+// di dalam area drawer -- supaya ketahuan kalau ada elemen lain yang
+// "menutupi" tombol secara tak kasat mata (klik jatuh ke elemen itu,
+// bukan ke tombolnya). Capture:true supaya ini jalan PALING AWAL,
+// sebelum listener lain sempat menutup drawer / stop propagation.
+document.addEventListener('click', function(e) {
+  const drawer = document.getElementById('appDrawer');
+  if (!drawer || !drawer.classList.contains('show')) return; // cuma pas drawer terbuka
+  const t = e.target;
+  const info = (t.tagName || '?') +
+    (t.id ? '#' + t.id : '') +
+    (t.className && typeof t.className === 'string' ? '.' + t.className.split(' ').join('.') : '');
+  toast('🎯 DEBUG TARGET KLIK: ' + info, 6000);
+}, true);
+
 const API = window.location.origin;
 
 // ── ZONA WAKTU ────────────────────────────────────────────────────
@@ -7860,6 +7895,7 @@ function tutupModalTanpaKartu() {
 // petunjuk. Boleh dibuka kapan saja, termasuk saat menunggu kartu di
 // mode Absen Kelas/Kelola Piket, karena read-only murni. ══════
 function bukaPetunjukGuru() {
+  toast('🔧 DEBUG: bukaPetunjukGuru() dipanggil', 4000); // TEMP
   pauseScanBerat();
   document.getElementById('modalPetunjukGuru').style.display = 'flex';
 }
@@ -8092,6 +8128,7 @@ let _pkRentang = 'minggu';
 let _pkKelasLoaded = false;
 
 async function bukaModalPersentaseKehadiran() {
+  toast('🔧 DEBUG: bukaModalPersentaseKehadiran() dipanggil', 4000); // TEMP
   pauseScanBerat();
   document.getElementById('modalPersentaseKehadiran').style.display = 'flex';
   // Selalu mulai dari tab "Per Minggu" setiap modal dibuka lagi, supaya
@@ -8232,6 +8269,7 @@ function renderPersentaseKehadiran(data) {
 // getRankingIzinAlpha() di api/_db.js untuk cara hitungnya (semester
 // aktif, sama persis dengan halaman Evaluasi Kehadiran di index.html).
 async function bukaModalRankingIzinAlpha() {
+  toast('🔧 DEBUG: bukaModalRankingIzinAlpha() dipanggil', 4000); // TEMP
   pauseScanBerat();
   document.getElementById('modalRankingIzinAlpha').style.display = 'flex';
   await loadRankingIzinAlpha();

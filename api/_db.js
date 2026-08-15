@@ -1344,7 +1344,9 @@ module.exports = {
   // ── TAMBAHAN BARU (fitur tombol "Persentase Kehadiran" di scan.html) ──
   getTrenPersentaseKehadiran,
   // ── TAMBAHAN BARU (perbaikan bug: query terpotong diam-diam di 1000 baris) ──
-  fetchAllRows
+  fetchAllRows,
+  // ── TAMBAHAN BARU (fitur "Ranking Izin & Alpha" di drawer scan.html) ──
+  getRankingIzinAlpha
 };
 
 // ── AMBIL SEMUA BARIS TANPA TERPOTONG BATAS DEFAULT SUPABASE (1000) ──
@@ -1500,4 +1502,105 @@ async function requireAdminToken(token) {
     .eq('qr_token', String(token).trim())
     .limit(1);
   return !!(data && data.length > 0);
+}
+
+// ── RANKING IZIN + ALPHA (BARU) ────────────────────────────────────
+// Dipakai tombol "⚠️ Siswa Sering Izin/Alpa" di drawer scan.html --
+// menampilkan SEMUA siswa aktif, diurutkan dari yang paling banyak
+// Izin+Alpha sampai yang tidak punya sama sekali (0), lengkap dengan
+// keterangan Izin (kalau ada) supaya guru piket bisa langsung tahu
+// alasannya tanpa buka dashboard admin.
+//
+// Rentang tanggal & cara hitung Alpha SENGAJA disamakan persis dengan
+// halaman "Evaluasi Kehadiran" (index.html loadEvaluasi()): semester
+// AKTIF, dibatasi sampai tanggalSelesaiEfektif lewat
+// hitungTanggalEvaluasiEfektif() (supaya data hari ini yang belum
+// lengkap/jam absen belum buka tidak ikut membuat siswa kelihatan
+// "Alpha" secara keliru) -- Alpha per siswa = jumlahHariSekolah efektif
+// dikurangi (hadir+terlambat+sakit+izin) siswa itu, sama seperti di
+// loadEvaluasi(). Query ke tabel absensi/keterangan_absensi memakai
+// fetchAllRows() (lihat di atas) supaya tidak kena potong diam-diam di
+// batas 1000 baris seperti bug yang pernah terjadi di halaman Evaluasi.
+//
+// Sengaja TANPA syarat login (pola sama dengan getTrenPersentaseKehadiran
+// di atas) karena memang dipasang sebagai tombol yang bisa langsung
+// diklik guru piket dari kios -- TIDAK otomatis tampil/terhitung saat
+// halaman dimuat, hanya saat tombolnya diklik (dipanggil dari drawer).
+async function getRankingIzinAlpha() {
+  const semester = await getSemesterAktif();
+  if (!semester) {
+    return { success: true, belumAdaSemester: true, data: [] };
+  }
+
+  const { tanggalMulaiEfektif, tanggalSelesaiEfektif, belumMulai, belumMulaiHariIni, jamMulaiAbsen } =
+    await hitungTanggalEvaluasiEfektif(semester.tanggal_mulai, semester.tanggal_selesai);
+
+  if (belumMulai) {
+    return { success: true, belumMulai: true, namaSemester: semester.nama || '', data: [] };
+  }
+
+  const [jumlahHariSekolah, { data: siswaList }, { data: absenRows, error: errAbsen }, { data: ketRows, error: errKet }] =
+    await Promise.all([
+      hitungJumlahHariSekolah(tanggalMulaiEfektif, tanggalSelesaiEfektif),
+      supabase.from('siswa').select('id,nisn,nama,kelas').eq('status', 'Aktif'),
+      fetchAllRows(() => supabase.from('absensi').select('id_siswa,status_datang')
+        .gte('tanggal', tanggalMulaiEfektif).lte('tanggal', tanggalSelesaiEfektif)),
+      fetchAllRows(() => supabase.from('keterangan_absensi').select('id_siswa,tanggal,status,keterangan')
+        .gte('tanggal', tanggalMulaiEfektif).lte('tanggal', tanggalSelesaiEfektif))
+    ]);
+  if (errAbsen) return { success: false, message: errAbsen.message };
+  if (errKet)   return { success: false, message: errKet.message };
+
+  const map = {};
+  (siswaList || []).forEach(s => {
+    map[s.id] = {
+      idSiswa: s.id, nisn: s.nisn, nama: s.nama, kelas: s.kelas,
+      hadir: 0, terlambat: 0, sakit: 0, izin: 0, keteranganIzin: []
+    };
+  });
+
+  (absenRows || []).forEach(r => {
+    const s = map[r.id_siswa];
+    if (!s) return; // siswa nonaktif/sudah dihapus -- jangan ikut hitung
+    if (r.status_datang === 'Hadir')     s.hadir++;
+    else if (r.status_datang === 'Terlambat') s.terlambat++;
+  });
+
+  (ketRows || []).forEach(r => {
+    const s = map[r.id_siswa];
+    if (!s) return;
+    if (r.status === 'Sakit') {
+      s.sakit++;
+    } else {
+      // Selain "Sakit" dianggap "Izin" -- pola sama dengan loadEvaluasi()
+      // di index.html (`if (d.status === 'Sakit') ...sakit++; else ...izin++;`).
+      s.izin++;
+      if (r.keterangan) s.keteranganIzin.push({ tanggal: r.tanggal, keterangan: r.keterangan });
+    }
+  });
+
+  const data = Object.values(map).map(s => {
+    const alpha = Math.max(0, jumlahHariSekolah - s.hadir - s.terlambat - s.sakit - s.izin);
+    return {
+      idSiswa: s.idSiswa, nisn: s.nisn, nama: s.nama, kelas: s.kelas,
+      izin: s.izin, alpha, totalIzinAlpha: s.izin + alpha,
+      keteranganIzin: s.keteranganIzin.sort((a, b) => a.tanggal < b.tanggal ? 1 : -1)
+    };
+  }).sort((a, b) => {
+    // Terbanyak dulu; kalau sama, urut nama supaya urutannya stabil &
+    // tidak berubah-ubah acak tiap dibuka ulang.
+    if (b.totalIzinAlpha !== a.totalIzinAlpha) return b.totalIzinAlpha - a.totalIzinAlpha;
+    return a.nama.localeCompare(b.nama);
+  });
+
+  return {
+    success: true,
+    namaSemester: semester.nama || '',
+    tanggalMulai: tanggalMulaiEfektif,
+    tanggalSelesai: tanggalSelesaiEfektif,
+    jumlahHariSekolah,
+    belumMulaiHariIni: !!belumMulaiHariIni,
+    jamMulaiAbsen,
+    data
+  };
 }

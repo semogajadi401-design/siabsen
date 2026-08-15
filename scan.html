@@ -6047,7 +6047,9 @@ async function checkStatus() {
       liburBanner.style.display = 'block';
       mainContent.style.display = 'none';
       document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
-      renderBannerLibur(r);
+      // BARU (PERBAIKAN EGRESS): resolve gambarUrl dari cache/endpoint
+      // terpisah -- lihat catatan lengkap di resolveGambarLibur() di atas.
+      resolveGambarLibur(r).then(gambarUrl => renderBannerLibur({ ...r, gambarUrl }));
       updateJamInfoBar(r);
       renderLiburBesokInfo();
       return;
@@ -6651,6 +6653,43 @@ function formatTanggalID(tgl) {
 // kali banner libur ditampilkan. Ketiga elemen disembunyikan lagi kalau
 // memang tidak ada isinya (mis. libur biasa 1 hari tanpa gambar/pesan),
 // supaya tampilan tetap rapi seperti sebelum fitur ini ada.
+// ── CACHE GAMBAR LIBUR (BARU, PERBAIKAN EGRESS) ─────────────────────
+// checkStatus() dipanggil tiap REFRESH_STATUS_MS (15 detik). SEBELUMNYA
+// getStatus() ikut mengirim base64 gambar banner libur (bisa ~2MB) di
+// SETIAP balasan itu -- artinya gambar yang SAMA dikirim ulang berkali-
+// kali tiap menit ke tiap kiosk yang menyala, sepanjang hari libur. Itu
+// kontributor terbesar lonjakan Egress di dashboard Supabase.
+//
+// Sekarang getStatus() cuma kirim r.adaGambar (boolean) + r.gambarGrupId
+// (berubah tiap admin simpan ulang data libur, lihat setHariLibur() di
+// api/settings.js). Fungsi di bawah membandingkan grupId itu dengan yang
+// terakhir dipegang kiosk ini -- HANYA kalau beda (gambar baru/berubah,
+// atau kiosk baru saja dibuka) baru memanggil action getGambarLibur
+// terpisah untuk menarik base64-nya. Selama grupId sama, cache di memori
+// ini dipakai berulang tanpa request tambahan sama sekali.
+let _liburGambarGrupIdCache = null;
+let _liburGambarUrlCache    = null;
+
+async function resolveGambarLibur(r) {
+  if (!r.adaGambar) {
+    _liburGambarGrupIdCache = null;
+    _liburGambarUrlCache    = null;
+    return null;
+  }
+  if (r.gambarGrupId && r.gambarGrupId === _liburGambarGrupIdCache && _liburGambarUrlCache) {
+    return _liburGambarUrlCache; // belum berubah -- pakai cache, tanpa request baru
+  }
+  try {
+    const hasil = await api('scan', 'getGambarLibur', { tanggal: r.tanggal });
+    if (hasil && hasil.success && hasil.gambarUrl) {
+      _liburGambarGrupIdCache = r.gambarGrupId || null;
+      _liburGambarUrlCache    = hasil.gambarUrl;
+      return hasil.gambarUrl;
+    }
+  } catch (e) { /* koneksi gagal -- banner tetap tampil tanpa gambar kali ini */ }
+  return null;
+}
+
 function renderBannerLibur(r) {
   const periodeEl  = document.getElementById('liburPeriode');
   const gambarWrap = document.getElementById('liburGambarWrap');

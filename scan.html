@@ -3180,10 +3180,14 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
          halaman riwayat/monitor sebagai iframe full-screen DI ATAS
          scan.html. scan.html sendiri tidak pernah unload -- kamera & model
          tetap hidup di baliknya. Menutup overlay ini cuma display:none +
-         kosongkan src iframe -> instan, tanpa reinit apa pun. -->
-    <div id="overlayEksternal" style="display:none;position:fixed;inset:0;z-index:100000;background:#000">
-      <iframe id="frameEksternal" title="Halaman eksternal" style="width:100%;height:100%;border:0;background:#fff"></iframe>
-    </div>
+         kosongkan src iframe -> instan, tanpa reinit apa pun.
+         PENTING: div ini SENGAJA dipindah ke LUAR #mainContent (lihat
+         setelah penutup #mainContent di bawah). Sebelumnya div ini ada
+         di DALAM #mainContent, dan #mainContent di-hide (display:none)
+         setiap kali status hari = libur -- akibatnya popup riwayat tidak
+         pernah kelihatan saat scan kartu dilakukan di hari libur (lewat
+         tombol kamera manual), walau teks "Membuka Riwayat" tetap muncul
+         karena teks itu berasal dari elemen lain di luar mainContent. -->
 
     <!-- ══════ MODAL: INPUT TANPA KARTU ══════ -->
     <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
@@ -3404,6 +3408,15 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
 
   </div>
   </div>
+</div>
+
+<!-- overlayEksternal (popup riwayat/monitor) SENGAJA diletakkan di sini,
+     DI LUAR #mainContent, supaya visibilitasnya tidak ikut disembunyikan
+     saat #mainContent di-hide pada hari libur. Lihat catatan lengkap di
+     lokasi lama div ini (dekat modal "Input Tanpa Kartu") untuk kenapa
+     ini dulunya bug. -->
+<div id="overlayEksternal" style="display:none;position:fixed;inset:0;z-index:100000;background:#000">
+  <iframe id="frameEksternal" title="Halaman eksternal" style="width:100%;height:100%;border:0;background:#fff"></iframe>
 </div>
 
 <script>

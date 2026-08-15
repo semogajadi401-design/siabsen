@@ -1429,7 +1429,11 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <!-- REKAP KEHADIRAN GURU (Absensi Mengajar per Jam Pelajaran) -->
       <div class="page" id="page-rekapMengajar">
         <div class="card">
-          <div class="card-header"><h3>📊 Rekap Kehadiran Guru Mengajar</h3></div>
+          <div class="card-header"><h3>📊 Rekap Kehadiran Guru Mengajar</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-success btn-sm" onclick="exportRekapMengajarExcel()">📊 Excel</button>
+            </div>
+          </div>
           <div class="card-body">
             <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
               Dashboard ini adalah bahan pertimbangan (evaluasi, tunjangan kinerja, dll), <b>bukan</b> penghitung nominal gaji — guru digaji bulanan tetap.
@@ -1506,7 +1510,11 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
            lewat tab (lihat renderTabRiwayatKehadiranSiswa()). -->
       <div class="page" id="page-riwayatKehadiranSiswa">
         <div class="card">
-          <div class="card-header"><h3>📖 Riwayat Kehadiran Siswa</h3></div>
+          <div class="card-header"><h3>📖 Riwayat Kehadiran Siswa</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-success btn-sm" onclick="exportRiwayatKehadiranSiswaExcel()">📊 Excel</button>
+            </div>
+          </div>
           <div class="card-body">
             <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
               Riwayat kehadiran siswa per pertemuan untuk mapel & kelas yang Anda ampu -- sekaligus jadi riwayat kehadiran resmi siswa di kelas itu per mapel.
@@ -2001,6 +2009,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <tbody id="mdpBody"></tbody>
       </table></div>
     </div>
+    <div class="modal-footer"><button class="btn btn-primary btn-sm" onclick="downloadPDFPertemuan()">📄 Download PDF</button></div>
   </div>
 </div>
 
@@ -8432,6 +8441,7 @@ async function loadRiwayatKehadiranSiswa() {
 
 function bukaDetailPertemuanSiswa(idx) {
   const p = (window._rksPertemuan || [])[idx]; if (!p) return;
+  window._mdpCurrent = p; // dipakai downloadPDFPertemuan() supaya tidak perlu cari ulang by idx
   const aktif = RKS_STATE.aktif || {};
   document.getElementById('mdpTitle').textContent = `Detail Pertemuan — ${p.tanggal}`;
   document.getElementById('mdpInfo').textContent = `${aktif.mapel || ''} — Kelas ${aktif.kelas || ''} — ${p.hari || ''}`;
@@ -8451,6 +8461,215 @@ function bukaDetailPertemuanSiswa(idx) {
       </tr>`).join('');
   }
   openModal('modalDetailPertemuan');
+}
+
+// ── PDF per-sesi (pengganti "lembar absen kelas" fisik) -- diambil dari
+// data pertemuan yang sedang terbuka di modalDetailPertemuan (window._mdpCurrent,
+// diisi bukaDetailPertemuanSiswa()). Sengaja TIDAK pakai pdf.autoTable --
+// library itu tidak dimuat di proyek ini (lihat exportEvaluasiPDF di atas),
+// jadi tabelnya digambar manual dengan primitif jsPDF supaya konsisten dan
+// tidak menambah dependency baru. Kop surat & gaya mengikuti exportEvaluasiPDF. ──
+async function downloadPDFPertemuan() {
+  const p = window._mdpCurrent;
+  if (!p) { toast('Data pertemuan tidak ditemukan', 'error'); return; }
+  const aktif = RKS_STATE.aktif || {};
+  toast('Menyiapkan PDF...', 'info', 3000);
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const marginX = 14, pageW = 210, pageBottom = 275;
+
+    let sekolah = {};
+    try {
+      const set = await api('settings', 'getJamSetting');
+      sekolah = set?.data || {};
+    } catch (e) { /* tetap lanjut tanpa kop surat kalau gagal ambil */ }
+    const namaSekolah = (sekolah['NAMA_SEKOLAH'] || 'Nama Sekolah').toUpperCase();
+    const alamatSekolah = sekolah['ALAMAT_SEKOLAH'] || '';
+    const kontakParts = [sekolah['TELP_SEKOLAH'], sekolah['EMAIL_SEKOLAH']].filter(Boolean).join('  •  ');
+    const tanggalCetak = new Date().toLocaleString('id-ID', {
+      day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+
+    pdf.setFontSize(13);
+    pdf.setTextColor(21,101,192);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(namaSekolah, marginX, 14);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(110,110,110);
+    if (alamatSekolah) pdf.text(alamatSekolah, marginX, 19);
+    if (kontakParts) pdf.text(kontakParts, marginX, 23.5);
+    pdf.setDrawColor(21,101,192);
+    pdf.setLineWidth(0.6);
+    pdf.line(marginX, 26, pageW - marginX, 26);
+
+    let y = 34;
+    pdf.setFontSize(12);
+    pdf.setTextColor(20,20,20);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('LEMBAR ABSENSI KELAS', marginX, y);
+    pdf.setFont(undefined, 'normal');
+
+    y += 8;
+    pdf.setFontSize(9);
+    pdf.setTextColor(60,60,60);
+    const info = [
+      ['Guru Mapel', APP.user?.nama || '-'],
+      ['Mata Pelajaran', aktif.mapel || '-'],
+      ['Kelas', aktif.kelas || '-'],
+      ['Tanggal', `${p.tanggal}${p.hari ? ' (' + p.hari + ')' : ''}`],
+      ['Status Verifikasi', p.statusVerifikasi || '-'],
+      ['Jumlah Tercatat', `${(p.daftarKehadiran || []).length} siswa`]
+    ];
+    info.forEach(([label, val]) => {
+      pdf.setFont(undefined, 'bold'); pdf.text(label, marginX, y);
+      pdf.setFont(undefined, 'normal'); pdf.text(': ' + val, marginX + 38, y);
+      y += 5.5;
+    });
+
+    // Peringatan kalau sesi ini belum lengkap (mis. ditutup lewat sinkronisasi
+    // offline) -- supaya siapa pun yang mencetak/menyimpan PDF ini tahu data
+    // di dalamnya belum tentu mencakup semua siswa aktif, konsisten dengan
+    // badge "⚠️ Belum Lengkap" yang tampil di layar.
+    if (p.kehadiranLengkap === false) {
+      y += 2;
+      const boxH = 10;
+      pdf.setFillColor(255,248,225);
+      pdf.setDrawColor(255,213,79);
+      pdf.roundedRect(marginX, y, pageW - marginX*2, boxH, 1.5, 1.5, 'FD');
+      pdf.setFontSize(8);
+      pdf.setTextColor(122,91,0);
+      const pesan = `⚠️ Absensi kelas ini belum mencakup semua siswa aktif${p.jumlahSiswaBelumTercatat ? ' (' + p.jumlahSiswaBelumTercatat + ' siswa belum tercatat)' : ''} -- kemungkinan sesi ditutup saat offline.`;
+      pdf.text(pesan, marginX + 4, y + 6.5, { maxWidth: pageW - marginX*2 - 8 });
+      y += boxH;
+    }
+
+    y += 6;
+    const headers = ['No','Nama','NISN','Status','Jam','Keterangan'];
+    const colW = [10, 55, 28, 22, 20, 47];
+    const drawTableHeader = () => {
+      pdf.setFontSize(9);
+      headers.forEach((h, i) => {
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+        pdf.setFillColor(21,101,192);
+        pdf.setTextColor(255,255,255);
+        pdf.rect(x, y-4, colW[i], 7, 'F');
+        pdf.text(h, x+1, y);
+      });
+      y += 7;
+      pdf.setTextColor(0,0,0);
+    };
+    drawTableHeader();
+
+    const daftar = p.daftarKehadiran || [];
+    if (!daftar.length) {
+      pdf.setFontSize(9); pdf.setTextColor(120,120,120);
+      pdf.text('Belum ada siswa tercatat.', marginX + 2, y);
+      y += 7;
+    } else {
+      daftar.forEach((k, idx) => {
+        const vals = [String(idx+1), k.nama, k.nisn || '-', k.status, k.jamScan || '-', k.keterangan || '-'];
+        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
+        pdf.setFontSize(8.5);
+        vals.forEach((v, i) => {
+          const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+          if (i === 3) {
+            const warna = { Hadir:[46,125,50], Izin:[21,101,192], Sakit:[21,101,192], Alpa:[198,40,40] }[v] || [0,0,0];
+            pdf.setTextColor(...warna);
+          } else {
+            pdf.setTextColor(0,0,0);
+          }
+          pdf.text(String(v).substring(0,36), x+1, y);
+        });
+        y += 7;
+        if (y > pageBottom) {
+          pdf.addPage();
+          y = 20;
+          drawTableHeader();
+        }
+      });
+    }
+
+    // Blok tanda tangan guru mapel -- dorong ke halaman baru kalau ruang tersisa
+    // tidak cukup, supaya tidak terpotong.
+    if (y > pageBottom - 32) { pdf.addPage(); y = 20; } else { y += 14; }
+    pdf.setFontSize(9);
+    pdf.setTextColor(60,60,60);
+    const tglTtd = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    pdf.text(`${alamatSekolah ? (alamatSekolah.split(',').pop().trim() + ', ') : ''}${tglTtd}`, pageW - marginX - 60, y);
+    pdf.text('Guru Mata Pelajaran,', pageW - marginX - 60, y + 6);
+    pdf.text('_________________________', pageW - marginX - 60, y + 30);
+
+    const totalHalaman = pdf.internal.getNumberOfPages();
+    for (let pg = 1; pg <= totalHalaman; pg++) {
+      pdf.setPage(pg);
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(140,140,140);
+      pdf.text(`Dicetak otomatis oleh SIABSEN pada ${tanggalCetak}`, marginX, 289);
+      pdf.text(`Halaman ${pg} dari ${totalHalaman}`, pageW - marginX - 30, 289);
+    }
+
+    pdf.save(`Absensi_${(aktif.mapel||'Kelas')}_${aktif.kelas||''}_${p.tanggal}.pdf`.replace(/\s+/g, '_'));
+    toast('PDF berhasil didownload', 'success');
+  } catch (e) { toast('Gagal: ' + e.message, 'error'); }
+}
+
+// ── Excel rekap kehadiran siswa (Riwayat Kehadiran Siswa, halaman guru) --
+// dua sheet: rangkuman per siswa (rangkumanSiswa) dan riwayat per pertemuan
+// (pertemuan), supaya bisa jadi pengganti rekapan manual guru per kelas
+// yang biasanya ditulis di buku terpisah dari buku absen kelas. ──
+async function exportRiwayatKehadiranSiswaExcel() {
+  if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
+  const d = RKS_STATE.dataAktif;
+  if (!d || !d.rangkumanSiswa) { toast('Belum ada data untuk diekspor', 'warning'); return; }
+  const aktif = RKS_STATE.aktif || {};
+
+  const rowsRangkuman = [['Nama','NISN','Hadir','Izin','Sakit','Alpa','Total Pertemuan','% Hadir']];
+  d.rangkumanSiswa.forEach(r => {
+    rowsRangkuman.push([r.nama, r.nisn || '-', r.hadir, r.izin, r.sakit, r.alpa, r.total, r.persentaseHadir === null ? '-' : r.persentaseHadir]);
+  });
+
+  const rowsPertemuan = [['Tanggal','Hari','Jumlah Tercatat','Status Verifikasi','Kehadiran Lengkap']];
+  (d.pertemuan || []).forEach(p => {
+    rowsPertemuan.push([p.tanggal, p.hari || '-', p.jumlahTercatat, p.statusVerifikasi || '-', p.kehadiranLengkap === false ? 'Belum Lengkap' : 'Lengkap']);
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rowsRangkuman), 'Rangkuman Siswa');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rowsPertemuan), 'Riwayat Pertemuan');
+  XLSX.writeFile(wb, `Riwayat_Kehadiran_${(aktif.mapel||'Mapel')}_${aktif.kelas||''}.xlsx`.replace(/\s+/g, '_'));
+  toast('Excel berhasil didownload', 'success');
+}
+
+// ── Excel rekap kehadiran mengajar guru (Rekap Kehadiran Guru, halaman
+// admin/kepsek/guru) -- sumber datanya window._rmRincian (snapshot yang
+// sama dipakai untuk render tabel di layar, lihat loadRekapMengajar()). ──
+async function exportRekapMengajarExcel() {
+  if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
+  const rincian = window._rmRincian;
+  if (!rincian || !rincian.length) { toast('Belum ada data untuk diekspor', 'warning'); return; }
+
+  const namaGuru = APP.user.role === 'guru' ? APP.user.nama : (document.getElementById('rmGuru')?.selectedOptions?.[0]?.textContent || '');
+  const bulan = document.getElementById('rmBulan')?.value;
+  const tahun = document.getElementById('rmTahun')?.value;
+
+  const rows = [['Tanggal','Hari','Kelas','Mapel','Jam Ke','Status','Verifikasi','Jumlah Terverifikasi','Kehadiran Lengkap']];
+  rincian.forEach(r => {
+    rows.push([
+      r.tanggal, r.hari, r.kelas, r.mapel,
+      `Ke-${r.jamKeMulai}${r.jamKeSelesai !== r.jamKeMulai ? ' s/d Ke-' + r.jamKeSelesai : ''}`,
+      r.status, r.statusVerifikasi || '-',
+      r.jumlahSiswaTerverifikasi === null || r.jumlahSiswaTerverifikasi === undefined ? '-' : r.jumlahSiswaTerverifikasi,
+      r.kehadiranLengkap === false ? 'Belum Lengkap' : (r.kehadiranLengkap === null ? '-' : 'Lengkap')
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rekap Mengajar');
+  XLSX.writeFile(wb, `Rekap_Kehadiran_Guru_${namaGuru || ''}_${bulan || ''}-${tahun || ''}.xlsx`.replace(/\s+/g, '_'));
+  toast('Excel berhasil didownload', 'success');
 }
 </script>
 </body>

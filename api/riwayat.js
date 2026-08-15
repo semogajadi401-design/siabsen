@@ -6,7 +6,24 @@
 //    supaya orang tidak bisa menebak-nebak ID siswa lain.
 //  - Data yang dikembalikan HANYA seputar riwayat absensi (tanggal, jam,
 //    status). Tidak pernah mengembalikan alamat, no HP ortu, dll.
-const { supabase, setCors } = require('./_db');
+// PERBAIKAN (BARU) BUG ZONA WAKTU: sebelumnya "hari ini" di file ini
+// SELALU dihitung lewat `new Date().toISOString().substring(0,10)` --
+// itu tanggal UTC, BUKAN tanggal WITA (UTC+8) yang dipakai konsisten di
+// seluruh bagian lain aplikasi (lihat todayStr() di _db.js, dipakai
+// api/scan.js, api/mengajar.js, dst). Karena WITA lebih cepat 8 jam dari
+// UTC, setiap hari jam 00:00-07:59 WITA, tanggal UTC masih "kemarin"
+// menurut kalender WITA. Akibatnya di halaman riwayat (diakses siswa/
+// ortu lewat scan QR belakang kartu):
+//  - getRiwayat()/getRiwayatMapel(): rentang tanggal salah terpotong ke
+//    "kemarin", sehingga data absensi hari ini (yang sudah tercatat,
+//    mis. siswa sudah discan jam 6 pagi) tidak ikut muncul di riwayat.
+//  - getRiwayat(): siswa yang belum absen pulang hari ini bisa SALAH
+//    ditandai "Lupa Absen Pulang" padahal harinya belum berakhir sama
+//    sekali (r.tanggal WITA "hari ini" dibandingkan todayNow yang masih
+//    "kemarin" menurut UTC, jadi dianggap beda tanggal / sudah lewat).
+// Sekarang dipakai todayStr() yang sama persis dengan seluruh bagian
+// lain aplikasi -- import dari _db.js, BUKAN dihitung ulang di sini.
+const { supabase, setCors, todayStr } = require('./_db');
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -50,7 +67,7 @@ async function getInfo({ token }) {
   const { data: semesters } = await supabase
     .from('semester').select('*').order('tanggal_mulai', { ascending: false });
 
-  const today = new Date().toISOString().substring(0, 10);
+  const today = todayStr();
   // Semester yang "punya riwayat" = semester yang sudah mulai berjalan
   // (sudah lewat tanggal mulainya), jadi pasti ada setidaknya hari
   // sekolah yang bisa ditampilkan riwayatnya.
@@ -94,8 +111,8 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
   }
 
   // Jangan tampilkan status Alpha untuk hari yang belum terjadi
-  const todayStr = new Date().toISOString().substring(0, 10);
-  if (end > todayStr) end = todayStr;
+  const hariIniStr = todayStr();
+  if (end > hariIniStr) end = hariIniStr;
 
   if (start > end) {
     return {
@@ -182,7 +199,7 @@ async function getRiwayat({ token, semesterId, bulan, status }) {
   // belum waktunya pulang). Ditandai per baris (bukan cuma dihitung
   // total) supaya halaman riwayat bisa kasih highlight visual pas
   // guru/ortu/siswa lihat hari mana saja yang kejadian.
-  const todayNow = new Date().toISOString().substring(0, 10);
+  const todayNow = todayStr();
   allRows.forEach(r => {
     r.lupaAbsenPulang = (r.statusDatang === 'Hadir' || r.statusDatang === 'Terlambat')
       && !r.jamPulang && r.tanggal !== todayNow;
@@ -262,8 +279,8 @@ async function getRiwayatMapel({ token, semesterId, bulan, mapel }) {
     if (bulanStart > start) start = bulanStart;
     if (bulanEnd < end) end = bulanEnd;
   }
-  const todayStr = new Date().toISOString().substring(0, 10);
-  if (end > todayStr) end = todayStr;
+  const hariIniStr = todayStr();
+  if (end > hariIniStr) end = hariIniStr;
 
   const kosong = {
     success: true,

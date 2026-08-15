@@ -5559,6 +5559,15 @@ async function checkStatus() {
     const liburBanner  = document.getElementById('liburBanner');
 
     if (!r.bisaAbsen) {
+      // PERBAIKAN (BARU): hari libur sama sekali tidak butuh kamera --
+      // beda dengan "lewat jam operasional" (Mode Rekap Harian) yang
+      // kameranya SENGAJA dibiarkan menyala untuk scan QR guru/admin/
+      // kepsek (lihat catatan "APAPUN KONDISINYA" di masukModeRekapHarian()).
+      // Di hari libur tidak ada skenario itu, jadi kamera dimatikan
+      // benar-benar (hardware release) supaya lampu indikator kamera
+      // ikut padam, bukan cuma preview-nya yang disembunyikan lewat
+      // mainContent.style.display='none' seperti sebelumnya.
+      stopScanner();
       liburBanner.style.display = 'block';
       mainContent.style.display = 'none';
       document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
@@ -5567,6 +5576,13 @@ async function checkStatus() {
       renderLiburBesokInfo();
       return;
     }
+
+    // Hari ini TERNYATA bisa absen (mis. baru saja lewat tengah malam dari
+    // hari libur ke hari sekolah, atau admin baru menghapus data libur
+    // hari ini) TAPI kamera sempat dimatikan oleh stopScanner() di atas
+    // pada siklus checkStatus() sebelumnya -- nyalakan lagi di sini,
+    // bukan menunggu reload manual.
+    if (!scanActive) startScanner();
 
     liburBanner.style.display = 'none';
     mainContent.style.display = 'grid';
@@ -6496,6 +6512,30 @@ async function startScanner() {
   } catch(e) {
     toast('⚠️ Kamera tidak bisa diakses: ' + e.message);
   }
+}
+
+// PERBAIKAN (BARU): sebelumnya TIDAK ADA fungsi untuk benar-benar
+// mematikan kamera -- begitu startScanner() berhasil, hardware kamera
+// (dan lampu indikatornya di laptop/HP) tetap menyala terus sampai
+// halaman ditutup, WALAUPUN halaman sedang menampilkan #liburBanner
+// (hari libur, lihat checkStatus()) yang sama sekali tidak butuh
+// kamera. Beda dengan drawer/modal (lihat pauseScanBerat() di atas)
+// yang memang sengaja cuma "jeda" tanpa stream.getTracks().stop() biar
+// tidak flicker saat dibuka-tutup singkat -- mode libur ini bisa
+// berlangsung seharian penuh, jadi pantas kamera benar-benar dimatikan
+// (hardware release), bukan cuma disembunyikan lewat CSS/display:none
+// seperti sebelumnya. startScanner() dipanggil lagi otomatis begitu
+// hari libur berakhir / bisaAbsen kembali true (lihat checkStatus()).
+function stopScanner() {
+  if (!scanActive && !scanStream) return;
+  scanActive = false;
+  if (scanAnimFrame) { cancelAnimationFrame(scanAnimFrame); scanAnimFrame = null; }
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+  const video = document.getElementById('scanVideo');
+  if (video) video.srcObject = null;
 }
 
 // Canvas kerja untuk decode diskalakan lebih kecil dari resolusi asli

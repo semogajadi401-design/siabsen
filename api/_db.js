@@ -398,10 +398,19 @@ function tambahMenit(jamStr, menit) {
 async function isHariLibur(tanggal) {
   const { data } = await supabase
     .from('hari_kerja')
-    // BARU: ikut ambil pesan/gambar_url/grup_id -- dipakai getStatus()
-    // di api/scan.js supaya scan.html bisa menampilkan gambar +
-    // pesan opsional di banner libur, bukan cuma judulnya saja.
-    .select('keterangan,pesan,gambar_url,grup_id')
+    // PERBAIKAN EGRESS (BARU): SEBELUMNYA select ini ikut menarik
+    // gambar_url (bisa sampai ~2MB base64) -- padahal fungsi ini dipanggil
+    // dari getStatus() yang DIPOLL scan.html tiap 15 detik. Efeknya:
+    // seluruh gambar banner libur dikirim ULANG ke SETIAP kiosk yang
+    // menyala tiap 15 detik sepanjang hari libur -- kontributor terbesar
+    // lonjakan egress. Sekarang gambar_url TIDAK ikut diambil di sini
+    // sama sekali. Sebagai gantinya, ada_gambar (boolean, dari grup_id
+    // yang sama) dipakai klien untuk tahu ADA gambar tanpa perlu
+    // menariknya, dan gambar sungguhan baru diambil terpisah lewat
+    // getGambarLibur() (lihat api/scan.js) HANYA saat grup_id berubah
+    // dari yang terakhir dipegang klien -- lihat cekGambarLiburBerubah()
+    // di scan.html.
+    .select('keterangan,pesan,grup_id')
     .eq('tanggal', tanggal)
     .maybeSingle();
   if (!data) return { libur: false };
@@ -424,14 +433,44 @@ async function isHariLibur(tanggal) {
     }
   }
 
+  // (BARU, bagian PERBAIKAN EGRESS) Cek APAKAH ada gambar TANPA menarik
+  // isi gambarnya: filter .not('gambar_url','is',null) dievaluasi di sisi
+  // Postgres, tapi select() cuma minta kolom 'tanggal' yang kecil -- jadi
+  // baris gambar_url (bisa ~2MB) TIDAK PERNAH ikut lewat jaringan di sini.
+  const { data: cekGambar } = await supabase
+    .from('hari_kerja')
+    .select('tanggal')
+    .eq('tanggal', tanggal)
+    .not('gambar_url', 'is', null)
+    .maybeSingle();
+
   return {
     libur: true,
     keterangan: data.keterangan,
     pesan: data.pesan || null,
-    gambarUrl: data.gambar_url || null,
+    // gambarUrl SENGAJA tidak dikembalikan di sini lagi -- lihat catatan
+    // PERBAIKAN EGRESS di select() atas. Klien pakai adaGambar+grupId
+    // (sebagai versi) untuk memutuskan kapan perlu memanggil
+    // getGambarLibur() secara terpisah.
+    adaGambar: !!cekGambar,
     grupId: data.grup_id || null,
     rentangMulai, rentangSelesai
   };
+}
+
+// ── AMBIL GAMBAR LIBUR SAJA (BARU, bagian PERBAIKAN EGRESS) ─────────
+// Dipisah dari isHariLibur() supaya base64 gambar (bisa ~2MB) hanya
+// ditarik & dikirim saat memang dibutuhkan -- yaitu saat klien
+// mendeteksi grupId berubah dari yang terakhir ia pegang (lihat
+// cekGambarLiburBerubah() di scan.html) -- BUKAN di setiap polling
+// getStatus() 15 detik seperti sebelumnya.
+async function getGambarLibur(tanggal) {
+  const { data } = await supabase
+    .from('hari_kerja')
+    .select('gambar_url')
+    .eq('tanggal', tanggal)
+    .maybeSingle();
+  return (data && data.gambar_url) || null;
 }
 
 // ── CEK HARI KERJA (sesuai pengaturan admin di Pengaturan Semester) ──
@@ -1346,7 +1385,9 @@ module.exports = {
   // ── TAMBAHAN BARU (perbaikan bug: query terpotong diam-diam di 1000 baris) ──
   fetchAllRows,
   // ── TAMBAHAN BARU (fitur "Ranking Izin & Alpha" di drawer scan.html) ──
-  getRankingIzinAlpha
+  getRankingIzinAlpha,
+  // ── TAMBAHAN BARU (PERBAIKAN EGRESS: gambar libur ditarik terpisah) ──
+  getGambarLibur
 };
 
 // ── AMBIL SEMUA BARIS TANPA TERPOTONG BATAS DEFAULT SUPABASE (1000) ──

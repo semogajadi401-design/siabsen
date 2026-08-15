@@ -12,7 +12,9 @@ const {
   // ── TAMBAHAN BARU (pengecualian jam pelajaran per Hari + Kelas) ──
   buatResolverJamPelajaran, hitungDefaultJamPelajaran,
   // ── TAMBAHAN BARU (fitur tombol "Persentase Kehadiran") ──
-  getTrenPersentaseKehadiran
+  getTrenPersentaseKehadiran,
+  // ── TAMBAHAN BARU (fitur "Ranking Izin & Alpha" di drawer scan.html) ──
+  getRankingIzinAlpha
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -111,6 +113,7 @@ module.exports = async (req, res) => {
     // getAktivitasGuruHariIni() di atas. Lihat getTrenPersentaseKehadiran()
     // di api/_db.js untuk detail perhitungannya.
     if (action === 'getPersentaseKehadiran') return res.json(await getTrenPersentaseKehadiran(params));
+    if (action === 'getRankingIzinAlpha')    return res.json(await getRankingIzinAlpha());
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     if (action === 'absenKelasUsername')  return res.json(await absenKelasUsername(params));

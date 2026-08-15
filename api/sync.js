@@ -312,9 +312,21 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
     };
 
     const sesiId = generateID('SP');
+
+    // ── KETERLAMBATAN GURU PIKET (BARU) ──────────────────────────────
+    // Sama persis dengan jalur online (scanKartu() di api/scan.js) --
+    // lihat komentar di sana untuk penjelasan lengkap. `jam` di sini
+    // adalah jam yang TERCATAT SAAT SCAN TERJADI di perangkat offline
+    // (bukan jam sync), jadi keterlambatan tetap dihitung dari momen
+    // guru benar-benar menempelkan kartunya, bukan dari kapan device-nya
+    // kebetulan online lagi.
+    const jamBatasPiket  = jamSetting['JAM_BATAS_PIKET'] || '';
+    const terlambatPiket = jamBatasPiket ? (jam >= jamBatasPiket) : null;
+
     const { error: sesiError } = await supabase.from('sesi_piket').insert({
       id: sesiId, tanggal, id_guru: guru.id,
-      nama_guru: guru.nama, jabatan: guru.jabatan, jam_scan: jam
+      nama_guru: guru.nama, jabatan: guru.jabatan, jam_scan: jam,
+      terlambat: terlambatPiket
     });
 
     if (sesiError) {
@@ -349,9 +361,10 @@ async function processSingleScan({ identifier, mode, tanggal, jam, hari, namaGur
 
     return {
       success: true, tipe: 'guru',
-      message: pengganti
+      message: (terlambatPiket === true ? '⚠️ ' : '') + (pengganti
         ? `${guru.nama} tercatat sebagai guru piket PENGGANTI (dikonfirmasi offline, ${jam})`
-        : `${guru.nama} tercatat sebagai guru piket (${jam})`
+        : `${guru.nama} tercatat sebagai guru piket (${jam})`)
+        + (terlambatPiket === true ? ` -- TERLAMBAT (batas ${jamBatasPiket})` : '')
     };
   }
 

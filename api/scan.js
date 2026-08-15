@@ -14,7 +14,9 @@ const {
   // ── TAMBAHAN BARU (fitur tombol "Persentase Kehadiran") ──
   getTrenPersentaseKehadiran,
   // ── TAMBAHAN BARU (fitur "Ranking Izin & Alpha" di drawer scan.html) ──
-  getRankingIzinAlpha
+  getRankingIzinAlpha,
+  // ── TAMBAHAN BARU (PERBAIKAN EGRESS: gambar libur ditarik terpisah) ──
+  getGambarLibur
 } = require('./_db');
 // CATATAN: cekIzinPiket() (dan sebutanGuru() pendukungnya) DIPINDAH ke
 // api/_db.js supaya api/sync.js (jalur offline) bisa memakai fungsi yang
@@ -114,6 +116,11 @@ module.exports = async (req, res) => {
     // di api/_db.js untuk detail perhitungannya.
     if (action === 'getPersentaseKehadiran') return res.json(await getTrenPersentaseKehadiran(params));
     if (action === 'getRankingIzinAlpha')    return res.json(await getRankingIzinAlpha());
+    // BARU (PERBAIKAN EGRESS): lihat catatan lengkap di getGambarLibur()
+    // (_db.js) dan cekGambarLiburBerubah() (scan.html) -- dipanggil klien
+    // HANYA saat gambarGrupId dari getStatus() berbeda dari yang terakhir
+    // ia pegang, bukan di setiap polling 15 detik.
+    if (action === 'getGambarLibur')  return res.json({ success: true, gambarUrl: await getGambarLibur(params && params.tanggal ? params.tanggal : todayStr()) });
     if (action === 'verifikasiGuruPiket') return res.json(await verifikasiGuruPiket(params));
     if (action === 'inputTanpaKartu')     return res.json(await inputTanpaKartu(params));
     if (action === 'absenKelasUsername')  return res.json(await absenKelasUsername(params));
@@ -176,11 +183,20 @@ async function getStatus() {
     await getKonfigurasiTerkache(today, hari);
 
   if (cekLibur.libur)
-    // BARU: ikut kirim pesan opsional + gambar libur (base64) + rentang
-    // tanggal (rentangMulai/rentangSelesai) ke scan.html supaya banner
-    // liburnya bisa tampil lebih "keren" -- lihat renderBannerLibur()
+    // BARU: ikut kirim pesan opsional + rentang tanggal (rentangMulai/
+    // rentangSelesai) ke scan.html supaya banner liburnya bisa tampil
+    // lebih "keren" -- lihat renderBannerLibur() di scan.html.
+    //
+    // PERBAIKAN EGRESS (BARU): gambarUrl (base64, bisa ~2MB) SENGAJA
+    // TIDAK dikirim di sini lagi -- fungsi ini dipanggil dari getStatus()
+    // yang dipoll scan.html tiap 15 detik, jadi sebelumnya gambar itu
+    // dikirim ULANG ke tiap kiosk tiap 15 detik sepanjang hari libur.
+    // Sebagai gantinya dikirim adaGambar (boolean) + grupId (dipakai
+    // scan.html sebagai "versi" gambar). Gambar sungguhan baru diambil
+    // lewat action terpisah getGambarLibur HANYA saat grupId berubah
+    // dari yang terakhir dipegang klien -- lihat cekGambarLiburBerubah()
     // di scan.html.
-    return { success: true, bisaAbsen: false, alasan: 'libur', keterangan: cekLibur.keterangan, pesan: cekLibur.pesan, gambarUrl: cekLibur.gambarUrl, rentangMulai: cekLibur.rentangMulai, rentangSelesai: cekLibur.rentangSelesai };
+    return { success: true, bisaAbsen: false, alasan: 'libur', tanggal: today, keterangan: cekLibur.keterangan, pesan: cekLibur.pesan, adaGambar: cekLibur.adaGambar, gambarGrupId: cekLibur.grupId, rentangMulai: cekLibur.rentangMulai, rentangSelesai: cekLibur.rentangSelesai };
 
   if (!hariAktif)
     return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} - Sekolah libur, sistem pun diliburkan supaya bisa beristirahat sejenak 😄` };

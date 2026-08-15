@@ -3,7 +3,9 @@ const {
   supabase, generateID, setCors, todayStr, hariIni,
   isHariLibur, isHariKerja, requireAdminToken, isGuruPiketHariIni,
   resolveGuruIdFromToken, hitungJumlahHariSekolah,
-  hitungTanggalEvaluasiEfektif
+  hitungTanggalEvaluasiEfektif,
+  // ── TAMBAHAN BARU (perbaikan bug: query terpotong diam-diam di 1000 baris) ──
+  fetchAllRows
 } = require('./_db');
 
 // CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
@@ -560,11 +562,18 @@ async function batalkanPulangCepat({ idAbsen }, isAdmin) {
 
 // ── REKAP KETERANGAN RANGE (untuk evaluasi semester) ─────────────
 async function rekapKeteranganRange({ tanggalMulai, tanggalSelesai, kelas }) {
-  let q = supabase.from('keterangan_absensi').select('*')
-    .gte('tanggal', tanggalMulai)
-    .lte('tanggal', tanggalSelesai);
-  if (kelas) q = q.eq('kelas', kelas);
-  const { data, error } = await q;
+  // PERBAIKAN BUG: sama seperti rekapBulananRange() di api/absensi.js --
+  // query seluruh sekolah untuk satu semester gampang lewat batas default
+  // Supabase 1000 baris, dan diam-diam terpotong tanpa error. Pakai
+  // fetchAllRows() (_db.js) supaya semua baris keterangan sakit/izin
+  // ikut terhitung, tidak peduli berapa jumlahnya.
+  const { data, error } = await fetchAllRows(() => {
+    let q = supabase.from('keterangan_absensi').select('*')
+      .gte('tanggal', tanggalMulai)
+      .lte('tanggal', tanggalSelesai);
+    if (kelas) q = q.eq('kelas', kelas);
+    return q;
+  });
   if (error) return { success: false, message: error.message };
   return {
     success: true,

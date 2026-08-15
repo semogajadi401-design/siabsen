@@ -3,7 +3,9 @@ const {
   todayStr, jamSekarang, hariIni, tambahMenit,
   isHariLibur, isHariKerja, getSemesterAktif, requireAdminToken,
   // ── TAMBAHAN BARU (perbaikan keamanan) ──
-  resolveGuruIdFromToken
+  resolveGuruIdFromToken,
+  // ── TAMBAHAN BARU (perbaikan bug: query terpotong diam-diam di 1000 baris) ──
+  fetchAllRows
 } = require('./_db');
 
 // PENTING — DIPERBAIKI: 'datang' dan 'pulang' SEBELUMNYA terbuka tanpa
@@ -242,11 +244,19 @@ async function rekapBulanan({ bulan, tahun, kelas }) {
 }
 
 async function rekapBulananRange({ tanggalMulai, tanggalSelesai, kelas }) {
-  let q = supabase.from('absensi').select('*')
-    .gte('tanggal', tanggalMulai)
-    .lte('tanggal', tanggalSelesai);
-  if (kelas) q = q.eq('kelas', kelas);
-  const { data, error } = await q;
+  // PERBAIKAN BUG (% Kehadiran "Semua Kelas" lebih rendah dari per kelas):
+  // sebelumnya pakai `await q` langsung -- kena batas default Supabase
+  // 1000 baris per request, dan untuk rentang satu semester + seluruh
+  // sekolah (tanpa filter kelas) itu gampang lewat 1000. Sekarang pakai
+  // fetchAllRows() supaya SEMUA baris terambil, berapa pun jumlahnya
+  // (lihat catatan lengkap di fetchAllRows, _db.js).
+  const { data, error } = await fetchAllRows(() => {
+    let q = supabase.from('absensi').select('*')
+      .gte('tanggal', tanggalMulai)
+      .lte('tanggal', tanggalSelesai);
+    if (kelas) q = q.eq('kelas', kelas);
+    return q;
+  });
   if (error) return { success: false, message: error.message };
 
   const grouped = {};
@@ -276,10 +286,15 @@ async function rekapBulananRange({ tanggalMulai, tanggalSelesai, kelas }) {
 // ini tidak membocorkan data siswa individual dan aman dibuka tanpa
 // login (lihat AKSI_BACA_TERBATAS di atas).
 async function rekapHarianPerKelas({ tanggalMulai, tanggalSelesai, kelas }) {
-  let q = supabase.from('absensi').select('tanggal,kelas,status_datang')
-    .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
-  if (kelas) q = q.eq('kelas', kelas);
-  const { data, error } = await q;
+  // PERBAIKAN BUG: sama seperti rekapBulananRange() di atas -- query
+  // seluruh sekolah untuk satu semester gampang lewat batas default
+  // Supabase 1000 baris. Pakai fetchAllRows() supaya tidak terpotong.
+  const { data, error } = await fetchAllRows(() => {
+    let q = supabase.from('absensi').select('tanggal,kelas,status_datang')
+      .gte('tanggal', tanggalMulai).lte('tanggal', tanggalSelesai);
+    if (kelas) q = q.eq('kelas', kelas);
+    return q;
+  });
   if (error) return { success: false, message: error.message };
   return {
     success: true,

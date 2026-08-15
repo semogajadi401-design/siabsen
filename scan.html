@@ -7558,8 +7558,18 @@ function handleScanResult(result, data, now) {
     scannedHistory[data] = now;
 
     if (result.tipe === 'guru') {
-      showFlash('guru','👤', result.guru.nama);
-      toast('✅ ' + result.message);
+      // BARU: kalau guru ini tercatat TERLAMBAT piket (result.guru.
+      // terlambatPiket === true, lihat JAM_BATAS_PIKET di Pengaturan
+      // Jam), pakai flash & beep 'warning' (sama seperti siswa yang
+      // Terlambat) supaya visualnya konsisten -- BUKAN 'guru' (netral)
+      // seperti kasus piket tepat waktu.
+      const piketTerlambat = result.guru && result.guru.terlambatPiket === true;
+      showFlash(piketTerlambat ? 'warning' : 'guru', piketTerlambat ? '⚠️' : '👤', result.guru.nama);
+      // result.message SUDAH membawa ikon sendiri di depannya (✅ untuk
+      // sukses normal, ⚠️ untuk terlambat, lihat api/scan.js) -- jangan
+      // ditambah '✅ ' lagi di sini kalau sedang terlambat, supaya tidak
+      // muncul dua ikon yang saling bertentangan (✅ dan ⚠️ sekaligus).
+      toast(piketTerlambat ? result.message : '✅ ' + result.message);
       // Simpan lokal agar dikenali saat offline
       simpanGuruOffline(result.guru.nama, result.guru.id || '', result.guru.jam);
       checkStatus();

@@ -508,6 +508,20 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   transition:transform .15s;
 }
 .btn-persentase-kehadiran:active{transform:scale(.96)}
+
+/* ── TOMBOL RANKING IZIN & ALPHA (BARU) ──────────────────────────────
+   Sama pola dengan 4 tombol di atas, tapi warna merah (danger) supaya
+   jelas ini soal peringatan/perhatian (siswa sering Izin/Alpa), beda
+   dari 4 tombol lain yang netral/informatif. Lihat
+   bukaModalRankingIzinAlpha() & getRankingIzinAlpha() di api/_db.js. */
+.btn-ranking-izin-alpha{
+  width:100%;padding:12px 10px;border:none;border-radius:16px;
+  background:linear-gradient(160deg,#FCA5A5,#DC2626);
+  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
+  box-shadow:0 6px 16px -6px rgba(220,38,38,0.55),inset 0 1px 1px rgba(255,255,255,.35);
+  transition:transform .15s;
+}
+.btn-ranking-izin-alpha:active{transform:scale(.96)}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
   /* PERBAIKAN TATA LETAK MOBILE: sebelumnya tombol Absen Kelas & Cek
@@ -523,7 +537,7 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
      berdampingan, berbagi lebar rata lewat flex:1) supaya rapi dan
      tidak ada yang tersembunyi. */
   .aksi-kelas-wrap{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;max-width:none;gap:10px}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran{flex:1 1 0;width:auto}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran,.btn-ranking-izin-alpha{flex:1 1 0;width:auto}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -539,7 +553,7 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
      sempit untuk teks "Cek Aktivitas Guru" -- tumpuk vertikal saja
      supaya teks & ikon tetap jelas terbaca, bukan terpotong. */
   .aksi-kelas-wrap{flex-direction:column}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran{width:100%}
+  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran,.btn-ranking-izin-alpha{width:100%}
 }
 
 /* ── MODAL PERSENTASE KEHADIRAN (BARU) ──────────────────────────────
@@ -625,6 +639,53 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   padding-top:12px;border-top:1px solid var(--border);
 }
 .pk-rata-val{font-weight:800;color:var(--text);font-size:.92rem}
+
+/* ── DAFTAR RANKING IZIN & ALPHA (BARU) ──────────────────────────────
+   Tiap siswa = satu "kartu" baris, bisa diklik/tap untuk buka-tutup
+   rincian keterangan Izin-nya (kalau ada) -- SENGAJA tertutup secara
+   default (lihat riaToggleBaris()) supaya daftar tetap ringkas dibaca
+   sekilas, dan keterangan (yang bisa panjang/pribadi) tidak langsung
+   terpampang semua tanpa diminta. Peringkat #1-3 (paling banyak Izin+
+   Alpha) diberi aksen merah lebih tegas supaya cepat kelihatan mana
+   yang paling perlu diperhatikan; siswa dengan total 0 diberi aksen
+   hijau (sesuai maksud "sampai yang tidak ada"). */
+.ria-row{
+  border:1.5px solid var(--border);border-radius:12px;overflow:hidden;
+  background:var(--bg-soft,#F8FAFC);cursor:pointer;transition:border-color .15s;
+}
+.ria-row.ria-parah{border-color:var(--danger,#DC2626)}
+.ria-row.ria-nihil{border-color:var(--success,#16A34A);opacity:.75}
+.ria-row-head{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+}
+.ria-rank{
+  flex-shrink:0;width:24px;height:24px;border-radius:50%;
+  background:var(--border);color:var(--text-muted);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:800;
+}
+.ria-row.ria-parah .ria-rank{background:var(--danger,#DC2626);color:#fff}
+.ria-info{flex:1;min-width:0}
+.ria-nama{font-weight:700;font-size:.86rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ria-kelas{font-size:.72rem;color:var(--text-muted);margin-top:1px}
+.ria-badges{flex-shrink:0;display:flex;gap:5px}
+.ria-badge{
+  font-size:.68rem;font-weight:800;padding:3px 7px;border-radius:999px;
+  white-space:nowrap;
+}
+.ria-badge-izin{background:var(--primary-soft,#E0E7FF);color:var(--primary-dark,#4338CA)}
+.ria-badge-alpha{background:var(--danger-soft,#FEE2E2);color:var(--danger,#DC2626)}
+.ria-chevron{flex-shrink:0;font-size:.7rem;color:var(--text-muted);transition:transform .15s}
+.ria-row.ria-open .ria-chevron{transform:rotate(90deg)}
+.ria-detail{
+  display:none;padding:0 12px 12px 46px;font-size:.78rem;color:var(--text-muted);
+  border-top:1px dashed var(--border);margin-top:0;
+}
+.ria-row.ria-open .ria-detail{display:block;padding-top:10px}
+.ria-ket-item{margin-bottom:6px;line-height:1.4}
+.ria-ket-item:last-child{margin-bottom:0}
+.ria-ket-tgl{font-weight:700;color:var(--text)}
+.ria-ket-kosong{font-style:italic}
 
 /* ── KAMERA BULAT DENGAN FRAME SCANNER AI ── */
 /* PERBAIKAN TATA LETAK (11 Juli 2026, revisi ke-2): ukuran sebelumnya
@@ -2711,6 +2772,19 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
       <button type="button" class="btn-persentase-kehadiran" id="btnPersentaseKehadiran" onclick="bukaModalPersentaseKehadiran()">
         📊 Persentase Kehadiran
       </button>
+
+      <!-- Tombol Ranking Izin & Alpha (BARU) -- daftar siswa aktif,
+           diurutkan dari yang paling banyak Izin+Alpha (semester
+           berjalan) sampai yang tidak ada sama sekali, lengkap dengan
+           keterangan Izin kalau ada. SENGAJA cuma dihitung/dimuat saat
+           tombol ini diklik (bukaModalRankingIzinAlpha() -> baru
+           memanggil api('scan','getRankingIzinAlpha')) -- bukan otomatis
+           saat halaman/drawer dibuka -- read-only murni, sama semangatnya
+           dengan tombol Persentase Kehadiran di atas. Lihat
+           #modalRankingIzinAlpha & getRankingIzinAlpha() di api/_db.js. -->
+      <button type="button" class="btn-ranking-izin-alpha" id="btnRankingIzinAlpha" onclick="bukaModalRankingIzinAlpha()">
+        ⚠️ Siswa Sering Izin/Alpa
+      </button>
     </div>
 
     <!-- Slot desktop untuk widget diagram kehadiran (BARU) -- diisi via JS
@@ -3004,6 +3078,42 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
             <span>Rata-rata periode ini</span>
             <span class="pk-rata-val" id="pkRataRata">-</span>
           </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: RANKING IZIN & ALPHA (BARU) ══════
+       Dibuka lewat tombol "⚠️ Siswa Sering Izin/Alpa" (lihat
+       #btnRankingIzinAlpha di atas). Read-only murni, publik, TIDAK
+       otomatis memuat data apa pun sampai tombolnya benar-benar diklik
+       -- lihat bukaModalRankingIzinAlpha() & getRankingIzinAlpha() di
+       api/_db.js. Daftar diurutkan dari siswa paling banyak Izin+Alpha
+       (semester berjalan) sampai yang tidak ada sama sekali (0), tiap
+       baris bisa diklik/tap untuk buka-tutup rincian keterangan Izin-nya
+       (kalau ada) -- lihat riaToggleBaris() & CSS .ria-row. -->
+  <div id="modalRankingIzinAlpha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-weight:800;font-size:.98rem">⚠️ Siswa Sering Izin/Alpa</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px" id="riaSubjudul">Semester berjalan</div>
+        </div>
+        <button onclick="tutupModalRankingIzinAlpha()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted);line-height:1;padding:2px 6px">×</button>
+      </div>
+
+      <!-- Isi (loading / konten / error) -->
+      <div id="riaIsi" style="overflow-y:auto;flex:1;padding:16px 20px 20px">
+        <div id="riaLoading" style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat data...</div>
+        <div id="riaError" style="display:none;text-align:center;padding:30px 10px;color:var(--danger,#DC2626);font-size:.82rem;font-weight:600"></div>
+        <div id="riaKosong" style="display:none;text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">Belum ada data untuk periode ini.</div>
+
+        <div id="riaKonten" style="display:none">
+          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center;margin-bottom:12px" id="riaPeriodeInfo"></div>
+          <div id="riaList" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
       </div>
 
@@ -3782,7 +3892,7 @@ function initDrawerLayout(){
   // diklik (Absen Kelas, Cek Aktivitas Guru, Kelola Piket, Persentase
   // Kehadiran, Petunjuk, Login Admin) -- supaya guru langsung fokus ke
   // overlay/modal yang terbuka, bukan ketutupan drawer di belakangnya.
-  ['btnAbsenKelas','btnCekAktivitasGuru','btnKelolaPiket','btnPersentaseKehadiran','btnPetunjuk','btnLoginAdmin']
+  ['btnAbsenKelas','btnCekAktivitasGuru','btnKelolaPiket','btnPersentaseKehadiran','btnRankingIzinAlpha','btnPetunjuk','btnLoginAdmin']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('click', closeDrawer);
@@ -8079,6 +8189,115 @@ function renderPersentaseKehadiran(data) {
 
   // ── Rata-rata ──
   document.getElementById('pkRataRata').textContent = data.rataRata === null ? '-' : fmtPersen(data.rataRata) + '%';
+}
+
+// ══════ RANKING IZIN & ALPHA (BARU) — read-only, SENGAJA cuma dimuat
+// saat tombol "⚠️ Siswa Sering Izin/Alpa" (#btnRankingIzinAlpha) benar-
+// benar diklik -- bukaModalRankingIzinAlpha() di bawah baru memanggil
+// api('scan','getRankingIzinAlpha') saat itu juga, tidak ada pemanggilan
+// otomatis lain (tidak dipanggil dari init()/checkStatus() dsb). Lihat
+// getRankingIzinAlpha() di api/_db.js untuk cara hitungnya (semester
+// aktif, sama persis dengan halaman Evaluasi Kehadiran di index.html).
+async function bukaModalRankingIzinAlpha() {
+  pauseScanBerat();
+  document.getElementById('modalRankingIzinAlpha').style.display = 'flex';
+  await loadRankingIzinAlpha();
+}
+
+function tutupModalRankingIzinAlpha() {
+  document.getElementById('modalRankingIzinAlpha').style.display = 'none';
+  resumeScanBerat();
+  if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+async function loadRankingIzinAlpha() {
+  const loading = document.getElementById('riaLoading');
+  const konten  = document.getElementById('riaKonten');
+  const errBox  = document.getElementById('riaError');
+  const kosong  = document.getElementById('riaKosong');
+  loading.style.display = '';
+  konten.style.display  = 'none';
+  errBox.style.display  = 'none';
+  kosong.style.display  = 'none';
+
+  try {
+    const r = await api('scan', 'getRankingIzinAlpha', {});
+    if (!r || !r.success) {
+      loading.style.display = 'none';
+      errBox.style.display  = '';
+      errBox.textContent = (r && r.message) || 'Gagal memuat data.';
+      return;
+    }
+    if (r.belumAdaSemester || r.belumMulai || !(r.data || []).length) {
+      loading.style.display = 'none';
+      kosong.style.display  = '';
+      kosong.textContent = r.belumAdaSemester
+        ? 'Belum ada semester aktif yang diatur.'
+        : r.belumMulai
+          ? 'Semester aktif belum mulai.'
+          : 'Belum ada data untuk periode ini.';
+      return;
+    }
+    renderRankingIzinAlpha(r);
+  } catch (e) {
+    loading.style.display = 'none';
+    errBox.style.display  = '';
+    errBox.textContent = 'Gagal memuat data. Cek koneksi.';
+  }
+}
+
+// Menyimpan data terakhir yang berhasil dimuat -- dipakai riaToggleBaris()
+// supaya tidak perlu menaruh data mentah siswa (bisa panjang, berisi
+// keterangan) langsung di atribut onclick tiap baris.
+let _riaDataTerakhir = [];
+
+function renderRankingIzinAlpha(data) {
+  document.getElementById('riaLoading').style.display = 'none';
+  document.getElementById('riaKonten').style.display  = '';
+
+  document.getElementById('riaSubjudul').textContent = data.namaSemester
+    ? data.namaSemester : 'Semester berjalan';
+  document.getElementById('riaPeriodeInfo').textContent =
+    `${formatTanggalID(data.tanggalMulai)} – ${formatTanggalID(data.tanggalSelesai)} `
+    + `(${data.jumlahHariSekolah} hari sekolah efektif)`;
+
+  _riaDataTerakhir = data.data || [];
+
+  const list = document.getElementById('riaList');
+  list.innerHTML = _riaDataTerakhir.map((s, i) => {
+    const parah = s.totalIzinAlpha >= 5; // ambang "perlu perhatian" -- sekadar aksen visual
+    const nihil = s.totalIzinAlpha === 0;
+    const ketHtml = s.keteranganIzin.length
+      ? s.keteranganIzin.map(k => `
+          <div class="ria-ket-item">
+            <span class="ria-ket-tgl">${formatTanggalID(k.tanggal)}:</span> ${esc(k.keterangan)}
+          </div>`).join('')
+      : `<div class="ria-ket-item ria-ket-kosong">Tidak ada keterangan Izin tercatat${s.alpha > 0 ? ' (Alpha memang tidak punya keterangan).' : '.'}</div>`;
+    return `
+      <div class="ria-row${parah ? ' ria-parah' : ''}${nihil ? ' ria-nihil' : ''}" onclick="riaToggleBaris(${i})" id="riaRow${i}">
+        <div class="ria-row-head">
+          <div class="ria-rank">${i + 1}</div>
+          <div class="ria-info">
+            <div class="ria-nama">${esc(s.nama)}</div>
+            <div class="ria-kelas">Kelas ${esc(s.kelas || '-')}</div>
+          </div>
+          <div class="ria-badges">
+            <span class="ria-badge ria-badge-izin">Izin ${s.izin}</span>
+            <span class="ria-badge ria-badge-alpha">Alpa ${s.alpha}</span>
+          </div>
+          <div class="ria-chevron">▶</div>
+        </div>
+        <div class="ria-detail">${ketHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+// Buka/tutup rincian keterangan Izin satu baris siswa -- SENGAJA
+// tertutup default (lihat CSS .ria-detail), cuma tampil kalau baris
+// itu diklik/tap, dan baris lain tidak ikut terpengaruh.
+function riaToggleBaris(i) {
+  const row = document.getElementById('riaRow' + i);
+  if (row) row.classList.toggle('ria-open');
 }
 
 async function verifikasiTanpaKartu() {

@@ -3486,8 +3486,20 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
           </div>
         </div>
       </div>
-    <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
-      <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:420px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden">
+    <!-- align-items:flex-start (BUKAN center seperti modal lain) -- SENGAJA
+         beda supaya form username/password di STEP 1 tidak ikut kegeser ke
+         tengah layar. Di HP, saat keyboard muncul, banyak browser mobile
+         tetap menghitung "tengah layar" berdasarkan tinggi layar SEBELUM
+         keyboard tampil (bukan sisa area yang masih kelihatan) -- akibatnya
+         modal yang di-center malah kegeser turun ke area yang sudah ketutup
+         keyboard, dan guru piket tidak bisa lihat kolom yang sedang mereka
+         ketik. Rata atas memastikan header + 2 kolom input (yang letaknya
+         dekat atas modal) selalu ada di zona yang masih kelihatan, terlepas
+         dari seberapa tinggi keyboard menutupi layar. Lihat juga listener
+         focus di tkUsername/tkPassword (scrollIntoView) sebagai pengaman
+         tambahan. -->
+    <div id="modalTanpaKartu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+      <div style="background:var(--surface);color:var(--text);border-radius:16px;max-width:420px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden;margin-top:5vh">
 
         <!-- Header -->
         <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
@@ -3503,9 +3515,11 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
           </div>
           <input type="text" id="tkUsername" placeholder="Username guru piket..." autocomplete="username"
             onkeyup="if(event.key==='Enter')document.getElementById('tkPassword').focus()"
+            onfocus="scrollInputKeyboardKeView(this)"
             style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
           <input type="password" id="tkPassword" placeholder="Password guru piket..." autocomplete="current-password"
             onkeyup="if(event.key==='Enter')verifikasiTanpaKartu()"
+            onfocus="scrollInputKeyboardKeView(this)"
             style="width:100%;margin-top:10px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit">
           <div id="tkVerifError" style="display:none;color:var(--danger);font-size:.78rem;margin-top:8px;padding:8px 10px;background:var(--danger-soft);border-radius:8px"></div>
           <button onclick="verifikasiTanpaKartu()" id="tkBtnVerifikasi"
@@ -7873,6 +7887,22 @@ function tutupModalTanpaKartu() {
   document.getElementById('modalTanpaKartu').style.display = 'none';
   resumeScanBerat();
   if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+// ── PENGAMAN TAMBAHAN: keyboard HP menutupi input yang sedang diketik ──
+// Dipakai oleh tkUsername/tkPassword (modalTanpaKartu). Perubahan
+// align-items:flex-start pada modal itu sudah menyelesaikan sebagian
+// besar kasus, tapi di HP dengan layar pendek/keyboard besar, input
+// PASSWORD (yang letaknya di bawah input username) kadang masih mepet ke
+// tepi bawah area yang kelihatan. Begitu input difokus (keyboard mulai
+// muncul), tunggu sebentar (300ms, kira-kira lama animasi keyboard di
+// kebanyakan HP) lalu scroll input itu ke tengah area yang masih
+// kelihatan. modalTanpaKartu sudah diberi overflow-y:auto supaya scroll
+// ini benar-benar bisa terjadi.
+function scrollInputKeyboardKeView(inputEl) {
+  setTimeout(() => {
+    try { inputEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(e) {}
+  }, 300);
 }
 
 // ══════ PETUNJUK UNTUK GURU (BARU) — modal statis, isinya tidak perlu

@@ -1648,6 +1648,45 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   transition:opacity .5s ease,visibility .5s ease;
 }
 #splashOverlay.hide{opacity:0;visibility:hidden;pointer-events:none}
+
+/* ── ANIMASI INTRO ID CARD (BARU) ────────────────────────────────
+   Kartu ID + gantungan (lanyard) yang "jatuh" dari atas layar begitu
+   halaman scan pertama kali siap (dipicu di sembunyikanSplash(), lihat
+   mainkanIdCardIntro() -- BUKAN auto-jalan begitu halaman dimuat,
+   supaya tidak keburu selesai/hilang sebelum splash loading selesai di
+   koneksi lambat). Murni CSS keyframe + SVG, tidak perlu library
+   animasi apapun. Otomatis hilang sendiri ~4 detik setelah mulai
+   jatuh, lalu elemennya dilepas dari alur render (display:none) --
+   dan pointer-events:none sepanjang waktu supaya tidak pernah
+   menghalangi tap ke kamera/tombol di belakangnya. */
+#idCardIntro{
+  position:fixed;inset:0;z-index:850;
+  display:flex;justify-content:center;
+  pointer-events:none;overflow:hidden;
+}
+#idCardIntro.hilang{display:none}
+.idcard-rig{
+  width:min(150px,34vw);margin-top:-18px;
+  transform-origin:50% 0%;
+  filter:drop-shadow(0 14px 22px rgba(0,0,0,.28));
+  animation:idCardJatuh 4s ease forwards;
+  animation-play-state:paused;
+}
+#idCardIntro.main .idcard-rig{animation-play-state:running}
+.idcard-rig svg{display:block;width:100%;height:auto}
+@keyframes idCardJatuh{
+  0%   {transform:translateY(-145%) rotate(-11deg);}
+  18%  {transform:translateY(0%)    rotate(6deg);}
+  27%  {transform:translateY(-4%)   rotate(-4deg);}
+  36%  {transform:translateY(1.5%)  rotate(2.5deg);}
+  44%  {transform:translateY(0%)    rotate(-1.2deg);}
+  56%  {transform:translateY(0%)    rotate(2deg);}
+  70%  {transform:translateY(0%)    rotate(-2deg);}
+  84%  {transform:translateY(0%)    rotate(1deg);}
+  93%  {transform:translateY(0%)    rotate(0deg);opacity:1;}
+  100% {transform:translateY(55px)  rotate(0deg);opacity:0;}
+}
+
 .splash-card{
   width:min(360px,86vw);text-align:center;color:#fff;
   animation:splashIn .5s ease;
@@ -1964,6 +2003,49 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
     </div>
     <div class="splash-bar-wrap"><div class="splash-bar" id="splashBar"></div></div>
     <div class="splash-hint" id="splashHint">&nbsp;</div>
+  </div>
+</div>
+
+<!-- ANIMASI INTRO ID CARD (BARU) -- lihat CSS #idCardIntro & JS
+     mainkanIdCardIntro() untuk penjelasan lengkap kapan/kenapa ini
+     dipicu. Murni dekorasi, aman diabaikan screen reader. -->
+<div id="idCardIntro" aria-hidden="true">
+  <div class="idcard-rig">
+    <svg viewBox="0 0 220 400" xmlns="http://www.w3.org/2000/svg">
+      <!-- tali gantungan -->
+      <path d="M72,-10 C58,55 96,120 108,168" stroke="#059669" stroke-width="11" stroke-linecap="round" fill="none"/>
+      <path d="M148,-10 C162,55 124,120 112,168" stroke="#059669" stroke-width="11" stroke-linecap="round" fill="none"/>
+      <circle cx="110" cy="172" r="7" fill="#047857"/>
+      <!-- badan kartu -->
+      <rect x="28" y="176" width="164" height="206" rx="16" fill="#ffffff" stroke="#E5E7EB" stroke-width="2"/>
+      <!-- header hijau -->
+      <path d="M28,192 a16,16 0 0 1 16,-16 h132 a16,16 0 0 1 16,16 v26 h-164 z" fill="#10B981"/>
+      <circle cx="110" cy="192" r="4" fill="#ffffff" opacity=".9"/>
+      <!-- foto siswa (siluet) -->
+      <circle cx="63" cy="252" r="22" fill="#D1FAE5" stroke="#10B981" stroke-width="2"/>
+      <circle cx="63" cy="245" r="8" fill="#059669"/>
+      <path d="M47,268 a16,14 0 0 1 32,0 z" fill="#059669"/>
+      <!-- garis nama/kelas -->
+      <rect x="98" y="238" width="78" height="8" rx="4" fill="#D1D5DB"/>
+      <rect x="98" y="253" width="56" height="7" rx="3.5" fill="#E5E7EB"/>
+      <rect x="98" y="266" width="66" height="7" rx="3.5" fill="#E5E7EB"/>
+      <!-- barcode -->
+      <g fill="#111827" opacity=".85">
+        <rect x="44" y="336" width="3" height="26"/><rect x="49" y="336" width="2" height="26"/>
+        <rect x="53" y="336" width="4" height="26"/><rect x="59" y="336" width="2" height="26"/>
+        <rect x="63" y="336" width="3" height="26"/><rect x="68" y="336" width="5" height="26"/>
+        <rect x="75" y="336" width="2" height="26"/><rect x="79" y="336" width="3" height="26"/>
+        <rect x="84" y="336" width="2" height="26"/><rect x="88" y="336" width="4" height="26"/>
+        <rect x="94" y="336" width="3" height="26"/><rect x="99" y="336" width="2" height="26"/>
+        <rect x="103" y="336" width="5" height="26"/><rect x="110" y="336" width="2" height="26"/>
+        <rect x="114" y="336" width="3" height="26"/><rect x="119" y="336" width="4" height="26"/>
+        <rect x="125" y="336" width="2" height="26"/><rect x="129" y="336" width="3" height="26"/>
+        <rect x="134" y="336" width="5" height="26"/><rect x="141" y="336" width="2" height="26"/>
+        <rect x="145" y="336" width="3" height="26"/><rect x="150" y="336" width="2" height="26"/>
+        <rect x="154" y="336" width="4" height="26"/><rect x="160" y="336" width="2" height="26"/>
+        <rect x="164" y="336" width="3" height="26"/><rect x="169" y="336" width="4" height="26"/>
+      </g>
+    </svg>
   </div>
 </div>
 
@@ -5386,6 +5468,34 @@ function sembunyikanSplash() {
   if (_splashTimeoutId) { clearTimeout(_splashTimeoutId); _splashTimeoutId = null; }
   const overlay = document.getElementById('splashOverlay');
   if (overlay) overlay.classList.add('hide');
+  // Mainkan animasi jatuhnya ID card TEPAT setelah splash mulai
+  // menghilang (bukan dari awal load) supaya tidak keburu selesai/
+  // hilang duluan saat splash masih lama menunggu jaringan lambat.
+  // Delay 550ms ~ nunggu transisi fade-out splash (.5s, lihat CSS
+  // #splashOverlay) beres dulu, biar kartu jatuh di atas halaman scan
+  // yang sudah kelihatan, bukan bertumpuk dengan splash yang masih pudar.
+  setTimeout(mainkanIdCardIntro, 550);
+}
+
+// PERBAIKAN (BARU): fitur baru -- animasi ID card + gantungan jatuh
+// dari atas layar sekali saat halaman scan pertama kali siap, lalu
+// hilang sendiri ~4 detik kemudian. Lihat #idCardIntro & @keyframes
+// idCardJatuh di CSS untuk bentuk & timing animasinya.
+function mainkanIdCardIntro() {
+  const el = document.getElementById('idCardIntro');
+  if (!el) return;
+  const rig = el.querySelector('.idcard-rig');
+  // .main memicu animation-play-state:running (lihat CSS) -- pakai
+  // requestAnimationFrame supaya browser sempat "commit" state
+  // paused dulu sebelum diganti running, jaminan animasi benar-benar
+  // mulai dari frame awal (0%), bukan meloncat.
+  requestAnimationFrame(() => el.classList.add('main'));
+  const sembunyikan = () => el.classList.add('hilang');
+  if (rig) rig.addEventListener('animationend', sembunyikan, { once: true });
+  // Jaring pengaman kalau animationend tidak sempat terpicu (mis. tab
+  // sempat di-background-kan oleh OS) -- durasi animasi 4s + jeda 550ms
+  // trigger + sedikit buffer.
+  setTimeout(sembunyikan, 5200);
 }
 
 _splashTimeoutId = setTimeout(() => {

@@ -3802,6 +3802,17 @@ function openDrawer(){
   document.body.classList.add('drawer-open');
   pauseScanBerat();
 }
+// Modal read-only yang tombol pembukanya ada di dalam drawer DAN
+// memanggil pauseScanBerat() sendiri saat dibuka (lihat
+// bukaPetunjukGuru/bukaModalAktivitasGuru/bukaModalPersentaseKehadiran/
+// bukaModalRankingIzinAlpha di bawah) -- dipakai closeDrawer() supaya
+// TIDAK ikut resumeScanBerat() kalau salah satu modal ini baru saja
+// dibuka oleh klik yang sama (lihat komentar di closeDrawer()).
+const MODAL_ID_YANG_MEMAUSE_SCAN = [
+  'modalPetunjukGuru', 'modalAktivitasGuru',
+  'modalPersentaseKehadiran', 'modalRankingIzinAlpha'
+];
+
 function closeDrawer(){
   if (!_drawerOpen) return;
   _drawerOpen = false;
@@ -3810,11 +3821,33 @@ function closeDrawer(){
   document.getElementById('drawerBackdrop').classList.remove('show');
   document.getElementById('btnMenu').setAttribute('aria-expanded','false');
   document.body.classList.remove('drawer-open');
-  resumeScanBerat();
-  // Jaga-jaga kalau scanLoop() sempat berhenti total (mis. tab HP
-  // dijeda browser sementara drawer terbuka) -- pastikan loop jalan
-  // lagi begitu drawer ditutup.
-  if (scanActive && !scanAnimFrame) scanAnimFrame = requestAnimationFrame(scanLoop);
+
+  // BUGFIX: tombol-tombol seperti "📊 Persentase Kehadiran", "⚠️ Siswa
+  // Sering Izin/Alpa", "❓ Petunjuk", dan "Cek Aktivitas Guru" ada di
+  // dalam drawer, dan onclick-nya sendiri sudah memanggil
+  // pauseScanBerat() + membuka modalnya (event handler onclick attribute
+  // itu jalan LEBIH DULU daripada listener closeDrawer di bawah ini,
+  // yang ditempel belakangan lewat addEventListener di initDrawerLayout()).
+  // Sebelum perbaikan ini, closeDrawer() SELALU memanggil resumeScanBerat()
+  // tanpa peduli itu, jadi kamera langsung aktif lagi sepersekian detik
+  // setelah modal baru dibuka -- scanLoop() yang jalan lagi bikin
+  // state/UI ke-reset sehingga modal terasa "tidak merespon" (padahal
+  // sudah sempat terbuka, cuma langsung tertutup lagi). Modal-modal
+  // read-only itu sudah punya tutup*()-nya sendiri yang memanggil
+  // resumeScanBerat() saat benar-benar ditutup, jadi di sini kita cukup
+  // SKIP resume kalau salah satu modal itu sedang terbuka.
+  const adaModalReadOnlyTerbuka = MODAL_ID_YANG_MEMAUSE_SCAN.some(id => {
+    const el = document.getElementById(id);
+    return el && el.style.display === 'flex';
+  });
+
+  if (!adaModalReadOnlyTerbuka) {
+    resumeScanBerat();
+    // Jaga-jaga kalau scanLoop() sempat berhenti total (mis. tab HP
+    // dijeda browser sementara drawer terbuka) -- pastikan loop jalan
+    // lagi begitu drawer ditutup.
+    if (scanActive && !scanAnimFrame) scanAnimFrame = requestAnimationFrame(scanLoop);
+  }
 }
 
 // Menyusun ulang layar scan: layar utama HANYA kamera + info pendukung

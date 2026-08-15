@@ -614,6 +614,19 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       };
     }
 
+    // ── KETERLAMBATAN GURU PIKET (BARU) ──────────────────────────────
+    // JAM_BATAS_PIKET adalah setting OPSIONAL (lihat menu Pengaturan
+    // Jam admin) -- selama admin belum pernah mengisinya, jamSetting['
+    // JAM_BATAS_PIKET'] kosong/undefined dan `terlambatPiket` di bawah
+    // otomatis jadi null ("aturan ini belum berlaku"), BUKAN true/false.
+    // Begitu diisi, SETIAP guru yang scan hari itu (terjadwal maupun
+    // pengganti, bisa lebih dari satu orang per hari) dibandingkan
+    // jam_scan MASING-MASING secara independen -- supaya adil, guru A
+    // yang datang tepat waktu tidak ikut "kena getah" gara-gara guru B
+    // yang piket sama harinya datang terlambat, atau sebaliknya.
+    const jamBatasPiket  = jamSetting['JAM_BATAS_PIKET'] || '';
+    const terlambatPiket = jamBatasPiket ? (jam >= jamBatasPiket) : null;
+
     // Simpan sesi piket
     const sesiId = generateID('SP');
     const { error } = await supabase.from('sesi_piket').insert({
@@ -622,7 +635,8 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       id_guru: guru.id,
       nama_guru: guru.nama,
       jabatan: guru.jabatan,
-      jam_scan: jam
+      jam_scan: jam,
+      terlambat: terlambatPiket
     });
     if (error) {
       // Kode 23505 = unique_violation. Bisa terjadi kalau 2 perangkat scan
@@ -646,13 +660,23 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       .eq('tanggal', today)
       .or('nama_guru_piket.is.null,nama_guru_piket.eq.');
 
+    // Pesan sukses -- ditambah peringatan keterlambatan piket kalau
+    // relevan (terlambatPiket === true). Status "pengganti" TETAP
+    // diinfokan juga kalau memang keduanya terjadi (guru pengganti yang
+    // ternyata scan-nya sendiri lewat JAM_BATAS_PIKET).
+    let pesanSukses = pengganti
+      ? `✅ ${guru.nama} tercatat sebagai guru piket PENGGANTI (dikonfirmasi menggantikan guru terjadwal)`
+      : `✅ ${guru.nama} tercatat sebagai guru piket`;
+    if (terlambatPiket === true) {
+      pesanSukses = `⚠️ ${guru.nama} tercatat sebagai guru piket -- TERLAMBAT (scan ${jam}, batas ${jamBatasPiket})`
+        + (pengganti ? ' (PENGGANTI)' : '');
+    }
+
     return {
       success: true,
       tipe: 'guru',
-      message: pengganti
-        ? `✅ ${guru.nama} tercatat sebagai guru piket PENGGANTI (dikonfirmasi menggantikan guru terjadwal)`
-        : `✅ ${guru.nama} tercatat sebagai guru piket`,
-      guru: { nama: guru.nama, jabatan: guru.jabatan, jam: jam, pengganti }
+      message: pesanSukses,
+      guru: { nama: guru.nama, jabatan: guru.jabatan, jam: jam, pengganti, terlambatPiket }
     };
   }
 

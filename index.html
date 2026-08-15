@@ -1242,7 +1242,21 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                     di menu <b>Jadwal Piket</b>.
                   </div>
                 </div>
+                <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin:20px 0 16px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">⏰ Batas Keterlambatan Guru Piket</h4>
+                <div class="form-group">
+                  <label>Batas Jam Scan Piket (opsional)</label>
+                  <input type="time" id="set_JAM_BATAS_PIKET" class="form-control">
+                  <div style="font-size:.72rem;color:var(--text-muted);margin-top:6px;line-height:1.5">
+                    Kalau diisi, guru piket (terjadwal maupun pengganti) yang scan kartunya PADA atau
+                    SETELAH jam ini akan otomatis tercatat "Terlambat" -- muncul notifikasi ke guru
+                    yang bersangkutan saat itu juga, dan terlihat di riwayat piket guru, laporan
+                    kepatuhan piket (menu ini), maupun akun kepala sekolah. <b>Tidak memengaruhi</b>
+                    status terlambat/hadir siswa sama sekali -- itu tetap murni dari jam scan siswa
+                    sendiri vs Batas Datang di atas. Kosongkan untuk menonaktifkan fitur ini.
+                  </div>
+                </div>
               </div>
+
             </div>
             <div style="margin-top:24px;padding-top:20px;border-top:2px solid var(--border)">
               <h4 style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--primary-pale)">🔐 Kode Rahasia Masuk Admin (dari Halaman Scan)</h4>
@@ -1560,6 +1574,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Jadi Pengganti</div>
                 <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="rpPengganti">0</div>
               </div>
+              <div style="background:var(--danger-light);border-radius:12px;padding:14px 16px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Terlambat Piket</div>
+                <div style="font-size:1.6rem;font-weight:800;color:var(--danger)" id="rpTerlambat">0</div>
+              </div>
             </div>
             <div class="table-responsive">
               <table class="table-card-mobile">
@@ -1827,15 +1845,17 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <b>Hadir Tepat</b> = piket sendiri sesuai jadwal. <b>Digantikan</b> = ada guru lain
               yang piket menggantikannya. <b>Kosong</b> = tidak ada siapapun piket hari itu (perlu
               ditindaklanjuti). <b>Jadi Pengganti</b> = dia menutup jadwal guru lain di luar
-              jadwalnya sendiri.
+              jadwalnya sendiri. <b>Terlambat</b> = jumlah hari dia scan piket PADA/SETELAH
+              Batas Jam Scan Piket. Kalau admin belum mengisi Batas Jam Scan Piket di menu
+              Pengaturan Jam, kolom ini akan selalu 0 untuk semua guru (fitur belum aktif).
             </div>
             <div class="table-responsive">
               <table class="table-card-mobile">
                 <thead>
-                  <tr><th>Nama Guru</th><th>Hadir Tepat</th><th>Digantikan</th><th>Kosong</th><th>Jadi Pengganti</th></tr>
+                  <tr><th>Nama Guru</th><th>Hadir Tepat</th><th>Digantikan</th><th>Kosong</th><th>Jadi Pengganti</th><th>Terlambat</th></tr>
                 </thead>
                 <tbody id="kepsekPiketBody">
-                  <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
+                  <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -4294,19 +4314,20 @@ async function loadKepsekPiket() {
   const akhirBulan = new Date(Date.UTC(tahun, bulan, 0)).getUTCDate();
   const tanggalSelesai = `${tahun}-${String(bulan).padStart(2,'0')}-${String(akhirBulan).padStart(2,'0')}`;
 
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr>';
   try {
     const r = await api('settings', 'getLaporanKepatuhanPiket', { tanggalMulai, tanggalSelesai });
-    if (!r.success) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">${r.message||'Gagal memuat laporan'}</td></tr>`; return; }
-    if (!r.data.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada jadwal piket / data piket bulan ini</td></tr>'; return; }
+    if (!r.success) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">${r.message||'Gagal memuat laporan'}</td></tr>`; return; }
+    if (!r.data.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada jadwal piket / data piket bulan ini</td></tr>'; return; }
     tbody.innerHTML = r.data.map(g => `<tr>
         <td data-label="Nama Guru" style="font-weight:600">${esc(g.namaGuru)}</td>
         <td data-label="Hadir Tepat"><span class="badge badge-success">${g.hadirTepat}</span></td>
         <td data-label="Digantikan">${g.digantikan ? `<span class="badge badge-warning">${g.digantikan}</span>` : 0}</td>
         <td data-label="Kosong">${g.tanpaPiketSamaSekali ? `<span class="badge badge-danger">${g.tanpaPiketSamaSekali}</span>` : 0}</td>
         <td data-label="Jadi Pengganti">${g.jadiPengganti ? `<span class="badge badge-primary">${g.jadiPengganti}</span>` : 0}</td>
+        <td data-label="Terlambat">${g.terlambatPiket ? `<span class="badge badge-danger">⚠️ ${g.terlambatPiket}</span>` : 0}</td>
       </tr>`).join('');
-  } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Gagal memuat laporan</td></tr>'; }
+  } catch(e) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Gagal memuat laporan</td></tr>'; }
 }
 
 async function loadPiket() {
@@ -4541,10 +4562,10 @@ async function simpanTambahLibur(){
 // ── PENGATURAN ───────────────────────────────────────────────────
 async function loadPengaturan(){
   const r=await api('settings','getJamSetting');
-  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN','BUKTI_IZIN_SAKIT_WAJIB','MIN_VERIFIKASI_SISWA'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||(k==='MIN_VERIFIKASI_SISWA'?5:'');}); }
+  if(r.success){ APP.settings=r.data; ['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','JAM_BATAS_PIKET','KODE_RAHASIA_ADMIN','BUKTI_IZIN_SAKIT_WAJIB','MIN_VERIFIKASI_SISWA'].forEach(k=>{const el=document.getElementById('set_'+k);if(el)el.value=r.data[k]||(k==='MIN_VERIFIKASI_SISWA'?5:'');}); }
 }
 async function savePengaturan(){
-  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','KODE_RAHASIA_ADMIN','BUKTI_IZIN_SAKIT_WAJIB','MIN_VERIFIKASI_SISWA'];
+  const keys=['JAM_DATANG_MULAI','JAM_DATANG_SELESAI','JAM_PULANG_MULAI','JAM_PULANG_SELESAI','TOLERANSI_MENIT','TOLERANSI_PIKET_MENIT','JAM_BATAS_PIKET','KODE_RAHASIA_ADMIN','BUKTI_IZIN_SAKIT_WAJIB','MIN_VERIFIKASI_SISWA'];
   const settings={};
   keys.forEach(k=>{const el=document.getElementById('set_'+k);if(el)settings[k]=el.value;});
   const r=await api('settings','updateJamSetting',{settings});
@@ -5438,6 +5459,7 @@ async function loadRiwayatPiketSaya() {
     document.getElementById('rpDigantikan').textContent= r.ringkasan.digantikan;
     document.getElementById('rpKosong').textContent    = r.ringkasan.kosong;
     document.getElementById('rpPengganti').textContent = r.ringkasan.jadiPengganti;
+    document.getElementById('rpTerlambat').textContent = r.ringkasan.terlambatPiket || 0;
     document.getElementById('rpJadwalHari').textContent =
       (r.jadwalHariGuru && r.jadwalHariGuru.length) ? r.jadwalHariGuru.join(', ') : 'Tidak ada jadwal piket';
 
@@ -5453,6 +5475,7 @@ async function loadRiwayatPiketSaya() {
       else if (d.status === 'sendiri')    ket = `Scan piket jam ${d.jamScan || '-'}`;
       else if (d.status === 'kosong')     ket = 'Tidak ada guru yang scan piket hari itu';
       else if (d.status === 'pengganti')  ket = `Menggantikan ${d.digantikanUntuk || 'guru lain'}${d.jamScan ? ' (jam ' + d.jamScan + ')' : ''}`;
+      if (d.terlambat === true) ket += ' <span class="badge badge-danger" style="margin-left:6px">⚠️ Terlambat</span>';
       return `<tr>
         <td data-label="Tanggal">${d.tanggal}</td>
         <td data-label="Hari">${d.hari}</td>

@@ -555,6 +555,26 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
     });
   }
 
+  // PERBAIKAN BUG (urutan pilihan kelas tidak sesuai jadwal): SEBELUMNYA
+  // kandidat disusun persis mengikuti urutan hasil query jadwal_mengajar
+  // di atas, yang TIDAK punya .order() -- Postgres/Supabase tanpa ORDER BY
+  // tidak menjamin urutan baris sesuai jam pelajaran. Akibatnya tombol
+  // PALING ATAS di daftar pilihan (scan.html/tampilkanPilihJadwal) bisa
+  // saja jadwal jam KEDUA, bukan jam pertama -- guru yang menekan tombol
+  // teratas dengan asumsi "itu jadwal pertama" jadi salah tercatat ke
+  // jadwal jam kedua walau sudah merasa memilih yang pertama. Sekarang
+  // kandidat selalu diurutkan dulu berdasarkan jam mulai (lalu jam_ke
+  // sebagai fallback kalau jamMulai sama/tidak ada), supaya urutan yang
+  // tampil ke guru SELALU sesuai urutan jadwal sebenarnya -- tombol
+  // pertama di daftar pasti kelas dengan jam pelajaran paling awal.
+  kandidat.sort((a, b) => {
+    const mA = menitDariJam(a.jamMulai), mB = menitDariJam(b.jamMulai);
+    if (mA !== null && mB !== null && mA !== mB) return mA - mB;
+    if (mA !== null && mB === null) return -1;
+    if (mA === null && mB !== null) return 1;
+    return Number(a.jamKe) - Number(b.jamKe);
+  });
+
   if (kandidat.length === 0) {
     // Semua jadwal guru ini hari ini sudah tercatat -- info-kan sesi yang
     // sudah ada (ambil salah satu yang sudah tercatat) supaya pesannya

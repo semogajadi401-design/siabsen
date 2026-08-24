@@ -1134,6 +1134,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <div class="card-header"><h3>📚 Jadwal Mengajar Guru</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-accent btn-sm" onclick="openModalImportJadwalMengajar()">📥 Import</button>
+              <button class="btn btn-outline btn-sm" onclick="exportJadwalMengajarExcel()">⬇️ Ekspor</button>
               <button class="btn btn-primary btn-sm" onclick="openModalJadwalMengajar()">+ Tambah Jadwal</button>
             </div>
           </div>
@@ -7654,6 +7655,49 @@ async function hapusPengecualianKelas() {
 // Hari (lihat jmActiveHari/pilihTabHariMengajar) -- tabel yang tampil
 // cuma untuk SATU hari yang sedang aktif, baris = Jam Ke saja, kolom =
 // satu kolom per kelas. Sel kosong bisa langsung diklik untuk quick-add.
+// ── EKSPOR JADWAL MENGAJAR KE EXCEL (BARU) ─────────────────────────
+// Tombol "⬇️ Ekspor" di header kartu "Jadwal Mengajar Guru". SENGAJA
+// panggil getJadwalMengajar() ULANG tanpa filter idGuru/hari (bukan
+// pakai window._jmDataSemua yang sudah ada di memori) -- soalnya
+// window._jmDataSemua cuma berisi jadwal utk HARI yang sedang aktif di
+// tab atas (lihat loadJadwalMengajar() di bawah), sedangkan tujuan
+// ekspor ini adalah SELURUH jadwal yang sudah diinput admin, semua hari
+// sekaligus, supaya bisa jadi satu file rekap utuh yang gampang dicek/
+// dibagikan (mis. lampiran laporan ke kepsek/dinas), bukan cuma satu
+// hari. Kolom mengikuti permintaan: Hari, Mapel, Kelas, Guru Pengampu
+// -- ditambah Jam Ke sebagai info tambahan supaya urutan jam per hari
+// tetap jelas dibaca.
+async function exportJadwalMengajarExcel() {
+  if (typeof XLSX === 'undefined') { toast('Sedang memuat library, coba lagi dalam 2 detik...', 'warning'); return; }
+  const result = await api('mengajar', 'getJadwalMengajar', {});
+  if (!result.success) { toast('Gagal mengambil data: ' + (result.message || '-'), 'error'); return; }
+  if (!result.data || !result.data.length) { toast('Belum ada jadwal mengajar untuk diekspor', 'warning'); return; }
+
+  // Urutkan sesuai urutan hari sekolah (Senin..Minggu), lalu jam ke --
+  // supaya file yang didownload sudah rapi dari awal, tidak perlu admin
+  // sortir ulang manual di Excel.
+  const dataUrut = [...result.data].sort((a, b) => {
+    const ia = JMS_URUTAN_HARI.indexOf(a.hari), ib = JMS_URUTAN_HARI.indexOf(b.hari);
+    if (ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return Number(a.jamKeMulai) - Number(b.jamKeMulai);
+  });
+
+  const rows = [['Hari', 'Jam Ke', 'Mapel', 'Kelas', 'Guru Pengampu']];
+  dataUrut.forEach(j => {
+    const jamKe = j.jamKeSelesai && j.jamKeSelesai !== j.jamKeMulai
+      ? `${j.jamKeMulai}-${j.jamKeSelesai}` : String(j.jamKeMulai);
+    rows.push([j.hari || '-', jamKe, j.mapel || '-', j.kelas || '-', j.namaGuru || '-']);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 22 }, { wch: 10 }, { wch: 26 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Jadwal Mengajar');
+  const tgl = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Jadwal_Mengajar_${tgl}.xlsx`);
+  toast('Excel berhasil didownload', 'success');
+}
+
 async function loadJadwalMengajar() {
   const idGuru = document.getElementById('jmFilterGuru')?.value || '';
   const hari = jmActiveHari || '';

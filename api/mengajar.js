@@ -543,16 +543,33 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
     .eq('tanggal', today).in('id_jadwal_mengajar', idJadwalList);
   const tercatatMap = new Map((sudahTercatatList || []).map(r => [r.id_jadwal_mengajar, r]));
 
+  // PERBAIKAN BUG (kelas yang muncul/tercatat adalah jam TERAKHIR padahal
+  // belum waktunya, bukan jam sekarang): validasi jam SEBELUMNYA dihapus
+  // TOTAL dari sini (lihat catatan UBAHAN di atas) -- niatnya cuma supaya
+  // guru tidak ditolak kalau jam pelajarannya SUDAH LEWAT. Tapi akibatnya
+  // kandidat juga ikut menerima jadwal yang jam mulainya BELUM tiba sama
+  // sekali. Kalau kebetulan jadwal-jadwal LAIN guru itu hari ini sudah
+  // tercatat duluan (mis. jam ke-1 sudah discan), satu-satunya jadwal yang
+  // "belum tercatat" bisa jadi jam ke-8 (terakhir) -- dan karena cuma ada 1
+  // kandidat, langsung dicatat OTOMATIS tanpa tanya, walau saat itu masih
+  // pagi (jam ke-8 belum mulai). Sekarang: kandidat yang jam mulainya masih
+  // di MASA DEPAN (jamNow < jam_mulai) TIDAK ikut masuk kandidat -- tetap
+  // ditampung di belumWaktunya untuk pesan yang informatif. Jadwal yang
+  // SUDAH LEWAT jamnya tetap boleh (tidak ada batas atas), sesuai
+  // permintaan awal.
   const kandidat = [];
+  const belumWaktunya = [];
   for (const j of jadwalGuruHariIni) {
     if (tercatatMap.has(j.id)) continue;
     const jpMulai = resolveJp(j.jam_ke_mulai, j.kelas);
     const jpSelesai = resolveJp(j.jam_ke_selesai, j.kelas) || jpMulai;
     if (!jpMulai) continue;
-    kandidat.push({
+    const entri = {
       idJadwal: j.id, kelas: j.kelas, mapel: j.mapel, jamKe: j.jam_ke_mulai,
       jamMulai: jpMulai.jam_mulai, jamSelesai: (jpSelesai || jpMulai).jam_selesai
-    });
+    };
+    if (jpMulai.jam_mulai && jamNow < jpMulai.jam_mulai) { belumWaktunya.push(entri); continue; }
+    kandidat.push(entri);
   }
 
   // PERBAIKAN BUG (urutan pilihan kelas tidak sesuai jadwal): SEBELUMNYA
@@ -593,6 +610,22 @@ async function scanSesiMengajar({ guruIdTerverifikasi, tanggal, jam, hari, jamSe
         // sesi baru dibuat) supaya kiosk yang reconnect/reload di tengah
         // sesi yang sama tetap dapat token yang sah untuk lanjut verifikasi.
         sesiToken: generateSesiToken(rec.id)
+      };
+    }
+    // BARU: kalau tidak ada kandidat SAMA SEKALI (bukan karena sudah
+    // tercatat), tapi ada jadwal yang belum waktunya, kasih pesan yang
+    // akurat -- supaya guru tahu ini bukan "tidak ada jadwal", tapi
+    // "jadwalnya ada, cuma belum mulai".
+    if (belumWaktunya.length > 0) {
+      belumWaktunya.sort((a, b) => {
+        const mA = menitDariJam(a.jamMulai), mB = menitDariJam(b.jamMulai);
+        if (mA !== null && mB !== null && mA !== mB) return mA - mB;
+        return Number(a.jamKe) - Number(b.jamKe);
+      });
+      const jTerdekat = belumWaktunya[0];
+      return {
+        success: false,
+        message: `Belum waktunya. Jadwal mengajar Anda berikutnya: ${jTerdekat.mapel} - Kelas ${jTerdekat.kelas} (Jam ke-${jTerdekat.jamKe}, mulai ${jTerdekat.jamMulai || '-'}).`
       };
     }
     return { success: false, message: 'Tidak ada jadwal mengajar Anda hari ini.' };

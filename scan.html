@@ -5288,6 +5288,27 @@ async function pilihJadwalKlik(idJadwal) {
     pilihJadwalState = null;
     document.getElementById('pilihJadwalBox').style.display = 'none';
     lanjutkanHasilMengajar(result);
+    // PERBAIKAN BUG (scan kartu siswa tidak ada respons setelah guru
+    // memilih salah satu jadwal di kotak pilihan): tampilkanPilihJadwal()
+    // sengaja menghentikan loop kamera (return lebih awal di
+    // handleScanResult() sebelum sempat memanggil startCooldown() +
+    // requestAnimationFrame(scanLoop) di baris bawahnya) selagi kotak
+    // dialog pilihan kelas terbuka -- ini benar. TAPI SEBELUMNYA, begitu
+    // guru menekan salah satu pilihan, kamera TIDAK PERNAH dihidupkan lagi
+    // di mana pun: pilihJadwalKlik() langsung lanjut ke
+    // lanjutkanHasilMengajar() -> mulaiModeVerifikasi() tanpa satu pun dari
+    // keduanya me-reset scanCooldown atau memanggil ulang scanLoop().
+    // Akibatnya loop requestAnimationFrame yang sudah berhenti sejak kartu
+    // guru pertama discan TETAP mati selamanya -- kartu siswa yang
+    // diarahkan ke kamera setelah ini tidak pernah diproses sama sekali
+    // (kamera terlihat menyala tapi tidak benar-benar men-scan). Ini cuma
+    // muncul untuk guru dengan >=2 jadwal hari ini (lewat kotak pilihan
+    // ini) -- guru dengan 1 jadwal saja tidak kena, karena jalurnya lewat
+    // handleScanResult() biasa yang sudah menyalakan ulang kamera sendiri.
+    // Sekarang loop kamera dinyalakan ulang secara eksplisit di sini,
+    // sama seperti pola resume di seluruh bagian scan.html lainnya.
+    scanCooldown = false;
+    if (scanActive) scanAnimFrame = requestAnimationFrame(scanLoop);
   } catch (e) {
     toast('❌ Gagal memproses pilihan. Cek koneksi lalu coba lagi.', 4000);
     list.querySelectorAll('button').forEach(b => b.disabled = false);

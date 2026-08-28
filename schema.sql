@@ -263,6 +263,36 @@ CREATE TABLE IF NOT EXISTS tarif_honor_mengajar (
 );
 CREATE INDEX IF NOT EXISTS idx_tarifhonor_berlaku ON tarif_honor_mengajar(berlaku_mulai);
 
+-- ─── TABEL RESET HONOR GURU (BARU) ──────────────────────────────────
+-- "Total Honor Keseluruhan" di menu Honor Saya (guru) & Rekap Honor Guru
+-- (admin) itu akumulasi SEMUA sesi kehadiran_lengkap sepanjang waktu,
+-- BUKAN cuma 1 bulan. Supaya admin bisa menandai "sudah dibayarkan"
+-- tanpa menghapus data histori absensi_mengajar (data itu tetap dipakai
+-- utk rekap bulanan & bukti kehadiran), setiap kali admin menekan tombol
+-- "Reset Honor" untuk seorang guru, dicatat SATU baris baru di sini
+-- berisi tanggal_reset (cutoff) dan snapshot total yang direset.
+--
+-- Setelah direset, sesi dengan tanggal <= tanggal_reset TIDAK dihitung
+-- lagi ke "Total Honor Keseluruhan" guru itu (dianggap sudah dibayar).
+-- Sesi dgn tanggal SETELAH tanggal_reset tetap terhitung seperti biasa.
+-- Kalau direset lagi di kemudian hari, dipakai tanggal_reset TERBESAR
+-- (paling baru) sebagai cutoff -- lihat ambilTanggalResetTerakhir() /
+-- ambilPetaResetTerakhir() di api/mengajar.js. Rekap PER BULAN (menu
+-- admin "Rekap Honor Guru" & tabel rincian di "Honor Saya") TIDAK
+-- terpengaruh reset ini -- itu murni filter tanggal, sengaja supaya
+-- histori bulan lalu tetap bisa dilihat walau sudah "direset".
+CREATE TABLE IF NOT EXISTS honor_reset_guru (
+  id TEXT PRIMARY KEY,
+  id_guru TEXT REFERENCES guru(id),
+  tanggal_reset DATE NOT NULL,             -- cutoff: sesi tanggal <= ini dianggap sudah dibayar
+  total_rupiah_saat_reset INTEGER NOT NULL DEFAULT 0, -- snapshot nominal yang direset, utk audit
+  total_sesi_saat_reset INTEGER NOT NULL DEFAULT 0,
+  direset_oleh TEXT,                       -- nama/username admin yang menekan tombol reset
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_honorresetguru_guru ON honor_reset_guru(id_guru);
+CREATE INDEX IF NOT EXISTS idx_honorresetguru_tanggal ON honor_reset_guru(id_guru, tanggal_reset);
+
 -- ─── TABEL KEHADIRAN SISWA PER MAPEL (verifikasi siswa scan saat sesi guru berlangsung) ──
 CREATE TABLE IF NOT EXISTS kehadiran_siswa_mapel (
   id TEXT PRIMARY KEY,

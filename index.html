@@ -672,7 +672,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     #loginPage .bg-c span:nth-child(2){width:200px;height:200px;bottom:-60px;left:-60px}
     #loginPage .bg-c span:nth-child(3){width:120px;height:120px;top:50%;left:-40px}
     #loginPage .bg-c span:nth-child(4){width:80px;height:80px;bottom:80px;right:40px}
-    .lp-outer{background:linear-gradient(135deg,#1e3a6e,#0d1f3c,#1a3055);border-radius:28px;padding:2px;box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.06);width:100%;max-width:340px;position:relative;z-index:2}
+    .lp-outer{background:linear-gradient(135deg,#1e3a6e,#0d1f3c,#1a3055);border-radius:28px;padding:2px;box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.06);width:100%;max-width:340px;position:relative;z-index:2;animation:lpEntrance .6s cubic-bezier(.16,1,.3,1),lpGlow 4s ease-in-out infinite 0.6s}
+    @keyframes lpEntrance{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes lpGlow{0%,100%{box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 28px rgba(21,101,192,.35),0 0 0 1px rgba(255,255,255,.06)}33%{box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 42px rgba(0,188,212,.4),0 0 0 1px rgba(255,255,255,.1)}66%{box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 42px rgba(124,77,255,.35),0 0 0 1px rgba(255,255,255,.08)}}
     .lp-inner{background:#f0f2f5;border-radius:26px;padding:28px 24px 24px;position:relative;overflow:hidden}
     .lp-deco-top{position:absolute;top:0;left:0;right:0;height:6px;background:linear-gradient(90deg,#1565C0,#42a5f5,#1565C0)}
     .lp-fc{position:absolute;width:28px;height:28px}
@@ -692,11 +694,23 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     .lp-sep-text{font-size:10px;color:#9aa3ae;letter-spacing:1px}
     .lp-field{margin-bottom:14px}
     .lp-label{font-size:10px;font-weight:700;color:#6b7a8d;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:7px;padding-left:4px}
-    .lp-inset{display:flex;align-items:center;gap:10px;background:#e4e8ef;border-radius:14px;padding:0 16px;height:48px;box-shadow:inset 3px 3px 7px #c8cdd6,inset -3px -3px 7px #ffffff;border:1px solid rgba(255,255,255,0.7)}
-    .lp-inset svg{width:17px;height:17px;color:#8a95a3;flex-shrink:0}
+    .lp-inset{display:flex;align-items:center;gap:10px;background:#e4e8ef;border-radius:14px;padding:0 16px;height:48px;box-shadow:inset 3px 3px 7px #c8cdd6,inset -3px -3px 7px #ffffff;border:1px solid rgba(255,255,255,0.7);transition:box-shadow .25s ease,transform .15s ease;position:relative}
+    .lp-inset:focus-within{box-shadow:inset 3px 3px 7px #c8cdd6,inset -3px -3px 7px #ffffff,0 0 0 3px rgba(21,101,192,.22);transform:translateY(-1px)}
+    .lp-inset svg{width:17px;height:17px;color:#8a95a3;flex-shrink:0;transition:color .2s}
+    .lp-inset:focus-within svg{color:#1565C0}
     .lp-inset input{flex:1;background:transparent;border:none;outline:none;font-size:14px;color:#1a2a3a;font-family:inherit}
     .lp-inset input::placeholder{color:#aab0ba;font-size:13px}
-    .lp-btn{width:100%;height:50px;background:linear-gradient(135deg,#1565C0,#1976D2);color:#fff;border:none;border-radius:25px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 15px rgba(21,101,192,0.4),0 1px 3px rgba(0,0,0,0.2);letter-spacing:0.5px;transition:all 0.2s;font-family:inherit}
+    .lp-field{position:relative}
+    .lp-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(13,31,60,.18);overflow:hidden;z-index:20;display:none;border:1px solid rgba(21,101,192,.08)}
+    .lp-suggest.show{display:block;animation:lpSuggestIn .18s ease-out}
+    @keyframes lpSuggestIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    .lp-suggest-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:13px;color:#1a2a3a;transition:background .15s}
+    .lp-suggest-item:hover{background:#eef3fb}
+    .lp-suggest-item .lp-sug-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#1565C0,#00BCD4);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+    .lp-suggest-item small{color:#9aa3ae;font-size:10px}
+    .lp-btn{width:100%;height:50px;background:linear-gradient(135deg,#1565C0,#1976D2);color:#fff;border:none;border-radius:25px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 15px rgba(21,101,192,0.4),0 1px 3px rgba(0,0,0,0.2);letter-spacing:0.5px;transition:all 0.2s;font-family:inherit;position:relative;overflow:hidden}
+    .lp-btn::after{content:'';position:absolute;top:0;left:-60%;width:35%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:lpShine 3.2s ease-in-out infinite}
+    @keyframes lpShine{0%{left:-60%}55%,100%{left:130%}}
     .lp-btn:hover{box-shadow:0 6px 20px rgba(21,101,192,0.5);transform:translateY(-1px)}
     .lp-btn:active{transform:scale(0.98)}
     .lp-btn svg{width:18px;height:18px}
@@ -705,6 +719,24 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     .lp-dots span:nth-child(2){background:rgba(21,101,192,0.5)}
     .lp-footer{text-align:center;font-size:10px;color:#9aa3ae;margin-top:10px;letter-spacing:0.5px}
     #loginError{color:#C62828;font-size:.85rem;text-align:center;margin-top:10px;display:none;padding:10px;background:#FFEBEE;border-radius:10px}
+
+    /* ── SUCCESS VALIDATION ANIMATION ── */
+    .lp-success-overlay{position:fixed;inset:0;background:rgba(8,18,34,.94);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:9999}
+    .lp-success-overlay.show{display:flex}
+    .lp-success-box{display:flex;flex-direction:column;align-items:center;gap:18px}
+    .lp-success-ring{width:104px;height:104px;position:relative}
+    .lp-success-ring svg{width:100%;height:100%;overflow:visible}
+    .lp-sr-bg{fill:none;stroke:rgba(255,255,255,.08);stroke-width:5}
+    .lp-sr-circle{fill:none;stroke:url(#lpGradStroke);stroke-width:5;stroke-linecap:round;stroke-dasharray:302;stroke-dashoffset:302;transform:rotate(-90deg);transform-origin:52px 52px;animation:lpCircleDraw .7s cubic-bezier(.65,0,.35,1) forwards}
+    @keyframes lpCircleDraw{to{stroke-dashoffset:0}}
+    .lp-sr-check{fill:none;stroke:#fff;stroke-width:5.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:36;stroke-dashoffset:36;animation:lpCheckDraw .35s ease-out .68s forwards}
+    @keyframes lpCheckDraw{to{stroke-dashoffset:0}}
+    .lp-success-text{color:#fff;font-weight:700;font-size:15px;letter-spacing:.4px;opacity:0;transform:translateY(6px);animation:lpTextIn .4s ease-out .85s forwards}
+    .lp-success-sub{color:#9fb3cc;font-size:11.5px;opacity:0;transform:translateY(6px);animation:lpTextIn .4s ease-out 1.0s forwards}
+    @keyframes lpTextIn{to{opacity:1;transform:translateY(0)}}
+    .lp-confetti{position:absolute;top:50%;left:50%;width:9px;height:9px;border-radius:2px;opacity:0;pointer-events:none}
+    .lp-confetti.dot{border-radius:50%}
+    @keyframes lpConfettiBurst{0%{opacity:1;transform:translate(-50%,-50%) rotate(0deg) scale(1)}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--rot)) scale(.3)}}
   </style>
 
   <div class="bg-c">
@@ -736,25 +768,27 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <div class="lp-sep-line"></div>
       </div>
 
+      <form id="loginForm" autocomplete="on">
       <div class="lp-field">
         <label class="lp-label">Username</label>
         <div class="lp-inset">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <input type="text" id="loginUsername" placeholder="Masukkan username" autocomplete="username">
+          <input type="text" id="loginUsername" name="username" placeholder="Masukkan username" autocomplete="username" autocapitalize="off" spellcheck="false">
         </div>
+        <div class="lp-suggest" id="lpUserSuggest"></div>
       </div>
 
       <div class="lp-field">
         <label class="lp-label">Password</label>
         <div class="lp-inset">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="loginPassword" placeholder="Masukkan password" autocomplete="current-password">
+          <input type="password" id="loginPassword" name="password" placeholder="Masukkan password" autocomplete="current-password">
         </div>
       </div>
 
       <div id="loginError"></div>
 
-      <button class="lp-btn" onclick="doLogin()">
+      <button class="lp-btn" type="submit">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
           <polyline points="10 17 15 12 10 7"/>
@@ -762,6 +796,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         </svg>
         Masuk
       </button>
+      </form>
       
       <button class="lp-btn"
         onclick="window.location.href='/scan'"
@@ -777,6 +812,27 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
       <div class="lp-dots"><span></span><span></span><span></span></div>
       <div class="lp-footer">AGRABIL &copy; 2026</div>
+    </div>
+  </div>
+
+  <div class="lp-success-overlay" id="lpSuccessOverlay">
+    <div class="lp-success-box">
+      <div class="lp-success-ring" id="lpConfettiHost">
+        <svg viewBox="0 0 104 104">
+          <defs>
+            <linearGradient id="lpGradStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#1565C0"/>
+              <stop offset="50%" stop-color="#00BCD4"/>
+              <stop offset="100%" stop-color="#7C4DFF"/>
+            </linearGradient>
+          </defs>
+          <circle class="lp-sr-bg" cx="52" cy="52" r="48"/>
+          <circle class="lp-sr-circle" cx="52" cy="52" r="48"/>
+          <polyline class="lp-sr-check" points="34,54 46,66 72,38"/>
+        </svg>
+      </div>
+      <div class="lp-success-text" id="lpSuccessName">Login Berhasil</div>
+      <div class="lp-success-sub">Menyiapkan dashboard kamu...</div>
     </div>
   </div>
 
@@ -3148,25 +3204,103 @@ window.onload = async function() {
 };
 
 // ── LOGIN ────────────────────────────────────────────────────────
-async function doLogin() {
+// Catatan: username & password TIDAK disimpan di localStorage demi keamanan.
+// Yang disimpan cuma daftar username terakhir (tanpa password) supaya bisa
+// muncul sebagai saran cepat saat field username diklik. Untuk isian
+// password otomatis, kita andalkan password manager bawaan browser --
+// makanya form ini pakai tag <form> + autocomplete yang benar, supaya
+// browser mau menawarkan "simpan sandi" dan menampilkan akun tersimpan.
+const SAVED_USERS_KEY = 'siabsen_saved_usernames';
+function getSavedUsernames() {
+  try { return JSON.parse(localStorage.getItem(SAVED_USERS_KEY)) || []; } catch(e) { return []; }
+}
+function rememberUsername(username, nama) {
+  let list = getSavedUsernames().filter(u => u.username !== username);
+  list.unshift({ username, nama: nama || username, last: Date.now() });
+  list = list.slice(0, 5);
+  localStorage.setItem(SAVED_USERS_KEY, JSON.stringify(list));
+}
+function renderUserSuggest() {
+  const box = document.getElementById('lpUserSuggest');
+  const input = document.getElementById('loginUsername');
+  if (!box || !input) return;
+  const list = getSavedUsernames().filter(u => u.username.toLowerCase().includes(input.value.trim().toLowerCase()));
+  if (!list.length) { box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML = list.map(u => `
+    <div class="lp-suggest-item" data-u="${esc(u.username)}">
+      <div class="lp-sug-avatar">${esc((u.nama||u.username).slice(0,1).toUpperCase())}</div>
+      <div><div>${esc(u.nama||u.username)}</div><small>${esc(u.username)}</small></div>
+    </div>`).join('');
+  box.querySelectorAll('.lp-suggest-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => { // mousedown supaya jalan sebelum blur
+      e.preventDefault();
+      input.value = el.getAttribute('data-u');
+      box.classList.remove('show');
+      document.getElementById('loginPassword').focus();
+    });
+  });
+  box.classList.add('show');
+}
+function playLoginSuccessAnimation(displayName) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('lpSuccessOverlay');
+    const host = document.getElementById('lpConfettiHost');
+    document.getElementById('lpSuccessName').textContent = displayName ? `Halo, ${displayName}!` : 'Login Berhasil';
+    // reset animasi kalau dipanggil berkali-kali
+    overlay.querySelectorAll('.lp-sr-circle,.lp-sr-check').forEach(el => { el.style.animation='none'; void el.offsetWidth; el.style.animation=''; });
+    // confetti berwarna
+    host.querySelectorAll('.lp-confetti').forEach(d => d.remove());
+    const colors = ['#1565C0','#00BCD4','#7C4DFF','#FFC107','#4CAF50','#FF5252'];
+    for (let i=0;i<18;i++) {
+      const d = document.createElement('span');
+      d.className = 'lp-confetti' + (i % 2 === 0 ? ' dot' : '');
+      const angle = (Math.PI*2/18)*i + Math.random()*0.3;
+      const dist = 70 + Math.random()*40;
+      d.style.setProperty('--dx', `${Math.cos(angle)*dist}px`);
+      d.style.setProperty('--dy', `${Math.sin(angle)*dist}px`);
+      d.style.setProperty('--rot', `${Math.random()*360}deg`);
+      d.style.background = colors[i % colors.length];
+      d.style.animation = `lpConfettiBurst .8s ease-out ${0.55 + Math.random()*0.15}s forwards`;
+      host.appendChild(d);
+    }
+    overlay.classList.add('show');
+    setTimeout(resolve, 1450);
+  });
+}
+async function handleLoginSubmit(e) {
+  e.preventDefault();
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
   if(!username||!password){ showLoginError('Username dan password wajib diisi'); return; }
-  const btn = event.target; btn.disabled=true; btn.textContent='⏳ Memverifikasi...';
+  const btn = e.target.querySelector('.lp-btn');
+  const originalBtn = btn.innerHTML;
+  btn.disabled=true; btn.textContent='⏳ Memverifikasi...';
   try {
     const result = await api('auth','login',{username,password});
     if(result.success){
       APP.user = result; saveSession(result);
+      rememberUsername(username, result.nama);
+      await playLoginSuccessAnimation(result.nama);
+      document.getElementById('lpSuccessOverlay').classList.remove('show');
       document.getElementById('loginPage').style.display='none';
       document.getElementById('mainApp').style.display='flex';
       setupUserUI(result); initFirstPage(result.role);
     } else { showLoginError(result.message); }
   } catch(e){ showLoginError('Koneksi gagal. Coba lagi.'); }
-  btn.disabled=false; btn.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg> Masuk';
+  btn.disabled=false; btn.innerHTML=originalBtn;
 }
 document.addEventListener('DOMContentLoaded', () => {
-  const lp = document.getElementById('loginPassword');
-  if(lp) lp.addEventListener('keyup', e => { if(e.key==='Enter') doLogin(); });
+  const form = document.getElementById('loginForm');
+  const userInput = document.getElementById('loginUsername');
+  if (form) form.addEventListener('submit', handleLoginSubmit);
+  if (userInput) {
+    userInput.addEventListener('focus', renderUserSuggest);
+    userInput.addEventListener('input', renderUserSuggest);
+    userInput.addEventListener('blur', () => setTimeout(() => {
+      const box = document.getElementById('lpUserSuggest');
+      if (box) box.classList.remove('show');
+    }, 120));
+  }
 });
 function showLoginError(msg){ const el=document.getElementById('loginError'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none',4000); }
 function setupUserUI(user) {

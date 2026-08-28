@@ -57,6 +57,46 @@ const handler = async (req, res) => {
     if (action === 'simpanJamPelajaranKelas') return res.json(await simpanJamPelajaranKelas(params));
     if (action === 'hapusJamPelajaranKelas')  return res.json(await hapusJamPelajaranKelas(params));
 
+    // ── HONOR MENGAJAR PER PERTEMUAN (BARU) ──────────────────────────
+    // Awalnya file terpisah (api/honor.js) tapi DIGABUNG ke sini karena
+    // paket Vercel yang dipakai membatasi jumlah Serverless Function
+    // (maks 12 file endpoint) -- menambah file baru bikin deploy gagal.
+    // Fungsinya TETAP terpisah konsepnya dari getRekapKehadiranGuru di
+    // bawah: ini KHUSUS honor/insentif rupiah per pertemuan, TERPISAH
+    // dari gaji bulanan tetap guru (lihat catatan di kepala file ini).
+    // Aturan lengkap (tarif global, syarat kehadiran_lengkap, tarif
+    // terkunci per periode) ada di komentar masing-masing fungsi di
+    // bagian bawah file.
+    if (action === 'getTarifAktif') return res.json(await getTarifAktif());
+    if (action === 'getRiwayatTarif') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+        return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
+      }
+      return res.json(await getRiwayatTarif());
+    }
+    if (action === 'setTarifHonor' || action === 'hapusTarifHonor') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+      return res.json(action === 'setTarifHonor' ? await setTarifHonor(params) : await hapusTarifHonor(params));
+    }
+    if (action === 'getRekapHonorGuru') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(403).json({ success: false, message: 'Tidak punya akses ke data guru ini.' });
+        }
+      }
+      return res.json(await getRekapHonorGuru(params));
+    }
+    if (action === 'getRekapHonorSemuaGuru') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+        return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
+      }
+      return res.json(await getRekapHonorSemuaGuru(params));
+    }
+
     // BARU: getJadwalMengajar sebelumnya bisa dipanggil siapa saja tanpa
     // otorisasi sama sekali (beda dengan endpoint baca lain di file ini
     // yang sudah membatasi guru hanya lihat data sendiri). Sekarang
@@ -1527,5 +1567,195 @@ async function getRekapKehadiranSiswaMapel({ idGuru, mapel, kelas, bulan, tahun 
   return {
     success: true, guru: { id: guru.id, nama: guru.nama }, mapel, kelas,
     totalPertemuan: pertemuan.length, pertemuan, rangkumanSiswa
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// HONOR MENGAJAR PER PERTEMUAN (BARU) -- dipindah dari file terpisah
+// api/honor.js supaya tidak menambah jumlah Serverless Function (lihat
+// catatan di dispatch action di atas). Isinya sengaja dibiarkan apa
+// adanya, cuma dipindah lokasi.
+//
+// ATURAN HONOR (disepakati dengan kepsek):
+//   1. Satu tarif rupiah GLOBAL berlaku untuk semua guru/mapel/kelas.
+//   2. Sesi yang DIHITUNG honornya HANYA sesi yang kehadiran_lengkap =
+//      true di absensi_mengajar -- semua siswa aktif di kelas itu sudah
+//      tercatat kehadirannya untuk sesi tsb.
+//   3. Kalau 1 hari ada 3x pertemuan yang lolos syarat #2, otomatis
+//      terhitung 3x tarif (dihitung per baris sesi, bukan per hari).
+//   4. Tarif terkunci per periode: honor sebuah sesi tanggal X selalu
+//      pakai tarif yang berlaku_mulai <= X (paling baru di antara yang
+//      memenuhi itu) -- lihat cariTarifBerlaku(). Kalau tarif naik bulan
+//      ini, rekap bulan lalu tidak ikut berubah, karena admin cuma boleh
+//      menambah tarif baru dengan tanggal hari ini/mendatang (lihat
+//      setTarifHonor), tidak pernah mengedit/menghapus tarif yang
+//      berlaku_mulai-nya sudah lewat.
+
+async function ambilSemuaTarif() {
+  const { data, error } = await supabase
+    .from('tarif_honor_mengajar').select('*').order('berlaku_mulai', { ascending: true });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+function cariTarifBerlaku(daftarTarif, tanggal) {
+  let hasil = null;
+  for (const t of daftarTarif) {
+    const berlaku = String(t.berlaku_mulai).substring(0, 10);
+    if (berlaku <= tanggal) hasil = t; else break;
+  }
+  return hasil;
+}
+
+async function getTarifAktif() {
+  const daftar = await ambilSemuaTarif();
+  const today = todayStr();
+  const aktif = cariTarifBerlaku(daftar, today);
+  if (!aktif) {
+    return { success: true, ada: false, message: 'Tarif honor belum pernah diset admin.' };
+  }
+  return {
+    success: true, ada: true,
+    nilai: aktif.nilai, berlakuMulai: String(aktif.berlaku_mulai).substring(0, 10),
+    keterangan: aktif.keterangan || ''
+  };
+}
+
+async function getRiwayatTarif() {
+  const daftar = await ambilSemuaTarif();
+  const today = todayStr();
+  return {
+    success: true,
+    riwayat: daftar
+      .slice().sort((a, b) => (a.berlaku_mulai < b.berlaku_mulai ? 1 : -1))
+      .map(t => ({
+        id: t.id, nilai: t.nilai,
+        berlakuMulai: String(t.berlaku_mulai).substring(0, 10),
+        keterangan: t.keterangan || '', dibuatOleh: t.dibuat_oleh || '',
+        statusSaatIni: String(t.berlaku_mulai).substring(0, 10) <= today ? 'Berlaku/Sudah Lewat' : 'Terjadwal (belum berlaku)'
+      }))
+  };
+}
+
+async function setTarifHonor({ nilai, berlakuMulai, keterangan, namaAdmin }) {
+  const nilaiNum = Number(nilai);
+  if (!nilaiNum || nilaiNum <= 0) return { success: false, message: 'Nilai tarif harus lebih dari 0.' };
+
+  const today = todayStr();
+  const tanggal = berlakuMulai ? String(berlakuMulai).substring(0, 10) : today;
+  if (tanggal < today) {
+    return { success: false, message: 'Tanggal berlaku tidak boleh mundur ke hari yang sudah lewat. Tarif lama yang sudah berjalan tidak boleh diubah retroaktif.' };
+  }
+
+  const { error } = await supabase.from('tarif_honor_mengajar').insert({
+    id: generateID(), nilai: nilaiNum, berlaku_mulai: tanggal,
+    keterangan: keterangan || '', dibuat_oleh: namaAdmin || 'Admin'
+  });
+  if (error) {
+    if (error.code === '23505') {
+      return { success: false, message: 'Sudah ada tarif dengan tanggal berlaku yang sama. Pilih tanggal lain atau hapus dulu yang lama (kalau belum berlaku).' };
+    }
+    return { success: false, message: error.message };
+  }
+  return { success: true, message: `Tarif Rp${nilaiNum.toLocaleString('id-ID')} per pertemuan disimpan, berlaku mulai ${tanggal}.` };
+}
+
+async function hapusTarifHonor({ id }) {
+  if (!id) return { success: false, message: 'ID tarif wajib diisi.' };
+  const { data: row } = await supabase.from('tarif_honor_mengajar').select('*').eq('id', id).maybeSingle();
+  if (!row) return { success: false, message: 'Data tarif tidak ditemukan.' };
+
+  const today = todayStr();
+  if (String(row.berlaku_mulai).substring(0, 10) <= today) {
+    return { success: false, message: 'Tarif yang sudah berlaku tidak boleh dihapus (supaya histori honor yang sudah dihitung tidak berubah). Tambahkan tarif baru dengan tanggal berlaku hari ini/mendatang kalau ingin mengubahnya.' };
+  }
+  const { error } = await supabase.from('tarif_honor_mengajar').delete().eq('id', id);
+  if (error) return { success: false, message: error.message };
+  return { success: true, message: 'Tarif terjadwal berhasil dihapus.' };
+}
+
+async function getRekapHonorGuru({ idGuru, bulan, tahun }) {
+  if (!idGuru) return { success: false, message: 'ID guru wajib diisi' };
+
+  const now = new Date();
+  const th = Number(tahun) || now.getFullYear();
+  const bl = Number(bulan) || (now.getMonth() + 1);
+
+  const { data: guru } = await supabase.from('guru').select('id,nama').eq('id', idGuru).maybeSingle();
+  if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
+
+  const jumlahHariDiBulan = new Date(th, bl, 0).getDate();
+  const awalBulan = `${th}-${String(bl).padStart(2, '0')}-01`;
+  const akhirBulan = `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHariDiBulan).padStart(2, '0')}`;
+
+  const [{ data: sesiHonor }, daftarTarif] = await Promise.all([
+    supabase.from('absensi_mengajar').select('*')
+      .eq('id_guru', idGuru).eq('kehadiran_lengkap', true)
+      .gte('tanggal', awalBulan).lte('tanggal', akhirBulan)
+      .order('tanggal', { ascending: false }),
+    ambilSemuaTarif()
+  ]);
+
+  let totalRupiah = 0;
+  let sesiTanpaTarif = 0;
+  const rincian = (sesiHonor || []).map(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+    const rupiah = tarif ? tarif.nilai : 0;
+    if (!tarif) sesiTanpaTarif++;
+    totalRupiah += rupiah;
+    return {
+      tanggal, hari: s.hari, kelas: s.kelas, mapel: s.mapel,
+      jamScan: s.jam_scan, tarifSaatItu: tarif ? tarif.nilai : null, rupiah
+    };
+  });
+
+  return {
+    success: true,
+    guru: { id: guru.id, nama: guru.nama },
+    bulan: bl, tahun: th,
+    totalSesiHonor: rincian.length,
+    totalRupiah,
+    sesiTanpaTarif,
+    rincian
+  };
+}
+
+async function getRekapHonorSemuaGuru({ bulan, tahun }) {
+  const now = new Date();
+  const th = Number(tahun) || now.getFullYear();
+  const bl = Number(bulan) || (now.getMonth() + 1);
+
+  const jumlahHariDiBulan = new Date(th, bl, 0).getDate();
+  const awalBulan = `${th}-${String(bl).padStart(2, '0')}-01`;
+  const akhirBulan = `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHariDiBulan).padStart(2, '0')}`;
+
+  const [{ data: guruList }, { data: sesiHonor }, daftarTarif] = await Promise.all([
+    supabase.from('guru').select('id,nama,role').neq('role', 'kepsek').order('nama', { ascending: true }),
+    supabase.from('absensi_mengajar').select('id_guru,nama_guru,tanggal')
+      .eq('kehadiran_lengkap', true).gte('tanggal', awalBulan).lte('tanggal', akhirBulan),
+    ambilSemuaTarif()
+  ]);
+
+  const perGuru = {};
+  (sesiHonor || []).forEach(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+    const rupiah = tarif ? tarif.nilai : 0;
+    if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
+    perGuru[s.id_guru].totalSesi++;
+    perGuru[s.id_guru].totalRupiah += rupiah;
+  });
+
+  const rekap = (guruList || []).map(g => ({
+    idGuru: g.id, nama: g.nama,
+    totalSesi: perGuru[g.id]?.totalSesi || 0,
+    totalRupiah: perGuru[g.id]?.totalRupiah || 0
+  }));
+
+  return {
+    success: true, bulan: bl, tahun: th,
+    totalRupiahSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiah, 0),
+    rekap: rekap.sort((a, b) => b.totalRupiah - a.totalRupiah)
   };
 }

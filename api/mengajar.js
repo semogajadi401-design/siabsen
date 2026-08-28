@@ -96,6 +96,35 @@ const handler = async (req, res) => {
       }
       return res.json(await getRekapHonorSemuaGuru(params));
     }
+    // BARU: total honor keseluruhan (akumulasi semua bulan, dikurangi
+    // yang sudah pernah direset/dibayarkan) -- lihat catatan lengkap di
+    // atas fungsi getTotalHonorKeseluruhanGuru() di bawah.
+    if (action === 'getTotalHonorKeseluruhan') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(403).json({ success: false, message: 'Tidak punya akses ke data guru ini.' });
+        }
+      }
+      return res.json(await getTotalHonorKeseluruhanGuru(params));
+    }
+    // BARU: reset honor guru -- khusus admin (bukan kepsek), supaya tidak
+    // tumpang tindih dengan honor yang sudah dibayarkan. Lihat catatan di
+    // atas fungsi resetHonorGuru() di bawah.
+    if (action === 'resetHonorGuru') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+      return res.json(await resetHonorGuru(params));
+    }
+    if (action === 'getRiwayatResetHonor') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(403).json({ success: false, message: 'Tidak punya akses ke data guru ini.' });
+        }
+      }
+      return res.json(await getRiwayatResetHonor(params));
+    }
 
     // BARU: getJadwalMengajar sebelumnya bisa dipanggil siapa saja tanpa
     // otorisasi sama sekali (beda dengan endpoint baca lain di file ini
@@ -1730,11 +1759,15 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
   const awalBulan = `${th}-${String(bl).padStart(2, '0')}-01`;
   const akhirBulan = `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHariDiBulan).padStart(2, '0')}`;
 
-  const [{ data: guruList }, { data: sesiHonor }, daftarTarif] = await Promise.all([
+  const [{ data: guruList }, { data: sesiHonor }, { data: sesiSemua }, daftarTarif, petaReset] = await Promise.all([
     supabase.from('guru').select('id,nama,role').neq('role', 'kepsek').order('nama', { ascending: true }),
     supabase.from('absensi_mengajar').select('id_guru,nama_guru,tanggal')
       .eq('kehadiran_lengkap', true).gte('tanggal', awalBulan).lte('tanggal', akhirBulan),
-    ambilSemuaTarif()
+    // BARU: dipakai utk kolom "Total Keseluruhan" -- semua sesi sepanjang
+    // waktu (tidak difilter bulan), lihat catatan di getTotalHonorKeseluruhanGuru().
+    supabase.from('absensi_mengajar').select('id_guru,tanggal').eq('kehadiran_lengkap', true),
+    ambilSemuaTarif(),
+    ambilPetaResetTerakhir()
   ]);
 
   const perGuru = {};
@@ -1747,15 +1780,132 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
     perGuru[s.id_guru].totalRupiah += rupiah;
   });
 
+  const perGuruKeseluruhan = {};
+  (sesiSemua || []).forEach(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    const cutoff = petaReset[s.id_guru];
+    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
+    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+    const rupiah = tarif ? tarif.nilai : 0;
+    if (!perGuruKeseluruhan[s.id_guru]) perGuruKeseluruhan[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
+    perGuruKeseluruhan[s.id_guru].totalSesi++;
+    perGuruKeseluruhan[s.id_guru].totalRupiah += rupiah;
+  });
+
   const rekap = (guruList || []).map(g => ({
     idGuru: g.id, nama: g.nama,
     totalSesi: perGuru[g.id]?.totalSesi || 0,
-    totalRupiah: perGuru[g.id]?.totalRupiah || 0
+    totalRupiah: perGuru[g.id]?.totalRupiah || 0,
+    totalSesiKeseluruhan: perGuruKeseluruhan[g.id]?.totalSesi || 0,
+    totalRupiahKeseluruhan: perGuruKeseluruhan[g.id]?.totalRupiah || 0,
+    terakhirDireset: petaReset[g.id] || null
   }));
 
   return {
     success: true, bulan: bl, tahun: th,
     totalRupiahSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiah, 0),
+    totalRupiahKeseluruhanSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiahKeseluruhan, 0),
     rekap: rekap.sort((a, b) => b.totalRupiah - a.totalRupiah)
+  };
+}
+
+// ── RESET HONOR (BARU) ───────────────────────────────────────────────
+// Lihat catatan lengkap di schema.sql (tabel honor_reset_guru). Intinya:
+// "Total Honor Keseluruhan" = akumulasi SEMUA sesi kehadiran_lengkap
+// sepanjang waktu, TAPI sesi dengan tanggal <= cutoff reset TERAKHIR
+// guru itu tidak ikut dihitung lagi (dianggap sudah dibayarkan). Rekap
+// PER BULAN (getRekapHonorGuru/getRekapHonorSemuaGuru di atas) sengaja
+// TIDAK dipengaruhi reset ini -- histori bulan lalu harus tetap bisa
+// dilihat apa adanya walau honornya sudah "direset" karena sudah dibayar.
+
+async function ambilTanggalResetTerakhir(idGuru) {
+  const { data } = await supabase.from('honor_reset_guru').select('tanggal_reset')
+    .eq('id_guru', idGuru).order('tanggal_reset', { ascending: false }).limit(1).maybeSingle();
+  return data ? String(data.tanggal_reset).substring(0, 10) : null;
+}
+
+// Peta id_guru -> tanggal_reset TERAKHIR (paling baru), dipakai supaya
+// getRekapHonorSemuaGuru tidak perlu query per-guru satu-satu.
+async function ambilPetaResetTerakhir() {
+  const { data } = await supabase.from('honor_reset_guru')
+    .select('id_guru,tanggal_reset').order('tanggal_reset', { ascending: true });
+  const peta = {};
+  // Diurutkan ascending, jadi baris terakhir yang diproses per id_guru
+  // otomatis yang tanggal_reset-nya paling besar (paling baru).
+  (data || []).forEach(r => { peta[r.id_guru] = String(r.tanggal_reset).substring(0, 10); });
+  return peta;
+}
+
+async function getTotalHonorKeseluruhanGuru({ idGuru }) {
+  if (!idGuru) return { success: false, message: 'ID guru wajib diisi' };
+  const { data: guru } = await supabase.from('guru').select('id,nama').eq('id', idGuru).maybeSingle();
+  if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
+
+  const [{ data: sesiSemua }, daftarTarif, cutoff] = await Promise.all([
+    supabase.from('absensi_mengajar').select('tanggal')
+      .eq('id_guru', idGuru).eq('kehadiran_lengkap', true),
+    ambilSemuaTarif(),
+    ambilTanggalResetTerakhir(idGuru)
+  ]);
+
+  let totalRupiah = 0, totalSesi = 0, sesiTanpaTarif = 0;
+  (sesiSemua || []).forEach(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
+    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+    if (!tarif) { sesiTanpaTarif++; return; }
+    totalSesi++;
+    totalRupiah += tarif.nilai;
+  });
+
+  return {
+    success: true,
+    guru: { id: guru.id, nama: guru.nama },
+    totalSesiHonor: totalSesi,
+    totalRupiah,
+    sesiTanpaTarif,
+    dihitungSejak: cutoff || null // null = sejak awal (belum pernah direset)
+  };
+}
+
+async function resetHonorGuru({ idGuru, namaAdmin }) {
+  if (!idGuru) return { success: false, message: 'ID guru wajib diisi' };
+  const { data: guru } = await supabase.from('guru').select('id,nama').eq('id', idGuru).maybeSingle();
+  if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
+
+  const totalSaatIni = await getTotalHonorKeseluruhanGuru({ idGuru });
+  if (!totalSaatIni.success) return totalSaatIni;
+  if (totalSaatIni.totalSesiHonor === 0) {
+    return { success: false, message: `${guru.nama} belum punya honor yang perlu direset.` };
+  }
+
+  const tanggalReset = todayStr();
+  const { error } = await supabase.from('honor_reset_guru').insert({
+    id: generateID(), id_guru: idGuru, tanggal_reset: tanggalReset,
+    total_rupiah_saat_reset: totalSaatIni.totalRupiah,
+    total_sesi_saat_reset: totalSaatIni.totalSesiHonor,
+    direset_oleh: namaAdmin || 'Admin'
+  });
+  if (error) return { success: false, message: error.message };
+
+  return {
+    success: true,
+    message: `Honor ${guru.nama} sebesar Rp${totalSaatIni.totalRupiah.toLocaleString('id-ID')} (${totalSaatIni.totalSesiHonor} sesi) berhasil direset. Sesi sampai tanggal ${tanggalReset} dianggap sudah dibayarkan dan tidak akan terhitung lagi di Total Honor Keseluruhan -- sesi baru sesudahnya tetap terhitung seperti biasa.`
+  };
+}
+
+async function getRiwayatResetHonor({ idGuru }) {
+  if (!idGuru) return { success: false, message: 'ID guru wajib diisi' };
+  const { data, error } = await supabase.from('honor_reset_guru').select('*')
+    .eq('id_guru', idGuru).order('tanggal_reset', { ascending: false });
+  if (error) return { success: false, message: error.message };
+  return {
+    success: true,
+    riwayat: (data || []).map(r => ({
+      tanggalReset: String(r.tanggal_reset).substring(0, 10),
+      totalRupiah: r.total_rupiah_saat_reset,
+      totalSesi: r.total_sesi_saat_reset,
+      diresetOleh: r.direset_oleh || ''
+    }))
   };
 }

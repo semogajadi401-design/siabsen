@@ -1061,7 +1061,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
               <input type="text" placeholder="Cari guru..." oninput="filterTable('guruTable',this.value)" class="form-control">
             </div>
-            <div class="table-responsive"><table id="guruTable">
+            <div class="table-responsive"><table id="guruTable" class="table-card-mobile">
               <thead><tr><th>No</th><th>Nama</th><th>JK</th><th>Jabatan</th><th>Peran</th><th>Username</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody id="guruTableBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
@@ -1085,7 +1085,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
               <input type="text" placeholder="Cari siswa..." oninput="filterTable('siswaTable',this.value)" class="form-control">
             </div>
-            <div class="table-responsive"><table id="siswaTable">
+            <div class="table-responsive"><table id="siswaTable" class="table-card-mobile">
               <thead><tr><th>No</th><th>NISN</th><th>Nama</th><th>Kelas</th><th>JK</th><th>Agama</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody id="siswaTableBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
@@ -3628,7 +3628,7 @@ async function loadGuru() {
     // dulu (data & histori piket tetap aman), baru hapus permanen kalau memang
     // yakin. Sebelumnya guru cuma bisa dihapus permanen dari UI meski backend
     // sudah punya endpoint nonaktifkan (guru.hapus) — sekarang dipakai.
-    tbody.innerHTML=result.data.map((g,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${esc(g.nama)}</div><div style="font-size:.76rem;color:var(--text-muted)">${esc(g.nip||'-')}</div></td><td>${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td>${esc(g.jabatan)}</td><td>${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}</td><td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${esc(g.username)}</code></td><td><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td><div style="display:flex;gap:6px">${g.status==='Aktif'?`<button class="btn btn-primary btn-sm" onclick="loginSebagaiGuru('${g.id}',window._guruData[${i}].nama)" title="Login sebagai guru ini (tanpa perlu password)">🔓</button>`:''}<button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
+    tbody.innerHTML=result.data.map((g,i)=>`<tr><td data-label="No">${i+1}</td><td data-label="Nama"><div style="font-weight:600">${esc(g.nama)}</div><div style="font-size:.76rem;color:var(--text-muted)">${esc(g.nip||'-')}</div></td><td data-label="JK">${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td data-label="Jabatan">${esc(g.jabatan)}</td><td data-label="Peran">${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}</td><td data-label="Username"><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${esc(g.username)}</code></td><td data-label="Status"><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td data-label="Aksi"><div style="display:flex;gap:6px;flex-wrap:wrap">${g.status==='Aktif'?`<button class="btn btn-primary btn-sm" onclick="loginSebagaiGuru('${g.id}',window._guruData[${i}].nama)" title="Login sebagai guru ini (tanpa perlu password)">🔓</button>`:''}<button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
   } catch(e){ toast('Gagal memuat data guru','error'); }
 }
 function openModalGuru(){
@@ -3687,14 +3687,14 @@ async function loadSiswa(){
     if(!result.success||result.data.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data siswa</td></tr>';return;}
     window._siswaData = result.data;
     tbody.innerHTML=result.data.map((s,i)=>`<tr>
-      <td>${i+1}</td>
-      <td><code style="font-size:.8rem">${s.nisn}</code></td>
-      <td><div style="font-weight:600">${esc(s.nama)}</div></td>
-      <td><span class="badge badge-primary">${s.kelas}</span></td>
-      <td>${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td>
-      <td>${s.agama}</td>
-      <td><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td>
-      <td><div style="display:flex;gap:6px">
+      <td data-label="No">${i+1}</td>
+      <td data-label="NISN"><code style="font-size:.8rem">${s.nisn}</code></td>
+      <td data-label="Nama"><div style="font-weight:600">${esc(s.nama)}</div></td>
+      <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
+      <td data-label="JK">${s.jenisKelamin==='Laki-laki'?'♂':'♀'}</td>
+      <td data-label="Agama">${s.agama}</td>
+      <td data-label="Status"><span class="badge ${s.status==='Aktif'?'badge-success':'badge-danger'}">${s.status}</span></td>
+      <td data-label="Aksi"><div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="editSiswa(window._siswaData[${i}])">✏️</button>
         <button class="btn btn-warning btn-sm" title="Reset QR Riwayat (kartu hilang/dicetak ulang)" onclick="resetRiwayatToken('${s.id}','${esc(s.nama)}')">🔄</button>
         <button class="btn btn-danger btn-sm" onclick="hapusSiswa('${s.id}','${esc(s.nama)}')">🗑</button>

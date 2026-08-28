@@ -116,6 +116,12 @@ const handler = async (req, res) => {
       if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
       return res.json(await resetHonorGuru(params));
     }
+    // BARU: reset honor SEMUA guru sekaligus -- khusus admin.
+    if (action === 'resetHonorSemuaGuru') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+      return res.json(await resetHonorSemuaGuru(params));
+    }
     if (action === 'getRiwayatResetHonor') {
       const adminValidHonor = await requireAdminToken(adminToken);
       if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
@@ -1907,5 +1913,64 @@ async function getRiwayatResetHonor({ idGuru }) {
       totalSesi: r.total_sesi_saat_reset,
       diresetOleh: r.direset_oleh || ''
     }))
+  };
+}
+
+// BARU: reset honor SEMUA guru sekaligus (dipakai tombol "Reset Semua"
+// di halaman admin), dipakai kalau pembayaran honor dilakukan serentak
+// utk semua guru di akhir bulan/periode, jadi admin tidak perlu klik
+// reset satu-satu. Guru yang totalRupiahKeseluruhan-nya 0 dilewati saja
+// (tidak dibuatkan baris reset kosong, biar riwayat reset tetap bersih
+// & tidak menuduh guru itu "sudah dibayar Rp0").
+async function resetHonorSemuaGuru({ namaAdmin }) {
+  const { data: guruList } = await supabase.from('guru').select('id,nama').neq('role', 'kepsek');
+  if (!guruList || !guruList.length) {
+    return { success: false, message: 'Belum ada data guru.' };
+  }
+
+  const [{ data: sesiSemua }, daftarTarif, petaReset] = await Promise.all([
+    supabase.from('absensi_mengajar').select('id_guru,tanggal').eq('kehadiran_lengkap', true),
+    ambilSemuaTarif(),
+    ambilPetaResetTerakhir()
+  ]);
+
+  // Hitung total keseluruhan per guru (logikanya sama persis dengan
+  // getTotalHonorKeseluruhanGuru, tapi dilakukan sekali jalan utk semua
+  // guru sekaligus supaya tidak perlu N query terpisah).
+  const perGuru = {};
+  (sesiSemua || []).forEach(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    const cutoff = petaReset[s.id_guru];
+    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
+    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+    if (!tarif) return; // sesi tanpa tarif tidak ikut nominal, sama seperti fungsi individual
+    if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
+    perGuru[s.id_guru].totalSesi++;
+    perGuru[s.id_guru].totalRupiah += tarif.nilai;
+  });
+
+  const tanggalReset = todayStr();
+  const baris = guruList
+    .filter(g => (perGuru[g.id]?.totalSesi || 0) > 0)
+    .map(g => ({
+      id: generateID(), id_guru: g.id, tanggal_reset: tanggalReset,
+      total_rupiah_saat_reset: perGuru[g.id].totalRupiah,
+      total_sesi_saat_reset: perGuru[g.id].totalSesi,
+      direset_oleh: namaAdmin || 'Admin'
+    }));
+
+  if (!baris.length) {
+    return { success: false, message: 'Tidak ada guru yang punya honor keseluruhan untuk direset.' };
+  }
+
+  const { error } = await supabase.from('honor_reset_guru').insert(baris);
+  if (error) return { success: false, message: error.message };
+
+  const totalRupiahDireset = baris.reduce((a, b) => a + b.total_rupiah_saat_reset, 0);
+  return {
+    success: true,
+    jumlahGuruDireset: baris.length,
+    totalRupiahDireset,
+    message: `Honor ${baris.length} guru berhasil direset sekaligus (total Rp${totalRupiahDireset.toLocaleString('id-ID')}). Sesi sampai tanggal ${tanggalReset} dianggap sudah dibayarkan dan tidak akan terhitung lagi di Total Honor Keseluruhan.`
   };
 }

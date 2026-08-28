@@ -1537,13 +1537,23 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="honBulan" onchange="loadRekapHonorSemuaGuru()"></select></div>
               <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="honTahun" style="width:100px" onchange="loadRekapHonorSemuaGuru()"></div>
             </div>
-            <div style="background:var(--surface2);border-radius:12px;padding:16px;text-align:center;margin-bottom:20px;max-width:280px">
-              <div style="font-size:1.5rem;font-weight:800" id="honTotalSemuaGuru">-</div>
-              <div style="font-size:.78rem;color:var(--text-muted)">Total Honor Semua Guru Bulan Ini</div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">
+              <div style="background:var(--surface2);border-radius:12px;padding:16px;text-align:center;min-width:260px">
+                <div style="font-size:1.5rem;font-weight:800" id="honTotalSemuaGuru">-</div>
+                <div style="font-size:.78rem;color:var(--text-muted)">Total Honor Semua Guru Bulan Ini</div>
+              </div>
+              <!-- BARU: total keseluruhan (akumulasi, dikurangi yang sudah direset/dibayarkan) -->
+              <div style="background:#E8F5E9;border-radius:12px;padding:16px;text-align:center;min-width:260px">
+                <div style="font-size:1.5rem;font-weight:800;color:#2e7d32" id="honTotalKeseluruhanSemuaGuru">-</div>
+                <div style="font-size:.78rem;color:var(--text-muted)">Total Keseluruhan Semua Guru (belum dibayar)</div>
+              </div>
             </div>
+            <p style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">
+              💡 "Total Keseluruhan" akumulasi dari semua bulan. Setelah honor seorang guru dibayarkan, tekan <b>♻️ Reset</b> di baris guru itu supaya jumlahnya tidak tumpang tindih/dobel dengan periode berikutnya. Rekap bulanan di atas tidak ikut berubah walau sudah direset.
+            </p>
             <div class="table-responsive"><table class="table-card-mobile">
-              <thead><tr><th>Guru</th><th>Jumlah Sesi</th><th>Total Honor</th><th>Aksi</th></tr></thead>
-              <tbody id="honRekapSemuaGuruBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+              <thead><tr><th>Guru</th><th>Jumlah Sesi</th><th>Total Honor Bulan Ini</th><th>Total Keseluruhan</th><th>Aksi</th></tr></thead>
+              <tbody id="honRekapSemuaGuruBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
         </div>
@@ -1568,6 +1578,14 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               </div>
               <div style="flex:1;min-width:140px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
                 <div style="font-size:1.5rem;font-weight:800" id="hsTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)">Sesi Dihitung</div>
+              </div>
+              <!-- BARU: Total Honor Keseluruhan -- akumulasi semua bulan
+                   sejak terakhir kali admin menekan "Reset Honor" (kalau
+                   belum pernah, berarti sejak awal). -->
+              <div style="flex:1;min-width:180px;background:#E8F5E9;border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:1.6rem;font-weight:800;color:#2e7d32" id="hsTotalKeseluruhan">-</div>
+                <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">Total Honor Keseluruhan</div>
+                <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px" id="hsKeseluruhanInfo"></div>
               </div>
             </div>
             <div id="hsPeringatanTarif" style="display:none;background:#FFF8E1;border:1px solid #F57F17;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:.8rem;color:#8a5a00">
@@ -8921,17 +8939,44 @@ async function loadRekapHonorSemuaGuru() {
   if (!result.success) { toast(result.message, 'error'); return; }
 
   document.getElementById('honTotalSemuaGuru').textContent = fmtRupiah(result.totalRupiahSemuaGuru);
+  document.getElementById('honTotalKeseluruhanSemuaGuru').textContent = fmtRupiah(result.totalRupiahKeseluruhanSemuaGuru);
 
+  const isAdmin = APP.user.role === 'admin';
   if (!result.rekap.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
     return;
   }
-  tbody.innerHTML = result.rekap.map(g => `<tr>
+  tbody.innerHTML = result.rekap.map(g => {
+    const namaAman = esc(g.nama).replace(/'/g, "\\'");
+    const infoReset = g.terakhirDireset ? `<div style="font-size:.68rem;color:var(--text-muted);margin-top:2px">terakhir direset ${g.terakhirDireset}</div>` : '';
+    // Tombol reset cuma utk admin (bukan kepsek -- kepsek read-only), dan
+    // cuma aktif kalau ada honor keseluruhan yang belum dibayarkan.
+    const tombolReset = isAdmin
+      ? `<button class="btn btn-outline btn-sm" ${g.totalRupiahKeseluruhan <= 0 ? 'disabled' : ''} onclick="resetHonorGuruRow('${g.idGuru}','${namaAman}')">♻️ Reset</button>`
+      : '';
+    return `<tr>
     <td data-label="Guru">${esc(g.nama)}</td>
     <td data-label="Jumlah Sesi">${g.totalSesi}</td>
-    <td data-label="Total Honor"><b>${fmtRupiah(g.totalRupiah)}</b></td>
-    <td data-label="Aksi"><button class="btn btn-outline btn-sm" onclick="lihatDetailHonorGuru('${g.idGuru}','${esc(g.nama).replace(/'/g, "\\'")}')">🔍 Detail</button></td>
-  </tr>`).join('');
+    <td data-label="Total Honor Bulan Ini"><b>${fmtRupiah(g.totalRupiah)}</b></td>
+    <td data-label="Total Keseluruhan"><b style="color:#2e7d32">${fmtRupiah(g.totalRupiahKeseluruhan)}</b>${infoReset}</td>
+    <td data-label="Aksi" style="white-space:nowrap">
+      <button class="btn btn-outline btn-sm" onclick="lihatDetailHonorGuru('${g.idGuru}','${namaAman}')">🔍 Detail</button>
+      ${tombolReset}
+    </td>
+  </tr>`;
+  }).join('');
+}
+
+// BARU: tombol Reset Honor -- ditekan admin SETELAH honor keseluruhan
+// seorang guru sudah dibayarkan, supaya sesi lama tidak ikut kehitung
+// lagi di "Total Honor Keseluruhan" periode berikutnya (tidak tumpang
+// tindih/dobel bayar). Rekap bulanan tetap utuh, tidak terpengaruh.
+async function resetHonorGuruRow(idGuru, nama) {
+  if (!confirm(`Reset honor keseluruhan ${nama}?\n\nLakukan ini HANYA SETELAH honornya benar-benar sudah dibayarkan. Setelah direset, sesi sampai hari ini dianggap lunas dan tidak akan terhitung lagi di Total Honor Keseluruhan (rekap bulanan tetap tidak berubah).`)) return;
+  const result = await api('mengajar', 'resetHonorGuru', { idGuru, namaAdmin: APP.user.nama || 'Admin' });
+  if (!result.success) { toast(result.message, 'error'); return; }
+  toast(result.message, 'success');
+  await loadRekapHonorSemuaGuru();
 }
 
 // Detail rincian honor 1 guru -- ditampilkan di modal generik #modalDetail
@@ -8962,12 +9007,22 @@ async function loadHalamanHonorSaya() {
 async function loadHonorSaya() {
   const bulan = document.getElementById('hsBulan')?.value;
   const tahun = document.getElementById('hsTahun')?.value;
-  const result = await api('mengajar', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun });
+  const [result, keseluruhan] = await Promise.all([
+    api('mengajar', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun }),
+    api('mengajar', 'getTotalHonorKeseluruhan', { idGuru: APP.user.id })
+  ]);
   if (!result.success) { toast(result.message, 'error'); return; }
 
   document.getElementById('hsTotalRupiah').textContent = fmtRupiah(result.totalRupiah);
   document.getElementById('hsTotalSesi').textContent = result.totalSesiHonor;
   document.getElementById('hsPeringatanTarif').style.display = result.sesiTanpaTarif ? 'block' : 'none';
+
+  if (keseluruhan.success) {
+    document.getElementById('hsTotalKeseluruhan').textContent = fmtRupiah(keseluruhan.totalRupiah);
+    document.getElementById('hsKeseluruhanInfo').textContent = keseluruhan.dihitungSejak
+      ? `Dihitung sejak ${keseluruhan.dihitungSejak} (terakhir direset admin)`
+      : 'Sejak awal (belum pernah direset admin)';
+  }
 
   const tbody = document.getElementById('hsRincianBody');
   if (!result.rincian.length) {

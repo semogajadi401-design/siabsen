@@ -235,6 +235,34 @@ CREATE INDEX IF NOT EXISTS idx_absensimengajar_kelas    ON absensi_mengajar(kela
 --   ALTER TABLE absensi_mengajar ADD COLUMN IF NOT EXISTS kehadiran_lengkap BOOLEAN DEFAULT false;
 --   ALTER TABLE absensi_mengajar ADD COLUMN IF NOT EXISTS jumlah_siswa_belum_tercatat INTEGER;
 
+-- ─── TABEL TARIF HONOR MENGAJAR (BARU) ─────────────────────────────
+-- Honor per 1 kali pertemuan (1 sesi = 1 jadwal_mengajar x 1 tanggal),
+-- TERPISAH dari gaji bulanan tetap guru (lihat catatan di api/mengajar.js
+-- soal getRekapKehadiranGuru yang BUKAN dasar gaji). Ini KHUSUS
+-- honor/insentif per pertemuan.
+--
+-- Kenapa berupa RIWAYAT bertanggal (bukan 1 baris nilai yang di-update
+-- terus seperti jam_setting), bukan sekadar 1 angka global: supaya kalau
+-- tarif berubah di tengah jalan, histori bulan-bulan LAMA tetap dihitung
+-- pakai tarif yang berlaku SAAT itu -- bukan ikut berubah retroaktif
+-- memakai tarif terbaru. Aturannya:
+--   * Tarif yang berlaku untuk tanggal X = baris dengan berlaku_mulai
+--     TERBESAR yang masih <= X (lihat getTarifBerlaku() di api/honor.js).
+--   * Admin HANYA boleh menambah baris baru dengan berlaku_mulai hari ini
+--     atau di masa depan (lihat setTarifHonor() di api/honor.js) --
+--     TIDAK PERNAH mengubah/menghapus baris yang tanggal berlakunya sudah
+--     lewat, supaya angka yang sudah pernah tampil di rekap bulan lalu
+--     tidak diam-diam berubah.
+CREATE TABLE IF NOT EXISTS tarif_honor_mengajar (
+  id TEXT PRIMARY KEY,
+  nilai INTEGER NOT NULL,             -- rupiah per 1x pertemuan
+  berlaku_mulai DATE NOT NULL UNIQUE, -- tarif ini berlaku mulai tanggal ini
+  keterangan TEXT,
+  dibuat_oleh TEXT,                   -- nama/username admin yang menambahkan
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_tarifhonor_berlaku ON tarif_honor_mengajar(berlaku_mulai);
+
 -- ─── TABEL KEHADIRAN SISWA PER MAPEL (verifikasi siswa scan saat sesi guru berlangsung) ──
 CREATE TABLE IF NOT EXISTS kehadiran_siswa_mapel (
   id TEXT PRIMARY KEY,

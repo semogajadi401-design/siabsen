@@ -1506,22 +1506,19 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <div class="card">
           <div class="card-header"><h3>💰 Tarif Honor per Pertemuan</h3></div>
           <div class="card-body">
-            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
-              Honor ini terpisah dari gaji bulanan tetap guru. Dihitung otomatis untuk tiap sesi mengajar yang <b>kehadiran siswanya sudah terverifikasi lengkap</b> (semua siswa aktif di kelas itu sudah tercatat kehadirannya). Kalau dalam 1 hari ada beberapa kali pertemuan yang memenuhi syarat, honornya dikali sejumlah pertemuan itu.
-            </p>
-            <div id="honTarifAktifBox" style="background:var(--primary-pale);border-radius:12px;padding:16px;margin-bottom:18px">
+            <div id="honTarifAktifBox" style="background:var(--primary-pale);border-radius:12px;padding:16px;margin-bottom:16px">
               <div style="font-size:.78rem;color:var(--text-muted)">Tarif Aktif Saat Ini</div>
               <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="honTarifAktifNilai">-</div>
               <div style="font-size:.76rem;color:var(--text-muted)" id="honTarifAktifInfo"></div>
             </div>
             <div id="honFormTarifWrap" style="display:none">
-              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
                 <div class="form-group" style="margin:0"><label>Nilai per Pertemuan (Rp)</label><input type="number" class="form-control" id="honNilaiBaru" style="width:180px" min="1" placeholder="mis. 25000"></div>
                 <div class="form-group" style="margin:0"><label>Berlaku Mulai</label><input type="date" class="form-control" id="honTanggalBerlaku" style="width:170px"></div>
-                <div class="form-group" style="margin:0;flex:1;min-width:180px"><label>Keterangan (opsional)</label><input type="text" class="form-control" id="honKeteranganBaru" placeholder="mis. kenaikan honor semester genap"></div>
-                <button class="btn btn-primary btn-sm" onclick="simpanTarifHonorBaru()">💾 Simpan Tarif</button>
+                <div class="form-group" style="margin:0;flex:1;min-width:180px"><label>Keterangan (opsional)</label><input type="text" class="form-control" id="honKeteranganBaru" placeholder="mis. semester genap"></div>
+                <button class="btn btn-primary btn-sm" onclick="simpanTarifHonorBaru()">💾 Simpan</button>
               </div>
-              <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:16px">Tanggal berlaku tidak boleh mundur ke hari yang sudah lewat -- tarif lama yang sudah berjalan tetap dipakai untuk histori bulan sebelumnya, tidak berubah retroaktif.</div>
+              <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:14px">Berlaku mulai hari ini/tanggal mendatang saja — tarif lama tetap dipakai untuk histori bulan sebelumnya.</div>
             </div>
             <div class="table-responsive"><table class="table-card-mobile">
               <thead><tr><th>Berlaku Mulai</th><th>Nilai</th><th>Keterangan</th><th>Status</th><th id="honKolomAksi" style="display:none">Aksi</th></tr></thead>
@@ -1531,33 +1528,30 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         </div>
 
         <div class="card">
-          <div class="card-header"><h3>📊 Rekap Honor Guru</h3></div>
-          <div class="card-body">
-            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+            <h3 style="margin:0">📊 Rekap Honor Guru</h3>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
               <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="honBulan" onchange="loadRekapHonorSemuaGuru()"></select></div>
-              <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="honTahun" style="width:100px" onchange="loadRekapHonorSemuaGuru()"></div>
+              <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="honTahun" style="width:90px" onchange="loadRekapHonorSemuaGuru()"></div>
             </div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;align-items:stretch">
-              <div style="background:var(--surface2);border-radius:12px;padding:16px;text-align:center;min-width:260px">
-                <div style="font-size:1.5rem;font-weight:800" id="honTotalSemuaGuru">-</div>
-                <div style="font-size:.78rem;color:var(--text-muted)">Total Honor Semua Guru Bulan Ini</div>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;align-items:stretch">
+              <div style="background:var(--surface2);border-radius:12px;padding:14px 16px;text-align:center;flex:1;min-width:190px">
+                <div style="font-size:1.4rem;font-weight:800" id="honTotalSemuaGuru">-</div>
+                <div style="font-size:.75rem;color:var(--text-muted)">Bulan Ini (Semua Guru)</div>
               </div>
-              <!-- BARU: total keseluruhan (akumulasi, dikurangi yang sudah direset/dibayarkan) -->
-              <div style="background:#E8F5E9;border-radius:12px;padding:16px;text-align:center;min-width:260px;flex:1">
-                <div style="font-size:1.5rem;font-weight:800;color:#2e7d32" id="honTotalKeseluruhanSemuaGuru">-</div>
-                <div style="font-size:.78rem;color:var(--text-muted)">Total Keseluruhan Semua Guru (belum dibayar)</div>
+              <div style="background:#E8F5E9;border-radius:12px;padding:14px 16px;text-align:center;flex:1;min-width:190px">
+                <div style="font-size:1.4rem;font-weight:800;color:#2e7d32" id="honTotalKeseluruhanSemuaGuru">-</div>
+                <div style="font-size:.75rem;color:var(--text-muted)">Belum Dibayar (Semua Guru)</div>
               </div>
-              <!-- BARU: reset semua guru sekaligus, alternatif dari reset satu-satu
-                   per baris -- muncul cuma utk admin (bukan kepsek). -->
+              <!-- BARU: reset semua guru sekaligus -- muncul cuma utk admin (bukan kepsek). -->
               <div id="honResetSemuaWrap" style="display:none;align-items:center">
-                <button class="btn btn-danger btn-sm" onclick="resetHonorSemuaGuruRow()">♻️ Reset Semua Guru</button>
+                <button class="btn btn-danger btn-sm" onclick="resetHonorSemuaGuruRow()" title="Tandai honor semua guru sudah lunas dibayar">♻️ Reset Semua</button>
               </div>
             </div>
-            <p style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">
-              💡 "Total Keseluruhan" akumulasi dari semua bulan. Setelah honor seorang guru dibayarkan, tekan <b>♻️ Reset</b> di baris guru itu supaya jumlahnya tidak tumpang tindih/dobel dengan periode berikutnya. Rekap bulanan di atas tidak ikut berubah walau sudah direset.
-            </p>
             <div class="table-responsive"><table class="table-card-mobile">
-              <thead><tr><th>Guru</th><th>Jumlah Sesi</th><th>Total Honor Bulan Ini</th><th>Total Keseluruhan</th><th>Aksi</th></tr></thead>
+              <thead><tr><th>Guru</th><th>Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th>Aksi</th></tr></thead>
               <tbody id="honRekapSemuaGuruBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
@@ -8954,19 +8948,19 @@ async function loadRekapHonorSemuaGuru() {
   }
   tbody.innerHTML = result.rekap.map(g => {
     const namaAman = esc(g.nama).replace(/'/g, "\\'");
-    const infoReset = g.terakhirDireset ? `<div style="font-size:.68rem;color:var(--text-muted);margin-top:2px">terakhir direset ${g.terakhirDireset}</div>` : '';
+    const infoReset = g.terakhirDireset ? `<div style="font-size:.68rem;color:var(--text-muted);margin-top:2px">reset ${g.terakhirDireset}</div>` : '';
     // Tombol reset cuma utk admin (bukan kepsek -- kepsek read-only), dan
     // cuma aktif kalau ada honor keseluruhan yang belum dibayarkan.
     const tombolReset = isAdmin
-      ? `<button class="btn btn-outline btn-sm" ${g.totalRupiahKeseluruhan <= 0 ? 'disabled' : ''} onclick="resetHonorGuruRow('${g.idGuru}','${namaAman}')">♻️ Reset</button>`
+      ? `<button class="btn btn-outline btn-sm" ${g.totalRupiahKeseluruhan <= 0 ? 'disabled' : ''} onclick="resetHonorGuruRow('${g.idGuru}','${namaAman}')" title="Tandai lunas dibayar">♻️</button>`
       : '';
     return `<tr>
     <td data-label="Guru">${esc(g.nama)}</td>
-    <td data-label="Jumlah Sesi">${g.totalSesi}</td>
-    <td data-label="Total Honor Bulan Ini"><b>${fmtRupiah(g.totalRupiah)}</b></td>
-    <td data-label="Total Keseluruhan"><b style="color:#2e7d32">${fmtRupiah(g.totalRupiahKeseluruhan)}</b>${infoReset}</td>
+    <td data-label="Sesi">${g.totalSesi}</td>
+    <td data-label="Bulan Ini"><b>${fmtRupiah(g.totalRupiah)}</b></td>
+    <td data-label="Belum Dibayar"><b style="color:#2e7d32">${fmtRupiah(g.totalRupiahKeseluruhan)}</b>${infoReset}</td>
     <td data-label="Aksi" style="white-space:nowrap">
-      <button class="btn btn-outline btn-sm" onclick="lihatDetailHonorGuru('${g.idGuru}','${namaAman}')">🔍 Detail</button>
+      <button class="btn btn-outline btn-sm" onclick="lihatDetailHonorGuru('${g.idGuru}','${namaAman}')" title="Lihat rincian">🔍</button>
       ${tombolReset}
     </td>
   </tr>`;
@@ -8978,7 +8972,7 @@ async function loadRekapHonorSemuaGuru() {
 // lagi di "Total Honor Keseluruhan" periode berikutnya (tidak tumpang
 // tindih/dobel bayar). Rekap bulanan tetap utuh, tidak terpengaruh.
 async function resetHonorGuruRow(idGuru, nama) {
-  if (!confirm(`Reset honor keseluruhan ${nama}?\n\nLakukan ini HANYA SETELAH honornya benar-benar sudah dibayarkan. Setelah direset, sesi sampai hari ini dianggap lunas dan tidak akan terhitung lagi di Total Honor Keseluruhan (rekap bulanan tetap tidak berubah).`)) return;
+  if (!confirm(`Reset honor ${nama}?\n\nLakukan setelah honornya dibayarkan. Sesi sampai hari ini akan dianggap lunas dan tidak dihitung lagi (rekap bulanan tidak berubah).`)) return;
   const result = await api('mengajar', 'resetHonorGuru', { idGuru, namaAdmin: APP.user.nama || 'Admin' });
   if (!result.success) { toast(result.message, 'error'); return; }
   toast(result.message, 'success');
@@ -8990,7 +8984,7 @@ async function resetHonorGuruRow(idGuru, nama) {
 // perlu klik reset satu-satu per baris. Guru yang honor keseluruhannya
 // masih 0 otomatis dilewati oleh backend.
 async function resetHonorSemuaGuruRow() {
-  if (!confirm('Reset honor keseluruhan SEMUA guru?\n\nLakukan ini HANYA SETELAH honor semua guru benar-benar sudah dibayarkan. Setelah direset, sesi sampai hari ini dianggap lunas dan tidak akan terhitung lagi di Total Honor Keseluruhan masing-masing guru (rekap bulanan tetap tidak berubah). Tindakan ini tidak bisa dibatalkan.')) return;
+  if (!confirm('Reset honor SEMUA guru?\n\nLakukan setelah honor semua guru dibayarkan. Sesi sampai hari ini akan dianggap lunas dan tidak dihitung lagi (rekap bulanan tidak berubah). Tidak bisa dibatalkan.')) return;
   const result = await api('mengajar', 'resetHonorSemuaGuru', { namaAdmin: APP.user.nama || 'Admin' });
   if (!result.success) { toast(result.message, 'error'); return; }
   toast(result.message, 'success');

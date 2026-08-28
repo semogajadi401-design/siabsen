@@ -1615,6 +1615,32 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
 
       <!-- BARU: HONOR SAYA (khusus akun Guru) -- rekap honor pribadi. -->
+      <style>
+        .hs-calc-wrap{position:relative;min-height:80px}
+        .hs-loading{position:absolute;inset:-6px;z-index:6;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);border-radius:14px}
+        .hs-loading.show{display:flex}
+        .hs-calc-stage{position:relative;width:80px;height:96px;display:flex;align-items:center;justify-content:center}
+        .hs-calc{width:72px;height:88px;background:linear-gradient(160deg,#1976D2,#0d3d78);border-radius:14px;box-shadow:0 10px 26px rgba(21,101,192,.35);display:flex;flex-direction:column;align-items:center;padding:9px 8px;gap:7px;animation:hsCalcFloat 1.7s ease-in-out infinite;position:relative;z-index:2}
+        @keyframes hsCalcFloat{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-5px) rotate(1.5deg)}}
+        .hs-calc-screen{width:100%;height:24px;background:#dff5e1;border-radius:5px;display:flex;align-items:center;justify-content:flex-end;padding:0 6px;overflow:hidden}
+        .hs-calc-digits{font-family:'Courier New',monospace;font-weight:700;font-size:12px;color:#1b5e20;letter-spacing:.5px}
+        .hs-calc-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%}
+        .hs-calc-keys span{background:rgba(255,255,255,.25);border-radius:3px;height:9px;animation:hsKeyPulse 1.1s ease-in-out infinite}
+        .hs-calc-keys span:nth-child(3n+2){animation-delay:.15s}
+        .hs-calc-keys span:nth-child(3n+3){animation-delay:.3s}
+        @keyframes hsKeyPulse{0%,100%{background:rgba(255,255,255,.22)}50%{background:rgba(255,193,7,.9)}}
+        .hs-coin{position:absolute;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE082,#FFA000);box-shadow:0 2px 4px rgba(0,0,0,.25),inset 0 0 0 1px rgba(255,255,255,.5);top:-8px;opacity:0;z-index:1;animation:hsCoinFall 1.5s ease-in infinite}
+        @keyframes hsCoinFall{0%{opacity:0;transform:translateY(-6px) rotate(0)}15%{opacity:1}90%{opacity:1}100%{opacity:0;transform:translateY(78px) rotate(340deg)}}
+        .hs-loading-text{font-size:.82rem;font-weight:700;color:#1565C0;display:flex;gap:2px}
+        .hs-loading-text .hs-dot{animation:hsDotBounce 1s ease-in-out infinite}
+        .hs-loading-text .hs-dot:nth-child(2){animation-delay:.15s}
+        .hs-loading-text .hs-dot:nth-child(3){animation-delay:.3s}
+        @keyframes hsDotBounce{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+        .hs-skel-bar{height:12px;border-radius:6px;background:linear-gradient(90deg,#eef1f5 25%,#e2e7ee 37%,#eef1f5 63%);background-size:400% 100%;animation:hsSkelShimmer 1.3s ease infinite}
+        @keyframes hsSkelShimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+        .hs-row-in{animation:hsRowIn .35s ease-out both}
+        @keyframes hsRowIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      </style>
       <div class="page" id="page-honorSaya">
         <div class="card">
           <div class="card-header"><h3>💰 Honor Mengajar Saya</h3></div>
@@ -1626,6 +1652,19 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="hsBulan" onchange="loadHonorSaya()"></select></div>
               <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="hsTahun" style="width:100px" onchange="loadHonorSaya()"></div>
             </div>
+            <div class="hs-calc-wrap" id="hsCalcWrap">
+              <div class="hs-loading" id="hsLoading">
+                <div class="hs-calc-stage">
+                  <span class="hs-coin" style="left:8px;animation-delay:0s"></span>
+                  <span class="hs-coin" style="left:32px;animation-delay:.4s"></span>
+                  <span class="hs-coin" style="left:54px;animation-delay:.8s"></span>
+                  <div class="hs-calc">
+                    <div class="hs-calc-screen"><span class="hs-calc-digits" id="hsCalcDigits">Rp0</span></div>
+                    <div class="hs-calc-keys"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="hs-loading-text">Menghitung honor kamu<span class="hs-dot">.</span><span class="hs-dot">.</span><span class="hs-dot">.</span></div>
+              </div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px">
               <div style="flex:1;min-width:160px;background:var(--primary-pale);border-radius:12px;padding:16px;text-align:center">
                 <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="hsTotalRupiah">-</div>
@@ -1650,6 +1689,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Honor</th></tr></thead>
               <tbody id="hsRincianBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
+            </div>
           </div>
         </div>
       </div>
@@ -9150,21 +9190,80 @@ async function loadHalamanHonorSaya() {
   await loadHonorSaya();
 }
 
+// Animasi hitung naik (count-up) untuk angka honor, biar terasa seperti
+// benar-benar sedang menjumlahkan, bukan cuma "muncul tiba-tiba".
+function animateCountUp(el, endValue, formatFn, duration = 900) {
+  if (!el) return;
+  const startTime = performance.now();
+  function tick(now) {
+    const p = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+    const current = Math.round(endValue * eased);
+    el.textContent = formatFn(current);
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = formatFn(endValue);
+  }
+  requestAnimationFrame(tick);
+}
+
+let _hsDigitInterval = null;
+function startHonorCalcAnimation() {
+  const wrap = document.getElementById('hsCalcWrap');
+  const overlay = document.getElementById('hsLoading');
+  const digits = document.getElementById('hsCalcDigits');
+  const tbody = document.getElementById('hsRincianBody');
+  if (!overlay) return;
+  overlay.classList.add('show');
+  // angka acak yang "berlarian" di layar kalkulator selama proses hitung
+  clearInterval(_hsDigitInterval);
+  _hsDigitInterval = setInterval(() => {
+    const rand = Math.floor(Math.random() * 900000) + 10000;
+    digits.textContent = fmtRupiah(rand);
+  }, 90);
+  // skeleton shimmer di tabel selagi menghitung
+  if (tbody) {
+    tbody.innerHTML = Array.from({ length: 4 }).map(() => `
+      <tr><td colspan="5" style="padding:14px 10px">
+        <div class="hs-skel-bar" style="width:${60 + Math.random()*30}%"></div>
+      </td></tr>`).join('');
+  }
+}
+function stopHonorCalcAnimation() {
+  clearInterval(_hsDigitInterval);
+  const overlay = document.getElementById('hsLoading');
+  if (overlay) overlay.classList.remove('show');
+}
+
 async function loadHonorSaya() {
   const bulan = document.getElementById('hsBulan')?.value;
   const tahun = document.getElementById('hsTahun')?.value;
-  const [result, keseluruhan] = await Promise.all([
-    api('mengajar', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun }),
-    api('mengajar', 'getTotalHonorKeseluruhan', { idGuru: APP.user.id })
-  ]);
+  startHonorCalcAnimation();
+  const calcStart = performance.now();
+  let result, keseluruhan;
+  try {
+    [result, keseluruhan] = await Promise.all([
+      api('mengajar', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun }),
+      api('mengajar', 'getTotalHonorKeseluruhan', { idGuru: APP.user.id })
+    ]);
+  } catch (e) {
+    stopHonorCalcAnimation();
+    toast('Gagal memuat honor. Coba lagi.', 'error');
+    return;
+  }
+  // Tahan animasi hitung minimal ~600ms supaya tidak "berkedip" kalau
+  // responsnya sangat cepat -- biar tetap terasa seperti proses menghitung.
+  const elapsed = performance.now() - calcStart;
+  if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
+  stopHonorCalcAnimation();
+
   if (!result.success) { toast(result.message, 'error'); return; }
 
-  document.getElementById('hsTotalRupiah').textContent = fmtRupiah(result.totalRupiah);
-  document.getElementById('hsTotalSesi').textContent = result.totalSesiHonor;
+  animateCountUp(document.getElementById('hsTotalRupiah'), result.totalRupiah || 0, fmtRupiah);
+  animateCountUp(document.getElementById('hsTotalSesi'), result.totalSesiHonor || 0, n => n);
   document.getElementById('hsPeringatanTarif').style.display = result.sesiTanpaTarif ? 'block' : 'none';
 
   if (keseluruhan.success) {
-    document.getElementById('hsTotalKeseluruhan').textContent = fmtRupiah(keseluruhan.totalRupiah);
+    animateCountUp(document.getElementById('hsTotalKeseluruhan'), keseluruhan.totalRupiah || 0, fmtRupiah);
     document.getElementById('hsKeseluruhanInfo').textContent = keseluruhan.dihitungSejak
       ? `Dihitung sejak ${keseluruhan.dihitungSejak} (terakhir direset admin)`
       : 'Sejak awal (belum pernah direset admin)';
@@ -9175,7 +9274,7 @@ async function loadHonorSaya() {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada sesi yang terhitung honornya pada periode ini</td></tr>';
     return;
   }
-  tbody.innerHTML = result.rincian.map(r => `<tr>
+  tbody.innerHTML = result.rincian.map((r, i) => `<tr class="hs-row-in" style="animation-delay:${Math.min(i * 45, 400)}ms">
     <td data-label="Tanggal">${r.tanggal}</td>
     <td data-label="Hari">${r.hari || '-'}</td>
     <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>

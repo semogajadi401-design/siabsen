@@ -898,6 +898,11 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-amber">Laporan</div>
       <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Guru</span></div>
+      <!-- BARU: Hadir di Sekolah, Alpa di Kelas -- silang data gerbang
+           (absensi) vs absensi per mapel (kehadiran_siswa_mapel) untuk
+           menemukan siswa yang bolos jam pelajaran meski hadir ke sekolah.
+           Lihat action getRekapHadirSekolahAlpaKelas di api/mengajar.js. -->
+      <div class="nav-item color-amber" onclick="showPage('hadirAlpaKelas')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg><span>🚩 Hadir Sekolah, Alpa Kelas</span></div>
       <!-- BARU: Honor Mengajar -- TERPISAH dari "Rekap Kehadiran Guru" di
            atas (yang cuma dashboard evaluasi, bukan dasar gaji). Menu ini
            khusus honor/insentif per pertemuan yang dibayarkan ekstra dari
@@ -915,6 +920,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-teal">Menu Guru</div>
       <div class="nav-item color-teal active" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
       <div class="nav-item color-teal" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Mengajar</span></div>
+      <!-- BARU: Hadir di Sekolah, Alpa di Kelas -- lihat catatan yang sama
+           di menu Admin di atas. -->
+      <div class="nav-item color-teal" onclick="showPage('hadirAlpaKelas')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg><span>🚩 Hadir Sekolah, Alpa Kelas</span></div>
       <!-- BARU: Honor Saya -- honor/insentif per pertemuan (terpisah dari
            gaji bulanan tetap), dihitung dari sesi yang kehadiran siswanya
            sudah terverifikasi lengkap. Lihat api/honor.js. -->
@@ -954,6 +962,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-amber">Laporan</div>
       <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Guru</span></div>
+      <!-- BARU: Hadir di Sekolah, Alpa di Kelas -- lihat catatan yang sama
+           di menu Admin di atas. -->
+      <div class="nav-item color-amber" onclick="showPage('hadirAlpaKelas')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg><span>🚩 Hadir Sekolah, Alpa Kelas</span></div>
       <div class="nav-item color-amber" onclick="showPage('honorMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>Honor Mengajar</span></div>
       <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('kepsekPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Kepatuhan Piket Guru</span></div>
@@ -1548,6 +1559,75 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div class="table-responsive"><table class="table-card-mobile">
                 <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Jam Ke</th><th>Status</th><th>Verifikasi</th><th>Aksi</th></tr></thead>
                 <tbody id="rmRincianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+              </table></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BARU: HADIR DI SEKOLAH, ALPA DI KELAS -- silang data absensi
+           gerbang (siswa scan kartu pagi hari) dengan absensi per mapel
+           (guru menandai Alpa di kelasnya) untuk tanggal yang sama.
+           Menjawab: siswa mana yang datang ke sekolah tapi bolos jam
+           pelajaran tertentu. Akses: admin & kepsek bebas pilih guru mana
+           pun (atau kosongkan untuk lihat semua guru), guru cuma bisa
+           lihat kelas yang dia ajar sendiri (dropdown guru disembunyikan).
+           Backend: action getRekapHadirSekolahAlpaKelas di api/mengajar.js. -->
+      <div class="page" id="page-hadirAlpaKelas">
+        <div class="card">
+          <div class="card-header"><h3>🚩 Hadir di Sekolah, Alpa di Kelas</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-success btn-sm" onclick="exportHadirAlpaKelasExcel()">📊 Excel</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
+              Daftar siswa yang tercatat <b>hadir fisik di gerbang</b> pada suatu tanggal, tapi di salah satu jam
+              pelajaran hari itu ditandai <b>Alpa</b> oleh guru mapel — artinya bolos jam pelajaran, bukan bolos
+              sekolah. Hanya menghitung sesi yang absensinya sudah lengkap (semua siswa di kelas itu sudah tercatat),
+              supaya tidak salah tuduh siswa yang sebenarnya cuma belum sempat diabsen guru.
+            </p>
+            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="margin:0" id="haGuruWrap">
+                <label>Guru</label>
+                <select class="form-control" id="haGuru" onchange="loadHadirAlpaKelas()" style="min-width:200px"><option value="">-- Semua Guru --</option></select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Kelas</label>
+                <select class="form-control" id="haKelas" onchange="loadHadirAlpaKelas()" style="min-width:140px"><option value="">Semua Kelas</option></select>
+              </div>
+              <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="haBulan" onchange="loadHadirAlpaKelas()"><option value="">Semua</option></select></div>
+              <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="haTahun" style="width:100px" onchange="loadHadirAlpaKelas()"></div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+              <div style="background:var(--danger-light,#FDECEA);border-radius:12px;padding:12px 18px;display:inline-flex;align-items:center;gap:10px">
+                <span style="font-size:1.6rem;font-weight:800;color:var(--danger)" id="haTotalTemuan">0</span>
+                <span style="font-size:.8rem;color:var(--text-muted)">kejadian ditemukan</span>
+              </div>
+              <div class="absen-mode-toggle" style="max-width:280px">
+                <button class="mode-btn active" id="haTabTanggalBtn" onclick="pilihTampilanHadirAlpaKelas('tanggal')">📅 Per Tanggal</button>
+                <button class="mode-btn" id="haTabSiswaBtn" onclick="pilihTampilanHadirAlpaKelas('siswa')">🧑‍🎓 Per Siswa</button>
+              </div>
+            </div>
+
+            <div id="haEmptyState" style="display:none;text-align:center;padding:40px;color:var(--text-muted)">
+              ✅ Tidak ada temuan pada filter ini — tidak ada siswa yang hadir di sekolah tapi Alpa di kelas.
+            </div>
+
+            <!-- Tampilan per tanggal -->
+            <div id="haViewTanggal">
+              <div class="table-responsive"><table class="table-card-mobile">
+                <thead><tr><th>Tanggal</th><th>Jumlah Kejadian</th><th>Aksi</th></tr></thead>
+                <tbody id="haTanggalBody"><tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+              </table></div>
+            </div>
+
+            <!-- Tampilan per siswa -->
+            <div id="haViewSiswa" style="display:none">
+              <div class="table-responsive"><table class="table-card-mobile">
+                <thead><tr><th>Nama</th><th>NISN</th><th>Kelas</th><th>Jumlah Kejadian</th><th>Aksi</th></tr></thead>
+                <tbody id="haSiswaBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
               </table></div>
             </div>
           </div>
@@ -2217,6 +2297,21 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </table></div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary btn-sm" onclick="downloadPDFPertemuan()">📄 Download PDF</button></div>
+  </div>
+</div>
+
+<!-- BARU: Modal Detail Kejadian -- Hadir di Sekolah, Alpa di Kelas
+     (dipakai baik dari tampilan Per Tanggal maupun Per Siswa) -->
+<div class="modal-backdrop" id="modalDetailHadirAlpaKelas">
+  <div class="modal">
+    <div class="modal-header"><h3 id="mdhaTitle">Detail Kejadian</h3><button class="modal-close" onclick="closeModal('modalDetailHadirAlpaKelas')">✕</button></div>
+    <div class="modal-body">
+      <div id="mdhaInfo" style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px"></div>
+      <div class="table-responsive"><table class="table-card-mobile">
+        <thead><tr><th>Nama</th><th>Kelas</th><th>Tanggal</th><th>Jam Datang Sekolah</th><th>Mapel (Alpa)</th><th>Guru</th></tr></thead>
+        <tbody id="mdhaBody"></tbody>
+      </table></div>
+    </div>
   </div>
 </div>
 
@@ -3464,9 +3559,9 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru',jadwalMengajarSaya:'Jadwal Mengajar Saya',riwayatKehadiranSiswa:'Riwayat Kehadiran Siswa',honorMengajar:'Honor Mengajar',honorSaya:'Honor Saya'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru',jadwalMengajarSaya:'Jadwal Mengajar Saya',riwayatKehadiranSiswa:'Riwayat Kehadiran Siswa',honorMengajar:'Honor Mengajar',honorSaya:'Honor Saya',hadirAlpaKelas:'🚩 Hadir Sekolah, Alpa Kelas'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar,rekapGuru:loadSiswaPerKelasGuru,jadwalMengajarSaya:loadHalamanJadwalMengajarSaya,riwayatKehadiranSiswa:loadHalamanRiwayatKehadiranSiswa,honorMengajar:loadHalamanHonorMengajar,honorSaya:loadHalamanHonorSaya};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar,rekapGuru:loadSiswaPerKelasGuru,jadwalMengajarSaya:loadHalamanJadwalMengajarSaya,riwayatKehadiranSiswa:loadHalamanRiwayatKehadiranSiswa,honorMengajar:loadHalamanHonorMengajar,honorSaya:loadHalamanHonorSaya,hadirAlpaKelas:loadHalamanHadirAlpaKelas};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
@@ -7590,6 +7685,11 @@ async function loadGuruDropdownMengajar() {
   if (selModal) selModal.innerHTML = '<option value="">-- Pilih Guru --</option>' + opts;
   const selRekap = document.getElementById('rmGuru');
   if (selRekap) selRekap.innerHTML = '<option value="">-- Pilih Guru --</option>' + opts;
+  // BARU: dropdown guru di halaman "Hadir Sekolah, Alpa Kelas" -- beda
+  // dari rmGuru, di sini kosong berarti "semua guru" (bukan wajib pilih),
+  // karena laporan ini valid ditampilkan secara agregat lintas guru.
+  const selHa = document.getElementById('haGuru');
+  if (selHa) selHa.innerHTML = '<option value="">-- Semua Guru --</option>' + opts;
 }
 
 async function loadJamPelajaranSemua() {
@@ -8997,6 +9097,163 @@ async function exportRekapMengajarExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap Mengajar');
   XLSX.writeFile(wb, `Rekap_Kehadiran_Guru_${namaGuru || ''}_${bulan || ''}-${tahun || ''}.xlsx`.replace(/\s+/g, '_'));
+  toast('Excel berhasil didownload', 'success');
+}
+
+// ════════════════════════════════════════════════════════════════
+// BARU: HADIR DI SEKOLAH, ALPA DI KELAS -- silang absensi gerbang
+// (tabel absensi, jam_datang terisi) dengan absensi per mapel (tabel
+// kehadiran_siswa_mapel, status 'Alpa') pada tanggal yang sama. Lihat
+// catatan lengkap di komentar action getRekapHadirSekolahAlpaKelas di
+// api/mengajar.js. Akses: admin/kepsek bebas (bisa kosongkan filter
+// guru = agregat seluruh sekolah), guru cuma bisa lihat kelas yang dia
+// ajar sendiri (dropdown guru disembunyikan, idGuru dipaksa ke dirinya
+// sendiri) -- sama persis pola otorisasi Rekap Kehadiran Guru di atas.
+// ════════════════════════════════════════════════════════════════
+let HA_STATE = { tampilan: 'tanggal', data: null };
+
+async function loadHalamanHadirAlpaKelas() {
+  const bulanSel = document.getElementById('haBulan');
+  if (bulanSel && !bulanSel.dataset.filled) {
+    const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    bulanSel.innerHTML = '<option value="">Semua</option>' + namaBulan.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+    bulanSel.dataset.filled = '1';
+  }
+  const tahunInput = document.getElementById('haTahun');
+  if (tahunInput && !tahunInput.value) tahunInput.value = new Date().getFullYear();
+
+  const kelasSel = document.getElementById('haKelas');
+  if (kelasSel) {
+    const kelasOpts = (APP.kelasList || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+    kelasSel.innerHTML = '<option value="">Semua Kelas</option>' + kelasOpts;
+  }
+
+  // Guru cuma lihat kelas yang dia ajar sendiri -- dropdown guru
+  // disembunyikan sepenuhnya, sama pola dengan loadHalamanRekapMengajar().
+  const wrap = document.getElementById('haGuruWrap');
+  if (APP.user.role === 'guru') {
+    if (wrap) wrap.style.display = 'none';
+  } else {
+    if (wrap) wrap.style.display = '';
+    await loadGuruDropdownMengajar();
+  }
+
+  pilihTampilanHadirAlpaKelas(HA_STATE.tampilan || 'tanggal');
+  await loadHadirAlpaKelas();
+}
+
+async function loadHadirAlpaKelas() {
+  const idGuru = APP.user.role === 'guru' ? APP.user.id : (document.getElementById('haGuru')?.value || undefined);
+  const kelas = document.getElementById('haKelas')?.value || undefined;
+  const bulan = document.getElementById('haBulan')?.value || undefined;
+  const tahun = bulan ? (document.getElementById('haTahun')?.value || undefined) : undefined;
+
+  document.getElementById('haTanggalBody').innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
+  document.getElementById('haSiswaBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
+  document.getElementById('haEmptyState').style.display = 'none';
+
+  const result = await api('mengajar', 'getRekapHadirSekolahAlpaKelas', { idGuru, kelas, bulan, tahun });
+  if (!result.success) { toast(result.message || 'Gagal memuat data.', 'error'); return; }
+
+  HA_STATE.data = result;
+  document.getElementById('haTotalTemuan').textContent = result.totalTemuan || 0;
+
+  const kosong = !result.totalTemuan;
+  document.getElementById('haEmptyState').style.display = kosong ? 'block' : 'none';
+  document.getElementById('haViewTanggal').style.display = (!kosong && HA_STATE.tampilan === 'tanggal') ? 'block' : 'none';
+  document.getElementById('haViewSiswa').style.display = (!kosong && HA_STATE.tampilan === 'siswa') ? 'block' : 'none';
+  if (kosong) { window._haPerTanggal = []; window._haPerSiswa = []; return; }
+
+  renderHaTanggal(result.perTanggal || []);
+  renderHaSiswa(result.perSiswa || []);
+}
+
+// Ganti tampilan Per Tanggal <-> Per Siswa TANPA panggil API ulang --
+// backend sudah mengembalikan ketiga bentuk (temuan/perTanggal/perSiswa)
+// sekaligus dalam satu response, lihat komentar di getHadirSekolahAlpaKelas.
+function pilihTampilanHadirAlpaKelas(tampilan) {
+  HA_STATE.tampilan = tampilan;
+  document.getElementById('haTabTanggalBtn').classList.toggle('active', tampilan === 'tanggal');
+  document.getElementById('haTabSiswaBtn').classList.toggle('active', tampilan === 'siswa');
+  const adaData = HA_STATE.data && HA_STATE.data.totalTemuan;
+  document.getElementById('haViewTanggal').style.display = (adaData && tampilan === 'tanggal') ? 'block' : 'none';
+  document.getElementById('haViewSiswa').style.display = (adaData && tampilan === 'siswa') ? 'block' : 'none';
+}
+
+function renderHaTanggal(perTanggal) {
+  window._haPerTanggal = perTanggal;
+  const body = document.getElementById('haTanggalBody');
+  if (!perTanggal.length) { body.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data</td></tr>'; return; }
+  body.innerHTML = perTanggal.map((t, i) => `
+    <tr>
+      <td data-label="Tanggal">${esc(t.tanggal)}</td>
+      <td data-label="Jumlah Kejadian"><span class="badge badge-danger">${t.jumlah}</span></td>
+      <td data-label="Aksi"><button class="btn btn-outline btn-sm" onclick="bukaDetailHadirAlpaKelas('tanggal', ${i})">🔍 Detail</button></td>
+    </tr>`).join('');
+}
+
+function renderHaSiswa(perSiswa) {
+  window._haPerSiswa = perSiswa;
+  const body = document.getElementById('haSiswaBody');
+  if (!perSiswa.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada data</td></tr>'; return; }
+  body.innerHTML = perSiswa.map((s, i) => `
+    <tr>
+      <td data-label="Nama">${esc(s.nama)}</td>
+      <td data-label="NISN">${esc(s.nisn || '-')}</td>
+      <td data-label="Kelas"><span class="badge badge-primary">${esc(s.kelas)}</span></td>
+      <td data-label="Jumlah Kejadian"><span class="badge badge-danger">${s.jumlahKejadian}</span></td>
+      <td data-label="Aksi"><button class="btn btn-outline btn-sm" onclick="bukaDetailHadirAlpaKelas('siswa', ${i})">🔍 Detail</button></td>
+    </tr>`).join('');
+}
+
+function bukaDetailHadirAlpaKelas(sumber, idx) {
+  const semuaTemuan = (HA_STATE.data && HA_STATE.data.temuan) || [];
+  let daftar = [];
+  let judul = 'Detail Kejadian';
+  if (sumber === 'tanggal') {
+    const t = (window._haPerTanggal || [])[idx]; if (!t) return;
+    daftar = t.daftar;
+    judul = `Detail Kejadian — ${t.tanggal}`;
+  } else {
+    const s = (window._haPerSiswa || [])[idx]; if (!s) return;
+    daftar = semuaTemuan.filter(x => x.idSiswa === s.idSiswa);
+    judul = `Detail Kejadian — ${s.nama}`;
+  }
+  document.getElementById('mdhaTitle').textContent = judul;
+  document.getElementById('mdhaInfo').textContent = `${daftar.length} kejadian ditemukan`;
+  const body = document.getElementById('mdhaBody');
+  if (!daftar.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text-muted)">Tidak ada data.</td></tr>';
+  } else {
+    body.innerHTML = daftar.map(d => `
+      <tr>
+        <td data-label="Nama">${esc(d.nama)}</td>
+        <td data-label="Kelas">${esc(d.kelas)}</td>
+        <td data-label="Tanggal">${esc(d.tanggal)}</td>
+        <td data-label="Jam Datang Sekolah">${esc(d.jamDatangSekolah || '-')}</td>
+        <td data-label="Mapel (Alpa)">${esc(d.mapel || '-')}</td>
+        <td data-label="Guru">${esc(d.guru || '-')}</td>
+      </tr>`).join('');
+  }
+  openModal('modalDetailHadirAlpaKelas');
+}
+
+async function exportHadirAlpaKelasExcel() {
+  if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
+  const temuan = (HA_STATE.data && HA_STATE.data.temuan) || [];
+  if (!temuan.length) { toast('Belum ada data untuk diekspor', 'warning'); return; }
+
+  const rows = [['Tanggal','Nama','NISN','Kelas','Jam Datang Sekolah','Mapel (Alpa)','Guru']];
+  temuan.forEach(t => {
+    rows.push([t.tanggal, t.nama, t.nisn || '-', t.kelas, t.jamDatangSekolah || '-', t.mapel || '-', t.guru || '-']);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Hadir Sekolah Alpa Kelas');
+  const bulan = document.getElementById('haBulan')?.value;
+  const tahun = document.getElementById('haTahun')?.value;
+  XLSX.writeFile(wb, `Hadir_Sekolah_Alpa_Kelas_${bulan || 'Semua'}-${tahun || ''}.xlsx`.replace(/\s+/g, '_'));
   toast('Excel berhasil didownload', 'success');
 }
 

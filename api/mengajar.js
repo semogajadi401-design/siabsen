@@ -246,6 +246,24 @@ const handler = async (req, res) => {
       return res.json(await getRekapKehadiranSiswaMapel(params));
     }
 
+    // BARU: "Hadir di Sekolah, Alpa di Kelas" -- siswa yang tercatat hadir
+    // fisik di gerbang pagi itu (tabel absensi, jam_datang terisi) TAPI
+    // ditandai 'Alpa' oleh guru mapel di kehadiran_siswa_mapel pada tanggal
+    // yang sama. Otorisasi sama persis dengan getRekapKehadiranSiswaMapel:
+    // admin/kepsek bebas (bisa filter kelas/guru manapun), guru hanya bisa
+    // minta idGuru dirinya sendiri -- karena query di bawah juga selalu
+    // difilter id_guru = idGuru, guru otomatis hanya melihat kelas yang
+    // memang dia ajar sendiri (tidak perlu whitelist kelas terpisah).
+    if (action === 'getRekapHadirSekolahAlpaKelas') {
+      const adminValid = await requireAdminToken(adminToken);
+      if (!adminValid && roleTerverifikasi !== 'kepsek') {
+        if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
+          return res.status(401).json({ success: false, message: 'Anda hanya bisa melihat rekap ini untuk kelas yang Anda ampu sendiri.' });
+        }
+      }
+      return res.json(await getRekapHadirSekolahAlpaKelas(params));
+    }
+
     return res.status(400).json({ success: false, message: 'Action tidak dikenal' });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -1603,6 +1621,133 @@ async function getRekapKehadiranSiswaMapel({ idGuru, mapel, kelas, bulan, tahun 
     success: true, guru: { id: guru.id, nama: guru.nama }, mapel, kelas,
     totalPertemuan: pertemuan.length, pertemuan, rangkumanSiswa
   };
+}
+
+// ════════════════════════════════════════════════════════════════
+// REKAP "HADIR DI SEKOLAH, ALPA DI KELAS" (BARU)
+//
+// Menjawab pertanyaan: siswa mana yang pagi itu tercatat hadir fisik di
+// gerbang (tabel absensi, jam_datang terisi) TAPI di salah satu jam
+// pelajaran hari yang sama ditandai 'Alpa' oleh guru mapel (tabel
+// kehadiran_siswa_mapel) -- yaitu bolos jam pelajaran, bukan bolos
+// sekolah. Dua tabel absensi ini selama ini terpisah total dan tidak
+// pernah disilangkan di laporan manapun, jadi kasus ini sebelumnya tidak
+// pernah kelihatan.
+//
+// SENGAJA HANYA memakai sesi yang kehadiran_lengkap = true (lihat kolom
+// itu di absensi_mengajar): kalau sesi belum diabsen lengkap oleh guru,
+// siswa yang "belum sempat diabsen" bisa saja tidak tercatat statusnya
+// sama sekali (bukan baris 'Alpa') -- itu beda kasus dan tidak boleh ikut
+// disorot sebagai bolos di sini. Ini prinsip yang sama dengan yang
+// dipakai untuk hitung honor guru (lihat komentar di atas fungsi honor).
+//
+// idGuru: kalau diisi, dibatasi ke sesi yang diajar guru itu saja (ini
+// juga yang dipakai untuk otorisasi guru di dispatcher -- guru cuma
+// boleh minta idGuru dirinya sendiri, jadi otomatis cuma lihat kelas yang
+// dia ajar). kelas/mapel: filter tambahan opsional, dipakai admin/kepsek.
+// bulan+tahun ATAU tanggalAwal+tanggalAkhir: filter rentang tanggal,
+// keduanya opsional (kalau tidak diisi sama sekali, seluruh riwayat yang
+// ada dikembalikan).
+async function getRekapHadirSekolahAlpaKelas({ idGuru, kelas, mapel, bulan, tahun, tanggalAwal, tanggalAkhir }) {
+  let q = supabase.from('absensi_mengajar')
+    .select('id,tanggal,hari,kelas,mapel,id_guru,nama_guru,jam_scan')
+    .eq('kehadiran_lengkap', true);
+  if (idGuru) q = q.eq('id_guru', idGuru);
+  if (kelas) q = q.eq('kelas', kelas);
+  if (mapel) q = q.eq('mapel', mapel);
+  if (bulan && tahun) {
+    const th = Number(tahun), bl = Number(bulan);
+    const jumlahHari = new Date(th, bl, 0).getDate();
+    q = q.gte('tanggal', `${th}-${String(bl).padStart(2, '0')}-01`)
+         .lte('tanggal', `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHari).padStart(2, '0')}`);
+  } else if (tanggalAwal && tanggalAkhir) {
+    q = q.gte('tanggal', tanggalAwal).lte('tanggal', tanggalAkhir);
+  }
+  const { data: sesiList, error } = await q;
+  if (error) return { success: false, message: error.message };
+
+  const kosong = { success: true, totalTemuan: 0, temuan: [], perTanggal: [], perSiswa: [] };
+  if (!sesiList || sesiList.length === 0)
+    return { ...kosong, message: 'Tidak ada sesi mengajar dengan kehadiran lengkap pada filter ini.' };
+
+  const sesiById = new Map(sesiList.map(s => [s.id, s]));
+  const idSesiList = sesiList.map(s => s.id);
+
+  // Batch .in() -- pecah per 500 id supaya aman dari batas ukuran query
+  // kalau suatu saat filter tanggal/kelas dikosongkan semua (riwayat penuh).
+  const potong = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+  let alpaList = [];
+  for (const batch of potong(idSesiList, 500)) {
+    const { data, error: eAlpa } = await supabase
+      .from('kehadiran_siswa_mapel')
+      .select('id_absensi_mengajar,id_siswa,nisn,nama_siswa,kelas,tanggal,keterangan')
+      .in('id_absensi_mengajar', batch)
+      .eq('status', 'Alpa');
+    if (eAlpa) return { success: false, message: eAlpa.message };
+    alpaList = alpaList.concat(data || []);
+  }
+  if (alpaList.length === 0)
+    return { ...kosong, message: 'Tidak ada siswa berstatus Alpa pada filter ini.' };
+
+  const idSiswaUnik = [...new Set(alpaList.map(a => a.id_siswa))];
+  const tanggalUnik = [...new Set(alpaList.map(a => String(a.tanggal).substring(0, 10)))];
+
+  let absenGerbang = [];
+  for (const batch of potong(idSiswaUnik, 500)) {
+    const { data, error: eGerbang } = await supabase
+      .from('absensi')
+      .select('id_siswa,tanggal,jam_datang,status_datang')
+      .in('id_siswa', batch).in('tanggal', tanggalUnik)
+      .not('jam_datang', 'is', null);
+    if (eGerbang) return { success: false, message: eGerbang.message };
+    absenGerbang = absenGerbang.concat(data || []);
+  }
+
+  const gerbangMap = new Map();
+  absenGerbang.forEach(g => gerbangMap.set(`${g.id_siswa}||${String(g.tanggal).substring(0, 10)}`, g));
+
+  const temuan = [];
+  alpaList.forEach(a => {
+    const tgl = String(a.tanggal).substring(0, 10);
+    const gerbang = gerbangMap.get(`${a.id_siswa}||${tgl}`);
+    if (!gerbang) return; // tidak hadir di gerbang hari itu -> Alpa-nya wajar, bukan anomali
+    const sesi = sesiById.get(a.id_absensi_mengajar);
+    temuan.push({
+      idSiswa: a.id_siswa, nisn: a.nisn, nama: a.nama_siswa, kelas: a.kelas,
+      tanggal: tgl,
+      jamDatangSekolah: gerbang.jam_datang, statusDatang: gerbang.status_datang,
+      mapel: sesi?.mapel || null, guru: sesi?.nama_guru || null, idGuru: sesi?.id_guru || null,
+      jamMulaiMengajar: sesi?.jam_scan || null,
+      keterangan: a.keterangan || null
+    });
+  });
+
+  temuan.sort((x, y) => y.tanggal.localeCompare(x.tanggal) || x.nama.localeCompare(y.nama));
+
+  const perTanggalMap = new Map();
+  const perSiswaMap = new Map();
+  temuan.forEach(t => {
+    if (!perTanggalMap.has(t.tanggal)) perTanggalMap.set(t.tanggal, []);
+    perTanggalMap.get(t.tanggal).push(t);
+
+    if (!perSiswaMap.has(t.idSiswa)) {
+      perSiswaMap.set(t.idSiswa, {
+        idSiswa: t.idSiswa, nisn: t.nisn, nama: t.nama, kelas: t.kelas,
+        jumlahKejadian: 0, daftar: []
+      });
+    }
+    const s = perSiswaMap.get(t.idSiswa);
+    s.jumlahKejadian++;
+    s.daftar.push({ tanggal: t.tanggal, mapel: t.mapel, guru: t.guru, jamDatangSekolah: t.jamDatangSekolah });
+  });
+
+  const perTanggal = Array.from(perTanggalMap.entries())
+    .map(([tanggal, daftar]) => ({ tanggal, jumlah: daftar.length, daftar }))
+    .sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+  const perSiswa = Array.from(perSiswaMap.values())
+    .sort((a, b) => b.jumlahKejadian - a.jumlahKejadian || a.nama.localeCompare(b.nama));
+
+  return { success: true, totalTemuan: temuan.length, temuan, perTanggal, perSiswa };
 }
 
 // ════════════════════════════════════════════════════════════════

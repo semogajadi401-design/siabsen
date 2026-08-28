@@ -842,6 +842,11 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-amber">Laporan</div>
       <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Guru</span></div>
+      <!-- BARU: Honor Mengajar -- TERPISAH dari "Rekap Kehadiran Guru" di
+           atas (yang cuma dashboard evaluasi, bukan dasar gaji). Menu ini
+           khusus honor/insentif per pertemuan yang dibayarkan ekstra dari
+           gaji bulanan tetap. Lihat catatan lengkap di api/honor.js. -->
+      <div class="nav-item color-amber" onclick="showPage('honorMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>Honor Mengajar</span></div>
       <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('kepsekPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Kepatuhan Piket Guru</span></div>
       <div class="nav-item color-amber" onclick="showPage('kartu')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg><span>Kartu Identitas</span></div>
@@ -854,6 +859,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-teal">Menu Guru</div>
       <div class="nav-item color-teal active" onclick="showPage('rekapGuru')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>Rekap Harian</span></div>
       <div class="nav-item color-teal" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Mengajar</span></div>
+      <!-- BARU: Honor Saya -- honor/insentif per pertemuan (terpisah dari
+           gaji bulanan tetap), dihitung dari sesi yang kehadiran siswanya
+           sudah terverifikasi lengkap. Lihat api/honor.js. -->
+      <div class="nav-item color-teal" onclick="showPage('honorSaya')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>💰 Honor Saya</span></div>
       <!-- BARU: Jadwal Mengajar Saya -- jadwal yang diinput admin di
            jadwal_mengajar, ditampilkan sisi guru sesuai mapel yang diampu
            saja (idGuru difilter otomatis ke akun yang sedang login). -->
@@ -889,6 +898,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <div class="nav-section-label lbl-amber">Laporan</div>
       <div class="nav-item color-amber" onclick="showPage('rekap')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Rekap Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('rekapMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Rekap Kehadiran Guru</span></div>
+      <div class="nav-item color-amber" onclick="showPage('honorMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>Honor Mengajar</span></div>
       <div class="nav-item color-amber" onclick="showPage('evaluasi')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg><span>Evaluasi Kehadiran</span></div>
       <div class="nav-item color-amber" onclick="showPage('kepsekPiket')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><span>Kepatuhan Piket Guru</span></div>
       <div class="nav-item color-amber" id="kepsekPersetujuanNavItem" onclick="showPage('kepsekPersetujuan')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><span>Persetujuan Izin/Sakit</span> <span id="kepsekPersetujuanBadge" class="badge badge-danger" style="display:none;margin-left:4px"></span></div>
@@ -1484,6 +1494,89 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <tbody id="rmRincianBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
               </table></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BARU: HONOR MENGAJAR (khusus admin & kepsek) -- honor/insentif
+           per pertemuan, TERPISAH dari "Rekap Kehadiran Guru" di atas
+           (yang cuma dashboard evaluasi, bukan dasar gaji). Lihat
+           api/honor.js untuk aturan lengkap. -->
+      <div class="page" id="page-honorMengajar">
+        <div class="card">
+          <div class="card-header"><h3>💰 Tarif Honor per Pertemuan</h3></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
+              Honor ini terpisah dari gaji bulanan tetap guru. Dihitung otomatis untuk tiap sesi mengajar yang <b>kehadiran siswanya sudah terverifikasi lengkap</b> (semua siswa aktif di kelas itu sudah tercatat kehadirannya). Kalau dalam 1 hari ada beberapa kali pertemuan yang memenuhi syarat, honornya dikali sejumlah pertemuan itu.
+            </p>
+            <div id="honTarifAktifBox" style="background:var(--primary-pale);border-radius:12px;padding:16px;margin-bottom:18px">
+              <div style="font-size:.78rem;color:var(--text-muted)">Tarif Aktif Saat Ini</div>
+              <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="honTarifAktifNilai">-</div>
+              <div style="font-size:.76rem;color:var(--text-muted)" id="honTarifAktifInfo"></div>
+            </div>
+            <div id="honFormTarifWrap" style="display:none">
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+                <div class="form-group" style="margin:0"><label>Nilai per Pertemuan (Rp)</label><input type="number" class="form-control" id="honNilaiBaru" style="width:180px" min="1" placeholder="mis. 25000"></div>
+                <div class="form-group" style="margin:0"><label>Berlaku Mulai</label><input type="date" class="form-control" id="honTanggalBerlaku" style="width:170px"></div>
+                <div class="form-group" style="margin:0;flex:1;min-width:180px"><label>Keterangan (opsional)</label><input type="text" class="form-control" id="honKeteranganBaru" placeholder="mis. kenaikan honor semester genap"></div>
+                <button class="btn btn-primary btn-sm" onclick="simpanTarifHonorBaru()">💾 Simpan Tarif</button>
+              </div>
+              <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:16px">Tanggal berlaku tidak boleh mundur ke hari yang sudah lewat -- tarif lama yang sudah berjalan tetap dipakai untuk histori bulan sebelumnya, tidak berubah retroaktif.</div>
+            </div>
+            <div class="table-responsive"><table class="table-card-mobile">
+              <thead><tr><th>Berlaku Mulai</th><th>Nilai</th><th>Keterangan</th><th>Status</th><th id="honKolomAksi" style="display:none">Aksi</th></tr></thead>
+              <tbody id="honRiwayatTarifBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>📊 Rekap Honor Guru</h3></div>
+          <div class="card-body">
+            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="honBulan" onchange="loadRekapHonorSemuaGuru()"></select></div>
+              <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="honTahun" style="width:100px" onchange="loadRekapHonorSemuaGuru()"></div>
+            </div>
+            <div style="background:var(--surface2);border-radius:12px;padding:16px;text-align:center;margin-bottom:20px;max-width:280px">
+              <div style="font-size:1.5rem;font-weight:800" id="honTotalSemuaGuru">-</div>
+              <div style="font-size:.78rem;color:var(--text-muted)">Total Honor Semua Guru Bulan Ini</div>
+            </div>
+            <div class="table-responsive"><table class="table-card-mobile">
+              <thead><tr><th>Guru</th><th>Jumlah Sesi</th><th>Total Honor</th><th>Aksi</th></tr></thead>
+              <tbody id="honRekapSemuaGuruBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BARU: HONOR SAYA (khusus akun Guru) -- rekap honor pribadi. -->
+      <div class="page" id="page-honorSaya">
+        <div class="card">
+          <div class="card-header"><h3>💰 Honor Mengajar Saya</h3></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
+              Honor ini terpisah dari gaji bulanan tetap. Hanya sesi yang kehadiran siswanya sudah terverifikasi lengkap yang dihitung.
+            </p>
+            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="hsBulan" onchange="loadHonorSaya()"></select></div>
+              <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="hsTahun" style="width:100px" onchange="loadHonorSaya()"></div>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px">
+              <div style="flex:1;min-width:160px;background:var(--primary-pale);border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="hsTotalRupiah">-</div>
+                <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">Total Honor Bulan Ini</div>
+              </div>
+              <div style="flex:1;min-width:140px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:1.5rem;font-weight:800" id="hsTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)">Sesi Dihitung</div>
+              </div>
+            </div>
+            <div id="hsPeringatanTarif" style="display:none;background:#FFF8E1;border:1px solid #F57F17;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:.8rem;color:#8a5a00">
+              ⚠️ Ada sesi yang belum bisa dihitung honornya karena admin belum menetapkan tarif yang berlaku di tanggal tersebut.
+            </div>
+            <div class="table-responsive"><table class="table-card-mobile">
+              <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Honor</th></tr></thead>
+              <tbody id="hsRincianBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            </table></div>
           </div>
         </div>
       </div>
@@ -3180,9 +3273,9 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(`'${page}'`)) n.classList.add('active');
   });
-  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru',jadwalMengajarSaya:'Jadwal Mengajar Saya',riwayatKehadiranSiswa:'Riwayat Kehadiran Siswa'};
+  const titles={dashboard:'Dashboard',guru:'Data Guru',siswa:'Data Siswa',kelas:'Manajemen Kelas',piket:'Jadwal Piket',harikerja:'Hari Kerja',kehadiran:'Kehadiran Hari Ini',evaluasi:'Evaluasi Kehadiran',semester:'Pengaturan Semester',sekolah:'Profil Sekolah',pengaturan:'Pengaturan Jam',rekap:'Rekap Kehadiran',kartu:'Kartu Identitas',rekapGuru:'Rekap Harian',riwayatPiket:'Riwayat Piket Saya',reset:'Reset Data',kepsekPiket:'Kepatuhan Piket Guru',kepsekPersetujuan:'Persetujuan Izin/Sakit',jadwalMengajar:'Jadwal Mengajar',rekapMengajar:'Rekap Kehadiran Guru',jadwalMengajarSaya:'Jadwal Mengajar Saya',riwayatKehadiranSiswa:'Riwayat Kehadiran Siswa',honorMengajar:'Honor Mengajar',honorSaya:'Honor Saya'};
   document.getElementById('pageTitle').textContent = titles[page]||page;
-  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar,rekapGuru:loadSiswaPerKelasGuru,jadwalMengajarSaya:loadHalamanJadwalMengajarSaya,riwayatKehadiranSiswa:loadHalamanRiwayatKehadiranSiswa};
+  const loaders={dashboard:loadDashboard,guru:loadGuru,siswa:loadSiswa,kelas:loadKelas,kehadiran: loadKehadiran,evaluasi: async () => { await loadSemesterList(); populateKelasDropdowns(); },semester: loadSemester,piket:loadPiket,harikerja:renderCalendar,sekolah:loadProfilSekolah,pengaturan:loadPengaturan,kartu:loadHalamanKartu,riwayatPiket:loadRiwayatPiketSaya,kepsekPiket:loadKepsekPiket,kepsekPersetujuan:loadKepsekPersetujuan,jadwalMengajar:loadHalamanJadwalMengajar,rekapMengajar:loadHalamanRekapMengajar,rekapGuru:loadSiswaPerKelasGuru,jadwalMengajarSaya:loadHalamanJadwalMengajarSaya,riwayatKehadiranSiswa:loadHalamanRiwayatKehadiranSiswa,honorMengajar:loadHalamanHonorMengajar,honorSaya:loadHalamanHonorSaya};
   if(loaders[page]) loaders[page]();
   if(window.innerWidth<=768) toggleSidebar(false);
 }
@@ -8714,6 +8807,180 @@ async function exportRekapMengajarExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap Mengajar');
   XLSX.writeFile(wb, `Rekap_Kehadiran_Guru_${namaGuru || ''}_${bulan || ''}-${tahun || ''}.xlsx`.replace(/\s+/g, '_'));
   toast('Excel berhasil didownload', 'success');
+}
+
+// ════════════════════════════════════════════════════════════════
+// HONOR MENGAJAR (BARU) -- honor/insentif per pertemuan, TERPISAH dari
+// gaji bulanan tetap dan terpisah dari "Rekap Kehadiran Guru" (yang cuma
+// dashboard evaluasi). Backend: api/honor.js. Dua halaman:
+//   - page-honorMengajar : admin (kelola tarif + rekap semua guru) & kepsek
+//     (rekap semua guru, read-only, tanpa form tambah tarif)
+//   - page-honorSaya     : guru (rekap honor diri sendiri)
+// ════════════════════════════════════════════════════════════════
+function fmtRupiah(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return 'Rp' + Number(n).toLocaleString('id-ID');
+}
+
+function isiDropdownBulanTahun(idBulan, idTahun, onChangeFnName) {
+  const bulanSel = document.getElementById(idBulan);
+  const now = new Date();
+  if (bulanSel && !bulanSel.dataset.filled) {
+    const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    bulanSel.innerHTML = namaBulan.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+    bulanSel.dataset.filled = '1';
+  }
+  if (bulanSel) bulanSel.value = now.getMonth() + 1;
+  const tahunInput = document.getElementById(idTahun);
+  if (tahunInput && !tahunInput.value) tahunInput.value = now.getFullYear();
+}
+
+// ── HALAMAN ADMIN/KEPSEK: HONOR MENGAJAR ────────────────────────────
+async function loadHalamanHonorMengajar() {
+  isiDropdownBulanTahun('honBulan', 'honTahun');
+  const isAdmin = APP.user.role === 'admin';
+  document.getElementById('honFormTarifWrap').style.display = isAdmin ? '' : 'none';
+  document.getElementById('honKolomAksi').style.display = isAdmin ? '' : 'none';
+  if (isAdmin) {
+    const tgl = document.getElementById('honTanggalBerlaku');
+    if (tgl && !tgl.value) tgl.value = todayStrClient();
+  }
+  await Promise.all([loadTarifAktifDanRiwayat(), loadRekapHonorSemuaGuru()]);
+}
+
+// Tanggal hari ini (klien) format YYYY-MM-DD, untuk default input tanggal.
+function todayStrClient() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function loadTarifAktifDanRiwayat() {
+  const [aktif, riwayat] = await Promise.all([
+    api('honor', 'getTarifAktif'),
+    api('honor', 'getRiwayatTarif')
+  ]);
+
+  if (aktif.success && aktif.ada) {
+    document.getElementById('honTarifAktifNilai').textContent = fmtRupiah(aktif.nilai) + ' / pertemuan';
+    document.getElementById('honTarifAktifInfo').textContent = `Berlaku sejak ${aktif.berlakuMulai}` + (aktif.keterangan ? ` — ${aktif.keterangan}` : '');
+  } else {
+    document.getElementById('honTarifAktifNilai').textContent = 'Belum diset';
+    document.getElementById('honTarifAktifInfo').textContent = APP.user.role === 'admin' ? 'Isi form di bawah untuk mulai menghitung honor.' : 'Admin belum menetapkan tarif honor.';
+  }
+
+  const tbody = document.getElementById('honRiwayatTarifBody');
+  const isAdmin = APP.user.role === 'admin';
+  if (!riwayat.success || !riwayat.riwayat.length) {
+    tbody.innerHTML = `<tr><td colspan="${isAdmin ? 5 : 4}" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada riwayat tarif</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = riwayat.riwayat.map(t => {
+    const badge = t.statusSaatIni === 'Terjadwal (belum berlaku)' ? 'badge-warning' : 'badge-success';
+    const aksi = (isAdmin && t.statusSaatIni === 'Terjadwal (belum berlaku)')
+      ? `<button class="btn btn-outline btn-sm" onclick="hapusTarifHonorRow('${t.id}')">🗑️ Hapus</button>` : '-';
+    return `<tr>
+      <td data-label="Berlaku Mulai">${t.berlakuMulai}</td>
+      <td data-label="Nilai">${fmtRupiah(t.nilai)}</td>
+      <td data-label="Keterangan">${esc(t.keterangan || '-')}</td>
+      <td data-label="Status"><span class="badge ${badge}">${t.statusSaatIni}</span></td>
+      ${isAdmin ? `<td data-label="Aksi">${aksi}</td>` : ''}
+    </tr>`;
+  }).join('');
+}
+
+async function simpanTarifHonorBaru() {
+  const nilai = document.getElementById('honNilaiBaru').value;
+  const berlakuMulai = document.getElementById('honTanggalBerlaku').value;
+  const keterangan = document.getElementById('honKeteranganBaru').value;
+  if (!nilai || Number(nilai) <= 0) { toast('Isi nilai tarif yang valid', 'warning'); return; }
+  if (!berlakuMulai) { toast('Pilih tanggal berlaku', 'warning'); return; }
+
+  const result = await api('honor', 'setTarifHonor', {
+    nilai, berlakuMulai, keterangan, namaAdmin: APP.user.nama || 'Admin'
+  });
+  if (!result.success) { toast(result.message, 'error'); return; }
+  toast(result.message, 'success');
+  document.getElementById('honNilaiBaru').value = '';
+  document.getElementById('honKeteranganBaru').value = '';
+  await Promise.all([loadTarifAktifDanRiwayat(), loadRekapHonorSemuaGuru()]);
+}
+
+async function hapusTarifHonorRow(id) {
+  if (!confirm('Hapus tarif terjadwal ini?')) return;
+  const result = await api('honor', 'hapusTarifHonor', { id });
+  if (!result.success) { toast(result.message, 'error'); return; }
+  toast(result.message, 'success');
+  await loadTarifAktifDanRiwayat();
+}
+
+async function loadRekapHonorSemuaGuru() {
+  const bulan = document.getElementById('honBulan')?.value;
+  const tahun = document.getElementById('honTahun')?.value;
+  const result = await api('honor', 'getRekapHonorSemuaGuru', { bulan, tahun });
+  const tbody = document.getElementById('honRekapSemuaGuruBody');
+  if (!result.success) { toast(result.message, 'error'); return; }
+
+  document.getElementById('honTotalSemuaGuru').textContent = fmtRupiah(result.totalRupiahSemuaGuru);
+
+  if (!result.rekap.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
+    return;
+  }
+  tbody.innerHTML = result.rekap.map(g => `<tr>
+    <td data-label="Guru">${esc(g.nama)}</td>
+    <td data-label="Jumlah Sesi">${g.totalSesi}</td>
+    <td data-label="Total Honor"><b>${fmtRupiah(g.totalRupiah)}</b></td>
+    <td data-label="Aksi"><button class="btn btn-outline btn-sm" onclick="lihatDetailHonorGuru('${g.idGuru}','${esc(g.nama).replace(/'/g, "\\'")}')">🔍 Detail</button></td>
+  </tr>`).join('');
+}
+
+// Detail rincian honor 1 guru -- ditampilkan di modal generik #modalDetail
+// kalau ada di halaman; kalau tidak, fallback tampil sebagai alert
+// ringkas supaya tetap berguna walau modal belum ditambahkan ke markup.
+async function lihatDetailHonorGuru(idGuru, nama) {
+  const bulan = document.getElementById('honBulan')?.value;
+  const tahun = document.getElementById('honTahun')?.value;
+  const result = await api('honor', 'getRekapHonorGuru', { idGuru, bulan, tahun });
+  if (!result.success) { toast(result.message, 'error'); return; }
+
+  const baris = result.rincian.map(r =>
+    `${r.tanggal} (${r.hari}) — ${r.kelas} / ${r.mapel} — ${fmtRupiah(r.rupiah)}`
+  ).join('\n');
+  const isi = result.rincian.length
+    ? `Rincian honor ${nama} — ${result.bulan}/${result.tahun}\n\n${baris}\n\nTotal: ${fmtRupiah(result.totalRupiah)} (${result.totalSesiHonor} sesi)`
+        + (result.sesiTanpaTarif ? `\n\n⚠️ ${result.sesiTanpaTarif} sesi belum terhitung karena belum ada tarif yang berlaku saat itu.` : '')
+    : `${nama} belum punya sesi yang terhitung honornya pada ${result.bulan}/${result.tahun}.`;
+  alert(isi);
+}
+
+// ── HALAMAN GURU: HONOR SAYA ─────────────────────────────────────────
+async function loadHalamanHonorSaya() {
+  isiDropdownBulanTahun('hsBulan', 'hsTahun');
+  await loadHonorSaya();
+}
+
+async function loadHonorSaya() {
+  const bulan = document.getElementById('hsBulan')?.value;
+  const tahun = document.getElementById('hsTahun')?.value;
+  const result = await api('honor', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun });
+  if (!result.success) { toast(result.message, 'error'); return; }
+
+  document.getElementById('hsTotalRupiah').textContent = fmtRupiah(result.totalRupiah);
+  document.getElementById('hsTotalSesi').textContent = result.totalSesiHonor;
+  document.getElementById('hsPeringatanTarif').style.display = result.sesiTanpaTarif ? 'block' : 'none';
+
+  const tbody = document.getElementById('hsRincianBody');
+  if (!result.rincian.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada sesi yang terhitung honornya pada periode ini</td></tr>';
+    return;
+  }
+  tbody.innerHTML = result.rincian.map(r => `<tr>
+    <td data-label="Tanggal">${r.tanggal}</td>
+    <td data-label="Hari">${r.hari || '-'}</td>
+    <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
+    <td data-label="Mapel">${esc(r.mapel)}</td>
+    <td data-label="Honor">${r.tarifSaatItu === null ? '<span class="badge badge-warning">Belum ada tarif</span>' : fmtRupiah(r.rupiah)}</td>
+  </tr>`).join('');
 }
 </script>
 </body>

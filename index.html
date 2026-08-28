@@ -1537,15 +1537,20 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="honBulan" onchange="loadRekapHonorSemuaGuru()"></select></div>
               <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="honTahun" style="width:100px" onchange="loadRekapHonorSemuaGuru()"></div>
             </div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;align-items:stretch">
               <div style="background:var(--surface2);border-radius:12px;padding:16px;text-align:center;min-width:260px">
                 <div style="font-size:1.5rem;font-weight:800" id="honTotalSemuaGuru">-</div>
                 <div style="font-size:.78rem;color:var(--text-muted)">Total Honor Semua Guru Bulan Ini</div>
               </div>
               <!-- BARU: total keseluruhan (akumulasi, dikurangi yang sudah direset/dibayarkan) -->
-              <div style="background:#E8F5E9;border-radius:12px;padding:16px;text-align:center;min-width:260px">
+              <div style="background:#E8F5E9;border-radius:12px;padding:16px;text-align:center;min-width:260px;flex:1">
                 <div style="font-size:1.5rem;font-weight:800;color:#2e7d32" id="honTotalKeseluruhanSemuaGuru">-</div>
                 <div style="font-size:.78rem;color:var(--text-muted)">Total Keseluruhan Semua Guru (belum dibayar)</div>
+              </div>
+              <!-- BARU: reset semua guru sekaligus, alternatif dari reset satu-satu
+                   per baris -- muncul cuma utk admin (bukan kepsek). -->
+              <div id="honResetSemuaWrap" style="display:none;align-items:center">
+                <button class="btn btn-danger btn-sm" onclick="resetHonorSemuaGuruRow()">♻️ Reset Semua Guru</button>
               </div>
             </div>
             <p style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">
@@ -8859,6 +8864,7 @@ async function loadHalamanHonorMengajar() {
   const isAdmin = APP.user.role === 'admin';
   document.getElementById('honFormTarifWrap').style.display = isAdmin ? '' : 'none';
   document.getElementById('honKolomAksi').style.display = isAdmin ? '' : 'none';
+  document.getElementById('honResetSemuaWrap').style.display = isAdmin ? 'flex' : 'none';
   if (isAdmin) {
     const tgl = document.getElementById('honTanggalBerlaku');
     if (tgl && !tgl.value) tgl.value = todayStrClient();
@@ -8974,6 +8980,18 @@ async function loadRekapHonorSemuaGuru() {
 async function resetHonorGuruRow(idGuru, nama) {
   if (!confirm(`Reset honor keseluruhan ${nama}?\n\nLakukan ini HANYA SETELAH honornya benar-benar sudah dibayarkan. Setelah direset, sesi sampai hari ini dianggap lunas dan tidak akan terhitung lagi di Total Honor Keseluruhan (rekap bulanan tetap tidak berubah).`)) return;
   const result = await api('mengajar', 'resetHonorGuru', { idGuru, namaAdmin: APP.user.nama || 'Admin' });
+  if (!result.success) { toast(result.message, 'error'); return; }
+  toast(result.message, 'success');
+  await loadRekapHonorSemuaGuru();
+}
+
+// BARU: reset honor SEMUA guru sekaligus -- dipakai kalau honor semua
+// guru dibayarkan serentak (mis. akhir bulan/semester), jadi admin tidak
+// perlu klik reset satu-satu per baris. Guru yang honor keseluruhannya
+// masih 0 otomatis dilewati oleh backend.
+async function resetHonorSemuaGuruRow() {
+  if (!confirm('Reset honor keseluruhan SEMUA guru?\n\nLakukan ini HANYA SETELAH honor semua guru benar-benar sudah dibayarkan. Setelah direset, sesi sampai hari ini dianggap lunas dan tidak akan terhitung lagi di Total Honor Keseluruhan masing-masing guru (rekap bulanan tetap tidak berubah). Tindakan ini tidak bisa dibatalkan.')) return;
+  const result = await api('mengajar', 'resetHonorSemuaGuru', { namaAdmin: APP.user.nama || 'Admin' });
   if (!result.success) { toast(result.message, 'error'); return; }
   toast(result.message, 'success');
   await loadRekapHonorSemuaGuru();

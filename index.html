@@ -8856,8 +8856,8 @@ function todayStrClient() {
 
 async function loadTarifAktifDanRiwayat() {
   const [aktif, riwayat] = await Promise.all([
-    api('honor', 'getTarifAktif'),
-    api('honor', 'getRiwayatTarif')
+    api('mengajar', 'getTarifAktif'),
+    api('mengajar', 'getRiwayatTarif')
   ]);
 
   if (aktif.success && aktif.ada) {
@@ -8895,7 +8895,7 @@ async function simpanTarifHonorBaru() {
   if (!nilai || Number(nilai) <= 0) { toast('Isi nilai tarif yang valid', 'warning'); return; }
   if (!berlakuMulai) { toast('Pilih tanggal berlaku', 'warning'); return; }
 
-  const result = await api('honor', 'setTarifHonor', {
+  const result = await api('mengajar', 'setTarifHonor', {
     nilai, berlakuMulai, keterangan, namaAdmin: APP.user.nama || 'Admin'
   });
   if (!result.success) { toast(result.message, 'error'); return; }
@@ -8907,7 +8907,7 @@ async function simpanTarifHonorBaru() {
 
 async function hapusTarifHonorRow(id) {
   if (!confirm('Hapus tarif terjadwal ini?')) return;
-  const result = await api('honor', 'hapusTarifHonor', { id });
+  const result = await api('mengajar', 'hapusTarifHonor', { id });
   if (!result.success) { toast(result.message, 'error'); return; }
   toast(result.message, 'success');
   await loadTarifAktifDanRiwayat();
@@ -8916,7 +8916,7 @@ async function hapusTarifHonorRow(id) {
 async function loadRekapHonorSemuaGuru() {
   const bulan = document.getElementById('honBulan')?.value;
   const tahun = document.getElementById('honTahun')?.value;
-  const result = await api('honor', 'getRekapHonorSemuaGuru', { bulan, tahun });
+  const result = await api('mengajar', 'getRekapHonorSemuaGuru', { bulan, tahun });
   const tbody = document.getElementById('honRekapSemuaGuruBody');
   if (!result.success) { toast(result.message, 'error'); return; }
 
@@ -8940,7 +8940,7 @@ async function loadRekapHonorSemuaGuru() {
 async function lihatDetailHonorGuru(idGuru, nama) {
   const bulan = document.getElementById('honBulan')?.value;
   const tahun = document.getElementById('honTahun')?.value;
-  const result = await api('honor', 'getRekapHonorGuru', { idGuru, bulan, tahun });
+  const result = await api('mengajar', 'getRekapHonorGuru', { idGuru, bulan, tahun });
   if (!result.success) { toast(result.message, 'error'); return; }
 
   const baris = result.rincian.map(r =>
@@ -8962,7 +8962,7 @@ async function loadHalamanHonorSaya() {
 async function loadHonorSaya() {
   const bulan = document.getElementById('hsBulan')?.value;
   const tahun = document.getElementById('hsTahun')?.value;
-  const result = await api('honor', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun });
+  const result = await api('mengajar', 'getRekapHonorGuru', { idGuru: APP.user.id, bulan, tahun });
   if (!result.success) { toast(result.message, 'error'); return; }
 
   document.getElementById('hsTotalRupiah').textContent = fmtRupiah(result.totalRupiah);

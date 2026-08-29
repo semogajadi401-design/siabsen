@@ -54,6 +54,23 @@ CREATE INDEX IF NOT EXISTS idx_guru_qr_token ON guru(qr_token);
 ALTER TABLE guru ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'guru';
 UPDATE guru SET role = 'guru' WHERE role IS NULL;
 
+-- ── TUGAS TAMBAHAN: BENDAHARA (BARU) ──────────────────────────────
+-- PENTING: ini FLAG TUGAS TAMBAHAN, terpisah/ORTOGONAL dari `role` di
+-- atas -- BUKAN role akun baru. Seorang guru (role='guru') atau bahkan
+-- Kepala Sekolah (role='kepsek') tetap memakai menu sesuai role-nya
+-- seperti biasa, TAPI kalau kolom ini TRUE dia mendapat SATU menu
+-- tambahan "Honor Mengajar" (kelola tarif honor + rekap semua guru +
+-- tombol reset/tandai lunas) yang sebelumnya cuma bisa diakses admin.
+-- Alasan dibuat terpisah dari `role`: seorang bendahara biasanya tetap
+-- guru piket biasa sehari-hari (ikut jadwal piket, absen mengajar dsb),
+-- jadi tidak cocok "dipindah" ke role lain yang mengubah seluruh menu.
+-- Diisi lewat menu Data Guru (api/guru.js: tambah/edit), dan diperiksa
+-- backend di api/mengajar.js untuk otorisasi seluruh action honor
+-- (setTarifHonor, resetHonorGuru, dst) -- BUKAN cuma disembunyikan di
+-- frontend.
+ALTER TABLE guru ADD COLUMN IF NOT EXISTS is_bendahara BOOLEAN DEFAULT FALSE;
+UPDATE guru SET is_bendahara = FALSE WHERE is_bendahara IS NULL;
+
 -- ── PASSWORD TERENKRIPSI (REVERSIBLE) UNTUK KARTU GURU ───────────────
 -- Kolom `password` di atas berisi hash bcrypt SATU ARAH (untuk login,
 -- tidak bisa dibalikin ke teks asli). Kolom BARU ini menyimpan password

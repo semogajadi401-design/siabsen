@@ -9600,7 +9600,7 @@ async function exportHonorPDF() {
     // ── Tabel rekap per guru -- digambar manual dengan primitif jsPDF
     // (proyek ini tidak memuat plugin jspdf-autotable), pola & gaya
     // mengikuti exportEvaluasiPDF()/downloadPDFPertemuan(). ──
-    const headers = ['No','Nama Guru','Jumlah Pertemuan','Honor Bulan Ini','Belum Dibayar','Direset Terakhir'];
+    const headers = ['No','Nama Guru','Hadir','Honor Bulan Ini','Belum Dibayar','Direset Terakhir'];
     const colW = [10, 52, 16, 34, 34, 36];
     const drawTableHeader = () => {
       pdf.setFontSize(9);

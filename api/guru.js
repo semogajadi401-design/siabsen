@@ -82,7 +82,7 @@ async function getAllRingkasUntukKepsek({ activeOnly }) {
 
 async function getAll({ activeOnly }) {
   let q = supabase.from('guru')
-    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,role,created_at,password_enc')
+    .select('id,nama,jenis_kelamin,jabatan,nip,no_hp,email,alamat,username,status,qr_token,role,is_bendahara,created_at,password_enc')
     .order('nama');
   if (activeOnly === true || activeOnly === 'true') q = q.eq('status', 'Aktif');
   const { data, error } = await q;
@@ -114,6 +114,10 @@ async function getAll({ activeOnly }) {
       jabatan: g.jabatan, nip: g.nip, noHp: g.no_hp,
       email: g.email, alamat: g.alamat, username: g.username, status: g.status,
       qrToken: g.qr_token, role: g.role || 'guru',
+      // BARU: tugas tambahan Bendahara -- ditampilkan sebagai badge
+      // terpisah di tabel Data Guru dan dipakai untuk mengisi checkbox
+      // saat edit (lihat editGuru() di index.html).
+      isBendahara: !!g.is_bendahara,
       // Password asli (didekripsi dari password_enc) -- sengaja disertakan
       // di sini supaya kartu identitas (single maupun download massal)
       // bisa menampilkannya. Guru lama yang belum pernah di-edit/reset
@@ -140,7 +144,11 @@ async function tambah({ data }) {
     email: data.email || '', alamat: data.alamat || '',
     username, password: await hashPassword(rawPassword),
     password_enc: encryptPassword(rawPassword), status: 'Aktif',
-    qr_token: await generateGuruQrToken(), role
+    qr_token: await generateGuruQrToken(), role,
+    // BARU: tugas tambahan Bendahara -- boolean murni, lihat catatan di
+    // schema.sql (kolom is_bendahara) dan komentar isBendahara di
+    // api/auth.js.
+    is_bendahara: !!data.isBendahara
   });
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Guru berhasil ditambahkan', username, password: rawPassword, id };
@@ -153,7 +161,9 @@ async function edit({ id, data }) {
     email: data.email || '', alamat: data.alamat || '',
     // Sama seperti tambah(): whitelist ketat, jangan simpan nilai role
     // apapun selain 'guru'/'kepsek'.
-    role: data.role === 'kepsek' ? 'kepsek' : 'guru'
+    role: data.role === 'kepsek' ? 'kepsek' : 'guru',
+    // BARU: tugas tambahan Bendahara -- lihat catatan di tambah() di atas.
+    is_bendahara: !!data.isBendahara
   };
   if (data.password && data.password.trim().length >= 6) {
     const rawPassword = data.password.trim();
@@ -234,7 +244,10 @@ async function loginSebagaiGuru({ id }) {
   return {
     success: true, role: guruData.role === 'kepsek' ? 'kepsek' : 'guru',
     id: guruData.id, nama: guruData.nama,
-    jabatan: guruData.jabatan, username: guruData.username, qrToken
+    jabatan: guruData.jabatan, username: guruData.username, qrToken,
+    // BARU: disamakan dengan login() biasa di api/auth.js -- lihat
+    // catatan lengkap di sana soal flag ini.
+    isBendahara: !!guruData.is_bendahara
   };
 }
 

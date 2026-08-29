@@ -2962,6 +2962,35 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   </div>
 </div>
 
+<!-- BARU: Lengkapi Absensi Kelas -- untuk sesi mengajar LAMA yang
+     kehadiran_lengkap-nya false (checklist wajib tidak sempat/tidak bisa
+     dijalankan saat sesi ditutup offline). Dibuka dari tombol "🧩 Lengkapi"
+     di halaman Rekap Kehadiran Guru. Beda dengan checklist versi kiosk
+     (scan.html) yang tidak boleh ditunda sama sekali (sesi masih hidup di
+     memori, ditinggal = hilang konteksnya) -- ini boleh ditutup & dibuka
+     lagi kapan saja karena datanya sudah tersimpan permanen di server
+     (absensi_mengajar), badge "Belum Lengkap" akan tetap tampil sampai
+     benar-benar dilengkapi & disimpan. Lihat lengkapiAbsensiKelasBuka/Simpan
+     di api/mengajar.js. -->
+<div class="modal-backdrop" id="modalLengkapiAbsensi">
+  <div class="modal">
+    <div class="modal-header"><h3>🧩 Lengkapi Absensi Kelas</h3><button class="modal-close" onclick="closeModal('modalLengkapiAbsensi')">✕</button></div>
+    <div class="modal-body">
+      <p id="laInfo" style="margin-bottom:10px;color:var(--text-muted);font-size:.85rem">Memuat...</p>
+      <div style="font-size:.74rem;color:var(--text-muted);margin-bottom:10px">
+        ✅ Wajib pilih status kehadiran satu-satu untuk semua siswa yang belum tercatat -- sesi ini baru dihitung honor setelah semua terisi & tersimpan.
+      </div>
+      <div id="laBody" style="max-height:50vh;overflow-y:auto">
+        <div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat daftar siswa...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalLengkapiAbsensi')">Tutup</button>
+      <button class="btn btn-primary" id="laBtnSimpan" onclick="simpanLengkapiAbsensi()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+
 <!-- BARU: Tambah/Edit Hari Libur -- mendukung rentang tanggal (bukan
      cuma 1 hari), gambar opsional (ditampilkan juga di banner libur
      scan.html, lihat renderBannerLibur()), dan pesan opsional. Dibuka
@@ -8652,7 +8681,7 @@ async function loadRekapMengajar() {
     // tetap tampil ke kepsek walau begitu, jadi kalau diklik selalu
     // berakhir error "Hanya admin atau guru yang bersangkutan..." --
     // tombol yang terlihat bisa dipakai padahal tidak.
-    var aksi = (r.status === 'Alpa' && APP.user.role !== 'kepsek') ? '<button class="btn btn-outline btn-sm" onclick="openModalKeteranganMengajar(' + i + ')">📝 Izin/Sakit</button>' : '-';
+    var aksi = (r.status === 'Alpa' && APP.user.role !== 'kepsek') ? '<button class="btn btn-outline btn-sm" onclick="openModalKeteranganMengajar(' + i + ')">📝 Izin/Sakit</button>' : '';
     // Kalau statusnya Alpa TAPI ada catatanPenolakan, berarti Alpa ini
     // hasil PENOLAKAN kepsek (bukan Alpa murni karena tidak lapor sama
     // sekali) -- tampilkan alasannya biar guru tahu kenapa ditolak.
@@ -8664,10 +8693,20 @@ async function loadRekapMengajar() {
     // siswa aktif -- lihat kehadiran_lengkap di api/mengajar.js. Paling
     // sering muncul untuk sesi yang ditutup lewat sinkronisasi offline
     // (checklist wajib tidak sempat/tidak bisa dijalankan saat offline).
+    // PENTING: sesi begini TIDAK dihitung honor sampai dilengkapi -- lihat
+    // tombol "Lengkapi" di kolom Aksi di bawah.
     var kelengkapanInfo = '';
     if (r.kehadiranLengkap === false) {
-      kelengkapanInfo = '<div class="badge badge-warning" style="margin-top:4px;display:inline-block" title="Absensi kelas belum mencakup semua siswa aktif -- kemungkinan sesi ditutup saat offline">⚠️ Belum Lengkap' + (r.jumlahSiswaBelumTercatat ? ' (' + r.jumlahSiswaBelumTercatat + ' siswa)' : '') + '</div>';
+      kelengkapanInfo = '<div class="badge badge-warning" style="margin-top:4px;display:inline-block" title="Absensi kelas belum mencakup semua siswa aktif -- kemungkinan sesi ditutup saat offline. Sesi ini TIDAK dihitung honor sampai dilengkapi.">⚠️ Belum Lengkap' + (r.jumlahSiswaBelumTercatat ? ' (' + r.jumlahSiswaBelumTercatat + ' siswa)' : '') + '</div>';
     }
+    // BARU: tombol "Lengkapi" -- membuka checklist absensi kelas untuk sesi
+    // LAMA yang kehadiran_lengkap-nya false (lihat lengkapiAbsensiKelasBuka/
+    // Simpan di api/mengajar.js). Sama seperti tombol Izin/Sakit, disembunyikan
+    // untuk kepsek (read-only by design di halaman ini).
+    if (r.kehadiranLengkap === false && r.idAbsensiMengajar && APP.user.role !== 'kepsek') {
+      aksi += (aksi ? ' ' : '') + '<button class="btn btn-warning btn-sm" onclick="openModalLengkapiAbsensi(' + i + ')" title="Lengkapi absensi kelas supaya sesi ini bisa dihitung honor">🧩 Lengkapi</button>';
+    }
+    if (!aksi) aksi = '-';
     return '<tr><td data-label="Tanggal">' + r.tanggal + '</td><td data-label="Hari">' + r.hari + '</td><td data-label="Kelas"><span class="badge badge-primary">' + esc(r.kelas) + '</span></td><td data-label="Mapel">' + esc(r.mapel) + '</td><td data-label="Jam Ke">Ke-' + r.jamKeMulai + (r.jamKeSelesai!==r.jamKeMulai ? (' s/d Ke-' + r.jamKeSelesai) : '') + '</td>'
       + '<td data-label="Status"><span class="badge ' + (badgeMap[r.status]||'badge-gray') + '">' + r.status + '</span>' + ketInfo + '</td>'
       + '<td data-label="Verifikasi">' + (r.statusVerifikasi ? '<span class="badge ' + (r.statusVerifikasi==='Terverifikasi' ? 'badge-success' : 'badge-warning') + '">' + r.statusVerifikasi + (r.jumlahSiswaTerverifikasi!==null ? ' (' + r.jumlahSiswaTerverifikasi + ')' : '') + '</span>' + kelengkapanInfo : '-') + '</td>'
@@ -8706,6 +8745,139 @@ async function openModalKeteranganMengajar(idx) {
     buktiLabel.textContent = 'Bukti (foto surat sakit/izin) — Opsional';
   }
   openModal('modalKeteranganMengajar');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LENGKAPI ABSENSI KELAS -- SESI LAMA (BARU)
+// ══════════════════════════════════════════════════════════════════
+// Reuse tampilan checklist yang sama polanya dengan modalChecklistKelas di
+// scan.html (statusList Hadir/Alpa/Izin/Sakit, siswa yang sudah scan kartu
+// / sudah diinput piket ditampilkan read-only), tapi datanya diambil lewat
+// lengkapiAbsensiKelasBuka/Simpan (otorisasi guruToken/adminToken biasa,
+// BUKAN sesiToken -- lihat catatan lengkap di api/mengajar.js) karena sesi
+// live-nya sudah lama berakhir.
+let _laState = null; // { idAbsensiMengajar, daftar, pilihan }
+
+async function openModalLengkapiAbsensi(idx) {
+  const r = (window._rmRincian||[])[idx]; if (!r || !r.idAbsensiMengajar) return;
+  document.getElementById('laInfo').textContent = r.tanggal + ' • ' + r.hari + ' • Kelas ' + r.kelas + ' • ' + r.mapel;
+  document.getElementById('laBody').innerHTML = '<div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">⏳ Memuat daftar siswa...</div>';
+  _laState = null;
+  openModal('modalLengkapiAbsensi');
+
+  try {
+    const res = await api('mengajar', 'lengkapiAbsensiKelasBuka', { idAbsensiMengajar: r.idAbsensiMengajar });
+    if (!res.success) {
+      document.getElementById('laBody').innerHTML = '<div style="text-align:center;padding:20px 10px;color:var(--danger)">⚠️ ' + esc(res.message || 'Gagal memuat daftar siswa.') + '</div>';
+      return;
+    }
+    const daftarUrut = (res.daftar || []).slice()
+      .sort((a, b) => (a.sudahScanKartu === b.sudahScanKartu) ? 0 : (a.sudahScanKartu ? 1 : -1));
+    _laState = { idAbsensiMengajar: r.idAbsensiMengajar, daftar: daftarUrut, pilihan: {} };
+    daftarUrut.forEach(s => {
+      if (!s.sudahDiinputPiket && !s.sudahScanKartu) _laState.pilihan[s.idSiswa] = { status: null, keterangan: '' };
+    });
+    renderLengkapiAbsensiBody();
+  } catch (e) {
+    document.getElementById('laBody').innerHTML = '<div style="text-align:center;padding:20px 10px;color:var(--danger)">❌ Gagal memuat daftar siswa. Cek koneksi.</div>';
+  }
+}
+
+function renderLengkapiAbsensiBody() {
+  const body = document.getElementById('laBody');
+  const daftar = _laState ? _laState.daftar : [];
+  if (!daftar.length) {
+    body.innerHTML = '<div style="text-align:center;padding:20px 10px;color:var(--text-muted);font-size:.85rem">🎉 Semua siswa kelas ini sudah tercatat.</div>';
+    return;
+  }
+  body.innerHTML = daftar.map(s => {
+    if (s.sudahScanKartu) {
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.85">'
+        + '<div style="font-weight:700;font-size:.88rem">' + esc(s.nama) + '</div>'
+        + '<div style="font-size:.7rem;color:var(--text-muted)">' + esc(s.nisn || '-') + '</div>'
+        + '<div style="margin-top:6px;font-size:.76rem;background:var(--primary-pale);border-radius:8px;padding:6px 10px;display:inline-block">✅ Hadir (Scan kartu)</div></div>';
+    }
+    if (s.sudahDiinputPiket) {
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--border);opacity:.85">'
+        + '<div style="font-weight:700;font-size:.88rem">' + esc(s.nama) + '</div>'
+        + '<div style="font-size:.7rem;color:var(--text-muted)">' + esc(s.nisn || '-') + '</div>'
+        + '<div style="margin-top:6px;font-size:.76rem;background:var(--primary-pale);border-radius:8px;padding:6px 10px;display:inline-block">✅ Sudah diinput guru piket: <b>' + esc(s.statusPiket) + '</b>' + (s.keteranganPiket ? ' — ' + esc(s.keteranganPiket) : '') + '</div></div>';
+    }
+    const pilihan = _laState.pilihan[s.idSiswa] || { status: null, keterangan: '' };
+    const belumPilih = !pilihan.status;
+    const statusList = ['Hadir', 'Alpa', 'Izin', 'Sakit'];
+    return '<div id="laRow_' + s.idSiswa + '" style="padding:10px;margin:4px 0;border-radius:10px;border:1px solid ' + (belumPilih ? 'var(--danger)' : 'var(--border)') + ';' + (belumPilih ? 'background:rgba(220,38,38,.06)' : '') + '">'
+      + '<div style="font-weight:700;font-size:.88rem">' + esc(s.nama) + '</div>'
+      + '<div style="font-size:.7rem;color:var(--text-muted);margin-bottom:6px">' + esc(s.nisn || '-') + (belumPilih ? ' • <span style="color:var(--danger);font-weight:700">⚠️ Belum dipilih</span>' : '') + '</div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap">' + statusList.map(st =>
+          '<button type="button" onclick="pilihStatusLA(\'' + s.idSiswa + '\',\'' + st + '\')" style="padding:6px 12px;border-radius:20px;font-size:.76rem;font-weight:700;cursor:pointer;border:1px solid ' + (pilihan.status === st ? 'transparent' : 'var(--border)') + ';background:' + (pilihan.status === st ? statusWarnaLA(st) : 'transparent') + ';color:' + (pilihan.status === st ? '#fff' : 'var(--text-muted)') + '">' + st + '</button>'
+        ).join('') + '</div>'
+      + '<textarea id="laKet_' + s.idSiswa + '" oninput="ubahKeteranganLA(\'' + s.idSiswa + '\', this.value)" placeholder="Keterangan Izin/Sakit (opsional)" rows="2" style="display:' + ((pilihan.status === 'Izin' || pilihan.status === 'Sakit') ? 'block' : 'none') + ';width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:.78rem;background:var(--surface);color:var(--text)">' + esc(pilihan.keterangan || '') + '</textarea></div>';
+  }).join('');
+}
+
+function statusWarnaLA(status) {
+  return { Hadir: 'var(--success)', Alpa: 'var(--danger)', Izin: '#F59E0B', Sakit: '#7C3AED' }[status] || '#888';
+}
+
+function pilihStatusLA(idSiswa, status) {
+  if (!_laState) return;
+  _laState.pilihan[idSiswa] = { status, keterangan: (_laState.pilihan[idSiswa] || {}).keterangan || '' };
+  renderLengkapiAbsensiBody();
+}
+
+function ubahKeteranganLA(idSiswa, val) {
+  if (!_laState || !_laState.pilihan[idSiswa]) return;
+  _laState.pilihan[idSiswa].keterangan = val;
+}
+
+async function simpanLengkapiAbsensi() {
+  if (!_laState) return;
+
+  const belumDipilih = _laState.daftar.filter(s =>
+    !s.sudahDiinputPiket && !s.sudahScanKartu &&
+    (!_laState.pilihan[s.idSiswa] || !_laState.pilihan[s.idSiswa].status)
+  );
+  if (belumDipilih.length) {
+    renderLengkapiAbsensiBody();
+    toast('⚠️ Masih ada ' + belumDipilih.length + ' siswa yang belum dipilih statusnya (Hadir/Alpa/Izin/Sakit).', 'warning');
+    const el = document.getElementById('laRow_' + belumDipilih[0].idSiswa);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  const entries = [];
+  _laState.daftar.forEach(s => {
+    if (s.sudahScanKartu) return;
+    if (s.sudahDiinputPiket) {
+      entries.push({ idSiswa: s.idSiswa, status: s.statusPiket, keterangan: s.keteranganPiket });
+    } else {
+      const p = _laState.pilihan[s.idSiswa];
+      if (p) entries.push({ idSiswa: s.idSiswa, status: p.status, keterangan: p.keterangan });
+    }
+  });
+
+  if (!entries.length) { closeModal('modalLengkapiAbsensi'); return; }
+
+  const btn = document.getElementById('laBtnSimpan');
+  btn.disabled = true; btn.textContent = '⏳ Menyimpan...';
+  try {
+    const res = await api('mengajar', 'lengkapiAbsensiKelasSimpan', { idAbsensiMengajar: _laState.idAbsensiMengajar, entries });
+    if (!res.success) {
+      toast('⚠️ ' + (res.message || 'Gagal menyimpan.'), 'error');
+      btn.disabled = false; btn.textContent = '💾 Simpan';
+      return;
+    }
+    toast('✅ Absensi kelas berhasil dilengkapi' + (res.jumlahSiswaTerverifikasi != null ? ' -- ' + res.jumlahSiswaTerverifikasi + ' siswa terverifikasi' : '') + '.', 'success');
+    closeModal('modalLengkapiAbsensi');
+    _laState = null;
+    // Muat ulang rekap supaya badge "Belum Lengkap" & tombol "Lengkapi"
+    // hilang begitu sesi ini sudah lengkap dan bisa dihitung honor.
+    await loadRekapMengajar();
+  } catch (e) {
+    toast('❌ Gagal menyimpan (cek koneksi).', 'error');
+  }
+  btn.disabled = false; btn.textContent = '💾 Simpan';
 }
 
 // Membaca file yang dipilih user jadi base64 data-URL, supaya bisa

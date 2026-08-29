@@ -182,6 +182,20 @@ const handler = async (req, res) => {
     if (action === 'daftarSiswaKelasSesi')  return res.json(await daftarSiswaKelasSesi(params));
     if (action === 'simpanAbsensiKelasManual') return res.json(await simpanAbsensiKelasManual(params));
 
+    // BARU: melengkapi absensi kelas untuk SESI LAMA yang kehadiranLengkap-nya
+    // false (lihat catatan lengkap di atas fungsi lengkapiAbsensiKelasBuka/
+    // Simpan) -- otorisasi guruToken/adminToken biasa, BUKAN sesiToken (sesi
+    // live sudah lama berakhir). Guru hanya boleh melengkapi sesinya sendiri;
+    // admin boleh melengkapi sesi guru manapun.
+    if (action === 'lengkapiAbsensiKelasBuka') {
+      const adminValidLA = await requireAdminToken(adminToken);
+      return res.json(await lengkapiAbsensiKelasBuka({ ...params, guruIdTerverifikasi, isAdmin: adminValidLA }));
+    }
+    if (action === 'lengkapiAbsensiKelasSimpan') {
+      const adminValidLA = await requireAdminToken(adminToken);
+      return res.json(await lengkapiAbsensiKelasSimpan({ ...params, guruIdTerverifikasi, isAdmin: adminValidLA }));
+    }
+
     if (action === 'inputKeteranganMengajar') {
       // Boleh admin, ATAU guru yang melapor untuk DIRINYA SENDIRI saja
       // (bukan guru lain) -- sesuai keputusan "admin/TU dan guru sendiri".
@@ -1127,6 +1141,63 @@ async function simpanAbsensiKelasManual({ idAbsensiMengajar, sesiToken, entries 
   };
 }
 
+// ════════════════════════════════════════════════════════════════
+// LENGKAPI ABSENSI KELAS -- SESI LAMA (BARU)
+// ════════════════════════════════════════════════════════════════
+// LATAR BELAKANG: daftarSiswaKelasSesi/simpanAbsensiKelasManual di atas
+// awalnya HANYA bisa diakses dari sesi yang MASIH BERJALAN di scan.html,
+// dilindungi sesiToken yang didapat live saat sesi mulai (lihat
+// verifySesiToken). Begitu sesi ditutup -- atau ditutup sepenuhnya lewat
+// sinkronisasi offline SEBELUM sempat checklist -- guru kehilangan
+// sesiToken itu untuk selamanya, dan sebelumnya TIDAK ADA jalan sama
+// sekali untuk melengkapi kehadiran_lengkap sesi tsb belakangan. Padahal
+// getRekapHonorGuru/getRekapHonorSemuaGuru mensyaratkan kehadiran_lengkap
+// = true supaya sesi itu dihitung honor -- akibatnya guru bisa kehilangan
+// honor untuk kelas yang sebenarnya sudah diajar, hanya karena tidak
+// semua siswa sempat discan kartunya sebelum koneksi terputus/sesi
+// ditutup offline.
+//
+// Dua fungsi di bawah membuka jalur BARU untuk melengkapi sesi LAMA lewat
+// halaman "Rekap Kehadiran Guru" (index.html, tombol "🧩 Lengkapi" yang
+// muncul kalau kehadiranLengkap===false) -- otorisasinya BUKAN sesiToken
+// (guru tidak lagi punya token itu setelah sesi ditutup/halaman di-reload),
+// melainkan guruToken/adminToken biasa seperti action lain di file ini:
+// guru cuma boleh melengkapi sesinya SENDIRI, admin boleh melengkapi sesi
+// guru manapun. Begitu terotorisasi, sesiToken yang sah dibangkitkan ULANG
+// di server (generateSesiToken -- HMAC deterministik dari idAbsensiMengajar,
+// TIDAK PERNAH kedaluwarsa, lihat api/_db.js) supaya bisa memanggil ULANG
+// daftarSiswaKelasSesi/simpanAbsensiKelasManual APA ADANYA -- logika
+// checklist itu sendiri (aturan "piket duluan", validasi status per
+// siswa, hitung ulang kehadiran_lengkap, dsb) TIDAK diduplikasi sama
+// sekali di sini, cuma dibungkus otorisasi baru.
+async function otorisasiLengkapiSesi({ idAbsensiMengajar, guruIdTerverifikasi, isAdmin }) {
+  if (!idAbsensiMengajar) return { ok: false, message: 'Sesi mengajar wajib diisi' };
+  const { data: sesi } = await supabase
+    .from('absensi_mengajar').select('id,id_guru,kehadiran_lengkap').eq('id', idAbsensiMengajar).maybeSingle();
+  if (!sesi) return { ok: false, message: 'Sesi mengajar tidak ditemukan' };
+  if (!isAdmin && (!guruIdTerverifikasi || guruIdTerverifikasi !== sesi.id_guru)) {
+    return { ok: false, message: 'Anda tidak berhak melengkapi sesi mengajar ini.' };
+  }
+  return { ok: true, sesi };
+}
+
+async function lengkapiAbsensiKelasBuka({ idAbsensiMengajar, guruIdTerverifikasi, isAdmin }) {
+  const otor = await otorisasiLengkapiSesi({ idAbsensiMengajar, guruIdTerverifikasi, isAdmin });
+  if (!otor.ok) return { success: false, message: otor.message };
+  if (otor.sesi.kehadiran_lengkap) {
+    return { success: false, message: 'Sesi ini sudah lengkap, tidak perlu dilengkapi lagi.' };
+  }
+  const sesiToken = generateSesiToken(idAbsensiMengajar);
+  return await daftarSiswaKelasSesi({ idAbsensiMengajar, sesiToken });
+}
+
+async function lengkapiAbsensiKelasSimpan({ idAbsensiMengajar, entries, guruIdTerverifikasi, isAdmin }) {
+  const otor = await otorisasiLengkapiSesi({ idAbsensiMengajar, guruIdTerverifikasi, isAdmin });
+  if (!otor.ok) return { success: false, message: otor.message };
+  const sesiToken = generateSesiToken(idAbsensiMengajar);
+  return await simpanAbsensiKelasManual({ idAbsensiMengajar, sesiToken, entries });
+}
+
 // BARU: cek kelengkapan absensi kelas -- SEMUA siswa AKTIF di kelas sesi ini
 // wajib sudah tercatat di kehadiran_siswa_mapel (baik lewat scan kartu
 // sendiri MAUPUN checklist manual guru di simpanAbsensiKelasManual) sebelum
@@ -1496,6 +1567,10 @@ async function getRekapKehadiranGuru({ idGuru, bulan, tahun }) {
         // sinkronisasi offline tanpa sempat lewat checklist).
         kehadiranLengkap: absen ? absen.kehadiran_lengkap : null,
         jumlahSiswaBelumTercatat: absen ? absen.jumlah_siswa_belum_tercatat : null,
+        // BARU: dibawa supaya klien (halaman Rekap Kehadiran Guru) bisa
+        // menawarkan tombol "Lengkapi" untuk sesi yang kehadiranLengkap-nya
+        // false -- lihat lengkapiAbsensiKelasBuka/Simpan di bawah.
+        idAbsensiMengajar: absen ? absen.id : null,
         keteranganText: ket ? ket.keterangan : null,
         statusPersetujuan: ket ? ket.status_persetujuan : null,
         buktiUrl: ket ? ket.bukti_url : null,

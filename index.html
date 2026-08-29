@@ -1685,6 +1685,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
               <div class="form-group" style="margin:0"><label>Bulan</label><select class="form-control" id="honBulan" onchange="loadRekapHonorSemuaGuru()"></select></div>
               <div class="form-group" style="margin:0"><label>Tahun</label><input type="number" class="form-control" id="honTahun" style="width:90px" onchange="loadRekapHonorSemuaGuru()"></div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-success btn-sm" onclick="exportHonorExcel()" title="Download rekap honor sebagai Excel">📊 Excel</button>
+                <button class="btn btn-primary btn-sm" onclick="exportHonorPDF()" title="Download rekap honor sebagai PDF">📄 PDF</button>
+              </div>
             </div>
           </div>
           <div class="card-body">
@@ -9444,6 +9448,12 @@ async function loadRekapHonorSemuaGuru() {
   const tbody = document.getElementById('honRekapSemuaGuruBody');
   if (!result.success) { toast(result.message, 'error'); return; }
 
+  // BARU: simpan snapshot terstruktur untuk dipakai exportHonorExcel()/
+  // exportHonorPDF() -- supaya angka di file yang diekspor dijamin sinkron
+  // dengan yang tampil di layar, tanpa perlu scrape ulang teks dari tabel
+  // HTML (pola yang sama dipakai lastEvalData, lihat exportEvaluasiPDF()).
+  window._honRekapData = result;
+
   document.getElementById('honTotalSemuaGuru').textContent = fmtRupiah(result.totalRupiahSemuaGuru);
   document.getElementById('honTotalKeseluruhanSemuaGuru').textContent = fmtRupiah(result.totalRupiahKeseluruhanSemuaGuru);
 
@@ -9471,6 +9481,214 @@ async function loadRekapHonorSemuaGuru() {
     </td>
   </tr>`;
   }).join('');
+}
+
+// ── EXPORT REKAP HONOR GURU (BARU): Excel & PDF ─────────────────────
+// Dipakai admin/kepsek di halaman Honor Mengajar untuk mengunduh Rekap
+// Honor Guru bulan berjalan (filter Bulan/Tahun yang sedang aktif di
+// layar). Sumber datanya window._honRekapData -- snapshot hasil
+// getRekapHonorSemuaGuru() yang diisi loadRekapHonorSemuaGuru(), supaya
+// angka di file yang diekspor dijamin sama dengan yang tampil di tabel.
+const NAMA_BULAN_HONOR = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+function exportHonorExcel() {
+  if (typeof XLSX === 'undefined') { toast('Library belum siap, coba lagi sebentar', 'warning'); return; }
+  const d = window._honRekapData;
+  if (!d || !d.rekap) { toast('Muat data rekap terlebih dahulu', 'warning'); return; }
+
+  const namaBulan = NAMA_BULAN_HONOR[d.bulan - 1] || d.bulan;
+  const rows = [
+    [`Rekap Honor Mengajar Guru - ${namaBulan} ${d.tahun}`],
+    [`Diunduh: ${new Date().toLocaleString('id-ID', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}`],
+    [],
+    ['No','Nama Guru','Jumlah Sesi','Honor Bulan Ini (Rp)','Belum Dibayar / Keseluruhan (Rp)','Terakhir Direset']
+  ];
+  d.rekap.forEach((g, i) => {
+    rows.push([i + 1, g.nama, g.totalSesi, g.totalRupiah, g.totalRupiahKeseluruhan, g.terakhirDireset || '-']);
+  });
+  rows.push([]);
+  rows.push(['', 'TOTAL', d.rekap.reduce((a,g)=>a+g.totalSesi,0), d.totalRupiahSemuaGuru, d.totalRupiahKeseluruhanSemuaGuru, '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 12 }, { wch: 20 }, { wch: 26 }, { wch: 16 }];
+  ws['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c:5 } }, { s: { r:1, c:0 }, e: { r:1, c:5 } }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rekap Honor Guru');
+  XLSX.writeFile(wb, `Rekap_Honor_Guru_${namaBulan}_${d.tahun}.xlsx`.replace(/\s+/g, '_'));
+  toast('Excel berhasil didownload', 'success');
+}
+
+async function exportHonorPDF() {
+  const d = window._honRekapData;
+  if (!d || !d.rekap) { toast('Muat data rekap terlebih dahulu', 'warning'); return; }
+  toast('Menyiapkan PDF...', 'info', 3000);
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const marginX = 14, pageW = 210, pageBottom = 270;
+
+    // Kop surat -- ambil dari Profil Sekolah, sama pola dengan exportEvaluasiPDF().
+    let sekolah = {};
+    try {
+      const set = await api('settings', 'getJamSetting');
+      sekolah = set?.data || {};
+    } catch (e) { /* tetap lanjut tanpa kop surat kalau gagal ambil */ }
+    const namaSekolah = (sekolah['NAMA_SEKOLAH'] || 'Nama Sekolah').toUpperCase();
+    const alamatSekolah = sekolah['ALAMAT_SEKOLAH'] || '';
+    const kontakParts = [sekolah['TELP_SEKOLAH'], sekolah['EMAIL_SEKOLAH']].filter(Boolean).join('  •  ');
+    const tanggalCetak = new Date().toLocaleString('id-ID', {
+      day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const namaBulan = NAMA_BULAN_HONOR[d.bulan - 1] || d.bulan;
+
+    const drawKopSurat = () => {
+      pdf.setFontSize(13);
+      pdf.setTextColor(21,101,192);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(namaSekolah, marginX, 14);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(110,110,110);
+      if (alamatSekolah) pdf.text(alamatSekolah, marginX, 19);
+      if (kontakParts) pdf.text(kontakParts, marginX, 23.5);
+      pdf.setDrawColor(21,101,192);
+      pdf.setLineWidth(0.6);
+      pdf.line(marginX, 26, pageW - marginX, 26);
+    };
+    const drawFooterBase = () => {
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(140,140,140);
+      pdf.text(`Dicetak otomatis oleh SIABSEN pada ${tanggalCetak}`, marginX, 289);
+    };
+
+    drawKopSurat();
+    pdf.setFontSize(13);
+    pdf.setTextColor(20,20,20);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('REKAP HONOR MENGAJAR GURU', marginX, 33);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(90,90,90);
+    pdf.text(`Periode: ${namaBulan} ${d.tahun}   |   Jumlah Guru: ${d.rekap.length}`, marginX, 39);
+
+    let y = 39;
+
+    // ── Kartu ringkasan total: Bulan Ini vs Belum Dibayar (Keseluruhan) --
+    // supaya kepala sekolah/admin langsung tahu total tanpa harus jumlah
+    // manual dari tabel di bawah. ──
+    y += 10;
+    const cardW = (pageW - marginX*2 - 8) / 2, cardH = 20;
+    pdf.setFillColor(232,240,254);
+    pdf.roundedRect(marginX, y, cardW, cardH, 2, 2, 'F');
+    pdf.setFontSize(8); pdf.setTextColor(90,90,90);
+    pdf.text('Total Honor Bulan Ini (Semua Guru)', marginX + 5, y + 7);
+    pdf.setFontSize(15); pdf.setTextColor(21,101,192); pdf.setFont(undefined, 'bold');
+    pdf.text(fmtRupiah(d.totalRupiahSemuaGuru), marginX + 5, y + 16);
+    pdf.setFont(undefined, 'normal');
+
+    const card2X = marginX + cardW + 8;
+    pdf.setFillColor(232,245,233);
+    pdf.roundedRect(card2X, y, cardW, cardH, 2, 2, 'F');
+    pdf.setFontSize(8); pdf.setTextColor(90,90,90);
+    pdf.text('Belum Dibayar (Semua Guru, Keseluruhan)', card2X + 5, y + 7);
+    pdf.setFontSize(15); pdf.setTextColor(46,125,50); pdf.setFont(undefined, 'bold');
+    pdf.text(fmtRupiah(d.totalRupiahKeseluruhanSemuaGuru), card2X + 5, y + 16);
+    pdf.setFont(undefined, 'normal');
+
+    y += cardH + 14;
+
+    // ── Tabel rekap per guru -- digambar manual dengan primitif jsPDF
+    // (proyek ini tidak memuat plugin jspdf-autotable), pola & gaya
+    // mengikuti exportEvaluasiPDF()/downloadPDFPertemuan(). ──
+    const headers = ['No','Nama Guru','Sesi','Honor Bulan Ini','Belum Dibayar','Direset Terakhir'];
+    const colW = [10, 52, 16, 34, 34, 36];
+    const drawTableHeader = () => {
+      pdf.setFontSize(9);
+      headers.forEach((h, i) => {
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+        pdf.setFillColor(21,101,192);
+        pdf.setTextColor(255,255,255);
+        pdf.rect(x, y-4, colW[i], 7, 'F');
+        pdf.text(h, x+1, y);
+      });
+      y += 7;
+      pdf.setTextColor(0,0,0);
+    };
+    drawTableHeader();
+
+    if (!d.rekap.length) {
+      pdf.setFontSize(9); pdf.setTextColor(120,120,120);
+      pdf.text('Belum ada data guru.', marginX + 2, y);
+      y += 7;
+    } else {
+      d.rekap.forEach((g, idx) => {
+        const vals = [
+          String(idx+1), g.nama, String(g.totalSesi),
+          fmtRupiah(g.totalRupiah), fmtRupiah(g.totalRupiahKeseluruhan),
+          g.terakhirDireset || '-'
+        ];
+        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
+        pdf.setFontSize(8.5);
+        vals.forEach((v, i) => {
+          const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+          pdf.setTextColor(i === 4 ? 46 : 0, i === 4 ? 125 : 0, i === 4 ? 50 : 0);
+          pdf.text(String(v).substring(0,30), x+1, y);
+        });
+        y += 7;
+        if (y > pageBottom) {
+          drawFooterBase();
+          pdf.addPage();
+          drawKopSurat();
+          y = 33;
+          drawTableHeader();
+        }
+      });
+
+      // Baris TOTAL -- ditebalkan supaya menonjol dari baris data.
+      if (y > pageBottom) { drawFooterBase(); pdf.addPage(); drawKopSurat(); y = 33; drawTableHeader(); }
+      pdf.setFillColor(21,101,192);
+      pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F');
+      pdf.setFontSize(8.5); pdf.setFont(undefined, 'bold'); pdf.setTextColor(255,255,255);
+      const totalVals = ['', 'TOTAL', String(d.rekap.reduce((a,g)=>a+g.totalSesi,0)), fmtRupiah(d.totalRupiahSemuaGuru), fmtRupiah(d.totalRupiahKeseluruhanSemuaGuru), ''];
+      totalVals.forEach((v, i) => {
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+        pdf.text(String(v), x+1, y);
+      });
+      pdf.setFont(undefined, 'normal');
+      y += 7;
+    }
+
+    // ── Blok tanda tangan -- dorong ke halaman baru kalau ruang tersisa
+    // tidak cukup, supaya tidak terpotong. ──
+    if (y > pageBottom - 32) {
+      drawFooterBase();
+      pdf.addPage();
+      drawKopSurat();
+      y = 40;
+    } else {
+      y += 14;
+    }
+    pdf.setFontSize(9);
+    pdf.setTextColor(60,60,60);
+    const tglTtd = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    pdf.text(`${alamatSekolah ? (alamatSekolah.split(',').pop().trim() + ', ') : ''}${tglTtd}`, pageW - marginX - 60, y);
+    pdf.text('Kepala Sekolah,', pageW - marginX - 60, y + 6);
+    pdf.text('_________________________', pageW - marginX - 60, y + 30);
+    drawFooterBase();
+
+    // ── Nomor halaman -- ditambahkan di akhir setelah total halaman
+    // diketahui. ──
+    const totalHalaman = pdf.internal.getNumberOfPages();
+    for (let p = 1; p <= totalHalaman; p++) {
+      pdf.setPage(p);
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(140,140,140);
+      pdf.text(`Halaman ${p} dari ${totalHalaman}`, pageW - marginX - 30, 289);
+    }
+
+    pdf.save(`Rekap_Honor_Guru_${namaBulan}_${d.tahun}.pdf`.replace(/\s+/g, '_'));
+    toast('PDF berhasil didownload', 'success');
+  } catch (e) { toast('Gagal: ' + e.message, 'error'); }
 }
 
 // BARU: tombol Reset Honor -- ditekan admin SETELAH honor keseluruhan

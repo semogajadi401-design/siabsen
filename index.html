@@ -943,6 +943,14 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
            gaji bulanan tetap), dihitung dari sesi yang kehadiran siswanya
            sudah terverifikasi lengkap. Lihat api/honor.js. -->
       <div class="nav-item color-teal" onclick="showPage('honorSaya')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>💰 Honor Saya</span></div>
+      <!-- BARU: Honor Mengajar (khusus guru yang ditugaskan Bendahara,
+           guru.is_bendahara) -- SENGAJA default display:none, cuma
+           dimunculkan lewat setupUserUI() kalau APP.user.isBendahara true
+           (diisi backend saat login, lihat api/auth.js). Menu ini beda
+           dari "💰 Honor Saya" di atas: bukan rekap pribadi, tapi kelola
+           tarif + rekap SEMUA guru (halaman yang sama dipakai admin),
+           lihat catatan lengkap di api/mengajar.js. -->
+      <div class="nav-item color-teal" id="guruBendaharaNav" style="display:none" onclick="showPage('honorMengajar')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>🧾 Honor Mengajar (Bendahara)</span></div>
       <!-- BARU: Jadwal Mengajar Saya -- jadwal yang diinput admin di
            jadwal_mengajar, ditampilkan sisi guru sesuai mapel yang diampu
            saja (idGuru difilter otomatis ke akun yang sedang login). -->
@@ -2286,6 +2294,19 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <div class="form-group"><label>Email</label><input type="email" id="guruEmail" class="form-control"></div>
       </div>
       <div class="form-group" style="margin-top:14px"><label>Alamat</label><textarea id="guruAlamat" class="form-control" rows="2" style="resize:vertical"></textarea></div>
+      <!-- BARU: Tugas Tambahan Bendahara -- ORTOGONAL dari "Peran Akun" di
+           atas (guru/kepsek TETAP dapat menu masing-masing seperti biasa).
+           Kalau dicentang, akun ini mendapat SATU menu tambahan "Honor
+           Mengajar" (kelola tarif + rekap semua guru + tandai lunas)
+           yang sebelumnya cuma bisa diakses admin. Lihat catatan lengkap
+           di schema.sql (kolom is_bendahara) & api/mengajar.js. -->
+      <div style="margin-top:14px;padding:12px 14px;background:#FFF8E1;border-radius:10px;border:1.5px solid #FFE082;display:flex;align-items:flex-start;gap:10px">
+        <input type="checkbox" id="guruBendahara" style="margin-top:3px;width:16px;height:16px;flex-shrink:0">
+        <label for="guruBendahara" style="cursor:pointer;font-size:.85rem;color:var(--text);margin:0">
+          <strong>💰 Tugas Tambahan: Bendahara</strong>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-top:2px;font-weight:400">Dapat menu "Honor Mengajar" tambahan (atur tarif, lihat rekap semua guru, tandai lunas dibayar) -- terpisah dari Peran Akun, akun ini tetap dapat menu Guru/Kepala Sekolah seperti biasa.</div>
+        </label>
+      </div>
       <div style="margin-top:16px;padding:14px;background:var(--surface2);border-radius:10px;border:1.5px solid var(--border)">
         <p style="font-weight:700;color:var(--text);margin-bottom:10px;font-size:.88rem">🔑 Password Login</p>
         <div style="position:relative">
@@ -3519,11 +3540,20 @@ document.addEventListener('DOMContentLoaded', initCekVersiAplikasi);
 function showLoginError(msg){ const el=document.getElementById('loginError'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none',4000); }
 function setupUserUI(user) {
   document.getElementById('userName').textContent = user.nama;
-  document.getElementById('userRole').textContent = user.role==='admin'?'Administrator':(user.role==='kepsek'?'Kepala Sekolah':(user.jabatan||'Guru'));
+  const labelPeran = user.role==='admin'?'Administrator':(user.role==='kepsek'?'Kepala Sekolah':(user.jabatan||'Guru'));
+  // BARU: tampilkan label "Bendahara" di badge peran kalau akun ini
+  // ditugaskan sebagai bendahara (lihat guru.is_bendahara), supaya
+  // langsung kelihatan tanpa harus buka menu Data Guru.
+  document.getElementById('userRole').textContent = labelPeran + (user.isBendahara ? ' • Bendahara' : '');
   document.getElementById('userAvatar').textContent = user.nama.charAt(0).toUpperCase();
   document.getElementById('adminNav').style.display = user.role==='admin'?'block':'none';
   document.getElementById('guruNav').style.display = user.role==='guru'?'block':'none';
   document.getElementById('kepsekNav').style.display = user.role==='kepsek'?'block':'none';
+  // BARU: menu "Honor Mengajar" tambahan di akun guru biasa yang
+  // ditugaskan Bendahara (kepsek sudah punya menu ini secara bawaan di
+  // kepsekNav, jadi tidak perlu ditoggle lagi di sini).
+  const bendaharaNav = document.getElementById('guruBendaharaNav');
+  if (bendaharaNav) bendaharaNav.style.display = (user.role==='guru' && user.isBendahara) ? 'flex' : 'none';
   // Muat jumlah laporan izin/sakit yang menunggu persetujuan kepsek supaya
   // langsung tampil sebagai badge notifikasi di menu, tanpa perlu kepsek
   // membuka halamannya dulu untuk tahu ada yang perlu ditindaklanjuti.
@@ -3802,7 +3832,7 @@ async function loadGuru() {
     // dulu (data & histori piket tetap aman), baru hapus permanen kalau memang
     // yakin. Sebelumnya guru cuma bisa dihapus permanen dari UI meski backend
     // sudah punya endpoint nonaktifkan (guru.hapus) — sekarang dipakai.
-    tbody.innerHTML=result.data.map((g,i)=>`<tr><td data-label="No">${i+1}</td><td data-label="Nama"><div style="font-weight:600">${esc(g.nama)}</div><div style="font-size:.76rem;color:var(--text-muted)">${esc(g.nip||'-')}</div></td><td data-label="JK">${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td data-label="Jabatan">${esc(g.jabatan)}</td><td data-label="Peran">${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}</td><td data-label="Username"><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${esc(g.username)}</code></td><td data-label="Status"><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td data-label="Aksi"><div style="display:flex;gap:6px;flex-wrap:wrap">${g.status==='Aktif'?`<button class="btn btn-primary btn-sm" onclick="loginSebagaiGuru('${g.id}',window._guruData[${i}].nama)" title="Login sebagai guru ini (tanpa perlu password)">🔓</button>`:''}<button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
+    tbody.innerHTML=result.data.map((g,i)=>`<tr><td data-label="No">${i+1}</td><td data-label="Nama"><div style="font-weight:600">${esc(g.nama)}</div><div style="font-size:.76rem;color:var(--text-muted)">${esc(g.nip||'-')}</div></td><td data-label="JK">${g.jenisKelamin==='Laki-laki'?'♂':'♀'}</td><td data-label="Jabatan">${esc(g.jabatan)}</td><td data-label="Peran"><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">${g.role==='kepsek'?'<span class="badge badge-primary" title="Menu pengawasan read-only, tidak bisa jadi guru piket">👑 Kepsek</span>':'<span class="badge badge-gray">Guru</span>'}${g.isBendahara?'<span class="badge badge-warning" title="Dapat menu tambahan Honor Mengajar">💰 Bendahara</span>':''}</div></td><td data-label="Username"><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-size:.8rem">${esc(g.username)}</code></td><td data-label="Status"><span class="badge ${g.status==='Aktif'?'badge-success':'badge-danger'}">${g.status}</span></td><td data-label="Aksi"><div style="display:flex;gap:6px;flex-wrap:wrap">${g.status==='Aktif'?`<button class="btn btn-primary btn-sm" onclick="loginSebagaiGuru('${g.id}',window._guruData[${i}].nama)" title="Login sebagai guru ini (tanpa perlu password)">🔓</button>`:''}<button class="btn btn-outline btn-sm" onclick="editGuru(window._guruData[${i}])">✏️</button><button class="btn btn-accent btn-sm" onclick="cetakKartuGuru(window._guruData[${i}])">🪪</button><button class="btn btn-warning btn-sm" onclick="resetPasswordGuru('${g.id}')">🔑</button>${g.status==='Aktif'?`<button class="btn btn-gray btn-sm" onclick="nonaktifkanGuru('${g.id}',window._guruData[${i}].nama)" title="Nonaktifkan (data tetap aman)">🚫</button>`:''}<button class="btn btn-danger btn-sm" onclick="hapusGuru('${g.id}',window._guruData[${i}].nama)" title="Hapus permanen">🗑</button></div></td></tr>`).join('');
   } catch(e){ toast('Gagal memuat data guru','error'); }
 }
 function openModalGuru(){
@@ -3810,6 +3840,7 @@ function openModalGuru(){
   document.getElementById('guruJK').value='Laki-laki';
   document.getElementById('guruJabatan').selectedIndex=0;
   document.getElementById('guruRole').value='guru';
+  document.getElementById('guruBendahara').checked=false;
   document.getElementById('guruCredInfo').style.display='none';
   document.getElementById('modalGuruTitle').textContent='Tambah Guru';
   openModal('modalGuru');
@@ -3820,6 +3851,7 @@ function editGuru(guru){
   document.getElementById('guruJK').value=guru.jenisKelamin;
   document.getElementById('guruJabatan').value=guru.jabatan;
   document.getElementById('guruRole').value=guru.role==='kepsek'?'kepsek':'guru';
+  document.getElementById('guruBendahara').checked=!!guru.isBendahara;
   document.getElementById('guruNIP').value=guru.nip||'';
   document.getElementById('guruHP').value=guru.noHp||'';
   document.getElementById('guruEmail').value=guru.email||'';
@@ -3833,7 +3865,7 @@ async function submitGuru(){
   const id=document.getElementById('guruId').value;
   const pw=document.getElementById('guruPassword').value.trim();
   if(pw&&pw.length<6){toast('Password minimal 6 karakter','error');return;}
-  const data={nama:document.getElementById('guruNama').value.trim(),jenisKelamin:document.getElementById('guruJK').value,jabatan:document.getElementById('guruJabatan').value,role:document.getElementById('guruRole').value,nip:document.getElementById('guruNIP').value,noHp:document.getElementById('guruHP').value,email:document.getElementById('guruEmail').value,alamat:document.getElementById('guruAlamat').value,password:pw};
+  const data={nama:document.getElementById('guruNama').value.trim(),jenisKelamin:document.getElementById('guruJK').value,jabatan:document.getElementById('guruJabatan').value,role:document.getElementById('guruRole').value,isBendahara:document.getElementById('guruBendahara').checked,nip:document.getElementById('guruNIP').value,noHp:document.getElementById('guruHP').value,email:document.getElementById('guruEmail').value,alamat:document.getElementById('guruAlamat').value,password:pw};
   if(!data.nama){toast('Nama wajib diisi','error');return;}
   try{
     let result;
@@ -9365,7 +9397,11 @@ function isiDropdownBulanTahun(idBulan, idTahun, onChangeFnName) {
 // ── HALAMAN ADMIN/KEPSEK: HONOR MENGAJAR ────────────────────────────
 async function loadHalamanHonorMengajar() {
   isiDropdownBulanTahun('honBulan', 'honTahun');
-  const isAdmin = APP.user.role === 'admin';
+  // BARU: bendahara (guru.is_bendahara, ORTOGONAL dari role) diperlakukan
+  // setara admin KHUSUS di halaman ini -- boleh atur tarif & tandai
+  // lunas, sama seperti akun admin. Kepsek TETAP read-only walau bukan
+  // bendahara (lihat komentar di deklarasi halaman ini).
+  const isAdmin = honorBolehKelola();
   document.getElementById('honFormTarifWrap').style.display = isAdmin ? '' : 'none';
   document.getElementById('honKolomAksi').style.display = isAdmin ? '' : 'none';
   document.getElementById('honResetSemuaWrap').style.display = isAdmin ? 'flex' : 'none';
@@ -9393,11 +9429,11 @@ async function loadTarifAktifDanRiwayat() {
     document.getElementById('honTarifAktifInfo').textContent = `Berlaku sejak ${aktif.berlakuMulai}` + (aktif.keterangan ? ` — ${aktif.keterangan}` : '');
   } else {
     document.getElementById('honTarifAktifNilai').textContent = 'Belum diset';
-    document.getElementById('honTarifAktifInfo').textContent = APP.user.role === 'admin' ? 'Isi form di bawah untuk mulai menghitung honor.' : 'Admin belum menetapkan tarif honor.';
+    document.getElementById('honTarifAktifInfo').textContent = honorBolehKelola() ? 'Isi form di bawah untuk mulai menghitung honor.' : 'Admin/bendahara belum menetapkan tarif honor.';
   }
 
   const tbody = document.getElementById('honRiwayatTarifBody');
-  const isAdmin = APP.user.role === 'admin';
+  const isAdmin = honorBolehKelola();
   if (!riwayat.success || !riwayat.riwayat.length) {
     tbody.innerHTML = `<tr><td colspan="${isAdmin ? 5 : 4}" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada riwayat tarif</td></tr>`;
     return;
@@ -9457,7 +9493,7 @@ async function loadRekapHonorSemuaGuru() {
   document.getElementById('honTotalSemuaGuru').textContent = fmtRupiah(result.totalRupiahSemuaGuru);
   document.getElementById('honTotalKeseluruhanSemuaGuru').textContent = fmtRupiah(result.totalRupiahKeseluruhanSemuaGuru);
 
-  const isAdmin = APP.user.role === 'admin';
+  const isAdmin = honorBolehKelola();
   if (!result.rekap.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
     return;
@@ -9491,6 +9527,15 @@ async function loadRekapHonorSemuaGuru() {
 // angka di file yang diekspor dijamin sama dengan yang tampil di tabel.
 const NAMA_BULAN_HONOR = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+// BARU: helper dipakai di seluruh halaman Honor Mengajar -- admin ATAU
+// guru/kepsek yang ditugaskan Bendahara (guru.is_bendahara) sama-sama
+// dianggap "isAdmin" di HALAMAN INI SAJA (boleh atur tarif, tandai
+// lunas, dst). Otorisasi sesungguhnya tetap diperiksa ulang di server
+// (api/mengajar.js) -- ini cuma menentukan apa yang DITAMPILKAN.
+function honorBolehKelola() {
+  return APP.user.role === 'admin' || !!APP.user.isBendahara;
+}
+
 function exportHonorExcel() {
   if (typeof XLSX === 'undefined') { toast('Library belum siap, coba lagi sebentar', 'warning'); return; }
   const d = window._honRekapData;
@@ -9514,6 +9559,28 @@ function exportHonorExcel() {
   ws['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c:5 } }, { s: { r:1, c:0 }, e: { r:1, c:5 } }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap Honor Guru');
+
+  // BARU: sheet ke-2 -- rincian tiap pertemuan (bukan cuma total jadi),
+  // supaya total honor bulan ini bisa ditelusuri per sesi/pertemuan.
+  // Sumber datanya g.rincian per guru dari getRekapHonorSemuaGuru(),
+  // sudah difilter bulan/tahun yang sama dengan sheet rekap di atas.
+  const rincianRows = [
+    [`Rincian Pertemuan - ${namaBulan} ${d.tahun}`],
+    [],
+    ['No','Nama Guru','Tanggal','Hari','Kelas','Mapel','Honor (Rp)']
+  ];
+  let noRincian = 1;
+  d.rekap.forEach(g => {
+    (g.rincian || []).forEach(r => {
+      rincianRows.push([noRincian++, g.nama, r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', r.rupiah]);
+    });
+  });
+  if (noRincian === 1) rincianRows.push(['', 'Belum ada pertemuan yang terhitung honornya bulan ini.', '', '', '', '', '']);
+  const wsRincian = XLSX.utils.aoa_to_sheet(rincianRows);
+  wsRincian['!cols'] = [{ wch: 5 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 16 }];
+  wsRincian['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c:6 } }];
+  XLSX.utils.book_append_sheet(wb, wsRincian, 'Rincian Pertemuan');
+
   XLSX.writeFile(wb, `Rekap_Honor_Guru_${namaBulan}_${d.tahun}.xlsx`.replace(/\s+/g, '_'));
   toast('Excel berhasil didownload', 'success');
 }
@@ -9600,7 +9667,7 @@ async function exportHonorPDF() {
     // ── Tabel rekap per guru -- digambar manual dengan primitif jsPDF
     // (proyek ini tidak memuat plugin jspdf-autotable), pola & gaya
     // mengikuti exportEvaluasiPDF()/downloadPDFPertemuan(). ──
-    const headers = ['No','Nama Guru','Hadir','Honor Bulan Ini','Belum Dibayar','Direset Terakhir'];
+    const headers = ['No','Nama Guru','Sesi','Honor Bulan Ini','Belum Dibayar','Direset Terakhir'];
     const colW = [10, 52, 16, 34, 34, 36];
     const drawTableHeader = () => {
       pdf.setFontSize(9);
@@ -9656,6 +9723,83 @@ async function exportHonorPDF() {
       });
       pdf.setFont(undefined, 'normal');
       y += 7;
+    }
+
+    // ══════════════════ RINCIAN PERTEMUAN PER GURU (BARU) ══════════════════
+    // Ditambahkan di bagian bawah supaya total honor per guru bisa
+    // ditelusuri sampai ke tiap pertemuan (tanggal, kelas, mapel, honor
+    // per sesi) -- bukan cuma angka jadi di tabel rekap di atas. Sumber
+    // datanya g.rincian per guru dari getRekapHonorSemuaGuru() (sudah
+    // difilter bulan/tahun yang sama), dan totalRupiah di tabel rekap di
+    // atas SELALU sama dengan jumlah kolom Honor di rincian ini karena
+    // dihitung dari data yang persis sama di server (bukan dihitung
+    // ulang terpisah), jadi jumlah pertemuan × honor per sesi = total.
+    const guruDenganSesi = d.rekap.filter(g => (g.rincian || []).length > 0);
+    if (guruDenganSesi.length) {
+      drawFooterBase();
+      pdf.addPage();
+      drawKopSurat();
+      y = 33;
+      pdf.setFontSize(12);
+      pdf.setTextColor(20,20,20);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('RINCIAN PERTEMUAN PER GURU', marginX, y);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(110,110,110);
+      pdf.text(`Periode: ${namaBulan} ${d.tahun} — total honor tiap guru = jumlah honor semua pertemuan di bawah ini.`, marginX, y + 5);
+      y += 13;
+
+      const rHeaders = ['No','Tanggal','Hari','Kelas','Mapel','Honor'];
+      const rColW = [10, 26, 22, 30, 50, 30];
+      const drawRincianHeader = () => {
+        pdf.setFontSize(8.5);
+        rHeaders.forEach((h, i) => {
+          const x = rColW.slice(0,i).reduce((a,b)=>a+b, marginX);
+          pdf.setFillColor(96,125,139);
+          pdf.setTextColor(255,255,255);
+          pdf.rect(x, y-4, rColW[i], 6.5, 'F');
+          pdf.text(h, x+1, y);
+        });
+        y += 6.5;
+        pdf.setTextColor(0,0,0);
+      };
+
+      guruDenganSesi.forEach(g => {
+        // Nama guru sebagai sub-judul -- dorong ke halaman baru kalau
+        // ruang tersisa tidak cukup untuk judul + minimal 1 baris data.
+        if (y > pageBottom - 16) {
+          drawFooterBase();
+          pdf.addPage();
+          drawKopSurat();
+          y = 33;
+        }
+        pdf.setFontSize(9.5);
+        pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(21,101,192);
+        pdf.text(`${g.nama}  —  ${g.totalSesi} pertemuan  —  ${fmtRupiah(g.totalRupiah)}`, marginX, y);
+        pdf.setFont(undefined, 'normal');
+        y += 6;
+        drawRincianHeader();
+        g.rincian.forEach((r, idx) => {
+          const vals = [String(idx+1), r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', fmtRupiah(r.rupiah)];
+          if (idx % 2 === 0) { pdf.setFillColor(245,247,249); pdf.rect(marginX, y-4, rColW.reduce((a,b)=>a+b,0), 6.5, 'F'); }
+          pdf.setFontSize(8); pdf.setTextColor(0,0,0);
+          vals.forEach((v, i) => {
+            const x = rColW.slice(0,i).reduce((a,b)=>a+b, marginX);
+            pdf.text(String(v).substring(0,26), x+1, y);
+          });
+          y += 6.5;
+          if (y > pageBottom) {
+            drawFooterBase();
+            pdf.addPage();
+            drawKopSurat();
+            y = 33;
+            drawRincianHeader();
+          }
+        });
+        y += 6; // jarak antar guru
+      });
     }
 
     // ── Blok tanda tangan -- dorong ke halaman baru kalau ruang tersisa

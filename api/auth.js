@@ -152,7 +152,14 @@ async function login({ username, password }) {
       return {
         success: true, role: guruData.role === 'kepsek' ? 'kepsek' : 'guru',
         id: guruData.id, nama: guruData.nama,
-        jabatan: guruData.jabatan, username, qrToken
+        jabatan: guruData.jabatan, username, qrToken,
+        // BARU: tugas tambahan Bendahara -- ORTOGONAL dari `role` di atas
+        // (lihat catatan kolom is_bendahara di schema.sql). Dipakai
+        // frontend untuk memunculkan menu "Honor Mengajar" tambahan di
+        // akun guru/kepsek biasa, TAPI otorisasi sesungguhnya tetap
+        // diperiksa ulang di server (api/mengajar.js), bukan cuma
+        // mengandalkan flag ini dikirim balik oleh klien.
+        isBendahara: !!guruData.is_bendahara
       };
     }
   }

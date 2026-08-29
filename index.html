@@ -9667,8 +9667,13 @@ async function exportHonorPDF() {
     // ── Tabel rekap per guru -- digambar manual dengan primitif jsPDF
     // (proyek ini tidak memuat plugin jspdf-autotable), pola & gaya
     // mengikuti exportEvaluasiPDF()/downloadPDFPertemuan(). ──
-    const headers = ['No','Nama Guru','Sesi','Honor Bulan Ini','Belum Dibayar','Direset Terakhir'];
-    const colW = [10, 52, 16, 34, 34, 36];
+    // BARU: kolom honor digabung jadi satu ("Total Belum Dibayar" = akumulasi
+    // seluruh sesi sejak reset terakhir), bukan lagi 2 kolom terpisah
+    // ("Honor Bulan Ini" vs "Belum Dibayar") -- dulu membingungkan karena
+    // ada 2 angka honor berbeda per baris. Rincian per bulan tetap bisa
+    // ditelusuri di bagian RINCIAN PERTEMUAN PER GURU di halaman bawah.
+    const headers = ['No','Nama Guru','Sesi','Total Belum Dibayar','Direset Terakhir'];
+    const colW = [10, 58, 16, 50, 48];
     const drawTableHeader = () => {
       pdf.setFontSize(9);
       headers.forEach((h, i) => {
@@ -9691,14 +9696,14 @@ async function exportHonorPDF() {
       d.rekap.forEach((g, idx) => {
         const vals = [
           String(idx+1), g.nama, String(g.totalSesi),
-          fmtRupiah(g.totalRupiah), fmtRupiah(g.totalRupiahKeseluruhan),
+          fmtRupiah(g.totalRupiahKeseluruhan),
           g.terakhirDireset || '-'
         ];
         if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
         pdf.setFontSize(8.5);
         vals.forEach((v, i) => {
           const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
-          pdf.setTextColor(i === 4 ? 46 : 0, i === 4 ? 125 : 0, i === 4 ? 50 : 0);
+          pdf.setTextColor(i === 3 ? 46 : 0, i === 3 ? 125 : 0, i === 3 ? 50 : 0);
           pdf.text(String(v).substring(0,30), x+1, y);
         });
         y += 7;
@@ -9716,7 +9721,7 @@ async function exportHonorPDF() {
       pdf.setFillColor(21,101,192);
       pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F');
       pdf.setFontSize(8.5); pdf.setFont(undefined, 'bold'); pdf.setTextColor(255,255,255);
-      const totalVals = ['', 'TOTAL', String(d.rekap.reduce((a,g)=>a+g.totalSesi,0)), fmtRupiah(d.totalRupiahSemuaGuru), fmtRupiah(d.totalRupiahKeseluruhanSemuaGuru), ''];
+      const totalVals = ['', 'TOTAL', String(d.rekap.reduce((a,g)=>a+g.totalSesi,0)), fmtRupiah(d.totalRupiahKeseluruhanSemuaGuru), ''];
       totalVals.forEach((v, i) => {
         const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
         pdf.text(String(v), x+1, y);
@@ -9726,14 +9731,13 @@ async function exportHonorPDF() {
     }
 
     // ══════════════════ RINCIAN PERTEMUAN PER GURU (BARU) ══════════════════
-    // Ditambahkan di bagian bawah supaya total honor per guru bisa
-    // ditelusuri sampai ke tiap pertemuan (tanggal, kelas, mapel, honor
-    // per sesi) -- bukan cuma angka jadi di tabel rekap di atas. Sumber
-    // datanya g.rincian per guru dari getRekapHonorSemuaGuru() (sudah
-    // difilter bulan/tahun yang sama), dan totalRupiah di tabel rekap di
-    // atas SELALU sama dengan jumlah kolom Honor di rincian ini karena
-    // dihitung dari data yang persis sama di server (bukan dihitung
-    // ulang terpisah), jadi jumlah pertemuan × honor per sesi = total.
+    // Ditambahkan di bagian bawah supaya honor bulan berjalan per guru bisa
+    // ditelusuri sampai ke tiap pertemuan (tanggal, kelas, mapel, honor per
+    // sesi) -- kolom "Total Belum Dibayar" di tabel rekap di atas adalah
+    // akumulasi keseluruhan sejak reset terakhir (bisa lebih dari 1 bulan),
+    // jadi TIDAK selalu sama dengan jumlah kolom Honor di rincian ini yang
+    // difilter khusus bulan/tahun yang dipilih. Sumber datanya g.rincian per
+    // guru dari getRekapHonorSemuaGuru().
     const guruDenganSesi = d.rekap.filter(g => (g.rincian || []).length > 0);
     if (guruDenganSesi.length) {
       drawFooterBase();
@@ -9747,7 +9751,7 @@ async function exportHonorPDF() {
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(110,110,110);
-      pdf.text(`Periode: ${namaBulan} ${d.tahun} — total honor tiap guru = jumlah honor semua pertemuan di bawah ini.`, marginX, y + 5);
+      pdf.text(`Periode: ${namaBulan} ${d.tahun} — detail pertemuan bulan ini per guru. Kolom "Total Belum Dibayar" di halaman rekap mencakup seluruh sesi sejak reset terakhir, tidak hanya bulan ini.`, marginX, y + 5);
       y += 13;
 
       const rHeaders = ['No','Tanggal','Hari','Kelas','Mapel','Honor'];

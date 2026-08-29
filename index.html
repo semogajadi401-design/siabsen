@@ -230,6 +230,22 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 /* MODAL */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
 .modal-backdrop.open{display:flex}
+
+/* BARU: OVERLAY WAJIB UPDATE APLIKASI -- SENGAJA bukan .modal-backdrop
+   (lihat listener klik-di-luar & tombol Escape yang menutup SEMUA
+   .modal-backdrop.open di bagian bawah file ini) supaya overlay ini
+   tidak ikut ketutup oleh handler generik itu. z-index dibuat lebih
+   tinggi dari splash screen (99999) supaya benar-benar di atas segalanya,
+   termasuk splash & modal manapun yang kebetulan masih terbuka. Lihat
+   initCekVersiAplikasi() di bagian bawah kode JS untuk logikanya. */
+#appUpdateOverlay{position:fixed;inset:0;z-index:999999;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,0.85);backdrop-filter:blur(6px)}
+#appUpdateOverlay.show{display:flex}
+#appUpdateOverlay .auo-card{background:var(--surface);border-radius:20px;max-width:400px;width:100%;padding:32px 28px;text-align:center;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(0.4,0,0.2,1)}
+#appUpdateOverlay .auo-icon{font-size:2.6rem;margin-bottom:12px;animation:auoSpin 2.2s linear infinite}
+#appUpdateOverlay h3{font-size:1.15rem;font-weight:800;margin-bottom:8px;color:var(--text)}
+#appUpdateOverlay p{font-size:.87rem;color:var(--text-muted);margin-bottom:22px;line-height:1.5}
+#appUpdateOverlay button{width:100%;padding:13px;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;font-size:.92rem;box-shadow:0 4px 14px rgba(0,0,0,0.15)}
+@keyframes auoSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .modal{background:var(--surface);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(0.4,0,0.2,1)}
 .modal-lg{max-width:780px}
 .modal-sm{max-width:400px}
@@ -3437,6 +3453,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 120));
   }
 });
+
+// ════════════════════════════════════════════════════════════════
+// BARU: CEK VERSI APLIKASI -- begitu ada kode baru di-deploy ke server,
+// tab yang SUDAH terbuka tidak otomatis dapat kode terbaru (JS yang
+// sudah dimuat ke memori tab tidak berubah sendiri hanya karena file di
+// server berubah). Mekanisme ini mengecek file /version.json secara
+// berkala; kalau isinya beda dari versi yang dimuat tab ini pertama
+// kali, munculkan overlay PENUH LAYAR TANPA TOMBOL TUTUP (lihat markup
+// #appUpdateOverlay sebelum penutup </body> & CSS-nya di <head>) --
+// satu-satunya cara lanjut adalah klik "Refresh Sekarang".
+//
+// PENTING buat yang deploy kode baru: file /version.json di root repo
+// HARUS ikut diubah isinya (angka/teks apa saja, asal beda dari
+// sebelumnya) SETIAP KALI index.html/api/*.js ditimpa ke GitHub --
+// itulah pemicu notifikasi ini. Kalau lupa mengubah version.json, guru
+// TIDAK akan diberi tahu ada pembaruan meski kodenya sudah berubah.
+// ════════════════════════════════════════════════════════════════
+let APP_VERSION_DIMUAT = null;
+let _cekVersiInterval = null;
+
+async function ambilVersiServer() {
+  try {
+    // cache:'no-store' + query cache-buster -- dua lapis jaga-jaga supaya
+    // browser/proxy/CDN mana pun tidak pernah menyajikan file ini dari
+    // cache basi (lihat juga header Cache-Control no-cache khusus untuk
+    // /version.json di vercel.json).
+    const r = await fetch('/version.json?_=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.version ? String(j.version) : null;
+  } catch (e) {
+    return null; // offline/gagal fetch -- JANGAN dianggap "ada versi baru"
+  }
+}
+
+async function initCekVersiAplikasi() {
+  APP_VERSION_DIMUAT = await ambilVersiServer();
+  if (!APP_VERSION_DIMUAT) return; // gagal ambil versi awal -- interval di bawah tetap akan coba lagi
+
+  const cek = async () => {
+    const overlay = document.getElementById('appUpdateOverlay');
+    if (overlay.classList.contains('show')) return; // sudah tampil, tidak perlu cek ulang
+    const versiSekarang = await ambilVersiServer();
+    if (versiSekarang && versiSekarang !== APP_VERSION_DIMUAT) {
+      overlay.classList.add('show');
+      if (_cekVersiInterval) { clearInterval(_cekVersiInterval); _cekVersiInterval = null; }
+    }
+  };
+
+  // Cek berkala tiap 2 menit selama tab ini terbuka...
+  _cekVersiInterval = setInterval(cek, 2 * 60 * 1000);
+  // ...DAN setiap kali tab ini kembali aktif/terlihat (mis. guru sempat
+  // pindah ke tab/app lain lalu balik lagi) -- supaya tidak perlu
+  // menunggu sampai 2 menit kalau kebetulan baru saja balik ke tab ini.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') cek();
+  });
+}
+document.addEventListener('DOMContentLoaded', initCekVersiAplikasi);
 function showLoginError(msg){ const el=document.getElementById('loginError'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none',4000); }
 function setupUserUI(user) {
   document.getElementById('userName').textContent = user.nama;
@@ -9540,5 +9615,19 @@ async function loadHonorSaya() {
   </tr>`).join('');
 }
 </script>
+<!-- BARU: OVERLAY WAJIB UPDATE APLIKASI -- lihat catatan CSS #appUpdateOverlay
+     & initCekVersiAplikasi() di <script>. SENGAJA tidak ada tombol tutup/✕
+     sama sekali -- satu-satunya cara menghilangkan overlay ini adalah klik
+     "Refresh Sekarang" (yang me-reload halaman), sesuai permintaan: guru
+     tidak boleh punya cara lain selain refresh begitu ada kode baru
+     ter-deploy. -->
+<div id="appUpdateOverlay">
+  <div class="auo-card">
+    <div class="auo-icon">🔄</div>
+    <h3>Ada Pembaruan Aplikasi</h3>
+    <p>Aplikasi ini baru saja diperbarui oleh admin. Silakan refresh browser Anda untuk melanjutkan menggunakan versi terbaru — data yang sedang Anda kerjakan sebaiknya disimpan dulu sebelum refresh.</p>
+    <button onclick="location.reload()">🔄 Refresh Sekarang</button>
+  </div>
+</div>
 </body>
 </html>

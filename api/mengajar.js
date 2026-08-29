@@ -40,9 +40,17 @@ const handler = async (req, res) => {
   // dibaca (dan itu pun dibatasi lagi di masing-masing fungsi di bawah).
   const guruIdTerverifikasi = guruToken ? await resolveGuruIdFromToken(guruToken) : null;
   let roleTerverifikasi = null;
+  // BARU: tugas tambahan Bendahara (kolom guru.is_bendahara, ORTOGONAL
+  // dari role -- lihat catatan lengkap di schema.sql dan api/auth.js).
+  // Guru/kepsek dengan flag ini diperlakukan setara admin KHUSUS untuk
+  // seluruh action honor di bawah (bagian "HONOR MENGAJAR PER PERTEMUAN"),
+  // TIDAK untuk action lain di file ini (mis. tetap tidak bisa
+  // tambah/edit jadwal mengajar / jam pelajaran -- lihat AKSI_ADMIN_SAJA).
+  let bendaharaTerverifikasi = false;
   if (guruIdTerverifikasi) {
-    const { data: g } = await supabase.from('guru').select('role').eq('id', guruIdTerverifikasi).maybeSingle();
+    const { data: g } = await supabase.from('guru').select('role,is_bendahara').eq('id', guruIdTerverifikasi).maybeSingle();
     roleTerverifikasi = g ? (g.role || 'guru') : 'guru';
+    bendaharaTerverifikasi = !!(g && g.is_bendahara);
   }
 
   if (AKSI_ADMIN_SAJA.has(action)) {
@@ -70,19 +78,21 @@ const handler = async (req, res) => {
     if (action === 'getTarifAktif') return res.json(await getTarifAktif());
     if (action === 'getRiwayatTarif') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
         return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
       }
       return res.json(await getRiwayatTarif());
     }
+    // BARU: bendahara boleh mengatur tarif honor -- ini memang tugas
+    // intinya. Tetap TIDAK diberikan ke kepsek (read-only by design).
     if (action === 'setTarifHonor' || action === 'hapusTarifHonor') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+      if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
       return res.json(action === 'setTarifHonor' ? await setTarifHonor(params) : await hapusTarifHonor(params));
     }
     if (action === 'getRekapHonorGuru') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
         if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
           return res.status(403).json({ success: false, message: 'Tidak punya akses ke data guru ini.' });
         }
@@ -91,7 +101,7 @@ const handler = async (req, res) => {
     }
     if (action === 'getRekapHonorSemuaGuru') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
         return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
       }
       return res.json(await getRekapHonorSemuaGuru(params));
@@ -101,30 +111,31 @@ const handler = async (req, res) => {
     // atas fungsi getTotalHonorKeseluruhanGuru() di bawah.
     if (action === 'getTotalHonorKeseluruhan') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
         if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
           return res.status(403).json({ success: false, message: 'Tidak punya akses ke data guru ini.' });
         }
       }
       return res.json(await getTotalHonorKeseluruhanGuru(params));
     }
-    // BARU: reset honor guru -- khusus admin (bukan kepsek), supaya tidak
-    // tumpang tindih dengan honor yang sudah dibayarkan. Lihat catatan di
-    // atas fungsi resetHonorGuru() di bawah.
+    // BARU: reset honor guru -- admin ATAU bendahara (bukan kepsek,
+    // supaya tetap read-only), supaya tidak tumpang tindih dengan honor
+    // yang sudah dibayarkan. Lihat catatan di atas fungsi
+    // resetHonorGuru() di bawah.
     if (action === 'resetHonorGuru') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+      if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
       return res.json(await resetHonorGuru(params));
     }
-    // BARU: reset honor SEMUA guru sekaligus -- khusus admin.
+    // BARU: reset honor SEMUA guru sekaligus -- admin atau bendahara.
     if (action === 'resetHonorSemuaGuru') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor) return res.status(401).json({ success: false, message: 'Sesi admin tidak valid. Silakan login ulang.' });
+      if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
       return res.json(await resetHonorSemuaGuru(params));
     }
     if (action === 'getRiwayatResetHonor') {
       const adminValidHonor = await requireAdminToken(adminToken);
-      if (!adminValidHonor && roleTerverifikasi !== 'kepsek') {
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
         if (!guruIdTerverifikasi || guruIdTerverifikasi !== params.idGuru) {
           return res.status(403).json({ success: false, message: 'Tidak punya akses ke data guru ini.' });
         }
@@ -1912,8 +1923,14 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
 
   const [{ data: guruList }, { data: sesiHonor }, { data: sesiSemua }, daftarTarif, petaReset] = await Promise.all([
     supabase.from('guru').select('id,nama,role').neq('role', 'kepsek').order('nama', { ascending: true }),
-    supabase.from('absensi_mengajar').select('id_guru,nama_guru,tanggal')
-      .eq('kehadiran_lengkap', true).gte('tanggal', awalBulan).lte('tanggal', akhirBulan),
+    // BARU: tambah kolom hari/kelas/mapel -- sebelumnya cuma id_guru,
+    // nama_guru,tanggal (cukup untuk total agregat), sekarang juga
+    // dipakai untuk membangun rincian per pertemuan per guru di bawah
+    // (dipakai exportHonorPDF/Excel supaya total honor bisa ditelusuri
+    // sampai ke tiap pertemuan, bukan cuma angka jadi).
+    supabase.from('absensi_mengajar').select('id_guru,nama_guru,tanggal,hari,kelas,mapel')
+      .eq('kehadiran_lengkap', true).gte('tanggal', awalBulan).lte('tanggal', akhirBulan)
+      .order('tanggal', { ascending: true }),
     // BARU: dipakai utk kolom "Total Keseluruhan" -- semua sesi sepanjang
     // waktu (tidak difilter bulan), lihat catatan di getTotalHonorKeseluruhanGuru().
     supabase.from('absensi_mengajar').select('id_guru,tanggal').eq('kehadiran_lengkap', true),
@@ -1922,6 +1939,12 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
   ]);
 
   const perGuru = {};
+  // BARU: rincian per pertemuan per guru (tanggal, hari, kelas, mapel,
+  // rupiah) -- 1 baris per sesi yang kehadirannya lengkap di bulan yang
+  // dipilih. Dijumlah persis sama dengan totalRupiah/totalSesi di
+  // bawah, supaya total di rekap dan rincian per pertemuan selalu
+  // konsisten (satu sumber data yang sama, tidak dihitung ulang terpisah).
+  const rincianPerGuru = {};
   (sesiHonor || []).forEach(s => {
     const tanggal = String(s.tanggal).substring(0, 10);
     const tarif = cariTarifBerlaku(daftarTarif, tanggal);
@@ -1929,6 +1952,8 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
     if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
     perGuru[s.id_guru].totalSesi++;
     perGuru[s.id_guru].totalRupiah += rupiah;
+    if (!rincianPerGuru[s.id_guru]) rincianPerGuru[s.id_guru] = [];
+    rincianPerGuru[s.id_guru].push({ tanggal, hari: s.hari, kelas: s.kelas, mapel: s.mapel, rupiah });
   });
 
   const perGuruKeseluruhan = {};
@@ -1949,7 +1974,9 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
     totalRupiah: perGuru[g.id]?.totalRupiah || 0,
     totalSesiKeseluruhan: perGuruKeseluruhan[g.id]?.totalSesi || 0,
     totalRupiahKeseluruhan: perGuruKeseluruhan[g.id]?.totalRupiah || 0,
-    terakhirDireset: petaReset[g.id] || null
+    terakhirDireset: petaReset[g.id] || null,
+    // BARU: rincian pertemuan bulan ini -- lihat catatan di atas.
+    rincian: rincianPerGuru[g.id] || []
   }));
 
   return {

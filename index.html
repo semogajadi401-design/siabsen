@@ -1663,7 +1663,34 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
            (yang cuma dashboard evaluasi, bukan dasar gaji). Lihat
            api/honor.js untuk aturan lengkap. -->
       <div class="page" id="page-honorMengajar">
+        <!-- BARU: Mode Hitung Honor -- 'per_pertemuan' (lama, dikali jumlah
+             sesi lengkap) atau 'per_mapel_bulan' (flat per mapel per bulan,
+             semua kelas dgn mapel sama dihitung 1x). Lihat catatan lengkap
+             di api/mengajar.js (getModeHonor/setModeHonor). -->
         <div class="card">
+          <div class="card-header"><h3>⚙️ Mode Hitung Honor</h3></div>
+          <div class="card-body">
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <label style="flex:1;min-width:220px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;gap:10px;align-items:flex-start" id="honModeLabelPertemuan">
+                <input type="radio" name="honMode" value="per_pertemuan" id="honModePertemuan" onchange="ubahModeHonor()" style="margin-top:3px">
+                <span>
+                  <div style="font-weight:700">Per Pertemuan</div>
+                  <div style="font-size:.76rem;color:var(--text-muted)">Honor = tarif × jumlah sesi kehadiran_lengkap. Beda kelas/jam = dihitung terpisah.</div>
+                </span>
+              </label>
+              <label style="flex:1;min-width:220px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;gap:10px;align-items:flex-start" id="honModeLabelMapelBulan">
+                <input type="radio" name="honMode" value="per_mapel_bulan" id="honModeMapelBulan" onchange="ubahModeHonor()" style="margin-top:3px">
+                <span>
+                  <div style="font-weight:700">Per Mapel/Bulan</div>
+                  <div style="font-size:.76rem;color:var(--text-muted)">Honor flat per mapel per bulan. Mapel yang sama di kelas manapun (7A, 7B, 8A, dst) dihitung 1x.</div>
+                </span>
+              </label>
+            </div>
+            <div style="font-size:.7rem;color:var(--text-muted);margin-top:10px" id="honModeInfo"></div>
+          </div>
+        </div>
+
+        <div class="card" id="honCardTarifPertemuan">
           <div class="card-header"><h3>💰 Tarif Honor per Pertemuan</h3></div>
           <div class="card-body">
             <div id="honTarifAktifBox" style="background:var(--primary-pale);border-radius:12px;padding:16px;margin-bottom:16px">
@@ -1683,6 +1710,33 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             <div class="table-responsive"><table class="table-card-mobile">
               <thead><tr><th>Berlaku Mulai</th><th>Nilai</th><th>Keterangan</th><th>Status</th><th id="honKolomAksi" style="display:none">Aksi</th></tr></thead>
               <tbody id="honRiwayatTarifBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+
+        <!-- BARU: kartu tarif utk mode "Per Mapel/Bulan" -- ditampilkan
+             gantian dgn kartu di atas, tergantung mode aktif (lihat
+             terapkanModeHonorKeUI()). -->
+        <div class="card" id="honCardTarifMapelBulan" style="display:none">
+          <div class="card-header"><h3>💰 Tarif Honor per Mapel/Bulan</h3></div>
+          <div class="card-body">
+            <div id="honTarifMapelAktifBox" style="background:var(--primary-pale);border-radius:12px;padding:16px;margin-bottom:16px">
+              <div style="font-size:.78rem;color:var(--text-muted)">Tarif Aktif Saat Ini (flat / mapel / bulan)</div>
+              <div style="font-size:1.6rem;font-weight:800;color:var(--primary)" id="honTarifMapelAktifNilai">-</div>
+              <div style="font-size:.76rem;color:var(--text-muted)" id="honTarifMapelAktifInfo"></div>
+            </div>
+            <div id="honFormTarifMapelWrap" style="display:none">
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+                <div class="form-group" style="margin:0"><label>Nilai per Mapel/Bulan (Rp)</label><input type="number" class="form-control" id="honNilaiMapelBaru" style="width:180px" min="1" placeholder="mis. 200000"></div>
+                <div class="form-group" style="margin:0"><label>Berlaku Mulai</label><input type="date" class="form-control" id="honTanggalBerlakuMapel" style="width:170px"></div>
+                <div class="form-group" style="margin:0;flex:1;min-width:180px"><label>Keterangan (opsional)</label><input type="text" class="form-control" id="honKeteranganMapelBaru" placeholder="mis. semester genap"></div>
+                <button class="btn btn-primary btn-sm" onclick="simpanTarifHonorMapelBaru()">💾 Simpan</button>
+              </div>
+              <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:14px">Berlaku mulai hari ini/tanggal mendatang saja — tarif lama tetap dipakai untuk histori bulan sebelumnya. Nilai ini flat per mapel per bulan (semua kelas dgn mapel sama dihitung 1x).</div>
+            </div>
+            <div class="table-responsive"><table class="table-card-mobile">
+              <thead><tr><th>Berlaku Mulai</th><th>Nilai</th><th>Keterangan</th><th>Status</th><th id="honKolomAksiMapel" style="display:none">Aksi</th></tr></thead>
+              <tbody id="honRiwayatTarifMapelBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
         </div>
@@ -1715,7 +1769,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               </div>
             </div>
             <div class="table-responsive"><table class="table-card-mobile">
-              <thead><tr><th>Guru</th><th>Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th>Aksi</th></tr></thead>
+              <thead><tr><th>Guru</th><th id="honKolomSesiHeader">Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th>Aksi</th></tr></thead>
               <tbody id="honRekapSemuaGuruBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
@@ -1779,7 +1833,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">Total Honor Bulan Ini</div>
               </div>
               <div style="flex:1;min-width:140px;background:var(--surface2);border-radius:12px;padding:16px;text-align:center">
-                <div style="font-size:1.5rem;font-weight:800" id="hsTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)">Sesi Dihitung</div>
+                <div style="font-size:1.5rem;font-weight:800" id="hsTotalSesi">0</div><div style="font-size:.78rem;color:var(--text-muted)" id="hsTotalSesiLabel">Sesi Dihitung</div>
               </div>
               <!-- BARU: Total Honor Keseluruhan -- akumulasi semua bulan
                    sejak terakhir kali admin menekan "Reset Honor" (kalau
@@ -1794,7 +1848,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               ⚠️ Ada sesi yang belum bisa dihitung honornya karena admin belum menetapkan tarif yang berlaku di tanggal tersebut.
             </div>
             <div class="table-responsive"><table class="table-card-mobile">
-              <thead><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Honor</th></tr></thead>
+              <thead id="hsRincianHead"><tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Honor</th></tr></thead>
               <tbody id="hsRincianBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
             </div>
@@ -9576,12 +9630,53 @@ async function loadHalamanHonorMengajar() {
   const isAdmin = honorBolehKelola();
   document.getElementById('honFormTarifWrap').style.display = isAdmin ? '' : 'none';
   document.getElementById('honKolomAksi').style.display = isAdmin ? '' : 'none';
+  document.getElementById('honKolomAksiMapel').style.display = isAdmin ? '' : 'none';
   document.getElementById('honResetSemuaWrap').style.display = isAdmin ? 'flex' : 'none';
+  document.getElementById('honModePertemuan').disabled = !isAdmin;
+  document.getElementById('honModeMapelBulan').disabled = !isAdmin;
   if (isAdmin) {
     const tgl = document.getElementById('honTanggalBerlaku');
     if (tgl && !tgl.value) tgl.value = todayStrClient();
+    const tglMapel = document.getElementById('honTanggalBerlakuMapel');
+    if (tglMapel && !tglMapel.value) tglMapel.value = todayStrClient();
   }
-  await Promise.all([loadTarifAktifDanRiwayat(), loadRekapHonorSemuaGuru()]);
+
+  // BARU: ambil mode aktif dulu, baru tentukan kartu tarif mana yang
+  // dimuat/ditampilkan -- lihat terapkanModeHonorKeUI().
+  const modeInfo = await api('mengajar', 'getModeHonor');
+  const mode = (modeInfo.success && modeInfo.mode) || 'per_pertemuan';
+  terapkanModeHonorKeUI(mode);
+
+  const tugasTarif = mode === 'per_mapel_bulan' ? loadTarifMapelAktifDanRiwayat() : loadTarifAktifDanRiwayat();
+  await Promise.all([tugasTarif, loadRekapHonorSemuaGuru()]);
+}
+
+// BARU: terapkan mode honor ('per_pertemuan' | 'per_mapel_bulan') ke
+// tampilan -- pilih radio yang aktif, tampilkan kartu tarif yang sesuai,
+// dan ganti label header kolom "Sesi"/"Mapel" di tabel rekap.
+function terapkanModeHonorKeUI(mode) {
+  document.getElementById('honModePertemuan').checked = mode === 'per_pertemuan';
+  document.getElementById('honModeMapelBulan').checked = mode === 'per_mapel_bulan';
+  document.getElementById('honCardTarifPertemuan').style.display = mode === 'per_mapel_bulan' ? 'none' : '';
+  document.getElementById('honCardTarifMapelBulan').style.display = mode === 'per_mapel_bulan' ? '' : 'none';
+  const headerSesi = document.getElementById('honKolomSesiHeader');
+  if (headerSesi) headerSesi.textContent = mode === 'per_mapel_bulan' ? 'Mapel' : 'Sesi';
+  const info = document.getElementById('honModeInfo');
+  if (info) {
+    info.textContent = mode === 'per_mapel_bulan'
+      ? 'Mode aktif: Per Mapel/Bulan — honor dihitung flat per mapel per bulan, semua kelas dgn mapel sama dianggap 1x.'
+      : 'Mode aktif: Per Pertemuan — honor dihitung per sesi yang kehadirannya lengkap.';
+  }
+}
+
+// BARU: dipanggil saat admin/bendahara mengganti pilihan mode honor.
+async function ubahModeHonor() {
+  if (!honorBolehKelola()) return;
+  const mode = document.getElementById('honModeMapelBulan').checked ? 'per_mapel_bulan' : 'per_pertemuan';
+  const result = await api('mengajar', 'setModeHonor', { mode });
+  if (!result.success) { toast(result.message, 'error'); await loadHalamanHonorMengajar(); return; }
+  toast(result.message, 'success');
+  await loadHalamanHonorMengajar();
 }
 
 // Tanggal hari ini (klien) format YYYY-MM-DD, untuk default input tanggal.
@@ -9649,6 +9744,68 @@ async function hapusTarifHonorRow(id) {
   await loadTarifAktifDanRiwayat();
 }
 
+// ── Tarif mode "Per Mapel/Bulan" (BARU) -- pasangan fungsi persis
+// seperti loadTarifAktifDanRiwayat/simpanTarifHonorBaru/hapusTarifHonorRow
+// di atas, cuma menunjuk ke action *MapelBulanan. ──
+async function loadTarifMapelAktifDanRiwayat() {
+  const [aktif, riwayat] = await Promise.all([
+    api('mengajar', 'getTarifAktifMapelBulanan'),
+    api('mengajar', 'getRiwayatTarifMapelBulanan')
+  ]);
+
+  if (aktif.success && aktif.ada) {
+    document.getElementById('honTarifMapelAktifNilai').textContent = fmtRupiah(aktif.nilai) + ' / mapel / bulan';
+    document.getElementById('honTarifMapelAktifInfo').textContent = `Berlaku sejak ${aktif.berlakuMulai}` + (aktif.keterangan ? ` — ${aktif.keterangan}` : '');
+  } else {
+    document.getElementById('honTarifMapelAktifNilai').textContent = 'Belum diset';
+    document.getElementById('honTarifMapelAktifInfo').textContent = honorBolehKelola() ? 'Isi form di bawah untuk mulai menghitung honor.' : 'Admin/bendahara belum menetapkan tarif honor.';
+  }
+
+  const tbody = document.getElementById('honRiwayatTarifMapelBody');
+  const isAdmin = honorBolehKelola();
+  if (!riwayat.success || !riwayat.riwayat.length) {
+    tbody.innerHTML = `<tr><td colspan="${isAdmin ? 5 : 4}" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada riwayat tarif</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = riwayat.riwayat.map(t => {
+    const badge = t.statusSaatIni === 'Terjadwal (belum berlaku)' ? 'badge-warning' : 'badge-success';
+    const aksi = (isAdmin && t.statusSaatIni === 'Terjadwal (belum berlaku)')
+      ? `<button class="btn btn-outline btn-sm" onclick="hapusTarifHonorMapelRow('${t.id}')">🗑️ Hapus</button>` : '-';
+    return `<tr>
+      <td data-label="Berlaku Mulai">${t.berlakuMulai}</td>
+      <td data-label="Nilai">${fmtRupiah(t.nilai)}</td>
+      <td data-label="Keterangan">${esc(t.keterangan || '-')}</td>
+      <td data-label="Status"><span class="badge ${badge}">${t.statusSaatIni}</span></td>
+      ${isAdmin ? `<td data-label="Aksi">${aksi}</td>` : ''}
+    </tr>`;
+  }).join('');
+}
+
+async function simpanTarifHonorMapelBaru() {
+  const nilai = document.getElementById('honNilaiMapelBaru').value;
+  const berlakuMulai = document.getElementById('honTanggalBerlakuMapel').value;
+  const keterangan = document.getElementById('honKeteranganMapelBaru').value;
+  if (!nilai || Number(nilai) <= 0) { toast('Isi nilai tarif yang valid', 'warning'); return; }
+  if (!berlakuMulai) { toast('Pilih tanggal berlaku', 'warning'); return; }
+
+  const result = await api('mengajar', 'setTarifHonorMapelBulanan', {
+    nilai, berlakuMulai, keterangan, namaAdmin: APP.user.nama || 'Admin'
+  });
+  if (!result.success) { toast(result.message, 'error'); return; }
+  toast(result.message, 'success');
+  document.getElementById('honNilaiMapelBaru').value = '';
+  document.getElementById('honKeteranganMapelBaru').value = '';
+  await Promise.all([loadTarifMapelAktifDanRiwayat(), loadRekapHonorSemuaGuru()]);
+}
+
+async function hapusTarifHonorMapelRow(id) {
+  if (!confirm('Hapus tarif terjadwal ini?')) return;
+  const result = await api('mengajar', 'hapusTarifHonorMapelBulanan', { id });
+  if (!result.success) { toast(result.message, 'error'); return; }
+  toast(result.message, 'success');
+  await loadTarifMapelAktifDanRiwayat();
+}
+
 async function loadRekapHonorSemuaGuru() {
   const bulan = document.getElementById('honBulan')?.value;
   const tahun = document.getElementById('honTahun')?.value;
@@ -9665,6 +9822,10 @@ async function loadRekapHonorSemuaGuru() {
   document.getElementById('honTotalSemuaGuru').textContent = fmtRupiah(result.totalRupiahSemuaGuru);
   document.getElementById('honTotalKeseluruhanSemuaGuru').textContent = fmtRupiah(result.totalRupiahKeseluruhanSemuaGuru);
 
+  // BARU: label kolom "Sesi"/"Mapel" mengikuti mode aktif -- sinkron dgn
+  // header <th id="honKolomSesiHeader"> yang diatur terapkanModeHonorKeUI().
+  const labelUnit = result.mode === 'per_mapel_bulan' ? 'Mapel' : 'Sesi';
+
   const isAdmin = honorBolehKelola();
   if (!result.rekap.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
@@ -9680,7 +9841,7 @@ async function loadRekapHonorSemuaGuru() {
       : '';
     return `<tr>
     <td data-label="Guru">${esc(g.nama)}</td>
-    <td data-label="Sesi">${g.totalSesi}</td>
+    <td data-label="${labelUnit}">${g.totalSesi}</td>
     <td data-label="Bulan Ini"><b>${fmtRupiah(g.totalRupiah)}</b></td>
     <td data-label="Belum Dibayar"><b style="color:#2e7d32">${fmtRupiah(g.totalRupiahKeseluruhan)}</b>${infoReset}</td>
     <td data-label="Aksi" style="white-space:nowrap">
@@ -9712,13 +9873,17 @@ function exportHonorExcel() {
   if (typeof XLSX === 'undefined') { toast('Library belum siap, coba lagi sebentar', 'warning'); return; }
   const d = window._honRekapData;
   if (!d || !d.rekap) { toast('Muat data rekap terlebih dahulu', 'warning'); return; }
+  // BARU: mode "per_mapel_bulan" -- label kolom & isi sheet rincian
+  // menyesuaikan (mapel/kelas/jumlah pertemuan, bukan tanggal/hari per sesi).
+  const isMapelBulan = d.mode === 'per_mapel_bulan';
+  const labelUnit = isMapelBulan ? 'Jumlah Mapel' : 'Jumlah Sesi';
 
   const namaBulan = NAMA_BULAN_HONOR[d.bulan - 1] || d.bulan;
   const rows = [
     [`Rekap Honor Mengajar Guru - ${namaBulan} ${d.tahun}`],
     [`Diunduh: ${new Date().toLocaleString('id-ID', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}`],
     [],
-    ['No','Nama Guru','Jumlah Sesi','Honor Bulan Ini (Rp)','Belum Dibayar / Keseluruhan (Rp)','Terakhir Direset']
+    ['No','Nama Guru',labelUnit,'Honor Bulan Ini (Rp)','Belum Dibayar / Keseluruhan (Rp)','Terakhir Direset']
   ];
   d.rekap.forEach((g, i) => {
     rows.push([i + 1, g.nama, g.totalSesi, g.totalRupiah, g.totalRupiahKeseluruhan, g.terakhirDireset || '-']);
@@ -9732,26 +9897,34 @@ function exportHonorExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap Honor Guru');
 
-  // BARU: sheet ke-2 -- rincian tiap pertemuan (bukan cuma total jadi),
-  // supaya total honor bulan ini bisa ditelusuri per sesi/pertemuan.
-  // Sumber datanya g.rincian per guru dari getRekapHonorSemuaGuru(),
+  // BARU: sheet ke-2 -- rincian tiap pertemuan (mode per_pertemuan) atau
+  // tiap mapel (mode per_mapel_bulan), supaya total honor bulan ini bisa
+  // ditelusuri. Sumber datanya g.rincian per guru dari getRekapHonorSemuaGuru(),
   // sudah difilter bulan/tahun yang sama dengan sheet rekap di atas.
-  const rincianRows = [
-    [`Rincian Pertemuan - ${namaBulan} ${d.tahun}`],
-    [],
-    ['No','Nama Guru','Tanggal','Hari','Kelas','Mapel','Honor (Rp)']
-  ];
+  const rincianRows = isMapelBulan
+    ? [[`Rincian per Mapel - ${namaBulan} ${d.tahun}`], [], ['No','Nama Guru','Mapel','Kelas Diajar','Jumlah Pertemuan','Honor (Rp)']]
+    : [[`Rincian Pertemuan - ${namaBulan} ${d.tahun}`], [], ['No','Nama Guru','Tanggal','Hari','Kelas','Mapel','Honor (Rp)']];
   let noRincian = 1;
   d.rekap.forEach(g => {
     (g.rincian || []).forEach(r => {
-      rincianRows.push([noRincian++, g.nama, r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', r.rupiah]);
+      if (isMapelBulan) {
+        rincianRows.push([noRincian++, g.nama, r.mapel, r.kelas || '-', r.jumlahPertemuan, r.rupiah]);
+      } else {
+        rincianRows.push([noRincian++, g.nama, r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', r.rupiah]);
+      }
     });
   });
-  if (noRincian === 1) rincianRows.push(['', 'Belum ada pertemuan yang terhitung honornya bulan ini.', '', '', '', '', '']);
+  if (noRincian === 1) {
+    rincianRows.push(isMapelBulan
+      ? ['', 'Belum ada mapel yang terhitung honornya bulan ini.', '', '', '', '']
+      : ['', 'Belum ada pertemuan yang terhitung honornya bulan ini.', '', '', '', '', '']);
+  }
   const wsRincian = XLSX.utils.aoa_to_sheet(rincianRows);
-  wsRincian['!cols'] = [{ wch: 5 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 16 }];
-  wsRincian['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c:6 } }];
-  XLSX.utils.book_append_sheet(wb, wsRincian, 'Rincian Pertemuan');
+  wsRincian['!cols'] = isMapelBulan
+    ? [{ wch: 5 }, { wch: 26 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 16 }]
+    : [{ wch: 5 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 16 }];
+  wsRincian['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c: isMapelBulan ? 5 : 6 } }];
+  XLSX.utils.book_append_sheet(wb, wsRincian, isMapelBulan ? 'Rincian per Mapel' : 'Rincian Pertemuan');
 
   XLSX.writeFile(wb, `Rekap_Honor_Guru_${namaBulan}_${d.tahun}.xlsx`.replace(/\s+/g, '_'));
   toast('Excel berhasil didownload', 'success');
@@ -9844,7 +10017,9 @@ async function exportHonorPDF() {
     // ("Honor Bulan Ini" vs "Belum Dibayar") -- dulu membingungkan karena
     // ada 2 angka honor berbeda per baris. Rincian per bulan tetap bisa
     // ditelusuri di bagian RINCIAN PERTEMUAN PER GURU di halaman bawah.
-    const headers = ['No','Nama Guru','Sesi','Total Belum Dibayar','Direset Terakhir'];
+    const headers = d.mode === 'per_mapel_bulan'
+      ? ['No','Nama Guru','Mapel','Total Belum Dibayar','Direset Terakhir']
+      : ['No','Nama Guru','Sesi','Total Belum Dibayar','Direset Terakhir'];
     const colW = [10, 58, 16, 50, 48];
     const drawTableHeader = () => {
       pdf.setFontSize(9);
@@ -9902,14 +10077,17 @@ async function exportHonorPDF() {
       y += 7;
     }
 
-    // ══════════════════ RINCIAN PERTEMUAN PER GURU (BARU) ══════════════════
+    // ══════════════════ RINCIAN PERTEMUAN/MAPEL PER GURU (BARU) ══════════════════
     // Ditambahkan di bagian bawah supaya honor bulan berjalan per guru bisa
-    // ditelusuri sampai ke tiap pertemuan (tanggal, kelas, mapel, honor per
-    // sesi) -- kolom "Total Belum Dibayar" di tabel rekap di atas adalah
-    // akumulasi keseluruhan sejak reset terakhir (bisa lebih dari 1 bulan),
-    // jadi TIDAK selalu sama dengan jumlah kolom Honor di rincian ini yang
-    // difilter khusus bulan/tahun yang dipilih. Sumber datanya g.rincian per
-    // guru dari getRekapHonorSemuaGuru().
+    // ditelusuri sampai ke tiap pertemuan (mode per_pertemuan: tanggal, kelas,
+    // mapel, honor per sesi) atau tiap mapel (mode per_mapel_bulan: mapel,
+    // kelas diajar, jumlah pertemuan, honor flat) -- kolom "Total Belum
+    // Dibayar" di tabel rekap di atas adalah akumulasi keseluruhan sejak
+    // reset terakhir (bisa lebih dari 1 bulan), jadi TIDAK selalu sama
+    // dengan jumlah kolom Honor di rincian ini yang difilter khusus
+    // bulan/tahun yang dipilih. Sumber datanya g.rincian per guru dari
+    // getRekapHonorSemuaGuru().
+    const isMapelBulanPDF = d.mode === 'per_mapel_bulan';
     const guruDenganSesi = d.rekap.filter(g => (g.rincian || []).length > 0);
     if (guruDenganSesi.length) {
       drawFooterBase();
@@ -9919,15 +10097,17 @@ async function exportHonorPDF() {
       pdf.setFontSize(12);
       pdf.setTextColor(20,20,20);
       pdf.setFont(undefined, 'bold');
-      pdf.text('RINCIAN PERTEMUAN PER GURU', marginX, y);
+      pdf.text(isMapelBulanPDF ? 'RINCIAN MAPEL PER GURU' : 'RINCIAN PERTEMUAN PER GURU', marginX, y);
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(110,110,110);
-      pdf.text(`Periode: ${namaBulan} ${d.tahun} — detail pertemuan bulan ini per guru. Kolom "Total Belum Dibayar" di halaman rekap mencakup seluruh sesi sejak reset terakhir, tidak hanya bulan ini.`, marginX, y + 5);
+      pdf.text(`Periode: ${namaBulan} ${d.tahun} — detail ${isMapelBulanPDF ? 'mapel' : 'pertemuan'} bulan ini per guru. Kolom "Total Belum Dibayar" di halaman rekap mencakup seluruh sesi sejak reset terakhir, tidak hanya bulan ini.`, marginX, y + 5);
       y += 13;
 
-      const rHeaders = ['No','Tanggal','Hari','Kelas','Mapel','Honor'];
-      const rColW = [10, 26, 22, 30, 50, 30];
+      const rHeaders = isMapelBulanPDF
+        ? ['No','Mapel','Kelas Diajar','Jml Pertemuan','Honor']
+        : ['No','Tanggal','Hari','Kelas','Mapel','Honor'];
+      const rColW = isMapelBulanPDF ? [10, 40, 58, 30, 30] : [10, 26, 22, 30, 50, 30];
       const drawRincianHeader = () => {
         pdf.setFontSize(8.5);
         rHeaders.forEach((h, i) => {
@@ -9953,12 +10133,14 @@ async function exportHonorPDF() {
         pdf.setFontSize(9.5);
         pdf.setFont(undefined, 'bold');
         pdf.setTextColor(21,101,192);
-        pdf.text(`${g.nama}  —  ${g.totalSesi} pertemuan  —  ${fmtRupiah(g.totalRupiah)}`, marginX, y);
+        pdf.text(`${g.nama}  —  ${g.totalSesi} ${isMapelBulanPDF ? 'mapel' : 'pertemuan'}  —  ${fmtRupiah(g.totalRupiah)}`, marginX, y);
         pdf.setFont(undefined, 'normal');
         y += 6;
         drawRincianHeader();
         g.rincian.forEach((r, idx) => {
-          const vals = [String(idx+1), r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', fmtRupiah(r.rupiah)];
+          const vals = isMapelBulanPDF
+            ? [String(idx+1), r.mapel || '-', r.kelas || '-', String(r.jumlahPertemuan), fmtRupiah(r.rupiah)]
+            : [String(idx+1), r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', fmtRupiah(r.rupiah)];
           if (idx % 2 === 0) { pdf.setFillColor(245,247,249); pdf.rect(marginX, y-4, rColW.reduce((a,b)=>a+b,0), 6.5, 'F'); }
           pdf.setFontSize(8); pdf.setTextColor(0,0,0);
           vals.forEach((v, i) => {
@@ -10044,13 +10226,18 @@ async function lihatDetailHonorGuru(idGuru, nama) {
   const result = await api('mengajar', 'getRekapHonorGuru', { idGuru, bulan, tahun });
   if (!result.success) { toast(result.message, 'error'); return; }
 
-  const baris = result.rincian.map(r =>
-    `${r.tanggal} (${r.hari}) — ${r.kelas} / ${r.mapel} — ${fmtRupiah(r.rupiah)}`
-  ).join('\n');
+  // BARU: mode "per_mapel_bulan" -- rincian berbentuk per mapel (bukan
+  // per sesi), lihat kelompokkanHonorPerMapelBulan() di api/mengajar.js.
+  const isMapelBulan = result.mode === 'per_mapel_bulan';
+  const baris = isMapelBulan
+    ? result.rincian.map(r => `${r.mapel} (${r.jumlahPertemuan}x pertemuan, kelas: ${r.kelas}) — ${fmtRupiah(r.rupiah)}`).join('\n')
+    : result.rincian.map(r => `${r.tanggal} (${r.hari}) — ${r.kelas} / ${r.mapel} — ${fmtRupiah(r.rupiah)}`).join('\n');
+  const jumlahUnit = isMapelBulan ? result.totalMapelHonor : result.totalSesiHonor;
+  const labelUnit = isMapelBulan ? 'mapel' : 'sesi';
   const isi = result.rincian.length
-    ? `Rincian honor ${nama} — ${result.bulan}/${result.tahun}\n\n${baris}\n\nTotal: ${fmtRupiah(result.totalRupiah)} (${result.totalSesiHonor} sesi)`
-        + (result.sesiTanpaTarif ? `\n\n⚠️ ${result.sesiTanpaTarif} sesi belum terhitung karena belum ada tarif yang berlaku saat itu.` : '')
-    : `${nama} belum punya sesi yang terhitung honornya pada ${result.bulan}/${result.tahun}.`;
+    ? `Rincian honor ${nama} — ${result.bulan}/${result.tahun}\n\n${baris}\n\nTotal: ${fmtRupiah(result.totalRupiah)} (${jumlahUnit} ${labelUnit})`
+        + (result.sesiTanpaTarif ? `\n\n⚠️ ${result.sesiTanpaTarif} ${labelUnit} belum terhitung karena belum ada tarif yang berlaku saat itu.` : '')
+    : `${nama} belum punya ${labelUnit} yang terhitung honornya pada ${result.bulan}/${result.tahun}.`;
   alert(isi);
 }
 
@@ -10128,8 +10315,16 @@ async function loadHonorSaya() {
 
   if (!result.success) { toast(result.message, 'error'); return; }
 
+  // BARU: mode "per_mapel_bulan" -- unit hitungannya "mapel" (totalMapelHonor),
+  // bukan "sesi" (totalSesiHonor). Header tabel & kolom rincian juga
+  // menyesuaikan (lihat thead#hsRincianHead).
+  const isMapelBulan = result.mode === 'per_mapel_bulan';
+  const jumlahUnit = isMapelBulan ? result.totalMapelHonor : result.totalSesiHonor;
+
   animateCountUp(document.getElementById('hsTotalRupiah'), result.totalRupiah || 0, fmtRupiah);
-  animateCountUp(document.getElementById('hsTotalSesi'), result.totalSesiHonor || 0, n => n);
+  animateCountUp(document.getElementById('hsTotalSesi'), jumlahUnit || 0, n => n);
+  const labelSesi = document.getElementById('hsTotalSesiLabel');
+  if (labelSesi) labelSesi.textContent = isMapelBulan ? 'Mapel Dihitung' : 'Sesi Dihitung';
   document.getElementById('hsPeringatanTarif').style.display = result.sesiTanpaTarif ? 'block' : 'none';
 
   if (keseluruhan.success) {
@@ -10139,18 +10334,37 @@ async function loadHonorSaya() {
       : 'Sejak awal (belum pernah direset admin)';
   }
 
+  // BARU: header tabel rincian ikut mode -- per pertemuan (Tanggal/Hari/
+  // Kelas/Mapel/Honor) vs per mapel/bulan (Mapel/Kelas Diajar/Jumlah
+  // Pertemuan/Honor).
+  const thead = document.getElementById('hsRincianHead');
+  if (thead) {
+    thead.innerHTML = isMapelBulan
+      ? '<tr><th>Mapel</th><th>Kelas Diajar</th><th>Jumlah Pertemuan</th><th>Honor</th></tr>'
+      : '<tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Honor</th></tr>';
+  }
+
   const tbody = document.getElementById('hsRincianBody');
+  const colspan = isMapelBulan ? 4 : 5;
   if (!result.rincian.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada sesi yang terhitung honornya pada periode ini</td></tr>';
+    const pesan = isMapelBulan ? 'Belum ada mapel yang terhitung honornya pada periode ini' : 'Belum ada sesi yang terhitung honornya pada periode ini';
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:30px;color:var(--text-muted)">${pesan}</td></tr>`;
     return;
   }
-  tbody.innerHTML = result.rincian.map((r, i) => `<tr class="hs-row-in" style="animation-delay:${Math.min(i * 45, 400)}ms">
-    <td data-label="Tanggal">${r.tanggal}</td>
-    <td data-label="Hari">${r.hari || '-'}</td>
-    <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
-    <td data-label="Mapel">${esc(r.mapel)}</td>
-    <td data-label="Honor">${r.tarifSaatItu === null ? '<span class="badge badge-warning">Belum ada tarif</span>' : fmtRupiah(r.rupiah)}</td>
-  </tr>`).join('');
+  tbody.innerHTML = isMapelBulan
+    ? result.rincian.map((r, i) => `<tr class="hs-row-in" style="animation-delay:${Math.min(i * 45, 400)}ms">
+        <td data-label="Mapel">${esc(r.mapel)}</td>
+        <td data-label="Kelas Diajar"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
+        <td data-label="Jumlah Pertemuan">${r.jumlahPertemuan}</td>
+        <td data-label="Honor">${r.tarifSaatItu === null ? '<span class="badge badge-warning">Belum ada tarif</span>' : fmtRupiah(r.rupiah)}</td>
+      </tr>`).join('')
+    : result.rincian.map((r, i) => `<tr class="hs-row-in" style="animation-delay:${Math.min(i * 45, 400)}ms">
+        <td data-label="Tanggal">${r.tanggal}</td>
+        <td data-label="Hari">${r.hari || '-'}</td>
+        <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
+        <td data-label="Mapel">${esc(r.mapel)}</td>
+        <td data-label="Honor">${r.tarifSaatItu === null ? '<span class="badge badge-warning">Belum ada tarif</span>' : fmtRupiah(r.rupiah)}</td>
+      </tr>`).join('');
 }
 </script>
 <!-- BARU: OVERLAY WAJIB UPDATE APLIKASI -- lihat catatan CSS #appUpdateOverlay

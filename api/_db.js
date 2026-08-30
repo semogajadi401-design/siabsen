@@ -1458,6 +1458,8 @@ module.exports = {
   fetchAllRows,
   // ── TAMBAHAN BARU (fitur "Ranking Izin & Alpha" di drawer scan.html) ──
   getRankingIzinAlpha,
+  // ── TAMBAHAN BARU (popup "Laporan Hari Sebelumnya" sekali/hari di scan.html) ──
+  getLaporanHariSebelumnya,
   // ── TAMBAHAN BARU (PERBAIKAN EGRESS: gambar libur ditarik terpisah) ──
   getGambarLibur
 };
@@ -1615,6 +1617,81 @@ async function requireAdminToken(token) {
     .eq('qr_token', String(token).trim())
     .limit(1);
   return !!(data && data.length > 0);
+}
+
+// ── LAPORAN HARI SEKOLAH SEBELUMNYA (BARU) ──────────────────────────
+// Dipakai popup "sekali tampil per hari" begitu kiosk scan.html dibuka --
+// lihat cekLaporanHariSebelumnya() di scan.html. Menampilkan 2 hal dari
+// hari sekolah TERAKHIR sebelum hari ini:
+//   1. guruTidakMengajar -- guru yang punya jadwal mengajar di hari itu
+//      tapi TIDAK ADA baris absensi_mengajar yang cocok (id_jadwal_
+//      mengajar) sama sekali -- artinya sesi itu tidak pernah discan/
+//      tercatat, bukan cuma terlambat.
+//   2. siswaAlpa -- siswa aktif yang di tanggal itu tidak punya baris di
+//      absensi (tidak scan sama sekali) DAN tidak ada keterangan sakit/
+//      izin di keterangan_absensi.
+//
+// "Hari sekolah sebelumnya" BUKAN selalu kemarin: kalau kemarin hari
+// libur (kalender ATAU memang tidak aktif di Pengaturan Hari Kerja),
+// mundur terus sampai ketemu hari yang benar-benar hari sekolah -- sama
+// aturannya dengan getJadwalUntukTanggal() (api/scan.js). Dibatasi
+// mundur maksimal 14 hari sebagai pengaman (misal semua hari kebetulan
+// disetel libur) supaya tidak query tanpa henti.
+async function getLaporanHariSebelumnya() {
+  const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
+    'Agustus','September','Oktober','November','Desember'];
+
+  let cursor = new Date(witaNow().getTime() - 24 * 60 * 60 * 1000); // mulai dari kemarin
+  let tanggal = '', hari = '', ditemukan = false;
+  for (let i = 0; i < 14; i++) {
+    tanggal = cursor.toISOString().split('T')[0];
+    hari = HARI[cursor.getDay()]; // .getDay() (bukan getUTCDay) -- konsisten dgn hariIni()
+    const cekLibur  = await isHariLibur(tanggal);
+    const hariAktif = !cekLibur.libur && await isHariKerja(hari);
+    if (hariAktif) { ditemukan = true; break; }
+    cursor = new Date(cursor.getTime() - 24 * 60 * 60 * 1000);
+  }
+  if (!ditemukan) {
+    return { success: true, adaHariSekolah: false, tanggal: null, tanggalFormatted: null,
+      guruTidakMengajar: [], siswaAlpa: [] };
+  }
+
+  // Parse ulang sebagai UTC murni khusus untuk format tampilan -- lepas
+  // dari ambiguitas local/UTC witaNow() di atas, supaya tanggal yang
+  // ditampilkan dijamin sama persis dengan `tanggal` (YYYY-MM-DD) yang
+  // dipakai query.
+  const tObj = new Date(tanggal + 'T00:00:00Z');
+  const tanggalFormatted = `${hari}, ${tObj.getUTCDate()} ${NAMA_BULAN[tObj.getUTCMonth()]} ${tObj.getUTCFullYear()}`;
+
+  const [
+    { data: jadwalMengajar },
+    { data: absensiMengajar },
+    { data: siswaAktif },
+    { data: absenSiswa },
+    { data: ketSiswa }
+  ] = await Promise.all([
+    supabase.from('jadwal_mengajar').select('id,nama_guru,kelas,mapel').eq('hari', hari),
+    supabase.from('absensi_mengajar').select('id_jadwal_mengajar').eq('tanggal', tanggal),
+    supabase.from('siswa').select('id,nama,kelas').eq('status', 'Aktif'),
+    supabase.from('absensi').select('id_siswa').eq('tanggal', tanggal),
+    supabase.from('keterangan_absensi').select('id_siswa').eq('tanggal', tanggal)
+  ]);
+
+  const idJadwalTercatat = new Set((absensiMengajar || []).map(a => a.id_jadwal_mengajar));
+  const guruTidakMengajar = (jadwalMengajar || [])
+    .filter(j => !idJadwalTercatat.has(j.id))
+    .map(j => ({ namaGuru: j.nama_guru, kelas: j.kelas, mapel: j.mapel }))
+    .sort((a, b) => (a.namaGuru || '').localeCompare(b.namaGuru || '') || (a.kelas || '').localeCompare(b.kelas || ''));
+
+  const idHadir = new Set((absenSiswa || []).map(a => a.id_siswa));
+  const idKet   = new Set((ketSiswa   || []).map(k => k.id_siswa));
+  const siswaAlpa = (siswaAktif || [])
+    .filter(s => !idHadir.has(s.id) && !idKet.has(s.id))
+    .map(s => ({ nama: s.nama, kelas: s.kelas }))
+    .sort((a, b) => (a.kelas || '').localeCompare(b.kelas || '') || (a.nama || '').localeCompare(b.nama || ''));
+
+  return { success: true, adaHariSekolah: true, tanggal, hari, tanggalFormatted, guruTidakMengajar, siswaAlpa };
 }
 
 // ── RANKING IZIN + ALPHA (BARU) ────────────────────────────────────

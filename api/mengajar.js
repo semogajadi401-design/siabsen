@@ -1754,8 +1754,26 @@ async function getRekapKehadiranSiswaMapel({ idGuru, mapel, kelas, bulan, tahun 
     };
   });
 
+  // PERBAIKAN BUG: sebelumnya "Total Pertemuan" & "% Hadir" per siswa
+  // dihitung dari r.total -- yaitu jumlah baris kehadiran_siswa_mapel
+  // milik siswa itu SENDIRI. Kalau siswa tidak tercatat sama sekali di
+  // suatu sesi (misalnya sesi itu belum diabsen lengkap oleh guru dan dia
+  // "kelewat" -- beda dengan ditandai Alpa), r.total ikut lebih kecil,
+  // sehingga persentasenya dihitung terhadap penyebut yang salah dan bisa
+  // tampil 100% padahal siswa itu sebenarnya tidak hadir di sebagian
+  // pertemuan. Sekarang penyebutnya disamakan untuk semua siswa: jumlah
+  // pertemuan sesungguhnya untuk mapel & kelas ini (pertemuan.length) --
+  // sama seperti perbaikan yang sudah dilakukan di halaman Evaluasi
+  // Kehadiran (lihat komentar "PERBAIKAN BUG" di renderEvaluasi()).
+  const totalPertemuanKelas = pertemuan.length;
+
   const rangkumanSiswa = Array.from(rekapSiswa.values())
-    .map(r => ({ ...r, persentaseHadir: r.total > 0 ? Math.round((r.hadir / r.total) * 1000) / 10 : null }))
+    .map(r => ({
+      ...r,
+      jumlahTercatat: r.total, // disimpan kalau suatu saat berguna, bukan lagi dipakai sbg penyebut
+      total: totalPertemuanKelas,
+      persentaseHadir: totalPertemuanKelas > 0 ? Math.round((r.hadir / totalPertemuanKelas) * 1000) / 10 : null
+    }))
     .sort((a, b) => a.nama.localeCompare(b.nama));
 
   return {

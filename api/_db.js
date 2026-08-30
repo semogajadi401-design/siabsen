@@ -729,22 +729,32 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
     };
   }
 
-  const { data: jadwalHariIni } = await supabase
-    .from('jadwal_piket')
-    .select('id_guru,nama_guru')
-    .eq('hari', hari);
+  // PERBAIKAN PERFORMA: query `sesi_piket` (buat tahu siapa saja yang
+  // sudah scan piket hari ini) DIPINDAH ke sini -- dijalankan PARALEL
+  // bareng query `jadwal_piket` lewat Promise.all, bukan menunggu hasil
+  // jadwal_piket dulu baru menyusul (dan dulu malah SAMA SEKALI tidak
+  // ditembak kalau ternyata tidak ada jadwal piket hari itu). Alasan
+  // dipindah + selalu ditembak: hasilnya (idSudahScan) sekarang juga
+  // dipakai scanKartu() di api/scan.js untuk cek "guru ini sendiri sudah
+  // scan belum" lewat field `sudahScan` di bawah -- dengan begitu
+  // scan.js tidak perlu query ulang tabel `sesi_piket` yang sama persis
+  // beberapa baris kemudian (dulu ada 2 query terpisah ke tabel yang
+  // sama, sekarang cukup 1). Tidak mengubah hasil apa pun: constraint
+  // UNIQUE(tanggal,id_guru) di database tetap jadi penjaga akhir kalau
+  // ada race condition (lihat penanganan kode error 23505 di scan.js),
+  // persis seperti sebelumnya.
+  const [{ data: jadwalHariIni }, { data: sesiHariIni }] = await Promise.all([
+    supabase.from('jadwal_piket').select('id_guru,nama_guru').eq('hari', hari),
+    supabase.from('sesi_piket').select('id_guru').eq('tanggal', today)
+  ]);
 
-  const idTerjadwal = (jadwalHariIni || []).map(j => j.id_guru);
+  const idTerjadwal  = (jadwalHariIni || []).map(j => j.id_guru);
+  const idSudahScan  = new Set((sesiHariIni || []).map(s => s.id_guru));
+  const sudahScanIni = idSudahScan.has(guruId);
 
   if (idTerjadwal.length === 0) {
-    return { boleh: true };
+    return { boleh: true, sudahScan: sudahScanIni };
   }
-
-  const { data: sesiHariIni } = await supabase
-    .from('sesi_piket')
-    .select('id_guru')
-    .eq('tanggal', today);
-  const idSudahScan = new Set((sesiHariIni || []).map(s => s.id_guru));
 
   // PERBAIKAN BUG: sebelumnya guru yang TERJADWAL langsung diloloskan
   // tanpa syarat apa pun di sini (return boleh:true duluan), SEBELUM
@@ -760,10 +770,11 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
   // yang jelas, bukan diam-diam lolos jadi piket ke-(N+1).
   if (idTerjadwal.includes(guruId)) {
     if (idSudahScan.has(guruId) || idSudahScan.size < idTerjadwal.length) {
-      return { boleh: true };
+      return { boleh: true, sudahScan: sudahScanIni };
     }
     return {
       boleh: false,
+      sudahScan: sudahScanIni,
       message: 'Piket hari ini sudah lengkap -- slot piket Anda kemungkinan sudah digantikan guru pengganti lain. Hubungi admin kalau ini keliru.'
     };
   }
@@ -778,6 +789,7 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
   if (idSudahScan.size >= idTerjadwal.length) {
     return {
       boleh: false,
+      sudahScan: sudahScanIni,
       message: 'Piket hari ini sudah lengkap, semua guru piket sudah tercatat.'
     };
   }
@@ -815,6 +827,7 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
     if (jam > jamTutupPengganti) {
       return {
         boleh: false,
+        sudahScan: sudahScanIni,
         message: `Pendaftaran guru piket pengganti sudah ditutup (batas ${jamTutupPengganti}, jam masuk siswa sudah lewat). Hubungi admin kalau slot piket hari ini masih perlu diisi.`
       };
     }
@@ -840,6 +853,7 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
     perluKonfirmasi: true,
     sebelumToleransi,
     teksNama,
+    sudahScan: sudahScanIni,
     message: sebelumToleransi
       ? `Anda bukan guru piket hari ini. Apakah Anda akan menggantikan ${teksNama} untuk piket hari ini?`
       : `Anda akan menjadi guru piket menggantikan ${teksNama} hari ini. Tekan Ya jika benar.`

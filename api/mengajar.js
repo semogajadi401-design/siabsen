@@ -15,7 +15,10 @@ const {
   supabase, generateID, setCors, todayStr, jamSekarang, hariIni,
   tambahMenit, isHariLibur, isHariKerja, requireAdminToken,
   resolveGuruIdFromToken, getJamSetting, getSemesterAktif,
-  generateSesiToken, verifySesiToken, buatResolverJamPelajaran, hitungDefaultJamPelajaran
+  generateSesiToken, verifySesiToken, buatResolverJamPelajaran, hitungDefaultJamPelajaran,
+  // BARU: dipakai getJadwalVsPertemuanSemuaGuru() -- satu sumber kebenaran
+  // utk "sampai tanggal berapa dihitung" (lihat catatan lengkap di _db.js).
+  hitungTanggalEvaluasiEfektif
 } = require('./_db');
 
 // Action yang MENGUBAH data master/pengaturan -> wajib admin.
@@ -145,6 +148,18 @@ const handler = async (req, res) => {
         return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
       }
       return res.json(await getRekapHonorSemuaGuru(params));
+    }
+    // BARU: perbandingan "jadwal masuk seharusnya" (menurut jadwal tetap
+    // guru) vs "pertemuan tercatat" (guru benar-benar scan mulai sesi) per
+    // bulan -- TERPISAH dari syarat pencairan honor (kehadiran_lengkap).
+    // Dipakai kolom baru di tabel Rekap Honor Guru (antara "Belum Dibayar"
+    // dan "Aksi"). Akses sama persis dengan getRekapHonorSemuaGuru di atas.
+    if (action === 'getJadwalVsPertemuanSemuaGuru') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
+        return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
+      }
+      return res.json(await getJadwalVsPertemuanSemuaGuru(params));
     }
     // BARU: total honor keseluruhan (akumulasi semua bulan, dikurangi
     // yang sudah pernah direset/dibayarkan) -- lihat catatan lengkap di
@@ -2360,6 +2375,150 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
     totalRupiahSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiah, 0),
     totalRupiahKeseluruhanSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiahKeseluruhan, 0),
     rekap: rekap.sort((a, b) => b.totalRupiah - a.totalRupiah)
+  };
+}
+
+// ── PERBANDINGAN JADWAL vs PERTEMUAN TERCATAT (BARU) ──────────────────
+// Beda tujuan dari getRekapHonorSemuaGuru() di atas: rekap honor cuma
+// menghitung sesi yang kehadiran_lengkap = true (syarat honor CAIR),
+// sedangkan fitur ini menjawab pertanyaan "guru ini SEHARUSNYA masuk
+// mengajar berapa kali bulan ini menurut jadwal tetapnya (jadwal_mengajar),
+// dan yang BENAR-BENAR tercatat (guru scan mulai sesi, apapun status
+// verifikasinya) berapa kali" -- dipakai admin/kepsek/bendahara di
+// halaman Honor Mengajar (kolom baru di antara "Belum Dibayar" dan
+// "Aksi") untuk mengecek kewajaran/kedisiplinan, bukan dasar bayar.
+//
+// AKURASI TANGGAL (PENTING -- ini dipakai berdampingan dgn angka uang,
+// jadi tidak boleh salah hitung hari):
+//   * Rentang yang dihitung memakai hitungTanggalEvaluasiEfektif() --
+//     SATU-SATUNYA sumber kebenaran yang sudah dipakai & diuji di
+//     halaman Evaluasi Kehadiran (lihat catatan lengkap di _db.js).
+//     Konsekuensinya: hari-hari di MASA DEPAN pada bulan berjalan TIDAK
+//     PERNAH dihitung sebagai "seharusnya masuk" (guru belum bisa
+//     dianggap bolos utk hari yang belum terjadi), dan HARI INI baru
+//     mulai dihitung setelah jam absen (JAM_DATANG_MULAI) benar-benar
+//     dibuka -- sebelum itu dianggap "belum bisa dievaluasi".
+//   * Untuk bulan yang SUDAH LEWAT sepenuhnya, dihitung 1 bulan kalender
+//     penuh seperti biasa (tidak ada pembatasan).
+//   * "Jadwal seharusnya" per tanggal juga mengecualikan hari libur
+//     (tabel hari_kerja) dan hari yang memang tidak aktif jadi hari
+//     sekolah (pengaturan_hari_kerja.aktif) -- kalender yang SAMA dengan
+//     yang dipakai fitur kehadiran siswa, supaya tidak ada 2 definisi
+//     "hari sekolah" yang berbeda-beda di aplikasi ini.
+const NAMA_HARI_URUT_MENGAJAR = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+const NAMA_HARI_JS_MENGAJAR = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']; // index Date#getUTCDay()
+
+async function getJadwalVsPertemuanSemuaGuru({ bulan, tahun }) {
+  const hariIniStr = todayStr();
+  const th = Number(tahun) || Number(hariIniStr.substring(0, 4));
+  const bl = Number(bulan) || Number(hariIniStr.substring(5, 7));
+
+  const jumlahHariDiBulan = new Date(th, bl, 0).getDate();
+  const awalBulan = `${th}-${String(bl).padStart(2, '0')}-01`;
+  const akhirBulanKalender = `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHariDiBulan).padStart(2, '0')}`;
+
+  // "awalBulan"/"akhirBulanKalender" dipakai di sini sebagai pengganti
+  // tanggal_mulai/tanggal_selesai SEMESTER pada fungsi aslinya -- cara
+  // pakainya sama: dibatasi supaya tidak pernah melewati hari ini.
+  const { tanggalMulaiEfektif, tanggalSelesaiEfektif, belumMulai, belumMulaiHariIni, jamMulaiAbsen } =
+    await hitungTanggalEvaluasiEfektif(awalBulan, akhirBulanKalender);
+
+  const [{ data: guruList }, { data: jadwalSemua }, { data: absensiBulan }, { data: liburRows }, { data: hariKerjaSetting }] = await Promise.all([
+    supabase.from('guru').select('id,nama,role').neq('role', 'kepsek').order('nama', { ascending: true }),
+    supabase.from('jadwal_mengajar').select('id,id_guru,hari,jam_ke_mulai,jam_ke_selesai,kelas,mapel'),
+    supabase.from('absensi_mengajar').select('id,id_jadwal_mengajar,id_guru,tanggal,hari,kelas,mapel,jam_scan,status,kehadiran_lengkap')
+      .gte('tanggal', awalBulan).lte('tanggal', akhirBulanKalender),
+    supabase.from('hari_kerja').select('tanggal').gte('tanggal', awalBulan).lte('tanggal', akhirBulanKalender),
+    supabase.from('pengaturan_hari_kerja').select('*')
+  ]);
+
+  const liburSet = new Set((liburRows || []).map(r => String(r.tanggal).substring(0, 10)));
+  const hariAktifMap = {};
+  (hariKerjaSetting || []).forEach(h => { hariAktifMap[h.hari] = h.aktif; });
+
+  // Daftar tanggal EFEKTIF (sudah dibatasi tanggalMulaiEfektif..
+  // tanggalSelesaiEfektif) yang jatuh di tiap NAMA HARI -- dihitung SEKALI
+  // saja lalu dipakai bareng semua guru, supaya tidak looping tanggal
+  // berkali-kali per guru/per slot jadwal.
+  const tanggalPerHari = {};
+  NAMA_HARI_JS_MENGAJAR.forEach(h => { tanggalPerHari[h] = []; });
+  if (!belumMulai) {
+    const cur = new Date(tanggalMulaiEfektif + 'T00:00:00Z');
+    const akhir = new Date(tanggalSelesaiEfektif + 'T00:00:00Z');
+    while (cur <= akhir) {
+      const tgl = cur.toISOString().substring(0, 10);
+      const namaHari = NAMA_HARI_JS_MENGAJAR[cur.getUTCDay()];
+      const aktif = hariAktifMap.hasOwnProperty(namaHari) ? hariAktifMap[namaHari] : false;
+      if (aktif && !liburSet.has(tgl)) tanggalPerHari[namaHari].push(tgl);
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+
+  const jadwalPerGuru = {};
+  (jadwalSemua || []).forEach(j => { (jadwalPerGuru[j.id_guru] = jadwalPerGuru[j.id_guru] || []).push(j); });
+
+  // Peta cepat (id_jadwal_mengajar + tanggal) -> baris absensi_mengajar,
+  // dan daftar mentah semua sesi tercatat per guru bulan ini (dipakai
+  // utk pertemuanTercatat -- SEMUA sesi yang guru scan, TIDAK disaring
+  // kehadiran_lengkap, beda dgn rekap honor).
+  const absensiByJadwalTanggal = {};
+  const absensiPerGuru = {};
+  (absensiBulan || []).forEach(a => {
+    const tgl = String(a.tanggal).substring(0, 10);
+    absensiByJadwalTanggal[`${a.id_jadwal_mengajar}|${tgl}`] = a;
+    (absensiPerGuru[a.id_guru] = absensiPerGuru[a.id_guru] || []).push(a);
+  });
+
+  const urutHari = h => { const i = NAMA_HARI_URUT_MENGAJAR.indexOf(h); return i === -1 ? 99 : i; };
+
+  const rekap = (guruList || []).map(g => {
+    const slots = (jadwalPerGuru[g.id] || []).slice()
+      .sort((a, b) => urutHari(a.hari) - urutHari(b.hari) || (a.jam_ke_mulai - b.jam_ke_mulai));
+
+    let jadwalSeharusnya = 0;
+    const rincianSlot = slots.map(slot => {
+      const tanggalList = tanggalPerHari[slot.hari] || [];
+      const detailTanggal = tanggalList.map(tgl => {
+        const rec = absensiByJadwalTanggal[`${slot.id}|${tgl}`];
+        return {
+          tanggal: tgl,
+          tercatat: !!rec,
+          jamScan: rec ? rec.jam_scan : null,
+          status: rec ? rec.status : null,
+          kehadiranLengkap: rec ? !!rec.kehadiran_lengkap : false
+        };
+      });
+      jadwalSeharusnya += tanggalList.length;
+      return {
+        idJadwal: slot.id, hari: slot.hari, kelas: slot.kelas, mapel: slot.mapel,
+        jamKeMulai: slot.jam_ke_mulai, jamKeSelesai: slot.jam_ke_selesai,
+        jumlahSeharusnya: tanggalList.length,
+        jumlahTercatat: detailTanggal.filter(d => d.tercatat).length,
+        tanggal: detailTanggal
+      };
+    });
+
+    const semuaAbsensiGuru = absensiPerGuru[g.id] || [];
+    const pertemuanTercatat = semuaAbsensiGuru.length;
+    // BARU: sesi tercatat yang id_jadwal_mengajar-nya SUDAH TIDAK ADA lagi
+    // di jadwal tetap guru ini SAAT INI (mis. jadwal diubah/dihapus di
+    // tengah bulan) -- ditandai sebagai anomali yang perlu dicek manual,
+    // pola sama dengan flag adaDiLuarJadwal di getRincianPertemuanKelasMapel().
+    const currentSlotIds = new Set(slots.map(s => s.id));
+    const tercatatDiLuarJadwalSaatIni = semuaAbsensiGuru.filter(a => !currentSlotIds.has(a.id_jadwal_mengajar)).length;
+
+    return {
+      idGuru: g.id, nama: g.nama,
+      jadwalSeharusnya, pertemuanTercatat, tercatatDiLuarJadwalSaatIni,
+      rincianSlot
+    };
+  });
+
+  return {
+    success: true, bulan: bl, tahun: th,
+    tanggalMulaiEfektif, tanggalSelesaiEfektif,
+    belumMulai: !!belumMulai, belumMulaiHariIni: !!belumMulaiHariIni, jamMulaiAbsen,
+    rekap
   };
 }
 

@@ -2034,9 +2034,9 @@ async function setModeHonor({ mode }) {
 //   tanggalAcuan : tanggal dipakai mencari tarif yang berlaku utk grup ini
 //                  (dipakai awal bulan grup itu, BUKAN tanggal tiap sesi --
 //                  karena ini honor per BULAN, bukan per sesi)
-// Return: { totalRupiah, totalMapel, rincian: [{mapel, bulanLabel, jumlahPertemuan, kelasList, tarifSaatItu, rupiah}] }
+// Return: { totalRupiah, totalMapel, rincian: [{mapel, bulanLabel, jumlahPertemuan, tanggalList, kelasList, tarifSaatItu, rupiah}] }
 function kelompokkanHonorPerMapelBulan(sesiList, daftarTarif) {
-  const grup = {}; // key: mapel|YYYY-MM -> { mapel, tahun, bulan, kelasSet, tanggalTerawal, jumlahPertemuan }
+  const grup = {}; // key: mapel|YYYY-MM -> { mapel, tahun, bulan, kelasSet, tanggalTerawal, jumlahPertemuan, tanggalList }
   (sesiList || []).forEach(s => {
     const tanggal = String(s.tanggal).substring(0, 10);
     const ym = tanggal.substring(0, 7); // YYYY-MM
@@ -2044,11 +2044,16 @@ function kelompokkanHonorPerMapelBulan(sesiList, daftarTarif) {
     if (!grup[key]) {
       grup[key] = {
         mapel: s.mapel, tahun: Number(ym.substring(0, 4)), bulan: Number(ym.substring(5, 7)),
-        awalBulan: `${ym}-01`, kelasSet: new Set(), jumlahPertemuan: 0
+        awalBulan: `${ym}-01`, kelasSet: new Set(), jumlahPertemuan: 0, tanggalList: []
       };
     }
     grup[key].kelasSet.add(s.kelas);
     grup[key].jumlahPertemuan++;
+    // BARU: simpan tanggal tiap sesi -- dipakai supaya bendahara/admin/
+    // kepsek bisa lihat PERSIS tanggal berapa saja yang membentuk angka
+    // jumlahPertemuan ini (bukan cuma angka jadi), baik di UI, Excel,
+    // maupun PDF. Diurutkan menaik di bawah.
+    grup[key].tanggalList.push(tanggal);
   });
 
   let totalRupiah = 0;
@@ -2062,6 +2067,7 @@ function kelompokkanHonorPerMapelBulan(sesiList, daftarTarif) {
       mapel: g.mapel, tahun: g.tahun, bulan: g.bulan,
       kelas: Array.from(g.kelasSet).sort().join(', '),
       jumlahPertemuan: g.jumlahPertemuan,
+      tanggalList: g.tanggalList.slice().sort(),
       tarifSaatItu: tarif ? tarif.nilai : null, rupiah
     };
   }).sort((a, b) => (a.tahun - b.tahun) || (a.bulan - b.bulan) || a.mapel.localeCompare(b.mapel));
@@ -2168,18 +2174,28 @@ async function getRincianPertemuanKelasMapel({ idGuru }) {
   (jadwalGuru || []).forEach(j => jadwalSet.add(`${j.kelas}|||${j.mapel}`));
 
   const hitung = {};
-  jadwalSet.forEach(key => { hitung[key] = 0; });
+  // BARU: simpan tanggal tiap sesi per (kelas,mapel) -- supaya bendahara/
+  // admin/kepsek bisa lihat tanggal PERSIS mana saja yang membentuk angka
+  // jumlahPertemuan (mis. jumlahPertemuan 3 -> tanggalnya 12/07, 18/07,
+  // 31/07), bukan cuma angkanya saja.
+  const tanggalPerKey = {};
+  jadwalSet.forEach(key => { hitung[key] = 0; tanggalPerKey[key] = []; });
   let adaDiLuarJadwal = false;
   sesiBelumDibayar.forEach(s => {
     const key = `${s.kelas}|||${s.mapel}`;
-    if (!(key in hitung)) hitung[key] = 0;
+    if (!(key in hitung)) { hitung[key] = 0; tanggalPerKey[key] = []; }
     if (!jadwalSet.has(key)) adaDiLuarJadwal = true;
     hitung[key]++;
+    tanggalPerKey[key].push(String(s.tanggal).substring(0, 10));
   });
 
   const rincian = Object.keys(hitung).map(key => {
     const [kelas, mapel] = key.split('|||');
-    return { kelas, mapel, jumlahPertemuan: hitung[key], adaDiJadwal: jadwalSet.has(key) };
+    return {
+      kelas, mapel, jumlahPertemuan: hitung[key],
+      daftarTanggal: (tanggalPerKey[key] || []).slice().sort(),
+      adaDiJadwal: jadwalSet.has(key)
+    };
   }).sort((a, b) => a.kelas.localeCompare(b.kelas) || a.mapel.localeCompare(b.mapel));
 
   return {

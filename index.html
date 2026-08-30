@@ -1048,6 +1048,19 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <div style="font-weight:700;font-size:1rem;color:var(--text)" id="dashKehadiranLiburJudul">Hari Ini Libur</div>
                 <div style="font-size:.85rem;margin-top:4px" id="dashKehadiranLiburKet"></div>
               </div>
+              <!-- BARU: hari sekolah aktif TAPI jam absen datang (JAM_DATANG_MULAI)
+                   belum tiba (belumMulaiAbsen dari dashboard(), lihat api/absensi.js)
+                   -- ditampilkan sebagai pengganti grafik, SAMA SEPERTI blok libur di
+                   atas, supaya tidak muncul donut 0% "Tidak Hadir" seluruh siswa
+                   padahal memang belum waktunya absen. Gaya panggung hitung mundur
+                   mengikuti pola #mmStage di scan.html (ikon + label + jam mundur
+                   besar + sub-teks), diselaraskan ke tema warna dashboard ini. -->
+              <div id="dashKehadiranBelumMulai" style="display:none;text-align:center;padding:26px 12px 22px;border-radius:14px;background:linear-gradient(160deg,var(--primary-pale) 0%,#EAF2FB 100%)">
+                <div style="font-size:2rem;margin-bottom:4px">⏰</div>
+                <div style="font-weight:700;font-size:.8rem;letter-spacing:.4px;text-transform:uppercase;color:var(--primary)">Menunggu Jam Absen Datang</div>
+                <div id="dashBelumMulaiClock" style="font-family:'SF Mono','Roboto Mono',ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:2px;font-size:clamp(2rem,7vw,2.8rem);color:var(--primary-dark);margin:6px 0">00:00:00</div>
+                <div style="font-size:.85rem;color:var(--text-muted)">Absen Datang mulai pukul <b id="dashBelumMulaiJam" style="color:var(--text)">-</b></div>
+              </div>
               <div id="dashKehadiranNormal" style="display:flex;align-items:center;justify-content:center;gap:32px;flex-wrap:wrap">
                 <div style="position:relative;width:140px;height:140px;flex-shrink:0">
                   <canvas id="dashPieChart" width="140" height="140"></canvas>
@@ -3893,20 +3906,40 @@ async function loadDashboard() {
       document.getElementById('statGuru').textContent=d.totalGuru;
       APP.settings=d.jamSetting;
 
-      const kehadiranLibur  = document.getElementById('dashKehadiranLibur');
-      const kehadiranNormal = document.getElementById('dashKehadiranNormal');
+      const kehadiranLibur      = document.getElementById('dashKehadiranLibur');
+      const kehadiranBelumMulai = document.getElementById('dashKehadiranBelumMulai');
+      const kehadiranNormal     = document.getElementById('dashKehadiranNormal');
+      // BARU: hari sekolah aktif tapi jam absen datang belum tiba (lihat
+      // belumMulaiAbsen di api/absensi.js:dashboard()) -- state KETIGA,
+      // beda dari isLibur (yang berarti memang tidak ada KBM sama sekali
+      // hari ini). Dicek SEBELUM isLibur karena kalau isLibur true,
+      // belumMulaiAbsen dari server sudah pasti false (dihitung dari
+      // isHariSekolah di backend), jadi urutan pengecekan ini tidak
+      // saling tumpang tindih.
+      const belumMulai = d.belumMulaiAbsen === true;
 
       if (isLibur) {
-        kehadiranNormal.style.display = 'none';
-        kehadiranLibur.style.display  = 'block';
+        kehadiranNormal.style.display     = 'none';
+        kehadiranBelumMulai.style.display = 'none';
+        kehadiranLibur.style.display      = 'block';
+        hentikanTickDashBelumMulai();
         document.getElementById('dashKehadiranLiburJudul').textContent =
           d.isLibur ? '📅 Hari Ini Libur' : `${d.hariIni} Bukan Hari Sekolah`;
         document.getElementById('dashKehadiranLiburKet').textContent =
           d.keteranganLibur || 'Tidak ada jadwal KBM, jadi belum ada data kehadiran untuk hari ini.';
         if (window._dashPieChart) { window._dashPieChart.destroy(); window._dashPieChart = null; }
+      } else if (belumMulai) {
+        kehadiranLibur.style.display      = 'none';
+        kehadiranNormal.style.display     = 'none';
+        kehadiranBelumMulai.style.display = 'block';
+        if (window._dashPieChart) { window._dashPieChart.destroy(); window._dashPieChart = null; }
+        document.getElementById('dashBelumMulaiJam').textContent = d.jamMulaiAbsen || '-';
+        mulaiTickDashBelumMulai(d.jamMulaiAbsen);
       } else {
-        kehadiranLibur.style.display  = 'none';
-        kehadiranNormal.style.display = 'flex';
+        kehadiranLibur.style.display      = 'none';
+        kehadiranBelumMulai.style.display = 'none';
+        kehadiranNormal.style.display     = 'flex';
+        hentikanTickDashBelumMulai();
 
         // ── GRAFIK PIE DASHBOARD ──────────────────────────────
         const hadir     = d.hadirHariIni - d.terlambatHariIni;
@@ -3974,6 +4007,54 @@ async function loadDashboard() {
       if(spk) spk.innerHTML = renderSiswaPerKelasHTML(d.siswaPerKelas);
     }
   } catch(e){ console.error('dashboard error',e); }
+}
+
+// ── HITUNG MUNDUR "MENUNGGU JAM ABSEN DATANG" DI DASHBOARD (BARU) ──
+// Sama polanya dengan mulaiTickMenungguMulai()/updateMmClockText() di
+// scan.html (#mmStage): dihitung dari jam LOKAL perangkat, bukan poll
+// server tiap detik -- begitu hitungan mencapai nol, loadDashboard()
+// dipanggil ulang sekali supaya kartu otomatis berpindah ke donut chart
+// biasa, tidak menunggu admin/kepsek refresh manual atau pindah halaman.
+let _dashBelumMulaiIntervalId = null;
+
+function mulaiTickDashBelumMulai(jamMulaiStr) {
+  hentikanTickDashBelumMulai();
+  if (!jamMulaiStr) return;
+  const [hh, mm] = jamMulaiStr.split(':').map(Number);
+
+  const hitungTarget = () => {
+    const target = new Date();
+    target.setHours(hh || 0, mm || 0, 0, 0);
+    return target;
+  };
+
+  const tick = () => {
+    const target = hitungTarget();
+    const now = new Date();
+    const diffMs = target - now;
+    const clockEl = document.getElementById('dashBelumMulaiClock');
+    if (diffMs <= 0) {
+      if (clockEl) clockEl.textContent = '00:00:00';
+      hentikanTickDashBelumMulai();
+      loadDashboard();
+      return;
+    }
+    if (clockEl) {
+      const totalDetik = Math.floor(diffMs / 1000);
+      const jj = Math.floor(totalDetik / 3600);
+      const mn = Math.floor((totalDetik % 3600) / 60);
+      const dt = totalDetik % 60;
+      const pad = n => String(n).padStart(2, '0');
+      clockEl.textContent = `${pad(jj)}:${pad(mn)}:${pad(dt)}`;
+    }
+  };
+
+  tick();
+  _dashBelumMulaiIntervalId = setInterval(tick, 1000);
+}
+
+function hentikanTickDashBelumMulai() {
+  if (_dashBelumMulaiIntervalId) { clearInterval(_dashBelumMulaiIntervalId); _dashBelumMulaiIntervalId = null; }
 }
 
 // Beranda guru ("Rekap Harian") memakai halaman terpisah dari dashboard

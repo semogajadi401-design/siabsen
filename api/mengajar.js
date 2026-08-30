@@ -116,6 +116,20 @@ const handler = async (req, res) => {
       if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
       return res.json(action === 'setTarifHonorMapelBulanan' ? await setTarifHonorMapelBulanan(params) : await hapusTarifHonorMapelBulanan(params));
     }
+
+    // BARU: rincian total pertemuan per kelas/mapel per guru -- dipakai
+    // admin/kepsek/bendahara utk mengecek "layak tidaknya" honor yang
+    // belum dibayar (terutama mode per_mapel_bulan yang flat, supaya
+    // bisa dilihat jumlah pertemuan aslinya per kelas). Lihat catatan
+    // lengkap di getRincianPertemuanKelasMapel(). Read-only utk ketiga
+    // role ini, sama seperti getRiwayatTarif().
+    if (action === 'getRincianPertemuanKelasMapel') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
+        return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
+      }
+      return res.json(await getRincianPertemuanKelasMapel(params));
+    }
     if (action === 'getRekapHonorGuru') {
       const adminValidHonor = await requireAdminToken(adminToken);
       if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
@@ -2103,6 +2117,79 @@ function hitungTotalKeseluruhanPerGuru(sesiSemua, mode, daftarTarif, daftarTarif
     perGuru[s.id_guru].totalRupiah += rupiah;
   });
   return perGuru;
+}
+
+// BARU: rincian TOTAL PERTEMUAN per (kelas, mapel) untuk seorang guru --
+// dipakai admin/kepsek/bendahara di halaman Honor Mengajar untuk
+// mengecek apakah nominal honor yang BELUM DIBAYAR itu masuk akal,
+// dengan melihat langsung jumlah pertemuan aslinya per kelas per mapel
+// (berguna terutama di mode "per_mapel_bulan" yang bayarannya flat --
+// supaya kelihatan kalau mis. mapel yang cuma 1x pertemuan dibayar
+// sama rata dengan yang 8x pertemuan).
+//
+// DUA ATURAN PENTING supaya datanya tidak salah baca:
+// 1. Kelas & mapel diambil dari jadwal_mengajar (jadwal resmi guru itu),
+//    BUKAN cuma dikumpulkan dari catatan absensi_mengajar -- supaya
+//    kelas/mapel yang terjadwal tapi belum PERNAH ada pertemuan lengkap
+//    tetap tampil (nilainya 0), bukan hilang begitu saja. Kombinasi
+//    kelas/mapel yang muncul di absensi tapi TIDAK ADA di jadwal resmi
+//    ditandai lewat flag adaDiLuarJadwal (potensi salah input/jadwal
+//    berubah), supaya kelihatan sebagai anomali, bukan diam-diam
+//    dianggap benar.
+// 2. HANYA menghitung sesi SETELAH tanggal reset terakhir guru itu
+//    (kalau pernah direset) -- supaya angkanya SELALU sinkron dengan
+//    nominal "Belum Dibayar" yang sudah ada di rekap, bukan mengambil
+//    seluruh histori dari awal seolah belum pernah dibayarkan sama
+//    sekali.
+async function getRincianPertemuanKelasMapel({ idGuru }) {
+  if (!idGuru) return { success: false, message: 'ID guru wajib diisi.' };
+  const { data: guru } = await supabase.from('guru').select('id,nama').eq('id', idGuru).maybeSingle();
+  if (!guru) return { success: false, message: 'Guru tidak ditemukan.' };
+
+  const [{ data: jadwalGuru }, { data: sesiSemua }, cutoff] = await Promise.all([
+    supabase.from('jadwal_mengajar').select('kelas,mapel').eq('id_guru', idGuru),
+    supabase.from('absensi_mengajar').select('kelas,mapel,tanggal')
+      .eq('id_guru', idGuru).eq('kehadiran_lengkap', true),
+    ambilTanggalResetTerakhir(idGuru)
+  ]);
+
+  // Aturan #2: buang sesi yang sudah pernah "dibayar" (tanggal <= cutoff
+  // reset terakhir) -- sama persis dengan filter yang dipakai
+  // getTotalHonorKeseluruhanGuru(), supaya kedua angka selalu selaras.
+  const sesiBelumDibayar = (sesiSemua || []).filter(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    return !(cutoff && tanggal <= cutoff);
+  });
+
+  // Aturan #1: dasar tabelnya kombinasi (kelas,mapel) dari JADWAL RESMI --
+  // diinisialisasi 0 dulu, supaya yang belum ada pertemuan pun tetap
+  // kelihatan (bukan cuma yang sudah ada sesinya).
+  const jadwalSet = new Set();
+  (jadwalGuru || []).forEach(j => jadwalSet.add(`${j.kelas}|||${j.mapel}`));
+
+  const hitung = {};
+  jadwalSet.forEach(key => { hitung[key] = 0; });
+  let adaDiLuarJadwal = false;
+  sesiBelumDibayar.forEach(s => {
+    const key = `${s.kelas}|||${s.mapel}`;
+    if (!(key in hitung)) hitung[key] = 0;
+    if (!jadwalSet.has(key)) adaDiLuarJadwal = true;
+    hitung[key]++;
+  });
+
+  const rincian = Object.keys(hitung).map(key => {
+    const [kelas, mapel] = key.split('|||');
+    return { kelas, mapel, jumlahPertemuan: hitung[key], adaDiJadwal: jadwalSet.has(key) };
+  }).sort((a, b) => a.kelas.localeCompare(b.kelas) || a.mapel.localeCompare(b.mapel));
+
+  return {
+    success: true,
+    guru: { id: guru.id, nama: guru.nama },
+    dihitungSejak: cutoff || null, // null = sejak awal (belum pernah direset)
+    totalPertemuan: rincian.reduce((a, r) => a + r.jumlahPertemuan, 0),
+    adaDiLuarJadwal, // true = ada sesi tercatat di kelas/mapel yang TIDAK ADA di jadwal resmi guru ini -- perlu dicek manual
+    rincian
+  };
 }
 
 async function getRekapHonorGuru({ idGuru, bulan, tahun }) {

@@ -2694,8 +2694,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         ⚠️ Ada sesi tercatat untuk kelas/mapel yang TIDAK ADA di jadwal resmi guru ini (ditandai kuning di tabel) — kemungkinan jadwal pernah diubah, atau ada salah input saat scan. Perlu dicek manual.
       </div>
       <div class="table-responsive"><table class="table-card-mobile">
-        <thead><tr><th>Kelas</th><th>Mapel</th><th>Jumlah Pertemuan</th><th>Status</th></tr></thead>
-        <tbody id="rpRincianKelasMapelBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+        <thead><tr><th>Kelas</th><th>Mapel</th><th>Jumlah Pertemuan</th><th>Tanggal Pertemuan</th><th>Status</th></tr></thead>
+        <tbody id="rpRincianKelasMapelBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
       </table></div>
     </div>
     <div class="modal-footer">
@@ -7090,6 +7090,27 @@ function formatTanggal(tgl) {
   } catch(e) { return tgl; }
 }
 
+// BARU: format tanggal singkat DD/MM/YYYY (beda dari formatTanggal() di
+// atas yang formatnya "12 Juli 2026" -- dipakai khusus di menu Honor
+// Mengajar supaya daftar tanggal pertemuan tetap ringkas saat digabung
+// jadi satu kolom, mis. "12/07/2026 | 18/07/2026 | 31/07/2026".
+function formatTanggalSlash(tgl) {
+  if (!tgl) return '-';
+  const s = String(tgl).substring(0, 10); // ambil bagian YYYY-MM-DD saja
+  const bagian = s.split('-');
+  if (bagian.length !== 3) return s;
+  return `${bagian[2]}/${bagian[1]}/${bagian[0]}`;
+}
+
+// BARU: gabungkan daftar tanggal (array "YYYY-MM-DD") jadi satu string
+// "DD/MM/YYYY | DD/MM/YYYY | ..." -- dipakai di kolom "Tanggal Pertemuan"
+// pada halaman/PDF/Excel Honor Mengajar, supaya jumlahPertemuan yang
+// tampil sebagai angka (mis. 3) bisa ditelusuri persis tanggal mana saja.
+function formatDaftarTanggal(daftar) {
+  if (!daftar || !daftar.length) return '-';
+  return daftar.map(formatTanggalSlash).join(' | ');
+}
+
 // ══════════════════════════════════════════════════════════
 // EVALUASI KEHADIRAN
 // ══════════════════════════════════════════════════════════
@@ -9948,14 +9969,22 @@ function exportHonorExcel() {
   // tiap mapel (mode per_mapel_bulan), supaya total honor bulan ini bisa
   // ditelusuri. Sumber datanya g.rincian per guru dari getRekapHonorSemuaGuru(),
   // sudah difilter bulan/tahun yang sama dengan sheet rekap di atas.
+  // BARU: kolom "Tanggal Pertemuan" ditambahkan di mode per_mapel_bulan --
+  // sebelumnya sheet ini cuma menampilkan ANGKA Jumlah Pertemuan (mis. 3)
+  // tanpa menyebutkan tanggal mana saja, jadi bendahara/admin/kepsek harus
+  // cek data absensi terpisah untuk memverifikasi. Sekarang tanggalnya
+  // langsung ditampilkan digabung "DD/MM/YYYY | DD/MM/YYYY | ..." lewat
+  // formatDaftarTanggal() (sumbernya r.tanggalList dari kelompokkanHonorPerMapelBulan()
+  // di api/mengajar.js). Mode per_pertemuan tidak perlu ini karena tiap
+  // baris memang sudah 1 tanggal per pertemuan.
   const rincianRows = isMapelBulan
-    ? [[`Rincian per Mapel - ${namaBulan} ${d.tahun}`], [], ['No','Nama Guru','Mapel','Kelas Diajar','Jumlah Pertemuan','Honor (Rp)']]
+    ? [[`Rincian per Mapel - ${namaBulan} ${d.tahun}`], [], ['No','Nama Guru','Mapel','Kelas Diajar','Jumlah Pertemuan','Tanggal Pertemuan','Honor (Rp)']]
     : [[`Rincian Pertemuan - ${namaBulan} ${d.tahun}`], [], ['No','Nama Guru','Tanggal','Hari','Kelas','Mapel','Honor (Rp)']];
   let noRincian = 1;
   d.rekap.forEach(g => {
     (g.rincian || []).forEach(r => {
       if (isMapelBulan) {
-        rincianRows.push([noRincian++, g.nama, r.mapel, r.kelas || '-', r.jumlahPertemuan, r.rupiah]);
+        rincianRows.push([noRincian++, g.nama, r.mapel, r.kelas || '-', r.jumlahPertemuan, formatDaftarTanggal(r.tanggalList), r.rupiah]);
       } else {
         rincianRows.push([noRincian++, g.nama, r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', r.rupiah]);
       }
@@ -9963,14 +9992,14 @@ function exportHonorExcel() {
   });
   if (noRincian === 1) {
     rincianRows.push(isMapelBulan
-      ? ['', 'Belum ada mapel yang terhitung honornya bulan ini.', '', '', '', '']
+      ? ['', 'Belum ada mapel yang terhitung honornya bulan ini.', '', '', '', '', '']
       : ['', 'Belum ada pertemuan yang terhitung honornya bulan ini.', '', '', '', '', '']);
   }
   const wsRincian = XLSX.utils.aoa_to_sheet(rincianRows);
   wsRincian['!cols'] = isMapelBulan
-    ? [{ wch: 5 }, { wch: 26 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 16 }]
+    ? [{ wch: 5 }, { wch: 26 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 42 }, { wch: 16 }]
     : [{ wch: 5 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 16 }];
-  wsRincian['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c: isMapelBulan ? 5 : 6 } }];
+  wsRincian['!merges'] = [{ s: { r:0, c:0 }, e: { r:0, c: 6 } }];
   XLSX.utils.book_append_sheet(wb, wsRincian, isMapelBulan ? 'Rincian per Mapel' : 'Rincian Pertemuan');
 
   XLSX.writeFile(wb, `Rekap_Honor_Guru_${namaBulan}_${d.tahun}.xlsx`.replace(/\s+/g, '_'));
@@ -10163,8 +10192,16 @@ async function exportHonorPDF() {
       pdf.text(`Periode: ${namaBulan} ${d.tahun} — detail ${isMapelBulanPDF ? 'mapel' : 'pertemuan'} bulan ini per guru. Kolom "Total Belum Dibayar" di halaman rekap mencakup seluruh sesi sejak reset terakhir, tidak hanya bulan ini.`, marginX, y + 5);
       y += 13;
 
+      // BARU: kolom "Tanggal Pertemuan" ditambahkan di mode per_mapel_bulan
+      // -- sebelumnya PDF ini cuma menampilkan angka Jml Pertemuan (mis. 3)
+      // tanpa tanggalnya, jadi bendahara/admin/kepsek harus cek data
+      // absensi terpisah untuk memverifikasi. Kolom ini bisa berisi banyak
+      // tanggal ("12/07/2026 | 18/07/2026 | 31/07/2026", dst) sehingga
+      // dibungkus multi-baris lewat pdf.splitTextToSize() -- lihat
+      // penyesuaian tinggi baris dinamis di bawah. Mode per_pertemuan
+      // tidak perlu ini karena tiap baris memang sudah 1 tanggal.
       const rHeaders = isMapelBulanPDF
-        ? ['No','Mapel','Kelas Diajar','Jml Pertemuan','Honor']
+        ? ['No','Mapel','Kelas Diajar','Jml Pertemuan','Tanggal Pertemuan','Honor']
         : ['No','Tanggal','Hari','Kelas','Mapel','Honor'];
       // FIX: kolom Mapel/Kelas Diajar dilebarkan (dulu 40/58, sekarang
       // 52/58) supaya nama mapel yang panjang (mis. "SEJARAH KEBUDAYAAN
@@ -10172,7 +10209,10 @@ async function exportHonorPDF() {
       // LEBAR ASLI lewat potongSesuaiLebar(), bukan cuma substring(0,26)
       // karakter, jadi tidak akan tumpang tindih ke kolom sebelah lagi
       // walau nama mapelnya lebih panjang lagi dari ini.
-      const rColW = isMapelBulanPDF ? [10, 52, 58, 28, 28] : [10, 26, 22, 30, 50, 30];
+      const rColW = isMapelBulanPDF ? [9, 30, 24, 16, 77, 26] : [10, 26, 22, 30, 50, 30];
+      const tanggalColIdx = isMapelBulanPDF ? 4 : -1; // indeks kolom "Tanggal Pertemuan" (mode per_mapel_bulan saja)
+      const TINGGI_BARIS_DEFAULT = 6.5;
+      const TINGGI_PER_BARIS_TANGGAL = 3.6; // tinggi tiap baris teks yang dibungkus di kolom Tanggal Pertemuan
       const drawRincianHeader = () => {
         pdf.setFontSize(8.5);
         rHeaders.forEach((h, i) => {
@@ -10204,15 +10244,37 @@ async function exportHonorPDF() {
         drawRincianHeader();
         g.rincian.forEach((r, idx) => {
           const vals = isMapelBulanPDF
-            ? [String(idx+1), r.mapel || '-', r.kelas || '-', String(r.jumlahPertemuan), fmtRupiah(r.rupiah)]
+            ? [String(idx+1), r.mapel || '-', r.kelas || '-', String(r.jumlahPertemuan), formatDaftarTanggal(r.tanggalList), fmtRupiah(r.rupiah)]
             : [String(idx+1), r.tanggal, r.hari || '-', r.kelas || '-', r.mapel || '-', fmtRupiah(r.rupiah)];
-          if (idx % 2 === 0) { pdf.setFillColor(245,247,249); pdf.rect(marginX, y-4, rColW.reduce((a,b)=>a+b,0), 6.5, 'F'); }
+
+          // BARU: kolom Tanggal Pertemuan bisa memuat banyak tanggal
+          // sekaligus (dipisah " | "), jadi dibungkus multi-baris sesuai
+          // lebar kolomnya lewat pdf.splitTextToSize() -- tinggi baris
+          // menyesuaikan jumlah baris hasil bungkusannya (minimal tetap
+          // TINGGI_BARIS_DEFAULT kalau cuma 1 baris). Kolom lain tetap
+          // satu baris seperti biasa (dipotong "..." lewat potongSesuaiLebar).
           pdf.setFontSize(8); pdf.setTextColor(0,0,0);
+          let barisTanggal = null;
+          let tinggiBaris = TINGGI_BARIS_DEFAULT;
+          if (tanggalColIdx >= 0) {
+            // setFontSize(8) dipanggil DULU supaya splitTextToSize mengukur
+            // lebar teks pakai ukuran font yang sama persis dengan yang
+            // dipakai saat digambar -- kalau tidak, bungkusannya bisa
+            // meleset dari lebar kolom yang sesungguhnya.
+            barisTanggal = pdf.splitTextToSize(vals[tanggalColIdx], rColW[tanggalColIdx] - 2);
+            tinggiBaris = Math.max(TINGGI_BARIS_DEFAULT, barisTanggal.length * TINGGI_PER_BARIS_TANGGAL + 2.5);
+          }
+
+          if (idx % 2 === 0) { pdf.setFillColor(245,247,249); pdf.rect(marginX, y-4, rColW.reduce((a,b)=>a+b,0), tinggiBaris, 'F'); }
           vals.forEach((v, i) => {
             const x = rColW.slice(0,i).reduce((a,b)=>a+b, marginX);
-            pdf.text(potongSesuaiLebar(v, rColW[i] - 2), x+1, y);
+            if (i === tanggalColIdx) {
+              barisTanggal.forEach((baris, li) => pdf.text(baris, x+1, y + li*TINGGI_PER_BARIS_TANGGAL));
+            } else {
+              pdf.text(potongSesuaiLebar(v, rColW[i] - 2), x+1, y);
+            }
           });
-          y += 6.5;
+          y += tinggiBaris;
           if (y > pageBottom) {
             drawFooterBase();
             pdf.addPage();
@@ -10291,7 +10353,7 @@ async function lihatDetailHonorGuru(idGuru, nama) {
   document.getElementById('rpDihitungSejak').textContent = '-';
   document.getElementById('rpTotalPertemuan').textContent = '-';
   document.getElementById('rpPeringatanLuarJadwal').style.display = 'none';
-  document.getElementById('rpRincianKelasMapelBody').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
+  document.getElementById('rpRincianKelasMapelBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
   openModal('modalRincianPertemuan');
 
   const bulan = document.getElementById('honBulan')?.value;
@@ -10321,7 +10383,7 @@ async function lihatDetailHonorGuru(idGuru, nama) {
   // ── Rincian total pertemuan per kelas/mapel (belum dibayar) ──
   if (!kelasMapel.success) {
     document.getElementById('rpDihitungSejak').textContent = kelasMapel.message || 'Gagal memuat.';
-    document.getElementById('rpRincianKelasMapelBody').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Gagal memuat data</td></tr>';
+    document.getElementById('rpRincianKelasMapelBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Gagal memuat data</td></tr>';
     return;
   }
 
@@ -10333,7 +10395,7 @@ async function lihatDetailHonorGuru(idGuru, nama) {
 
   const tbody = document.getElementById('rpRincianKelasMapelBody');
   if (!kelasMapel.rincian.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada jadwal/pertemuan tercatat untuk guru ini</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada jadwal/pertemuan tercatat untuk guru ini</td></tr>';
     return;
   }
   tbody.innerHTML = kelasMapel.rincian.map(r => {
@@ -10341,10 +10403,15 @@ async function lihatDetailHonorGuru(idGuru, nama) {
     const status = r.adaDiJadwal
       ? (r.jumlahPertemuan > 0 ? '<span class="badge badge-success">Sesuai jadwal</span>' : '<span class="badge badge-warning">Belum ada pertemuan</span>')
       : '<span class="badge" style="background:#FFB74D;color:#5c3d00">⚠️ Di luar jadwal</span>';
+    // BARU: kolom "Tanggal Pertemuan" -- daftar tanggal persis yang
+    // membentuk angka Jumlah Pertemuan (mis. 3 -> 12/07/2026 | 18/07/2026
+    // | 31/07/2026), supaya bendahara/admin/kepsek bisa menelusuri langsung
+    // tanpa perlu buka data absensi terpisah.
     return `<tr style="${style}">
       <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
       <td data-label="Mapel">${esc(r.mapel)}</td>
       <td data-label="Jumlah Pertemuan">${r.jumlahPertemuan}</td>
+      <td data-label="Tanggal Pertemuan" style="font-size:.78rem">${esc(formatDaftarTanggal(r.daftarTanggal))}</td>
       <td data-label="Status">${status}</td>
     </tr>`;
   }).join('');
@@ -10445,16 +10512,18 @@ async function loadHonorSaya() {
 
   // BARU: header tabel rincian ikut mode -- per pertemuan (Tanggal/Hari/
   // Kelas/Mapel/Honor) vs per mapel/bulan (Mapel/Kelas Diajar/Jumlah
-  // Pertemuan/Honor).
+  // Pertemuan/Tanggal Pertemuan/Honor). Kolom "Tanggal Pertemuan"
+  // ditambahkan supaya guru sendiri juga bisa lihat persis tanggal mana
+  // saja yang membentuk angka Jumlah Pertemuan, bukan cuma admin/kepsek.
   const thead = document.getElementById('hsRincianHead');
   if (thead) {
     thead.innerHTML = isMapelBulan
-      ? '<tr><th>Mapel</th><th>Kelas Diajar</th><th>Jumlah Pertemuan</th><th>Honor</th></tr>'
+      ? '<tr><th>Mapel</th><th>Kelas Diajar</th><th>Jumlah Pertemuan</th><th>Tanggal Pertemuan</th><th>Honor</th></tr>'
       : '<tr><th>Tanggal</th><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Honor</th></tr>';
   }
 
   const tbody = document.getElementById('hsRincianBody');
-  const colspan = isMapelBulan ? 4 : 5;
+  const colspan = 5;
   if (!result.rincian.length) {
     const pesan = isMapelBulan ? 'Belum ada mapel yang terhitung honornya pada periode ini' : 'Belum ada sesi yang terhitung honornya pada periode ini';
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:30px;color:var(--text-muted)">${pesan}</td></tr>`;
@@ -10465,6 +10534,7 @@ async function loadHonorSaya() {
         <td data-label="Mapel">${esc(r.mapel)}</td>
         <td data-label="Kelas Diajar"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
         <td data-label="Jumlah Pertemuan">${r.jumlahPertemuan}</td>
+        <td data-label="Tanggal Pertemuan" style="font-size:.78rem">${esc(formatDaftarTanggal(r.tanggalList))}</td>
         <td data-label="Honor">${r.tarifSaatItu === null ? '<span class="badge badge-warning">Belum ada tarif</span>' : fmtRupiah(r.rupiah)}</td>
       </tr>`).join('')
     : result.rincian.map((r, i) => `<tr class="hs-row-in" style="animation-delay:${Math.min(i * 45, 400)}ms">

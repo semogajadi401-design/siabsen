@@ -88,6 +88,26 @@ body{
 
 .empty{font-size:.8rem;color:var(--text-muted);padding:10px 0;text-align:center}
 
+/* ── LIVE MONITOR (peta topologi realtime) ────────────────────── */
+.live-topo-wrap{background:#070714;border-radius:14px;padding:10px 8px 4px;position:relative;overflow:hidden;
+  background-image:radial-gradient(circle at 20% 10%, rgba(0,212,255,.15), transparent 60%),
+                    radial-gradient(circle at 85% 90%, rgba(124,58,237,.15), transparent 60%),
+                    linear-gradient(180deg,#070714,#0a0a1a)}
+.live-status{display:flex;align-items:center;gap:6px;font-size:.66rem;color:rgba(255,255,255,.65);
+  padding:2px 4px 8px;font-weight:600;letter-spacing:.2px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#2ecc71;box-shadow:0 0 0 rgba(46,204,113,.6);
+  animation:liveDotPulse 1.6s ease-out infinite}
+@keyframes liveDotPulse{
+  0%{box-shadow:0 0 0 0 rgba(46,204,113,.6)}
+  70%{box-shadow:0 0 0 7px rgba(46,204,113,0)}
+  100%{box-shadow:0 0 0 0 rgba(46,204,113,0)}
+}
+#pathSiswa,#pathGuru{animation:liveDashFlow 1s linear infinite}
+@keyframes liveDashFlow{to{stroke-dashoffset:-20}}
+.live-legend{display:flex;flex-wrap:wrap;gap:10px 14px;padding:8px 6px 10px;font-size:.62rem;color:rgba(255,255,255,.65)}
+.live-legend span{display:flex;align-items:center;gap:5px}
+.live-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+
 .footer-note{padding:12px 18px;background:#f4f7fb;font-size:.68rem;color:var(--text-muted);text-align:center;line-height:1.5}
 .btn-refresh{margin-top:14px;width:100%;padding:11px;border-radius:10px;border:none;
   background:linear-gradient(135deg,var(--cyan),var(--cyan-dim));
@@ -167,7 +187,10 @@ const pathMatch = window.location.pathname.match(/\/admin-monitor\/([^/?#]+)/i);
 const TOKEN = qp.get('t') || qp.get('token') || (pathMatch ? pathMatch[1] : '') || '';
 
 let INFO = null;
-let currentTab = 'sistem';
+let currentTab = 'live';
+// ── State khusus tab Live Monitor (peta topologi) ──
+let liveTimer = null;      // id setInterval polling
+let liveSnapshot = null;   // snapshot terakhir (utk diff -> deteksi event baru)
 
 function tombolTutupHTML() {
   return `<button class="btn-close" onclick="tutupDanKembaliKeScan()">✖ Tutup dan kembali ke halaman scan</button>`;
@@ -196,7 +219,7 @@ async function init() {
   if (!info.success) { renderState('⛔', 'Tidak bisa membuka dashboard', info.message); return; }
   INFO = info;
   renderShell();
-  loadTab('sistem');
+  loadTab('live');
 }
 
 function renderShell() {
@@ -208,8 +231,8 @@ function renderShell() {
         <div class="sub">Halo, ${esc(INFO.admin.nama)} — keadaan sistem & sekolah saat ini</div>
       </div>
       <div class="tabs">
-        <button class="tab-btn active" id="tabbtn-sistem" onclick="loadTab('sistem')">🖥️ Sistem</button>
-        <button class="tab-btn" id="tabbtn-hari" onclick="loadTab('hari')">📍 Hari Ini</button>
+        <button class="tab-btn active" id="tabbtn-live" onclick="loadTab('live')">🟢 Live</button>
+        <button class="tab-btn" id="tabbtn-sistem" onclick="loadTab('sistem')">🖥️ Sistem</button>
         <button class="tab-btn" id="tabbtn-minggu" onclick="loadTab('minggu')">📅 7 Hari</button>
         <button class="tab-btn" id="tabbtn-bulan" onclick="loadTab('bulan')">🗓️ Bulan Ini</button>
       </div>
@@ -226,7 +249,7 @@ function renderShell() {
 }
 
 function setActiveTabBtn(tab) {
-  ['sistem','hari','minggu','bulan'].forEach(t => {
+  ['live','sistem','minggu','bulan'].forEach(t => {
     document.getElementById('tabbtn-' + t).classList.toggle('active', t === tab);
   });
 }
@@ -234,10 +257,21 @@ function setActiveTabBtn(tab) {
 async function loadTab(tab) {
   currentTab = tab;
   setActiveTabBtn(tab);
+  // Tab lain (atau load ulang tab 'live' dari nol) selalu menghentikan
+  // polling lama dulu -- mencegah beberapa interval polling menumpuk
+  // kalau user gonta-ganti tab dengan cepat.
+  stopLivePolling();
   const el = document.getElementById('tabContent');
   el.innerHTML = `<div class="empty">⏳ Memuat data...</div>`;
 
-  if (tab === 'sistem') {
+  if (tab === 'live') {
+    const d = await api('adminGetLiveHariIni', { token: TOKEN });
+    if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
+    liveSnapshot = null;
+    el.innerHTML = renderLiveShell(d);
+    initLiveTopology(d);
+    startLivePolling();
+  } else if (tab === 'sistem') {
     const [master, perangkat, aktivitas] = await Promise.all([
       api('adminGetRingkasanMaster', { token: TOKEN }),
       api('adminGetStatusPerangkat', { token: TOKEN }),
@@ -245,10 +279,6 @@ async function loadTab(tab) {
     ]);
     if (!master.success) { el.innerHTML = `<div class="empty">❌ ${esc(master.message)}</div>`; return; }
     el.innerHTML = renderSistem(master, perangkat, aktivitas);
-  } else if (tab === 'hari') {
-    const d = await api('adminGetLiveHariIni', { token: TOKEN });
-    if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
-    el.innerHTML = renderHariIni(d);
   } else {
     const d = await api('adminGetRekapPeriode', { token: TOKEN, rentang: tab });
     if (!d.success) { el.innerHTML = `<div class="empty">❌ ${esc(d.message)}</div>`; return; }
@@ -345,7 +375,235 @@ function formatDurasi(detik) {
   return `${Math.floor(jam / 24)} hari`;
 }
 
-// ═══════════════ TAB HARI INI / MINGGU / BULAN (sama seperti kepsek) ═══════════════
+// ═══════════════ TAB LIVE (peta topologi realtime, BARU) ═══════════════
+// Konsep: node SISWA & GURU di kiri/kanan, node SERVER di tengah. Setiap
+// ada event baru (siswa absen, guru mengajar/piket), sebuah "paket" (avatar
+// inisial + label nama) meluncur dari node asal menuju node SERVER
+// mengikuti garis lengkung, mirip tampilan traffic monitor jaringan.
+//
+// Datanya SAMA PERSIS dengan yang dipakai tab lama "Hari Ini"
+// (adminGetLiveHariIni) -- tidak ada endpoint baru. "Realtime"-nya
+// didapat dari POLLING ringan tiap 4 detik + DIFF di sisi client:
+// baris yang belum pernah kelihatan di poll sebelumnya dianggap event
+// baru dan dianimasikan. Tab "Hari Ini" yang lama sudah dihapus; semua
+// detail (siswa sakit/izin, piket, status mengajar) sekarang ditampilkan
+// di bawah peta lewat renderHariIni(d) yang sama seperti sebelumnya.
+const EVENT_STYLE = {
+  masuk:    { color: '#2ecc71', path: 'pathSiswa', label: ev => `${ev.nama} • Absen Masuk` },
+  pulang:   { color: '#00b8ff', path: 'pathSiswa', label: ev => `${ev.nama} • Absen Pulang` },
+  mengajar: { color: '#f5a623', path: 'pathGuru',  label: ev => `${ev.nama} • Mengajar${ev.mapel ? ' ' + ev.mapel : ''}` },
+  piket:    { color: '#7c3aed', path: 'pathGuru',  label: ev => `${ev.nama} • Lapor Piket` }
+};
+
+function initials(nama) {
+  const parts = (nama || '?').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+function renderLiveShell(d) {
+  if (!d.hariSekolah) {
+    return `<div class="empty">😴 Hari ini (${esc(d.hari)}) bukan hari sekolah${d.keteranganLibur ? ' — ' + esc(d.keteranganLibur) : ''}.</div>`;
+  }
+  return `
+    <div class="section">
+      <div class="live-topo-wrap">
+        <div class="live-status"><span class="live-dot"></span> LIVE — diperbarui otomatis tiap 4 detik</div>
+        <svg id="liveSvg" viewBox="0 0 700 300" style="width:100%;height:auto;display:block">
+          <defs>
+            <filter id="liveGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="4" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <path id="pathSiswa" d="M110,165 Q230,70 350,160" fill="none" stroke="rgba(46,204,113,.35)" stroke-width="2" stroke-dasharray="4 6"/>
+          <path id="pathGuru"  d="M590,165 Q470,70 350,160" fill="none" stroke="rgba(124,58,237,.35)" stroke-width="2" stroke-dasharray="4 6"/>
+
+          <g id="nodeServer" transform="translate(350,160)">
+            <circle r="46" fill="#0d1b3e" stroke="#00d4ff" stroke-width="2" filter="url(#liveGlow)"/>
+            <text text-anchor="middle" dy="-6" font-size="20">🖥️</text>
+            <text text-anchor="middle" dy="18" font-size="9" font-weight="800" fill="#00d4ff">SERVER</text>
+          </g>
+          <g id="nodeSiswa" transform="translate(110,165)">
+            <circle r="40" fill="#0d1b3e" stroke="#2ecc71" stroke-width="2"/>
+            <text text-anchor="middle" dy="-6" font-size="18">🎓</text>
+            <text text-anchor="middle" dy="14" font-size="9" font-weight="800" fill="#2ecc71">SISWA</text>
+            <text id="liveSiswaCount" text-anchor="middle" dy="26" font-size="7.5" fill="rgba(255,255,255,.7)">-/-</text>
+          </g>
+          <g id="nodeGuru" transform="translate(590,165)">
+            <circle r="40" fill="#0d1b3e" stroke="#7c3aed" stroke-width="2"/>
+            <text text-anchor="middle" dy="-6" font-size="18">🧑‍🏫</text>
+            <text text-anchor="middle" dy="14" font-size="9" font-weight="800" fill="#7c3aed">GURU</text>
+            <text id="liveGuruCount" text-anchor="middle" dy="26" font-size="7.5" fill="rgba(255,255,255,.7)">-</text>
+          </g>
+
+          <g id="liveLayer"></g>
+        </svg>
+        <div class="live-legend">
+          <span><i style="background:#2ecc71"></i>Absen Masuk</span>
+          <span><i style="background:#00b8ff"></i>Absen Pulang</span>
+          <span><i style="background:#f5a623"></i>Guru Mengajar</span>
+          <span><i style="background:#7c3aed"></i>Guru Piket</span>
+        </div>
+      </div>
+    </div>
+    <div id="liveDetail">${renderHariIni(d)}</div>
+  `;
+}
+
+// Bentuk index ringkas dari snapshot data, dipakai buat DIFF poll
+// berikutnya (siapa yang baru muncul / berubah statusnya).
+function buildLiveIndex(d) {
+  const siswaMap = {};
+  (d.kehadiranSiswa?.daftarHadir || []).forEach(s => { siswaMap[s.id] = s; });
+  const mengajarSet = new Set((d.absenMengajar || []).map(a => a.id));
+  const piketMap = {};
+  (d.piket || []).forEach(p => { if (p.idGuru) piketMap[p.idGuru] = !!p.sudahLapor; });
+  return { siswaMap, mengajarSet, piketMap };
+}
+
+function updateLiveCounters(d) {
+  const k = d.kehadiranSiswa || {};
+  const siswaEl = document.getElementById('liveSiswaCount');
+  const guruEl  = document.getElementById('liveGuruCount');
+  if (siswaEl) siswaEl.textContent = `${k.hadir ?? 0}/${k.totalSiswa ?? 0} hadir`;
+  if (guruEl) {
+    const mengajarNow = (d.mengajar?.sedangMengajar || []).length;
+    const piketLapor  = (d.piket || []).filter(p => p.sudahLapor).length;
+    guruEl.textContent = `${mengajarNow} mengajar • ${piketLapor} piket lapor`;
+  }
+}
+
+// Baseline PERTAMA KALI tab dibuka: cuma simpan state, JANGAN animasikan
+// seluruh data hari ini seolah-olah baru terjadi semua.
+function initLiveTopology(d) {
+  liveSnapshot = buildLiveIndex(d);
+  updateLiveCounters(d);
+}
+
+function stopLivePolling() {
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+}
+function startLivePolling() {
+  stopLivePolling();
+  liveTimer = setInterval(pollLive, 4000);
+}
+
+async function pollLive() {
+  if (currentTab !== 'live') { stopLivePolling(); return; }
+  if (typeof document !== 'undefined' && document.hidden) return; // hemat baterai saat tab HP di-background
+  const d = await api('adminGetLiveHariIni', { token: TOKEN });
+  if (!d.success) return; // gangguan jaringan sesaat -- diamkan, coba lagi 4 detik berikutnya
+  updateLiveTopology(d);
+}
+
+function updateLiveTopology(d) {
+  updateLiveCounters(d);
+  if (!liveSnapshot) { liveSnapshot = buildLiveIndex(d); return; }
+
+  const events = [];
+  (d.kehadiranSiswa?.daftarHadir || []).forEach(s => {
+    const prev = liveSnapshot.siswaMap[s.id];
+    if (!prev) {
+      events.push({ type: 'masuk', nama: s.nama, kelas: s.kelas });
+    } else if (!prev.jamPulang && s.jamPulang) {
+      events.push({ type: 'pulang', nama: s.nama, kelas: s.kelas });
+    }
+  });
+  (d.absenMengajar || []).forEach(a => {
+    if (!liveSnapshot.mengajarSet.has(a.id)) {
+      events.push({ type: 'mengajar', nama: a.nama, kelas: a.kelas, mapel: a.mapel });
+    }
+  });
+  (d.piket || []).forEach(p => {
+    if (!p.idGuru) return;
+    const prevLapor = liveSnapshot.piketMap[p.idGuru];
+    if (p.sudahLapor && !prevLapor) {
+      events.push({ type: 'piket', nama: p.namaGuru });
+    }
+  });
+  liveSnapshot = buildLiveIndex(d);
+
+  // Segarkan juga daftar detail di bawah peta (siswa sakit/izin, piket,
+  // status mengajar) supaya tetap ikut real-time, tanpa membongkar ulang
+  // SVG peta (biar animasi paket yang sedang jalan tidak ke-reset).
+  const detailEl = document.getElementById('liveDetail');
+  if (detailEl) detailEl.innerHTML = renderHariIni(d);
+
+  if (!events.length) return;
+  // Batasi maksimal 6 animasi per siklus poll biar tidak numpuk kalau
+  // banyak event terjadi bersamaan (mis. bel masuk, puluhan siswa scan
+  // beruntun) -- selebihnya tetap kehitung di counter node, cuma tidak
+  // semuanya dianimasikan satu-satu.
+  events.slice(0, 6).forEach((ev, i) => setTimeout(() => spawnLivePacket(ev), i * 260));
+}
+
+function pulseServerNode() {
+  const node = document.getElementById('nodeServer');
+  const circle = node?.querySelector('circle');
+  if (!circle || !circle.animate) return;
+  circle.animate([
+    { filter: 'drop-shadow(0 0 0px rgba(0,212,255,0))' },
+    { filter: 'drop-shadow(0 0 12px rgba(0,212,255,.9))' },
+    { filter: 'drop-shadow(0 0 0px rgba(0,212,255,0))' }
+  ], { duration: 550, easing: 'ease-out' });
+}
+
+function spawnLivePacket(ev) {
+  const style = EVENT_STYLE[ev.type];
+  const layer = document.getElementById('liveLayer');
+  const pathEl = document.getElementById(style?.path);
+  if (!style || !layer || !pathEl || typeof pathEl.getTotalLength !== 'function') return;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const len = pathEl.getTotalLength();
+  const g = document.createElementNS(ns, 'g');
+  g.setAttribute('opacity', '0');
+
+  const labelStr = style.label(ev);
+  const labelW = Math.max(46, Math.round(labelStr.length * 4.3));
+  const labelBg = document.createElementNS(ns, 'rect');
+  labelBg.setAttribute('x', -labelW / 2); labelBg.setAttribute('y', '-33');
+  labelBg.setAttribute('width', labelW); labelBg.setAttribute('height', '15');
+  labelBg.setAttribute('rx', '7'); labelBg.setAttribute('fill', 'rgba(7,7,20,.88)');
+  const labelText = document.createElementNS(ns, 'text');
+  labelText.setAttribute('text-anchor', 'middle'); labelText.setAttribute('y', '-22');
+  labelText.setAttribute('font-size', '7.5'); labelText.setAttribute('font-weight', '700');
+  labelText.setAttribute('fill', '#fff'); labelText.textContent = labelStr;
+
+  const circle = document.createElementNS(ns, 'circle');
+  circle.setAttribute('r', '13'); circle.setAttribute('fill', style.color);
+  circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '1.5');
+  const initText = document.createElementNS(ns, 'text');
+  initText.setAttribute('text-anchor', 'middle'); initText.setAttribute('dy', '3.5');
+  initText.setAttribute('font-size', '9'); initText.setAttribute('font-weight', '800');
+  initText.setAttribute('fill', '#fff'); initText.textContent = initials(ev.nama);
+
+  g.appendChild(labelBg); g.appendChild(labelText);
+  g.appendChild(circle); g.appendChild(initText);
+  layer.appendChild(g);
+
+  const duration = 1700;
+  const t0 = performance.now();
+  function frame(now) {
+    if (!g.isConnected) return; // tab sudah diganti / elemen sudah dibongkar -- hentikan loop
+    const t = Math.min(1, (now - t0) / duration);
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const pt = pathEl.getPointAtLength(eased * len);
+    g.setAttribute('transform', `translate(${pt.x},${pt.y})`);
+    let op = 1;
+    if (t < 0.12) op = t / 0.12;
+    else if (t > 0.85) op = Math.max(0, (1 - t) / 0.15);
+    g.setAttribute('opacity', String(op));
+    if (t < 1) { requestAnimationFrame(frame); return; }
+    pulseServerNode();
+    g.remove();
+  }
+  requestAnimationFrame(frame);
+}
+
+// ═══════════════ TAB SISTEM / 7 HARI / BULAN INI (detail di bawah peta Live) ═══════════════
 function renderHariIni(d) {
   if (!d.hariSekolah) {
     return `<div class="empty">😴 Hari ini (${esc(d.hari)}) bukan hari sekolah${d.keteranganLibur ? ' — ' + esc(d.keteranganLibur) : ''}.</div>`;
@@ -469,7 +727,7 @@ function renderHariIni(d) {
             <div class="li-sub">${esc(g.mapel)} • ${esc(g.kelas)} — mulai ${esc(g.jamMulai)}</div></div>
         </div>`, 'Tidak ada guru yang masih menunggu jadwalnya.')}
     </div>
-    <button class="btn-refresh" onclick="loadTab('hari')">🔄 Refresh</button>
+    <button class="btn-refresh" onclick="loadTab('live')">🔄 Muat Ulang</button>
   `;
 }
 

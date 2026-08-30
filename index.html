@@ -1769,8 +1769,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               </div>
             </div>
             <div class="table-responsive"><table class="table-card-mobile">
-              <thead><tr><th>Guru</th><th id="honKolomSesiHeader">Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th>Aksi</th></tr></thead>
-              <tbody id="honRekapSemuaGuruBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+              <thead><tr><th>Guru</th><th id="honKolomSesiHeader">Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th>Jadwal vs Tercatat</th><th>Aksi</th></tr></thead>
+              <tbody id="honRekapSemuaGuruBody"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
         </div>
@@ -2700,6 +2700,34 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modalRincianPertemuan')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Rincian "Jadwal vs Pertemuan Tercatat" (BARU) -- dipicu dari
+     badge di kolom baru tabel Rekap Honor Guru. -->
+<div class="modal-backdrop" id="modalJadwalVsPertemuan">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <h3>🗓️ Jadwal vs Pertemuan Tercatat</h3>
+        <div style="font-size:.76rem;color:var(--text-muted);font-weight:400;margin-top:2px" id="jvpNamaGuru">—</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modalJadwalVsPertemuan')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+        <div id="jvpRingkasan" style="font-size:.84rem">Memuat...</div>
+        <div id="jvpCatatanTanggal" style="font-size:.7rem;color:var(--text-muted);margin-top:6px">-</div>
+      </div>
+      <div id="jvpPeringatanLuarJadwal" style="display:none;background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;font-size:.76rem;color:#8a5a00;margin-bottom:10px"></div>
+      <div class="table-responsive"><table class="table-card-mobile">
+        <thead><tr><th>Hari</th><th>Kelas</th><th>Mapel</th><th>Tercatat / Seharusnya</th><th>Rincian Tanggal</th></tr></thead>
+        <tbody id="jvpRincianBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalJadwalVsPertemuan')">Tutup</button>
     </div>
   </div>
 </div>
@@ -9877,7 +9905,14 @@ async function hapusTarifHonorMapelRow(id) {
 async function loadRekapHonorSemuaGuru() {
   const bulan = document.getElementById('honBulan')?.value;
   const tahun = document.getElementById('honTahun')?.value;
-  const result = await api('mengajar', 'getRekapHonorSemuaGuru', { bulan, tahun });
+  // BARU: dimuat BARENGAN (Promise.all) dengan rekap "Jadwal vs Tercatat"
+  // -- 2 sumber data berbeda (kehadiran_lengkap vs semua sesi tercatat)
+  // tapi sama-sama utk bulan/tahun yang sedang dipilih di dropdown, jadi
+  // paling efisien diminta sekaligus daripada berurutan.
+  const [result, jadwalResult] = await Promise.all([
+    api('mengajar', 'getRekapHonorSemuaGuru', { bulan, tahun }),
+    api('mengajar', 'getJadwalVsPertemuanSemuaGuru', { bulan, tahun })
+  ]);
   const tbody = document.getElementById('honRekapSemuaGuruBody');
   if (!result.success) { toast(result.message, 'error'); return; }
 
@@ -9886,6 +9921,14 @@ async function loadRekapHonorSemuaGuru() {
   // dengan yang tampil di layar, tanpa perlu scrape ulang teks dari tabel
   // HTML (pola yang sama dipakai lastEvalData, lihat exportEvaluasiPDF()).
   window._honRekapData = result;
+  // BARU: peta idGuru -> rekap jadwal/tercatat, dan snapshot mentahnya --
+  // dipakai render tabel di bawah & lihatDetailJadwalGuru() (supaya modal
+  // detail tidak perlu fetch ulang, datanya sudah ada di memori).
+  const petaJadwal = {};
+  window._jadwalVsPertemuanData = jadwalResult.success ? jadwalResult : null;
+  if (jadwalResult.success) {
+    jadwalResult.rekap.forEach(j => { petaJadwal[j.idGuru] = j; });
+  }
 
   document.getElementById('honTotalSemuaGuru').textContent = fmtRupiah(result.totalRupiahSemuaGuru);
   document.getElementById('honTotalKeseluruhanSemuaGuru').textContent = fmtRupiah(result.totalRupiahKeseluruhanSemuaGuru);
@@ -9896,7 +9939,7 @@ async function loadRekapHonorSemuaGuru() {
 
   const isAdmin = honorBolehKelola();
   if (!result.rekap.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada guru</td></tr>';
     return;
   }
   tbody.innerHTML = result.rekap.map(g => {
@@ -9907,17 +9950,128 @@ async function loadRekapHonorSemuaGuru() {
     const tombolReset = isAdmin
       ? `<button class="btn btn-outline btn-sm" ${g.totalRupiahKeseluruhan <= 0 ? 'disabled' : ''} onclick="resetHonorGuruRow('${g.idGuru}','${namaAman}')" title="Tandai lunas dibayar">♻️</button>`
       : '';
+
+    // BARU: kolom "Jadwal vs Tercatat" -- badge "tercatat / seharusnya"
+    // yang bisa diklik utk lihat rincian tanggalnya. Warna badge: hijau
+    // kalau tercatat >= seharusnya (lengkap), oranye kalau kurang, abu-abu
+    // kalau memang belum ada jadwal tetap sama sekali (0/0, bukan berarti
+    // bolos -- tidak ada yang bisa dibandingkan).
+    const j = petaJadwal[g.idGuru];
+    let selJadwal;
+    if (!jadwalResult.success) {
+      selJadwal = '<span style="font-size:.72rem;color:var(--text-muted)">-</span>';
+    } else if (!j || (j.jadwalSeharusnya === 0 && j.pertemuanTercatat === 0)) {
+      selJadwal = '<span class="badge" style="background:#ECEFF1;color:#607D8B" title="Belum ada jadwal tetap/pertemuan bulan ini">0 / 0</span>';
+    } else {
+      const lengkap = j.pertemuanTercatat >= j.jadwalSeharusnya;
+      const warnaBg = lengkap ? '#E8F5E9' : '#FFF3E0';
+      const warnaFg = lengkap ? '#2e7d32' : '#e65100';
+      const anomali = j.tercatatDiLuarJadwalSaatIni > 0 ? ' ⚠️' : '';
+      selJadwal = `<button class="badge" style="background:${warnaBg};color:${warnaFg};border:none;cursor:pointer;font-weight:700"
+        onclick="lihatDetailJadwalGuru('${g.idGuru}','${namaAman}')"
+        title="Klik untuk lihat rincian tanggal">${j.pertemuanTercatat} / ${j.jadwalSeharusnya}${anomali}</button>`;
+    }
+
     return `<tr>
     <td data-label="Guru">${esc(g.nama)}</td>
     <td data-label="${labelUnit}">${g.totalSesi}</td>
     <td data-label="Bulan Ini"><b>${fmtRupiah(g.totalRupiah)}</b></td>
     <td data-label="Belum Dibayar"><b style="color:#2e7d32">${fmtRupiah(g.totalRupiahKeseluruhan)}</b>${infoReset}</td>
+    <td data-label="Jadwal vs Tercatat">${selJadwal}</td>
     <td data-label="Aksi" style="white-space:nowrap">
       <button class="btn btn-outline btn-sm" onclick="lihatDetailHonorGuru('${g.idGuru}','${namaAman}')" title="Lihat rincian">🔍</button>
       ${tombolReset}
     </td>
   </tr>`;
   }).join('');
+}
+
+// BARU: modal rincian "Jadwal vs Pertemuan Tercatat" -- dipanggil saat
+// badge di kolom baru tabel Rekap Honor Guru diklik. Datanya diambil
+// dari snapshot window._jadwalVsPertemuanData yang sudah dimuat bareng
+// loadRekapHonorSemuaGuru() (tidak fetch ulang), supaya angka yang
+// tampil di modal DIJAMIN sama dengan yang tampil di badge tabel.
+function lihatDetailJadwalGuru(idGuru, nama) {
+  const snap = window._jadwalVsPertemuanData;
+  document.getElementById('jvpNamaGuru').textContent = nama;
+  const bodyEl = document.getElementById('jvpRincianBody');
+  const catatanEl = document.getElementById('jvpCatatanTanggal');
+  const peringatanEl = document.getElementById('jvpPeringatanLuarJadwal');
+
+  if (!snap) {
+    document.getElementById('jvpRingkasan').textContent = 'Gagal memuat data.';
+    bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Gagal memuat data</td></tr>';
+    openModal('modalJadwalVsPertemuan');
+    return;
+  }
+
+  const g = snap.rekap.find(x => x.idGuru === idGuru);
+  const namaBulan = NAMA_BULAN_HONOR[snap.bulan - 1] || snap.bulan;
+
+  // BARU: catatan rentang tanggal yang benar-benar dihitung -- supaya
+  // admin/kepsek/bendahara tidak bingung kalau angkanya "kurang dari
+  // ekspektasi" padahal bulan belum selesai (dibatasi sampai hari ini,
+  // bukan sampai akhir bulan kalender -- lihat catatan lengkap di
+  // getJadwalVsPertemuanSemuaGuru() di api/mengajar.js).
+  let catatan = `Dihitung ${formatTanggalSlash(snap.tanggalMulaiEfektif)} s/d ${formatTanggalSlash(snap.tanggalSelesaiEfektif)}`;
+  if (snap.tanggalSelesaiEfektif < `${snap.tahun}-${String(snap.bulan).padStart(2,'0')}-${new Date(snap.tahun, snap.bulan, 0).getDate()}`) {
+    catatan += ' (dibatasi sampai hari ini — hari-hari setelahnya belum terjadi, jadi belum dihitung)';
+  }
+  if (snap.belumMulaiHariIni) {
+    catatan += `. Hari ini belum dihitung karena jam absen (${snap.jamMulaiAbsen}) belum dibuka.`;
+  }
+  catatanEl.textContent = catatan;
+
+  if (!g || (g.jadwalSeharusnya === 0 && g.pertemuanTercatat === 0 && !g.rincianSlot.length)) {
+    document.getElementById('jvpRingkasan').innerHTML = `${namaBulan} ${snap.tahun}: guru ini belum punya jadwal mengajar tetap dan/atau belum ada pertemuan tercatat.`;
+    peringatanEl.style.display = 'none';
+    bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Tidak ada jadwal tetap untuk guru ini</td></tr>';
+    openModal('modalJadwalVsPertemuan');
+    return;
+  }
+
+  document.getElementById('jvpRingkasan').innerHTML =
+    `${namaBulan} ${snap.tahun}: <b>${g.pertemuanTercatat}</b> pertemuan tercatat dari <b>${g.jadwalSeharusnya}</b> yang seharusnya (menurut jadwal tetap).`;
+  peringatanEl.style.display = g.tercatatDiLuarJadwalSaatIni > 0 ? 'block' : 'none';
+  if (g.tercatatDiLuarJadwalSaatIni > 0) {
+    peringatanEl.textContent = `⚠️ ${g.tercatatDiLuarJadwalSaatIni} pertemuan tercatat bulan ini berasal dari jadwal yang SUDAH TIDAK ADA lagi di jadwal tetap guru ini saat ini (kemungkinan jadwal sempat diubah) — tidak ikut dihitung di rincian per slot di bawah, cek data mentah kalau perlu.`;
+  }
+
+  if (!g.rincianSlot.length) {
+    bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Guru ini belum punya jadwal tetap</td></tr>';
+    openModal('modalJadwalVsPertemuan');
+    return;
+  }
+
+  bodyEl.innerHTML = g.rincianSlot.map((slot, idx) => {
+    const lengkap = slot.jumlahTercatat >= slot.jumlahSeharusnya;
+    const statusBadge = lengkap
+      ? '<span class="badge badge-success">Lengkap</span>'
+      : `<span class="badge" style="background:#FFE0B2;color:#8a5a00">Kurang ${slot.jumlahSeharusnya - slot.jumlahTercatat}</span>`;
+    const rowId = `jvpDetail_${idx}`;
+    // Setiap tanggal seharusnya ditampilkan sebagai chip kecil -- ✓ hijau
+    // kalau tercatat, ✗ abu-abu kalau tidak (bolong) -- supaya bisa
+    // ditelusuri persis tanggal mana yang bolong, bukan cuma angkanya.
+    const chips = slot.tanggal.map(t => {
+      const tgl = formatTanggalSlash(t.tanggal);
+      if (t.tercatat) {
+        return `<span class="badge badge-success" style="margin:2px" title="Tercatat${t.jamScan ? ' jam ' + esc(t.jamScan) : ''}${t.status ? ', status ' + esc(t.status) : ''}">✓ ${tgl}</span>`;
+      }
+      return `<span class="badge" style="margin:2px;background:#ECEFF1;color:#78909C" title="Tidak tercatat">✗ ${tgl}</span>`;
+    }).join(' ');
+    return `<tr>
+      <td data-label="Hari">${esc(slot.hari)}</td>
+      <td data-label="Kelas"><span class="badge badge-primary">${esc(slot.kelas)}</span></td>
+      <td data-label="Mapel">${esc(slot.mapel)}</td>
+      <td data-label="Seharusnya / Tercatat">${slot.jumlahTercatat} / ${slot.jumlahSeharusnya} ${statusBadge}</td>
+      <td data-label="Rincian Tanggal">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'none' ? 'block' : 'none'">📅 Lihat tanggal</button>
+        <div id="${rowId}" style="display:none;margin-top:8px;max-width:420px">${chips || '<span style="color:var(--text-muted);font-size:.76rem">Tidak ada tanggal di rentang ini</span>'}</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  openModal('modalJadwalVsPertemuan');
 }
 
 // ── EXPORT REKAP HONOR GURU (BARU): Excel & PDF ─────────────────────

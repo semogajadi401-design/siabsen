@@ -971,6 +971,24 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
     };
   }
 
+  // PERBAIKAN BUG (konsistensi dgn scanKartu di api/scan.js): sebelumnya
+  // scan kartu siswa di kelas langsung insert status 'Hadir' TANPA
+  // mengecek `keterangan_absensi` sama sekali. Akibatnya kalau siswa
+  // sudah dilaporkan Sakit/Izin hari itu (mis. oleh guru piket pagi-pagi)
+  // tapi ternyata tetap masuk lalu kartunya discan guru mapel di kelas,
+  // baris `keterangan_absensi` (Sakit/Izin) itu TETAP ada sementara
+  // `kehadiran_siswa_mapel` mencatat Hadir -- siswa itu tercatat GANDA
+  // & kontradiktif utk tanggal yg sama (sama persis dgn bug yg sudah
+  // diperbaiki di scanKartu()). Sekarang: kalau keterangan itu ada,
+  // HAPUS -- siswa TERBUKTI hadir fisik (baru saja discan di kelas),
+  // jadi laporan Sakit/Izin sebelumnya sudah tidak berlaku lagi.
+  const { data: ketHariIniSiswa } = await supabase
+    .from('keterangan_absensi').select('id,status')
+    .eq('id_siswa', siswa.id).eq('tanggal', sesi.tanggal).maybeSingle();
+  if (ketHariIniSiswa) {
+    await supabase.from('keterangan_absensi').delete().eq('id', ketHariIniSiswa.id);
+  }
+
   const id = generateID('KS');
   const { error } = await supabase.from('kehadiran_siswa_mapel').insert({
     id, id_absensi_mengajar: idAbsensiMengajar, id_siswa: idSiswa,
@@ -987,7 +1005,13 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
 
   const jumlahBaru = await hitungUlangStatusVerifikasi(sesi);
 
-  return { success: true, jumlahSiswaTerverifikasi: jumlahBaru.jumlah, statusVerifikasi: jumlahBaru.status, nama: siswa.nama };
+  return {
+    success: true, jumlahSiswaTerverifikasi: jumlahBaru.jumlah, statusVerifikasi: jumlahBaru.status,
+    nama: siswa.nama,
+    message: ketHariIniSiswa
+      ? `${siswa.nama} tercatat Hadir (catatan ${ketHariIniSiswa.status} sebelumnya hari ini otomatis dihapus karena ternyata hadir)`
+      : undefined
+  };
 }
 
 // Ambang verifikasi: MIN_VERIFIKASI_SISWA, atau jumlah siswa hadir hari itu

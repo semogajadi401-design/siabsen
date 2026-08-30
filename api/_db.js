@@ -1039,13 +1039,13 @@ async function ringkasanLiveHariIni() {
     { data: absensiMengajarHariIni }
   ] = await Promise.all([
     supabase.from('siswa').select('*', { count: 'exact', head: true }).eq('status', 'Aktif'),
-    supabase.from('absensi').select('nama_siswa,kelas,jam_datang,status_datang,jam_pulang,status_pulang,keterangan_pulang_cepat').eq('tanggal', today),
+    supabase.from('absensi').select('id,id_siswa,nama_siswa,kelas,jam_datang,status_datang,jam_pulang,status_pulang,keterangan_pulang_cepat').eq('tanggal', today),
     supabase.from('keterangan_absensi').select('nama_siswa,kelas,status,keterangan').eq('tanggal', today),
     supabase.from('jadwal_piket').select('id_guru,nama_guru,jabatan').eq('hari', hari),
     supabase.from('sesi_piket').select('id_guru,nama_guru,jam_scan').eq('tanggal', today),
     supabase.from('jadwal_mengajar').select('id,id_guru,nama_guru,jam_ke_mulai,jam_ke_selesai,kelas,mapel').eq('hari', hari),
     supabase.from('jam_pelajaran').select('jam_ke,jam_mulai,jam_selesai').eq('hari', hari).order('jam_ke'),
-    supabase.from('absensi_mengajar').select('id_jadwal_mengajar,id_guru,nama_guru,kelas,mapel,jam_scan,status').eq('tanggal', today)
+    supabase.from('absensi_mengajar').select('id,id_jadwal_mengajar,id_guru,nama_guru,kelas,mapel,jam_scan,status').eq('tanggal', today)
   ]);
 
   const hadirHariIni     = (absenHariIni || []).filter(a => a.status_datang === 'Hadir' || a.status_datang === 'Terlambat').length;
@@ -1073,14 +1073,14 @@ async function ringkasanLiveHariIni() {
 
   const idSudahLapor = new Set((sesiPiketHariIni || []).map(s => s.id_guru));
   const daftarPiket = (jadwalPiket || []).map(p => ({
-    namaGuru: p.nama_guru, jabatan: p.jabatan,
+    idGuru: p.id_guru, namaGuru: p.nama_guru, jabatan: p.jabatan,
     sudahLapor: idSudahLapor.has(p.id_guru),
     jamLapor: (sesiPiketHariIni || []).find(s => s.id_guru === p.id_guru)?.jam_scan || null
   }));
   const idTerjadwalPiket = new Set((jadwalPiket || []).map(p => p.id_guru));
   (sesiPiketHariIni || []).forEach(s => {
     if (!idTerjadwalPiket.has(s.id_guru)) {
-      daftarPiket.push({ namaGuru: s.nama_guru, jabatan: 'Piket Pengganti', sudahLapor: true, jamLapor: s.jam_scan });
+      daftarPiket.push({ idGuru: s.id_guru, namaGuru: s.nama_guru, jabatan: 'Piket Pengganti', sudahLapor: true, jamLapor: s.jam_scan });
     }
   });
 
@@ -1135,10 +1135,26 @@ async function ringkasanLiveHariIni() {
       daftarSakitIzin,
       // (BARU) Lihat catatan daftarPulangCepat di atas.
       pulangCepat: pulangCepatHariIni,
-      daftarPulangCepat
+      daftarPulangCepat,
+      // (BARU) Daftar mentah per-siswa (id, jam datang/pulang) -- dipakai
+      // dashboard admin "Live Monitor" (peta topologi) untuk deteksi event
+      // baru via polling+diff di client (siapa yg jam_datang/jam_pulang-nya
+      // baru terisi dibanding poll sebelumnya). Tidak dipakai tab lain,
+      // aman ditambahkan karena cuma field baru (additive).
+      daftarHadir: (absenHariIni || []).map(a => ({
+        id: a.id, idSiswa: a.id_siswa, nama: a.nama_siswa, kelas: a.kelas,
+        jamDatang: a.jam_datang, statusDatang: a.status_datang,
+        jamPulang: a.jam_pulang, statusPulang: a.status_pulang
+      }))
     },
     piket: daftarPiket,
-    mengajar: { sedangMengajar, sudahSelesai, belumMulai }
+    mengajar: { sedangMengajar, sudahSelesai, belumMulai },
+    // (BARU) Daftar mentah scan absen-mengajar guru hari ini (id, jam_scan)
+    // -- dipakai bareng `daftarHadir` di atas utk sumber event Live Monitor.
+    absenMengajar: (absensiMengajarHariIni || []).map(a => ({
+      id: a.id, idGuru: a.id_guru, nama: a.nama_guru, kelas: a.kelas, mapel: a.mapel,
+      jamScan: a.jam_scan, status: a.status
+    }))
   };
 }
 

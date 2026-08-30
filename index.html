@@ -9943,6 +9943,18 @@ async function exportHonorPDF() {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const marginX = 14, pageW = 210, pageBottom = 270;
 
+    // BARU/FIX: potong teks berdasarkan LEBAR ASLI di PDF (pakai
+    // pdf.getTextWidth, bukan cuma substring(0,N) karakter) supaya mapel
+    // yang teksnya panjang (mis. "SEJARAH KEBUDAYAAN ISLAM") tidak
+    // tertimpa/tumpang tindih ke kolom sebelahnya -- dipotong dengan "…"
+    // begitu sudah pas dengan lebar kolomnya (dikurangi sedikit padding).
+    const potongSesuaiLebar = (text, maxWidthMm) => {
+      let s = String(text == null ? '' : text);
+      if (pdf.getTextWidth(s) <= maxWidthMm) return s;
+      while (s.length > 1 && pdf.getTextWidth(s + '…') > maxWidthMm) s = s.slice(0, -1);
+      return s + '…';
+    };
+
     // Kop surat -- ambil dari Profil Sekolah, sama pola dengan exportEvaluasiPDF().
     let sekolah = {};
     try {
@@ -10055,7 +10067,7 @@ async function exportHonorPDF() {
         vals.forEach((v, i) => {
           const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
           pdf.setTextColor(i === 3 ? 46 : 0, i === 3 ? 125 : 0, i === 3 ? 50 : 0);
-          pdf.text(String(v).substring(0,30), x+1, y);
+          pdf.text(potongSesuaiLebar(v, colW[i] - 2), x+1, y);
         });
         y += 7;
         if (y > pageBottom) {
@@ -10111,7 +10123,13 @@ async function exportHonorPDF() {
       const rHeaders = isMapelBulanPDF
         ? ['No','Mapel','Kelas Diajar','Jml Pertemuan','Honor']
         : ['No','Tanggal','Hari','Kelas','Mapel','Honor'];
-      const rColW = isMapelBulanPDF ? [10, 40, 58, 30, 30] : [10, 26, 22, 30, 50, 30];
+      // FIX: kolom Mapel/Kelas Diajar dilebarkan (dulu 40/58, sekarang
+      // 52/58) supaya nama mapel yang panjang (mis. "SEJARAH KEBUDAYAAN
+      // ISLAM") lebih lega -- dan teksnya sekarang dipotong berdasar
+      // LEBAR ASLI lewat potongSesuaiLebar(), bukan cuma substring(0,26)
+      // karakter, jadi tidak akan tumpang tindih ke kolom sebelah lagi
+      // walau nama mapelnya lebih panjang lagi dari ini.
+      const rColW = isMapelBulanPDF ? [10, 52, 58, 28, 28] : [10, 26, 22, 30, 50, 30];
       const drawRincianHeader = () => {
         pdf.setFontSize(8.5);
         rHeaders.forEach((h, i) => {
@@ -10149,7 +10167,7 @@ async function exportHonorPDF() {
           pdf.setFontSize(8); pdf.setTextColor(0,0,0);
           vals.forEach((v, i) => {
             const x = rColW.slice(0,i).reduce((a,b)=>a+b, marginX);
-            pdf.text(String(v).substring(0,26), x+1, y);
+            pdf.text(potongSesuaiLebar(v, rColW[i] - 2), x+1, y);
           });
           y += 6.5;
           if (y > pageBottom) {

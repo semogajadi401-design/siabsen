@@ -345,6 +345,20 @@ async function dashboard() {
   ]);
   const isHariSekolah = !cekLibur.libur && hariAktif;
 
+  // BARU: hari sekolah aktif TAPI jam absen datang (JAM_DATANG_MULAI)
+  // belum tiba sama sekali -- pola yang sama persis dengan
+  // `belumMulaiHariIni`/`jamMulaiAbsen` di getEvaluasiKehadiran() (lihat
+  // _db.js, dipakai supaya titik "hari ini" di grafik evaluasi tidak
+  // dihitung 0% sebelum sekolah buka). Dashboard punya masalah yang
+  // sama: sebelum jam ini, SEMUA siswa otomatis muncul sebagai "Tidak
+  // Hadir" 100% di kartu Persentase Kehadiran -- padahal wajar karena
+  // memang belum waktunya absen, bukan tanda kehadiran buruk. Dikirim
+  // ke frontend supaya kartu itu bisa menampilkan hitung mundur (sama
+  // seperti mode "Menunggu Mulai" di scan.html) alih-alih donut chart
+  // 0% yang menyesatkan.
+  const jamMulaiAbsen   = jamSetting['JAM_DATANG_MULAI'] || '06:30';
+  const belumMulaiAbsen = isHariSekolah && jamSekarang() < jamMulaiAbsen;
+
   const jumlahPerKelas = {};
   (siswaKelas || []).forEach(s => {
     const k = (s.kelas || '').trim();
@@ -423,6 +437,12 @@ async function dashboard() {
       isHariSekolah,
       isLibur: cekLibur.libur,
       keteranganLibur: cekLibur.libur ? cekLibur.keterangan : null,
+      // BARU: lihat penjelasan lengkap di atas (dekat perhitungan
+      // belumMulaiAbsen) -- dipakai frontend untuk menampilkan hitung
+      // mundur di kartu "Persentase Kehadiran Hari Ini" saat jam absen
+      // datang belum tiba.
+      belumMulaiAbsen,
+      jamMulaiAbsen,
       absenTerkini,
       siswaPerKelas
     }

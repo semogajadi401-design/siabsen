@@ -280,6 +280,31 @@ CREATE TABLE IF NOT EXISTS tarif_honor_mengajar (
 );
 CREATE INDEX IF NOT EXISTS idx_tarifhonor_berlaku ON tarif_honor_mengajar(berlaku_mulai);
 
+-- ─── TABEL TARIF HONOR PER MAPEL/BULAN (BARU) ──────────────────────
+-- Mode hitung honor KEDUA (alternatif dari "per pertemuan" di atas),
+-- dipakai sekolah yang aturannya: 1 mapel yang sama diajar di kelas
+-- manapun (7A, 7B, 8A, dst) dalam 1 bulan tetap dihitung SATU honor
+-- flat (mis. Rp200.000), TIDAK dikalikan jumlah kelas/pertemuan. Beda
+-- mapel dalam bulan yang sama baru dihitung tambahan.
+--
+-- Aktif/tidaknya mode ini ditentukan lewat jam_setting.MODE_HONOR
+-- ('per_pertemuan' | 'per_mapel_bulan', lihat INSERT default di bawah
+-- dan getModeHonor()/setModeHonor() di api/mengajar.js). Strukturnya
+-- sengaja dibuat SAMA (riwayat bertanggal, tidak pernah retroaktif)
+-- dengan tarif_honor_mengajar di atas -- lihat komentar lengkap di sana,
+-- alasannya identik. Fungsi generik ambilSemuaTarifTabel()/cariTarifBerlaku()/
+-- setTarifHonorTabel()/hapusTarifHonorTabel() di api/mengajar.js melayani
+-- KEDUA tabel ini sekaligus supaya tidak duplikasi logika.
+CREATE TABLE IF NOT EXISTS tarif_honor_mapel_bulanan (
+  id TEXT PRIMARY KEY,
+  nilai INTEGER NOT NULL,             -- rupiah flat per mapel per bulan (semua kelas)
+  berlaku_mulai DATE NOT NULL UNIQUE, -- tarif ini berlaku mulai tanggal ini
+  keterangan TEXT,
+  dibuat_oleh TEXT,                   -- nama/username admin/bendahara yang menambahkan
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_tarifhonormapel_berlaku ON tarif_honor_mapel_bulanan(berlaku_mulai);
+
 -- ─── TABEL RESET HONOR GURU (BARU) ──────────────────────────────────
 -- "Total Honor Keseluruhan" di menu Honor Saya (guru) & Rekap Honor Guru
 -- (admin) itu akumulasi SEMUA sesi kehadiran_lengkap sepanjang waktu,
@@ -571,6 +596,12 @@ INSERT INTO jam_setting (kunci, nilai, deskripsi) VALUES
   ('TOLERANSI_MENIT',    '15',    'Toleransi keterlambatan menit'),
   ('TOLERANSI_PIKET_MENIT', '15', 'Menit setelah jam mulai datang sebelum guru pengganti (di luar jadwal piket) diizinkan scan, jika guru piket terjadwal belum hadir'),
   ('MIN_VERIFIKASI_SISWA', '5', 'Ambang minimal jumlah siswa yang harus terverifikasi (discan) guru mapel per sesi Absen Mengajar, supaya sesi otomatis berstatus Terverifikasi. Kalau siswa hadir hari itu di kelas tsb kurang dari angka ini, sistem otomatis memakai jumlah siswa hadir sebagai ambang efektif.'),
+  -- BARU: mode hitung honor mengajar. 'per_pertemuan' (default, honor
+  -- dihitung per sesi/pertemuan yang kehadirannya lengkap) atau
+  -- 'per_mapel_bulan' (honor flat per mapel per bulan, semua kelas
+  -- dengan mapel sama dihitung 1x -- lihat tabel tarif_honor_mapel_bulanan
+  -- di atas dan getModeHonor()/setModeHonor() di api/mengajar.js).
+  ('MODE_HONOR', 'per_pertemuan', 'Mode hitung honor mengajar: per_pertemuan atau per_mapel_bulan'),
   ('NAMA_SEKOLAH',       'SMA NEGERI 1', 'Nama Sekolah'),
   ('ALAMAT_SEKOLAH',     'Jl. Pendidikan No.1', 'Alamat Sekolah'),
   ('TAHUN_AJARAN',       '2024/2025', 'Tahun Ajaran Aktif'),

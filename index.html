@@ -39,6 +39,27 @@ input,select,textarea{font-family:inherit;outline:none}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 @keyframes loadbar{from{width:0}to{width:100%}}
 
+/* ── TEKS HITUNG MUNDUR "MENUNGGU JAM ABSEN DATANG" DI DASHBOARD (BARU) ──
+   Warna teks berdenyut pelan (gradient bergeser + opacity naik-turun)
+   supaya terasa lebih hidup, BUKAN ukuran/posisi yang berubah -- gaya
+   ini sengaja dipisah dari .mm-clock di scan.html (yang temanya gelap)
+   karena kartu dashboard ini berlatar terang, jadi gradasi warnanya
+   disesuaikan supaya tetap jelas terbaca. */
+.dash-mm-clock{
+  background:linear-gradient(90deg,var(--primary-dark),var(--primary-light),var(--primary-dark));
+  background-size:200% auto;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:dashMmBerkedip 1.6s ease-in-out infinite,dashMmGeser 4s linear infinite;
+}
+@keyframes dashMmBerkedip{
+  0%,100%{opacity:1}
+  50%{opacity:.55}
+}
+@keyframes dashMmGeser{
+  0%{background-position:0% center}
+  100%{background-position:200% center}
+}
+
 /* APP */
 #app{display:none;min-height:100vh}
 
@@ -1058,7 +1079,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <div id="dashKehadiranBelumMulai" style="display:none;text-align:center;padding:26px 12px 22px;border-radius:14px;background:linear-gradient(160deg,var(--primary-pale) 0%,#EAF2FB 100%)">
                 <div style="font-size:2rem;margin-bottom:4px">⏰</div>
                 <div style="font-weight:700;font-size:.8rem;letter-spacing:.4px;text-transform:uppercase;color:var(--primary)">Menunggu Jam Absen Datang</div>
-                <div id="dashBelumMulaiClock" style="font-family:'SF Mono','Roboto Mono',ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:2px;font-size:clamp(2rem,7vw,2.8rem);color:var(--primary-dark);margin:6px 0">00:00:00</div>
+                <div id="dashBelumMulaiClock" class="dash-mm-clock" style="font-family:'SF Mono','Roboto Mono',ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:2px;font-size:clamp(2rem,7vw,2.8rem);margin:6px 0">00:00:00</div>
                 <div style="font-size:.85rem;color:var(--text-muted)">Absen Datang mulai pukul <b id="dashBelumMulaiJam" style="color:var(--text)">-</b></div>
               </div>
               <div id="dashKehadiranNormal" style="display:flex;align-items:center;justify-content:center;gap:32px;flex-wrap:wrap">

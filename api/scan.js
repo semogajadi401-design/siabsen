@@ -15,6 +15,8 @@ const {
   getTrenPersentaseKehadiran,
   // ── TAMBAHAN BARU (fitur "Ranking Izin & Alpha" di drawer scan.html) ──
   getRankingIzinAlpha,
+  // ── TAMBAHAN BARU (popup "Laporan Hari Sebelumnya" sekali/hari) ──
+  getLaporanHariSebelumnya,
   // ── TAMBAHAN BARU (PERBAIKAN EGRESS: gambar libur ditarik terpisah) ──
   getGambarLibur
 } = require('./_db');
@@ -116,6 +118,11 @@ module.exports = async (req, res) => {
     // di api/_db.js untuk detail perhitungannya.
     if (action === 'getPersentaseKehadiran') return res.json(await getTrenPersentaseKehadiran(params));
     if (action === 'getRankingIzinAlpha')    return res.json(await getRankingIzinAlpha());
+    // BARU: dipanggil sekali saat kiosk scan.html pertama kali dimuat --
+    // lihat cekLaporanHariSebelumnya() di scan.html. Read-only murni,
+    // sama pola dengan getRankingIzinAlpha() di atas -- tidak perlu
+    // kioskToken.
+    if (action === 'getLaporanHariSebelumnya') return res.json(await getLaporanHariSebelumnya());
     // BARU (PERBAIKAN EGRESS): lihat catatan lengkap di getGambarLibur()
     // (_db.js) dan cekGambarLiburBerubah() (scan.html) -- dipanggil klien
     // HANYA saat gambarGrupId dari getStatus() berbeda dari yang terakhir

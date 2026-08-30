@@ -740,14 +740,33 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
     return { boleh: true };
   }
 
-  if (idTerjadwal.includes(guruId)) {
-    return { boleh: true };
-  }
-
   const { data: sesiHariIni } = await supabase
     .from('sesi_piket')
     .select('id_guru')
     .eq('tanggal', today);
+  const idSudahScan = new Set((sesiHariIni || []).map(s => s.id_guru));
+
+  // PERBAIKAN BUG: sebelumnya guru yang TERJADWAL langsung diloloskan
+  // tanpa syarat apa pun di sini (return boleh:true duluan), SEBELUM
+  // sempat dicek apakah piket hari itu sudah lengkap. Akibatnya: kalau
+  // slot dia sudah keburu ditutupi guru pengganti (misalnya dia telat
+  // datang), begitu dia akhirnya scan tetap diloloskan juga -- piket
+  // yang seharusnya cuma N orang (sejumlah idTerjadwal) jadi tercatat
+  // N+1, karena baik guru pengganti MAUPUN guru asli yang telat
+  // sama-sama lolos. Sekarang: guru terjadwal tetap lolos SELAMA piket
+  // belum lengkap (idSudahScan.size < idTerjadwal.length) -- tapi kalau
+  // ternyata piket sudah lengkap padahal dia sendiri belum tercatat,
+  // berarti slotnya sudah digantikan orang lain -- ditolak dengan pesan
+  // yang jelas, bukan diam-diam lolos jadi piket ke-(N+1).
+  if (idTerjadwal.includes(guruId)) {
+    if (idSudahScan.has(guruId) || idSudahScan.size < idTerjadwal.length) {
+      return { boleh: true };
+    }
+    return {
+      boleh: false,
+      message: 'Piket hari ini sudah lengkap -- slot piket Anda kemungkinan sudah digantikan guru pengganti lain. Hubungi admin kalau ini keliru.'
+    };
+  }
 
   // PERBAIKAN: dulu di sini dicek "apakah ADA sesi piket hari ini?" (>0),
   // jadi begitu 1 dari beberapa guru piket terjadwal datang, slot guru
@@ -756,11 +775,49 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
   // dijadwalkan (idTerjadwal.length), supaya sekolah dengan >1 guru piket
   // tetap membuka slot pengganti untuk siapa pun yang belum tercatat,
   // sampai semua slot terjadwal terisi.
-  if (sesiHariIni && sesiHariIni.length >= idTerjadwal.length) {
+  if (idSudahScan.size >= idTerjadwal.length) {
     return {
       boleh: false,
       message: 'Piket hari ini sudah lengkap, semua guru piket sudah tercatat.'
     };
+  }
+
+  const jamSetting = await getJamSetting();
+
+  // BARU: batas waktu tutup pendaftaran PENGGANTI piket. Sebelumnya
+  // tidak ada batas atas sama sekali -- guru bisa lolos jadi pengganti
+  // piket kapan pun sepanjang hari selama slot masih kosong, bahkan
+  // jam 08:17 atau lebih siang, padahal jam masuk siswa (JAM_DATANG_
+  // SELESAI, default 08:00) sudah lewat -- gunanya piket pagi (menerima
+  // scan siswa datang) sudah tidak relevan lagi di jam segitu. Sekarang
+  // ditutup begitu lewat JAM_DATANG_SELESAI + toleransi datang (dipakai
+  // ulang -- sama seperti batas "Terlambat" siswa di scanKartu()/
+  // api/scan.js), supaya konsisten dengan definisi "jam masuk sekolah"
+  // yang sudah ada. Guru TERJADWAL tidak kena batas ini (tetap bisa
+  // tercatat kalau memang dia yang piket asli & belum digantikan --
+  // lihat pengecekan idTerjadwal.includes(guruId) di atas), batas ini
+  // KHUSUS untuk pendaftaran pengganti baru.
+  //
+  // PENGECUALIAN DARURAT (PENTING): batas ini HANYA berlaku kalau sudah
+  // ada MINIMAL 1 guru piket yang tercatat hari itu (idSudahScan.size >
+  // 0). Kalau sampai lewat batas jam TERNYATA belum ada satu pun guru
+  // piket yang scan (ketiga-tiganya, atau berapa pun yang terjadwal,
+  // sama sekali tidak hadir), slot pengganti TETAP dibuka tanpa batas
+  // jam -- karena scanKartu() (api/scan.js) menolak KERAS absen siswa
+  // kalau tidak ada guru piket tercatat sama sekali hari itu ("Guru
+  // piket belum scan kartu."). Kalau batas jam ini dipaksakan berlaku
+  // juga di kondisi "kosong total", sekolah bisa berakhir TANPA guru
+  // piket sama sekali sepanjang hari itu -- lebih parah daripada
+  // masalah kelebihan piket yang mau dicegah batas jam ini.
+  if (idSudahScan.size > 0) {
+    const toleransiDatang   = Number(jamSetting['TOLERANSI_MENIT'] || 0);
+    const jamTutupPengganti = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransiDatang);
+    if (jam > jamTutupPengganti) {
+      return {
+        boleh: false,
+        message: `Pendaftaran guru piket pengganti sudah ditutup (batas ${jamTutupPengganti}, jam masuk siswa sudah lewat). Hubungi admin kalau slot piket hari ini masih perlu diisi.`
+      };
+    }
   }
 
   const { data: dataGuruTerjadwal } = await supabase
@@ -773,7 +830,6 @@ async function cekIzinPiket({ guruId, guruRole, hari, today, jam }) {
     : jadwalHariIni.map(j => ({ nama: j.nama_guru, jenis_kelamin: null }))
   ).map(g => sebutanGuru(g.nama, g.jenis_kelamin)).join(' / ');
 
-  const jamSetting = await getJamSetting();
   const jamMulai    = jamSetting['JAM_DATANG_MULAI'] || '06:30';
   const toleransi   = Number(jamSetting['TOLERANSI_PIKET_MENIT'] || 15);
   const batasJam    = tambahMenit(jamMulai, toleransi);

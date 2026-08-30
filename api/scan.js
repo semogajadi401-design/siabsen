@@ -621,15 +621,18 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
       pengganti = true;
     }
 
-    // Cek sudah scan hari ini belum
-    const { data: sudahScan } = await supabase
-      .from('sesi_piket')
-      .select('id')
-      .eq('tanggal', today)
-      .eq('id_guru', guru.id)
-      .maybeSingle();
-
-    if (sudahScan) {
+    // Cek sudah scan hari ini belum -- PERBAIKAN PERFORMA: dulu di sini
+    // ada query BARU ke tabel `sesi_piket` (tanggal + id_guru) padahal
+    // cekIzinPiket() di atas SUDAH mengambil seluruh baris `sesi_piket`
+    // hari ini untuk keperluannya sendiri (idSudahScan). Sekarang tinggal
+    // pakai `izin.sudahScan` yang dihitung dari data yang SAMA PERSIS itu
+    // (lihat field `sudahScan` di setiap return cekIzinPiket, termasuk
+    // jalur pengganti/perluKonfirmasi) -- hasilnya identik, cuma tanpa
+    // round-trip database ekstra. Constraint UNIQUE(tanggal,id_guru) di
+    // database TETAP jadi penjaga akhir kalau ada race condition (lihat
+    // penanganan error 23505 di bawah pada INSERT sesi_piket), sama
+    // seperti sebelumnya -- jadi tidak ada celah baru yang terbuka.
+    if (izin.sudahScan) {
       return {
         success: false,
         tipe: 'guru',
@@ -773,10 +776,25 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   if (!siswa) return { success: false, tipe: 'siswa', message: 'Siswa tidak ditemukan' };
   if (siswa.status !== 'Aktif') return { success: false, tipe: 'siswa', message: 'Siswa tidak aktif' };
 
-  // Cek absensi hari ini
-  const { data: absenHariIni } = await supabase
-    .from('absensi').select('*')
-    .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
+  // Cek absensi hari ini, DAN (sekaligus, kalau bukan mode pulang) cek
+  // keterangan_absensi hari ini -- PERBAIKAN PERFORMA: kedua query ini
+  // sama-sama hanya butuh siswa.id + today, tidak saling bergantung,
+  // jadi ditembak BARENG lewat Promise.all alih-alih satu-satu (dulu
+  // query keterangan_absensi baru jalan belakangan, lihat blok "Mode
+  // datang" di bawah). Untuk mode 'pulang', ketHariIniSiswa memang tidak
+  // pernah dipakai (semua jalur mode pulang return duluan sebelum blok
+  // itu), jadi query itu SENGAJA dilewati (Promise.resolve(null)) supaya
+  // tidak ada round-trip database yang sia-sia untuk kasus itu. Tidak ada
+  // urutan pengecekan atau pesan error di bawah yang berubah -- cuma cara
+  // AMBIL datanya yang jadi paralel.
+  const [{ data: absenHariIni }, { data: ketHariIniSiswa }] = await Promise.all([
+    supabase.from('absensi').select('*')
+      .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle(),
+    mode === 'pulang'
+      ? Promise.resolve({ data: null })
+      : supabase.from('keterangan_absensi').select('id,status')
+          .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle()
+  ]);
 
   // Mode pulang — hanya dipicu jika front-end memang eksplisit mengirim
   // mode 'pulang'. Sebelumnya ada auto-switch berdasarkan jam
@@ -876,9 +894,8 @@ async function scanKartu({ identifier, mode, konfirmasiPiket, pilihan }) {
   // lagi dan seharusnya tidak menghalangi absensi yang benar-benar
   // terjadi. Guru piket diberi tahu lewat pesan sukses supaya sadar ada
   // koreksi otomatis, bukan diam-diam.
-  const { data: ketHariIniSiswa } = await supabase
-    .from('keterangan_absensi').select('id,status')
-    .eq('id_siswa', siswa.id).eq('tanggal', today).maybeSingle();
+  // (ketHariIniSiswa sudah diambil bersamaan dengan absenHariIni di atas
+  // lewat Promise.all -- tidak query ulang di sini.)
   if (ketHariIniSiswa) {
     await supabase.from('keterangan_absensi').delete().eq('id', ketHariIniSiswa.id);
   }

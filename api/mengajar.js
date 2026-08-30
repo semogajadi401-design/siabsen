@@ -989,6 +989,37 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
     await supabase.from('keterangan_absensi').delete().eq('id', ketHariIniSiswa.id);
   }
 
+  // BARU: perlakuan yang sama juga untuk sisi tabel `absensi` (gerbang).
+  // Kalau siswa ini ternyata belum pernah absen datang hari ini sama
+  // sekali (tidak scan kartu di gerbang pagi tadi -- BUKAN kasus
+  // Sakit/Izin di atas, murni belum tercatat), tapi sekarang terbukti
+  // hadir fisik karena kartunya discan guru mapel di kelas, buatkan
+  // baris `absensi` untuknya juga (status 'Hadir') -- supaya rekap
+  // harian sekolah (Kehadiran Hari Ini, Rekap Kehadiran, dst -- yang
+  // SEMUANYA baca tabel `absensi`, bukan `kehadiran_siswa_mapel`) tidak
+  // salah menganggap siswa ini belum hadir/alpa padahal sudah tercatat
+  // hadir di kelas. Sengaja langsung 'Hadir' (bukan hitung Terlambat
+  // dari jam gerbang) sesuai permintaan -- beda dgn scanKartu() yang
+  // memang jalur resmi absen gerbang dgn aturan jam/toleransi sendiri.
+  let absenDibuatkan = false;
+  const { data: absenHariIniSiswa } = await supabase
+    .from('absensi').select('id,jam_datang')
+    .eq('id_siswa', siswa.id).eq('tanggal', sesi.tanggal).maybeSingle();
+  if (!absenHariIniSiswa || !absenHariIniSiswa.jam_datang) {
+    const { error: eAbsen } = await supabase.from('absensi').insert({
+      id: generateID('AB'), id_siswa: siswa.id, nisn: siswa.nisn,
+      nama_siswa: siswa.nama, kelas: siswa.kelas,
+      tanggal: sesi.tanggal, hari: sesi.hari, jam_datang: jamSekarang(),
+      status_datang: 'Hadir',
+      id_guru_piket: sesi.id_guru, nama_guru_piket: sesi.nama_guru,
+      metode: 'sinkron_kelas'
+    });
+    // Diamkan error unique_violation (23505) -- berarti ada device lain
+    // yang barusan saja mencatat absen datangnya duluan (race condition),
+    // tidak perlu digagalkan, kehadiran mapel tetap sah disimpan.
+    if (!eAbsen) absenDibuatkan = true;
+  }
+
   const id = generateID('KS');
   const { error } = await supabase.from('kehadiran_siswa_mapel').insert({
     id, id_absensi_mengajar: idAbsensiMengajar, id_siswa: idSiswa,
@@ -1005,12 +1036,14 @@ async function scanSiswaMapel({ idAbsensiMengajar, idSiswa, sesiToken }) {
 
   const jumlahBaru = await hitungUlangStatusVerifikasi(sesi);
 
+  const catatan = [];
+  if (ketHariIniSiswa) catatan.push(`catatan ${ketHariIniSiswa.status} sebelumnya hari ini otomatis dihapus karena ternyata hadir`);
+  if (absenDibuatkan) catatan.push('absen datang di gerbang juga otomatis dicatat karena belum sempat scan pagi tadi');
+
   return {
     success: true, jumlahSiswaTerverifikasi: jumlahBaru.jumlah, statusVerifikasi: jumlahBaru.status,
     nama: siswa.nama,
-    message: ketHariIniSiswa
-      ? `${siswa.nama} tercatat Hadir (catatan ${ketHariIniSiswa.status} sebelumnya hari ini otomatis dihapus karena ternyata hadir)`
-      : undefined
+    message: catatan.length ? `${siswa.nama} tercatat Hadir (${catatan.join('; ')})` : undefined
   };
 }
 

@@ -1768,8 +1768,23 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
                 <button class="btn btn-danger btn-sm" onclick="resetHonorSemuaGuruRow()" title="Tandai honor semua guru sudah lunas dibayar">♻️ Reset Semua</button>
               </div>
             </div>
+            <!-- BARU: keterangan kolom "Tercatat / Jadwal" -- supaya admin/kepsek/
+                 bendahara tidak bingung baca angka "7 / 31" tanpa konteks.
+                 Ditaruh SEBAGAI TEKS PERMANEN (bukan cuma tooltip hover) supaya
+                 tetap kebaca di HP/tablet yang tidak ada hover. -->
+            <div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.78rem;color:#0d47a1;line-height:1.5">
+              <div><b>ℹ️ Cara baca kolom "Tercatat / Jadwal"</b>: angka ditulis <b>jumlah pertemuan yang sudah tercatat</b> / <b>jumlah yang seharusnya</b> menurut jadwal tetap mengajar guru bulan ini — <u>di luar</u> hitungan honor (kehadiran_lengkap), jadi sengaja beda dari kolom "Bulan Ini"/"Belum Dibayar".</div>
+              <div style="margin-top:4px">Contoh <b>7 / 31</b> = guru itu baru tercatat mengajar <b>7 kali</b>, padahal jadwalnya <b>31 kali</b> sampai hari ini bulan ini.</div>
+              <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+                <span><span class="badge" style="background:#E8F5E9;color:#2e7d32;font-weight:700">7 / 7</span> = <b>hijau</b>, sudah lengkap (tercatat ≥ jadwal)</span>
+                <span><span class="badge" style="background:#FFF3E0;color:#e65100;font-weight:700">7 / 31</span> = <b>oranye</b>, masih kurang dari jadwal</span>
+                <span><span class="badge" style="background:#ECEFF1;color:#607D8B;font-weight:700">0 / 0</span> = <b>abu-abu</b>, belum ada jadwal tetap/pertemuan bulan ini</span>
+                <span>⚠️ = ada pertemuan tercatat dari jadwal yang sudah diubah/dihapus, perlu dicek manual</span>
+              </div>
+              <div style="margin-top:6px">👉 <b>Klik angkanya</b> untuk lihat rincian tanggal per hari/kelas/mapel guru tersebut.</div>
+            </div>
             <div class="table-responsive"><table class="table-card-mobile">
-              <thead><tr><th>Guru</th><th id="honKolomSesiHeader">Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th>Jadwal vs Tercatat</th><th>Aksi</th></tr></thead>
+              <thead><tr><th>Guru</th><th id="honKolomSesiHeader">Sesi</th><th>Bulan Ini</th><th>Belum Dibayar</th><th title="Jumlah pertemuan tercatat / jumlah yang seharusnya menurut jadwal tetap — lihat keterangan di atas tabel">Tercatat / Jadwal</th><th>Aksi</th></tr></thead>
               <tbody id="honRekapSemuaGuruBody"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
             </table></div>
           </div>
@@ -10063,7 +10078,7 @@ function lihatDetailJadwalGuru(idGuru, nama) {
       <td data-label="Hari">${esc(slot.hari)}</td>
       <td data-label="Kelas"><span class="badge badge-primary">${esc(slot.kelas)}</span></td>
       <td data-label="Mapel">${esc(slot.mapel)}</td>
-      <td data-label="Seharusnya / Tercatat">${slot.jumlahTercatat} / ${slot.jumlahSeharusnya} ${statusBadge}</td>
+      <td data-label="Tercatat / Seharusnya">${slot.jumlahTercatat} / ${slot.jumlahSeharusnya} ${statusBadge}</td>
       <td data-label="Rincian Tanggal">
         <button class="btn btn-outline btn-sm" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'none' ? 'block' : 'none'">📅 Lihat tanggal</button>
         <div id="${rowId}" style="display:none;margin-top:8px;max-width:420px">${chips || '<span style="color:var(--text-muted);font-size:.76rem">Tidak ada tanggal di rentang ini</span>'}</div>

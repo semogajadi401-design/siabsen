@@ -90,6 +90,32 @@ const handler = async (req, res) => {
       if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
       return res.json(action === 'setTarifHonor' ? await setTarifHonor(params) : await hapusTarifHonor(params));
     }
+
+    // ── MODE HONOR: PER PERTEMUAN vs PER MAPEL/BULAN (BARU) ─────────
+    // Lihat catatan lengkap di kepala fungsi getModeHonor()/setModeHonor()
+    // dan di komentar tabel tarif_honor_mapel_bulanan (schema.sql).
+    if (action === 'getModeHonor') return res.json(await getModeHonor());
+    if (action === 'setModeHonor') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
+      return res.json(await setModeHonor(params));
+    }
+    // Tarif utk mode "per mapel/bulan" -- pola akses SAMA PERSIS dengan
+    // getTarifAktif/getRiwayatTarif/setTarifHonor/hapusTarifHonor di atas,
+    // cuma menunjuk ke tabel tarif_honor_mapel_bulanan.
+    if (action === 'getTarifAktifMapelBulanan') return res.json(await getTarifAktifMapelBulanan());
+    if (action === 'getRiwayatTarifMapelBulanan') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
+        return res.status(403).json({ success: false, message: 'Tidak punya akses.' });
+      }
+      return res.json(await getRiwayatTarifMapelBulanan());
+    }
+    if (action === 'setTarifHonorMapelBulanan' || action === 'hapusTarifHonorMapelBulanan') {
+      const adminValidHonor = await requireAdminToken(adminToken);
+      if (!adminValidHonor && !bendaharaTerverifikasi) return res.status(401).json({ success: false, message: 'Sesi admin/bendahara tidak valid. Silakan login ulang.' });
+      return res.json(action === 'setTarifHonorMapelBulanan' ? await setTarifHonorMapelBulanan(params) : await hapusTarifHonorMapelBulanan(params));
+    }
     if (action === 'getRekapHonorGuru') {
       const adminValidHonor = await requireAdminToken(adminToken);
       if (!adminValidHonor && roleTerverifikasi !== 'kepsek' && !bendaharaTerverifikasi) {
@@ -1857,9 +1883,16 @@ async function getRekapHadirSekolahAlpaKelas({ idGuru, kelas, mapel, bulan, tahu
 //      setTarifHonor), tidak pernah mengedit/menghapus tarif yang
 //      berlaku_mulai-nya sudah lewat.
 
-async function ambilSemuaTarif() {
+// BARU: fungsi generik, dipakai KEDUA tabel tarif (tarif_honor_mengajar
+// utk mode "per pertemuan" & tarif_honor_mapel_bulanan utk mode "per
+// mapel/bulan") -- strukturnya identik (riwayat bertanggal, tidak
+// pernah retroaktif), jadi logikanya tidak diduplikasi. Wrapper tipis
+// di bawah (ambilSemuaTarif, getTarifAktif, dst) mempertahankan nama
+// fungsi & bentuk response LAMA persis supaya tidak ada yang harus
+// diubah di tempat lain yang sudah memanggilnya.
+async function ambilSemuaTarifTabel(namaTabel) {
   const { data, error } = await supabase
-    .from('tarif_honor_mengajar').select('*').order('berlaku_mulai', { ascending: true });
+    .from(namaTabel).select('*').order('berlaku_mulai', { ascending: true });
   if (error) throw new Error(error.message);
   return data || [];
 }
@@ -1873,12 +1906,12 @@ function cariTarifBerlaku(daftarTarif, tanggal) {
   return hasil;
 }
 
-async function getTarifAktif() {
-  const daftar = await ambilSemuaTarif();
+async function getTarifAktifTabel(namaTabel, labelSatuan) {
+  const daftar = await ambilSemuaTarifTabel(namaTabel);
   const today = todayStr();
   const aktif = cariTarifBerlaku(daftar, today);
   if (!aktif) {
-    return { success: true, ada: false, message: 'Tarif honor belum pernah diset admin.' };
+    return { success: true, ada: false, message: `Tarif honor (${labelSatuan}) belum pernah diset admin.` };
   }
   return {
     success: true, ada: true,
@@ -1887,8 +1920,8 @@ async function getTarifAktif() {
   };
 }
 
-async function getRiwayatTarif() {
-  const daftar = await ambilSemuaTarif();
+async function getRiwayatTarifTabel(namaTabel) {
+  const daftar = await ambilSemuaTarifTabel(namaTabel);
   const today = todayStr();
   return {
     success: true,
@@ -1903,7 +1936,7 @@ async function getRiwayatTarif() {
   };
 }
 
-async function setTarifHonor({ nilai, berlakuMulai, keterangan, namaAdmin }) {
+async function setTarifHonorTabel(namaTabel, labelSatuan, { nilai, berlakuMulai, keterangan, namaAdmin }) {
   const nilaiNum = Number(nilai);
   if (!nilaiNum || nilaiNum <= 0) return { success: false, message: 'Nilai tarif harus lebih dari 0.' };
 
@@ -1913,7 +1946,7 @@ async function setTarifHonor({ nilai, berlakuMulai, keterangan, namaAdmin }) {
     return { success: false, message: 'Tanggal berlaku tidak boleh mundur ke hari yang sudah lewat. Tarif lama yang sudah berjalan tidak boleh diubah retroaktif.' };
   }
 
-  const { error } = await supabase.from('tarif_honor_mengajar').insert({
+  const { error } = await supabase.from(namaTabel).insert({
     id: generateID(), nilai: nilaiNum, berlaku_mulai: tanggal,
     keterangan: keterangan || '', dibuat_oleh: namaAdmin || 'Admin'
   });
@@ -1923,21 +1956,153 @@ async function setTarifHonor({ nilai, berlakuMulai, keterangan, namaAdmin }) {
     }
     return { success: false, message: error.message };
   }
-  return { success: true, message: `Tarif Rp${nilaiNum.toLocaleString('id-ID')} per pertemuan disimpan, berlaku mulai ${tanggal}.` };
+  return { success: true, message: `Tarif Rp${nilaiNum.toLocaleString('id-ID')} ${labelSatuan} disimpan, berlaku mulai ${tanggal}.` };
 }
 
-async function hapusTarifHonor({ id }) {
+async function hapusTarifHonorTabel(namaTabel, { id }) {
   if (!id) return { success: false, message: 'ID tarif wajib diisi.' };
-  const { data: row } = await supabase.from('tarif_honor_mengajar').select('*').eq('id', id).maybeSingle();
+  const { data: row } = await supabase.from(namaTabel).select('*').eq('id', id).maybeSingle();
   if (!row) return { success: false, message: 'Data tarif tidak ditemukan.' };
 
   const today = todayStr();
   if (String(row.berlaku_mulai).substring(0, 10) <= today) {
     return { success: false, message: 'Tarif yang sudah berlaku tidak boleh dihapus (supaya histori honor yang sudah dihitung tidak berubah). Tambahkan tarif baru dengan tanggal berlaku hari ini/mendatang kalau ingin mengubahnya.' };
   }
-  const { error } = await supabase.from('tarif_honor_mengajar').delete().eq('id', id);
+  const { error } = await supabase.from(namaTabel).delete().eq('id', id);
   if (error) return { success: false, message: error.message };
   return { success: true, message: 'Tarif terjadwal berhasil dihapus.' };
+}
+
+// ── Wrapper mode "per pertemuan" (tabel tarif_honor_mengajar) ───────
+async function ambilSemuaTarif() { return ambilSemuaTarifTabel('tarif_honor_mengajar'); }
+async function getTarifAktif() { return getTarifAktifTabel('tarif_honor_mengajar', 'per pertemuan'); }
+async function getRiwayatTarif() { return getRiwayatTarifTabel('tarif_honor_mengajar'); }
+async function setTarifHonor(params) { return setTarifHonorTabel('tarif_honor_mengajar', 'per pertemuan', params); }
+async function hapusTarifHonor(params) { return hapusTarifHonorTabel('tarif_honor_mengajar', params); }
+
+// ── Wrapper mode "per mapel/bulan" (tabel tarif_honor_mapel_bulanan) ─
+async function ambilSemuaTarifMapelBulanan() { return ambilSemuaTarifTabel('tarif_honor_mapel_bulanan'); }
+async function getTarifAktifMapelBulanan() { return getTarifAktifTabel('tarif_honor_mapel_bulanan', 'per mapel/bulan'); }
+async function getRiwayatTarifMapelBulanan() { return getRiwayatTarifTabel('tarif_honor_mapel_bulanan'); }
+async function setTarifHonorMapelBulanan(params) { return setTarifHonorTabel('tarif_honor_mapel_bulanan', 'per mapel/bulan', params); }
+async function hapusTarifHonorMapelBulanan(params) { return hapusTarifHonorTabel('tarif_honor_mapel_bulanan', params); }
+
+// ── MODE HONOR (BARU): 'per_pertemuan' atau 'per_mapel_bulan' ───────
+// Disimpan sebagai baris di jam_setting (kunci MODE_HONOR, lihat
+// INSERT default di schema.sql) -- tabel key-value yang sama dipakai
+// pengaturan global lain (jam absen, dll), supaya tidak perlu tabel
+// baru cuma untuk 1 pengaturan ini.
+async function getModeHonor() {
+  const { data } = await supabase.from('jam_setting').select('nilai').eq('kunci', 'MODE_HONOR').maybeSingle();
+  const mode = (data && data.nilai === 'per_mapel_bulan') ? 'per_mapel_bulan' : 'per_pertemuan';
+  return { success: true, mode };
+}
+
+async function setModeHonor({ mode }) {
+  if (mode !== 'per_pertemuan' && mode !== 'per_mapel_bulan') {
+    return { success: false, message: 'Mode tidak dikenal. Pilih "per_pertemuan" atau "per_mapel_bulan".' };
+  }
+  const { error } = await supabase.from('jam_setting')
+    .upsert({ kunci: 'MODE_HONOR', nilai: mode, deskripsi: 'Mode hitung honor mengajar: per_pertemuan atau per_mapel_bulan' }, { onConflict: 'kunci' });
+  if (error) return { success: false, message: error.message };
+  const label = mode === 'per_mapel_bulan' ? 'Per Mapel/Bulan (flat, semua kelas dianggap 1x per mapel)' : 'Per Pertemuan (dikali jumlah sesi lengkap)';
+  return { success: true, message: `Mode hitung honor diubah menjadi: ${label}.` };
+}
+
+// BARU: kelompokkan sesi kehadiran_lengkap=true menjadi honor mode
+// "per mapel/bulan" -- 1 mapel yang sama (guru + mapel + bulan yang
+// sama) dihitung SATU kali flat, walau diajarkan di banyak kelas/sesi.
+// Dipakai bareng getRekapHonorGuru, getRekapHonorSemuaGuru, DAN
+// getTotalHonorKeseluruhanGuru supaya logika pengelompokannya konsisten
+// di ketiga tempat (satu sumber kebenaran).
+//   sesiList     : array baris absensi_mengajar {id_guru, tanggal, kelas, mapel, hari}
+//   daftarTarif  : hasil ambilSemuaTarifMapelBulanan()
+//   tanggalAcuan : tanggal dipakai mencari tarif yang berlaku utk grup ini
+//                  (dipakai awal bulan grup itu, BUKAN tanggal tiap sesi --
+//                  karena ini honor per BULAN, bukan per sesi)
+// Return: { totalRupiah, totalMapel, rincian: [{mapel, bulanLabel, jumlahPertemuan, kelasList, tarifSaatItu, rupiah}] }
+function kelompokkanHonorPerMapelBulan(sesiList, daftarTarif) {
+  const grup = {}; // key: mapel|YYYY-MM -> { mapel, tahun, bulan, kelasSet, tanggalTerawal, jumlahPertemuan }
+  (sesiList || []).forEach(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    const ym = tanggal.substring(0, 7); // YYYY-MM
+    const key = `${s.mapel}|${ym}`;
+    if (!grup[key]) {
+      grup[key] = {
+        mapel: s.mapel, tahun: Number(ym.substring(0, 4)), bulan: Number(ym.substring(5, 7)),
+        awalBulan: `${ym}-01`, kelasSet: new Set(), jumlahPertemuan: 0
+      };
+    }
+    grup[key].kelasSet.add(s.kelas);
+    grup[key].jumlahPertemuan++;
+  });
+
+  let totalRupiah = 0;
+  const rincian = Object.values(grup).map(g => {
+    // Tarif "per mapel/bulan" berlaku per BULAN, jadi dicek berdasarkan
+    // tanggal 1 di bulan itu (bukan tanggal sesi individual).
+    const tarif = cariTarifBerlaku(daftarTarif, g.awalBulan);
+    const rupiah = tarif ? tarif.nilai : 0;
+    totalRupiah += rupiah;
+    return {
+      mapel: g.mapel, tahun: g.tahun, bulan: g.bulan,
+      kelas: Array.from(g.kelasSet).sort().join(', '),
+      jumlahPertemuan: g.jumlahPertemuan,
+      tarifSaatItu: tarif ? tarif.nilai : null, rupiah
+    };
+  }).sort((a, b) => (a.tahun - b.tahun) || (a.bulan - b.bulan) || a.mapel.localeCompare(b.mapel));
+
+  return { totalRupiah, totalMapel: rincian.length, rincian };
+}
+
+// BARU: hitung "total keseluruhan" (semua sesi lengkap sepanjang waktu,
+// dikurangi yang sudah pernah direset per guru) -- sadar mode, dipakai
+// bareng getRekapHonorSemuaGuru, getTotalHonorKeseluruhanGuru, dan
+// resetHonorSemuaGuru supaya angka "Total Keseluruhan" konsisten di
+// mana pun ditampilkan/dipakai.
+//   sesiSemua      : baris absensi_mengajar {id_guru, tanggal, mapel, kelas}
+//                    (mapel/kelas boleh kosong kalau mode per_pertemuan)
+//   mode           : 'per_pertemuan' | 'per_mapel_bulan'
+//   petaReset      : peta id_guru -> tanggal_reset TERAKHIR (cutoff)
+//   skipTanpaTarif : true = sesi/mapel-bulan yang tidak ada tarif berlaku
+//                    dibuang dari hitungan (dipakai getTotalHonorKeseluruhanGuru
+//                    & resetHonorSemuaGuru, perilaku lama). false = tetap
+//                    dihitung sebagai unit dgn rupiah 0 (dipakai
+//                    getRekapHonorSemuaGuru, perilaku lama).
+// Return: { [idGuru]: { totalUnit, totalRupiah } }
+function hitungTotalKeseluruhanPerGuru(sesiSemua, mode, daftarTarif, daftarTarifMapel, petaReset, skipTanpaTarif) {
+  const perGuru = {};
+  if (mode === 'per_mapel_bulan') {
+    const byGuru = {};
+    (sesiSemua || []).forEach(s => {
+      const tanggal = String(s.tanggal).substring(0, 10);
+      const cutoff = petaReset[s.id_guru];
+      if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
+      (byGuru[s.id_guru] = byGuru[s.id_guru] || []).push(s);
+    });
+    Object.keys(byGuru).forEach(idGuru => {
+      const { rincian } = kelompokkanHonorPerMapelBulan(byGuru[idGuru], daftarTarifMapel);
+      let totalUnit = 0, totalRupiah = 0;
+      rincian.forEach(r => {
+        if (!r.tarifSaatItu && skipTanpaTarif) return;
+        totalUnit++; totalRupiah += r.rupiah;
+      });
+      perGuru[idGuru] = { totalUnit, totalRupiah };
+    });
+    return perGuru;
+  }
+  (sesiSemua || []).forEach(s => {
+    const tanggal = String(s.tanggal).substring(0, 10);
+    const cutoff = petaReset[s.id_guru];
+    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
+    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+    if (!tarif && skipTanpaTarif) return;
+    const rupiah = tarif ? tarif.nilai : 0;
+    if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalUnit: 0, totalRupiah: 0 };
+    perGuru[s.id_guru].totalUnit++;
+    perGuru[s.id_guru].totalRupiah += rupiah;
+  });
+  return perGuru;
 }
 
 async function getRekapHonorGuru({ idGuru, bulan, tahun }) {
@@ -1954,14 +2119,35 @@ async function getRekapHonorGuru({ idGuru, bulan, tahun }) {
   const awalBulan = `${th}-${String(bl).padStart(2, '0')}-01`;
   const akhirBulan = `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHariDiBulan).padStart(2, '0')}`;
 
-  const [{ data: sesiHonor }, daftarTarif] = await Promise.all([
+  const [{ data: sesiHonor }, modeInfo] = await Promise.all([
     supabase.from('absensi_mengajar').select('*')
       .eq('id_guru', idGuru).eq('kehadiran_lengkap', true)
       .gte('tanggal', awalBulan).lte('tanggal', akhirBulan)
       .order('tanggal', { ascending: false }),
-    ambilSemuaTarif()
+    getModeHonor()
   ]);
+  const mode = modeInfo.mode;
 
+  // BARU: mode "per_mapel_bulan" -- honor flat per mapel per bulan,
+  // semua kelas dgn mapel yg sama dihitung 1x (lihat komentar lengkap
+  // di kelompokkanHonorPerMapelBulan()). Mode "per_pertemuan" (lama)
+  // tetap dihitung persis seperti sebelumnya.
+  if (mode === 'per_mapel_bulan') {
+    const daftarTarifMapel = await ambilSemuaTarifMapelBulanan();
+    const { totalRupiah, totalMapel, rincian } = kelompokkanHonorPerMapelBulan(sesiHonor, daftarTarifMapel);
+    const rincianTanpaTarif = rincian.filter(r => !r.tarifSaatItu).length;
+    return {
+      success: true, mode,
+      guru: { id: guru.id, nama: guru.nama },
+      bulan: bl, tahun: th,
+      totalMapelHonor: totalMapel,
+      totalRupiah,
+      sesiTanpaTarif: rincianTanpaTarif,
+      rincian
+    };
+  }
+
+  const daftarTarif = await ambilSemuaTarif();
   let totalRupiah = 0;
   let sesiTanpaTarif = 0;
   const rincian = (sesiHonor || []).map(s => {
@@ -1977,7 +2163,7 @@ async function getRekapHonorGuru({ idGuru, bulan, tahun }) {
   });
 
   return {
-    success: true,
+    success: true, mode,
     guru: { id: guru.id, nama: guru.nama },
     bulan: bl, tahun: th,
     totalSesiHonor: rincian.length,
@@ -1996,7 +2182,7 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
   const awalBulan = `${th}-${String(bl).padStart(2, '0')}-01`;
   const akhirBulan = `${th}-${String(bl).padStart(2, '0')}-${String(jumlahHariDiBulan).padStart(2, '0')}`;
 
-  const [{ data: guruList }, { data: sesiHonor }, { data: sesiSemua }, daftarTarif, petaReset] = await Promise.all([
+  const [{ data: guruList }, { data: sesiHonor }, { data: sesiSemua }, daftarTarif, daftarTarifMapel, petaReset, modeInfo] = await Promise.all([
     supabase.from('guru').select('id,nama,role').neq('role', 'kepsek').order('nama', { ascending: true }),
     // BARU: tambah kolom hari/kelas/mapel -- sebelumnya cuma id_guru,
     // nama_guru,tanggal (cukup untuk total agregat), sekarang juga
@@ -2008,54 +2194,66 @@ async function getRekapHonorSemuaGuru({ bulan, tahun }) {
       .order('tanggal', { ascending: true }),
     // BARU: dipakai utk kolom "Total Keseluruhan" -- semua sesi sepanjang
     // waktu (tidak difilter bulan), lihat catatan di getTotalHonorKeseluruhanGuru().
-    supabase.from('absensi_mengajar').select('id_guru,tanggal').eq('kehadiran_lengkap', true),
+    // BARU: tambah mapel,kelas -- dibutuhkan mode "per_mapel_bulan" utk
+    // mengelompokkan sesi keseluruhan per mapel per bulan (bukan cuma
+    // dijumlah per sesi seperti mode "per_pertemuan").
+    supabase.from('absensi_mengajar').select('id_guru,tanggal,mapel,kelas').eq('kehadiran_lengkap', true),
     ambilSemuaTarif(),
-    ambilPetaResetTerakhir()
+    ambilSemuaTarifMapelBulanan(),
+    ambilPetaResetTerakhir(),
+    getModeHonor()
   ]);
+  const mode = modeInfo.mode;
 
   const perGuru = {};
-  // BARU: rincian per pertemuan per guru (tanggal, hari, kelas, mapel,
-  // rupiah) -- 1 baris per sesi yang kehadirannya lengkap di bulan yang
-  // dipilih. Dijumlah persis sama dengan totalRupiah/totalSesi di
-  // bawah, supaya total di rekap dan rincian per pertemuan selalu
-  // konsisten (satu sumber data yang sama, tidak dihitung ulang terpisah).
+  // BARU: rincian bulan ini per guru -- mode "per_pertemuan": 1 baris
+  // per sesi (tanggal, hari, kelas, mapel, rupiah), sama seperti dulu.
+  // Mode "per_mapel_bulan": 1 baris per mapel (flat, semua kelas
+  // digabung), lihat kelompokkanHonorPerMapelBulan(). Dijumlah persis
+  // sama dengan totalRupiah di bawah -- satu sumber data yang sama.
   const rincianPerGuru = {};
-  (sesiHonor || []).forEach(s => {
-    const tanggal = String(s.tanggal).substring(0, 10);
-    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
-    const rupiah = tarif ? tarif.nilai : 0;
-    if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
-    perGuru[s.id_guru].totalSesi++;
-    perGuru[s.id_guru].totalRupiah += rupiah;
-    if (!rincianPerGuru[s.id_guru]) rincianPerGuru[s.id_guru] = [];
-    rincianPerGuru[s.id_guru].push({ tanggal, hari: s.hari, kelas: s.kelas, mapel: s.mapel, rupiah });
-  });
+  if (mode === 'per_mapel_bulan') {
+    const sesiPerGuru = {};
+    (sesiHonor || []).forEach(s => { (sesiPerGuru[s.id_guru] = sesiPerGuru[s.id_guru] || []).push(s); });
+    Object.keys(sesiPerGuru).forEach(idGuru => {
+      const { totalRupiah, totalMapel, rincian } = kelompokkanHonorPerMapelBulan(sesiPerGuru[idGuru], daftarTarifMapel);
+      perGuru[idGuru] = { totalUnit: totalMapel, totalRupiah };
+      rincianPerGuru[idGuru] = rincian;
+    });
+  } else {
+    (sesiHonor || []).forEach(s => {
+      const tanggal = String(s.tanggal).substring(0, 10);
+      const tarif = cariTarifBerlaku(daftarTarif, tanggal);
+      const rupiah = tarif ? tarif.nilai : 0;
+      if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalUnit: 0, totalRupiah: 0 };
+      perGuru[s.id_guru].totalUnit++;
+      perGuru[s.id_guru].totalRupiah += rupiah;
+      if (!rincianPerGuru[s.id_guru]) rincianPerGuru[s.id_guru] = [];
+      rincianPerGuru[s.id_guru].push({ tanggal, hari: s.hari, kelas: s.kelas, mapel: s.mapel, rupiah });
+    });
+  }
 
-  const perGuruKeseluruhan = {};
-  (sesiSemua || []).forEach(s => {
-    const tanggal = String(s.tanggal).substring(0, 10);
-    const cutoff = petaReset[s.id_guru];
-    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
-    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
-    const rupiah = tarif ? tarif.nilai : 0;
-    if (!perGuruKeseluruhan[s.id_guru]) perGuruKeseluruhan[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
-    perGuruKeseluruhan[s.id_guru].totalSesi++;
-    perGuruKeseluruhan[s.id_guru].totalRupiah += rupiah;
-  });
+  // BARU: "Total Keseluruhan" (semua bulan, dikurangi yang sudah
+  // direset) -- sekarang sadar mode juga, lewat hitungTotalKeseluruhanPerGuru().
+  // skipTanpaTarif=false supaya perilaku PERSIS sama dgn sebelumnya:
+  // sesi/mapel tanpa tarif tetap dihitung sebagai unit (rupiah 0), TIDAK
+  // dibuang dari totalSesi/totalMapel (beda dgn getTotalHonorKeseluruhanGuru
+  // per-guru di bawah, yang sengaja membuang -- lihat catatan di sana).
+  const perGuruKeseluruhan = hitungTotalKeseluruhanPerGuru(sesiSemua, mode, daftarTarif, daftarTarifMapel, petaReset, false);
 
   const rekap = (guruList || []).map(g => ({
     idGuru: g.id, nama: g.nama,
-    totalSesi: perGuru[g.id]?.totalSesi || 0,
+    totalSesi: perGuru[g.id]?.totalUnit || 0,
     totalRupiah: perGuru[g.id]?.totalRupiah || 0,
-    totalSesiKeseluruhan: perGuruKeseluruhan[g.id]?.totalSesi || 0,
+    totalSesiKeseluruhan: perGuruKeseluruhan[g.id]?.totalUnit || 0,
     totalRupiahKeseluruhan: perGuruKeseluruhan[g.id]?.totalRupiah || 0,
     terakhirDireset: petaReset[g.id] || null,
-    // BARU: rincian pertemuan bulan ini -- lihat catatan di atas.
+    // BARU: rincian pertemuan/mapel bulan ini -- lihat catatan di atas.
     rincian: rincianPerGuru[g.id] || []
   }));
 
   return {
-    success: true, bulan: bl, tahun: th,
+    success: true, mode, bulan: bl, tahun: th,
     totalRupiahSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiah, 0),
     totalRupiahKeseluruhanSemuaGuru: rekap.reduce((a, g) => a + g.totalRupiahKeseluruhan, 0),
     rekap: rekap.sort((a, b) => b.totalRupiah - a.totalRupiah)
@@ -2094,27 +2292,47 @@ async function getTotalHonorKeseluruhanGuru({ idGuru }) {
   const { data: guru } = await supabase.from('guru').select('id,nama').eq('id', idGuru).maybeSingle();
   if (!guru) return { success: false, message: 'Guru tidak ditemukan' };
 
-  const [{ data: sesiSemua }, daftarTarif, cutoff] = await Promise.all([
-    supabase.from('absensi_mengajar').select('tanggal')
+  const [{ data: sesiSemua }, daftarTarif, daftarTarifMapel, cutoff, modeInfo] = await Promise.all([
+    // BARU: tambah id_guru,mapel,kelas -- id_guru dipakai supaya bisa
+    // dipakai bareng hitungTotalKeseluruhanPerGuru() (fungsi bersama yg
+    // sama dgn getRekapHonorSemuaGuru/resetHonorSemuaGuru), mapel/kelas
+    // dibutuhkan mode "per_mapel_bulan".
+    supabase.from('absensi_mengajar').select('id_guru,tanggal,mapel,kelas')
       .eq('id_guru', idGuru).eq('kehadiran_lengkap', true),
     ambilSemuaTarif(),
-    ambilTanggalResetTerakhir(idGuru)
+    ambilSemuaTarifMapelBulanan(),
+    ambilTanggalResetTerakhir(idGuru),
+    getModeHonor()
   ]);
+  const mode = modeInfo.mode;
 
-  let totalRupiah = 0, totalSesi = 0, sesiTanpaTarif = 0;
-  (sesiSemua || []).forEach(s => {
-    const tanggal = String(s.tanggal).substring(0, 10);
-    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
-    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
-    if (!tarif) { sesiTanpaTarif++; return; }
-    totalSesi++;
-    totalRupiah += tarif.nilai;
-  });
+  // skipTanpaTarif=true: perilaku LAMA -- sesi/mapel-bulan yang belum
+  // ada tarif berlaku dibuang dari totalSesi/totalRupiah (dihitung
+  // terpisah sebagai sesiTanpaTarif, bukan dianggap Rp0).
+  const perGuru = hitungTotalKeseluruhanPerGuru(sesiSemua, mode, daftarTarif, daftarTarifMapel, { [idGuru]: cutoff }, true);
+  const totalRupiah = perGuru[idGuru]?.totalRupiah || 0;
+  const totalUnit = perGuru[idGuru]?.totalUnit || 0;
+
+  // sesiTanpaTarif: dihitung ulang terpisah (bukan dari totalUnit di
+  // atas, karena itu sudah membuang yang tanpa tarif) supaya info ini
+  // tetap tersedia untuk UI, sama seperti sebelumnya.
+  let sesiTanpaTarif = 0;
+  if (mode === 'per_mapel_bulan') {
+    const sesiSetelahCutoff = (sesiSemua || []).filter(s => !(cutoff && String(s.tanggal).substring(0, 10) <= cutoff));
+    const { rincian } = kelompokkanHonorPerMapelBulan(sesiSetelahCutoff, daftarTarifMapel);
+    sesiTanpaTarif = rincian.filter(r => !r.tarifSaatItu).length;
+  } else {
+    (sesiSemua || []).forEach(s => {
+      const tanggal = String(s.tanggal).substring(0, 10);
+      if (cutoff && tanggal <= cutoff) return;
+      if (!cariTarifBerlaku(daftarTarif, tanggal)) sesiTanpaTarif++;
+    });
+  }
 
   return {
-    success: true,
+    success: true, mode,
     guru: { id: guru.id, nama: guru.nama },
-    totalSesiHonor: totalSesi,
+    totalSesiHonor: totalUnit,
     totalRupiah,
     sesiTanpaTarif,
     dihitungSejak: cutoff || null // null = sejak awal (belum pernah direset)
@@ -2175,34 +2393,29 @@ async function resetHonorSemuaGuru({ namaAdmin }) {
     return { success: false, message: 'Belum ada data guru.' };
   }
 
-  const [{ data: sesiSemua }, daftarTarif, petaReset] = await Promise.all([
-    supabase.from('absensi_mengajar').select('id_guru,tanggal').eq('kehadiran_lengkap', true),
+  const [{ data: sesiSemua }, daftarTarif, daftarTarifMapel, petaReset, modeInfo] = await Promise.all([
+    // BARU: tambah mapel,kelas -- dibutuhkan mode "per_mapel_bulan".
+    supabase.from('absensi_mengajar').select('id_guru,tanggal,mapel,kelas').eq('kehadiran_lengkap', true),
     ambilSemuaTarif(),
-    ambilPetaResetTerakhir()
+    ambilSemuaTarifMapelBulanan(),
+    ambilPetaResetTerakhir(),
+    getModeHonor()
   ]);
+  const mode = modeInfo.mode;
 
-  // Hitung total keseluruhan per guru (logikanya sama persis dengan
-  // getTotalHonorKeseluruhanGuru, tapi dilakukan sekali jalan utk semua
-  // guru sekaligus supaya tidak perlu N query terpisah).
-  const perGuru = {};
-  (sesiSemua || []).forEach(s => {
-    const tanggal = String(s.tanggal).substring(0, 10);
-    const cutoff = petaReset[s.id_guru];
-    if (cutoff && tanggal <= cutoff) return; // sudah pernah direset/dibayarkan
-    const tarif = cariTarifBerlaku(daftarTarif, tanggal);
-    if (!tarif) return; // sesi tanpa tarif tidak ikut nominal, sama seperti fungsi individual
-    if (!perGuru[s.id_guru]) perGuru[s.id_guru] = { totalSesi: 0, totalRupiah: 0 };
-    perGuru[s.id_guru].totalSesi++;
-    perGuru[s.id_guru].totalRupiah += tarif.nilai;
-  });
+  // Hitung total keseluruhan per guru -- logikanya sama persis dengan
+  // getTotalHonorKeseluruhanGuru (skipTanpaTarif=true: sesi/mapel-bulan
+  // tanpa tarif tidak ikut nominal), lewat fungsi bersama
+  // hitungTotalKeseluruhanPerGuru() supaya konsisten & sadar mode juga.
+  const perGuru = hitungTotalKeseluruhanPerGuru(sesiSemua, mode, daftarTarif, daftarTarifMapel, petaReset, true);
 
   const tanggalReset = todayStr();
   const baris = guruList
-    .filter(g => (perGuru[g.id]?.totalSesi || 0) > 0)
+    .filter(g => (perGuru[g.id]?.totalUnit || 0) > 0)
     .map(g => ({
       id: generateID(), id_guru: g.id, tanggal_reset: tanggalReset,
       total_rupiah_saat_reset: perGuru[g.id].totalRupiah,
-      total_sesi_saat_reset: perGuru[g.id].totalSesi,
+      total_sesi_saat_reset: perGuru[g.id].totalUnit,
       direset_oleh: namaAdmin || 'Admin'
     }));
 

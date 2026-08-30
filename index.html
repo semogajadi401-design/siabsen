@@ -2661,6 +2661,49 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
   </div>
 </div>
+<!-- BARU: Rincian Total Pertemuan per Kelas/Mapel -- dipakai admin/kepsek/
+     bendahara di halaman Honor Mengajar utk mengecek apakah nominal honor
+     yang belum dibayar itu masuk akal, lihat lihatDetailHonorGuru() &
+     getRincianPertemuanKelasMapel() di api/mengajar.js. -->
+<div class="modal-backdrop" id="modalRincianPertemuan">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <h3>📋 Rincian Pertemuan Guru</h3>
+        <div style="font-size:.76rem;color:var(--text-muted);font-weight:400;margin-top:2px" id="rpNamaGuru">—</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modalRincianPertemuan')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:2px">Rincian Bulan Terpilih</div>
+        <div id="rpRincianBulanIni" style="font-size:.8rem;color:var(--text-muted)">Memuat...</div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:14px 0"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div>
+          <div style="font-weight:800;font-size:.92rem">📊 Total Pertemuan per Kelas/Mapel</div>
+          <div style="font-size:.72rem;color:var(--text-muted)" id="rpDihitungSejak">-</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.1rem;font-weight:800;color:var(--primary)" id="rpTotalPertemuan">-</div>
+          <div style="font-size:.7rem;color:var(--text-muted)">total pertemuan belum dibayar</div>
+        </div>
+      </div>
+      <div id="rpPeringatanLuarJadwal" style="display:none;background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;font-size:.76rem;color:#8a5a00;margin-bottom:10px">
+        ⚠️ Ada sesi tercatat untuk kelas/mapel yang TIDAK ADA di jadwal resmi guru ini (ditandai kuning di tabel) — kemungkinan jadwal pernah diubah, atau ada salah input saat scan. Perlu dicek manual.
+      </div>
+      <div class="table-responsive"><table class="table-card-mobile">
+        <thead><tr><th>Kelas</th><th>Mapel</th><th>Jumlah Pertemuan</th><th>Status</th></tr></thead>
+        <tbody id="rpRincianKelasMapelBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modalRincianPertemuan')">Tutup</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Tandai Sakit/Pulang Cepat (BARU) -->
 <div class="modal-backdrop" id="modalPulangCepat">
   <div class="modal modal-sm">
@@ -10243,24 +10286,68 @@ async function resetHonorSemuaGuruRow() {
 // kalau ada di halaman; kalau tidak, fallback tampil sebagai alert
 // ringkas supaya tetap berguna walau modal belum ditambahkan ke markup.
 async function lihatDetailHonorGuru(idGuru, nama) {
+  document.getElementById('rpNamaGuru').textContent = nama;
+  document.getElementById('rpRincianBulanIni').textContent = 'Memuat...';
+  document.getElementById('rpDihitungSejak').textContent = '-';
+  document.getElementById('rpTotalPertemuan').textContent = '-';
+  document.getElementById('rpPeringatanLuarJadwal').style.display = 'none';
+  document.getElementById('rpRincianKelasMapelBody').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Memuat...</td></tr>';
+  openModal('modalRincianPertemuan');
+
   const bulan = document.getElementById('honBulan')?.value;
   const tahun = document.getElementById('honTahun')?.value;
-  const result = await api('mengajar', 'getRekapHonorGuru', { idGuru, bulan, tahun });
-  if (!result.success) { toast(result.message, 'error'); return; }
+  const [bulanIni, kelasMapel] = await Promise.all([
+    api('mengajar', 'getRekapHonorGuru', { idGuru, bulan, tahun }),
+    // BARU: rincian total pertemuan per kelas/mapel -- sumbernya jadwal
+    // resmi guru + sesi SETELAH reset terakhir (lihat catatan lengkap di
+    // getRincianPertemuanKelasMapel() di api/mengajar.js), supaya admin/
+    // kepsek/bendahara bisa mengecek layak-tidaknya honor yang belum
+    // dibayar berdasarkan jumlah pertemuan asli, bukan cuma nominal jadi.
+    api('mengajar', 'getRincianPertemuanKelasMapel', { idGuru })
+  ]);
 
-  // BARU: mode "per_mapel_bulan" -- rincian berbentuk per mapel (bukan
-  // per sesi), lihat kelompokkanHonorPerMapelBulan() di api/mengajar.js.
-  const isMapelBulan = result.mode === 'per_mapel_bulan';
-  const baris = isMapelBulan
-    ? result.rincian.map(r => `${r.mapel} (${r.jumlahPertemuan}x pertemuan, kelas: ${r.kelas}) — ${fmtRupiah(r.rupiah)}`).join('\n')
-    : result.rincian.map(r => `${r.tanggal} (${r.hari}) — ${r.kelas} / ${r.mapel} — ${fmtRupiah(r.rupiah)}`).join('\n');
-  const jumlahUnit = isMapelBulan ? result.totalMapelHonor : result.totalSesiHonor;
-  const labelUnit = isMapelBulan ? 'mapel' : 'sesi';
-  const isi = result.rincian.length
-    ? `Rincian honor ${nama} — ${result.bulan}/${result.tahun}\n\n${baris}\n\nTotal: ${fmtRupiah(result.totalRupiah)} (${jumlahUnit} ${labelUnit})`
-        + (result.sesiTanpaTarif ? `\n\n⚠️ ${result.sesiTanpaTarif} ${labelUnit} belum terhitung karena belum ada tarif yang berlaku saat itu.` : '')
-    : `${nama} belum punya ${labelUnit} yang terhitung honornya pada ${result.bulan}/${result.tahun}.`;
-  alert(isi);
+  // ── Ringkasan bulan yang dipilih (di dropdown Rekap Honor Guru) ──
+  if (bulanIni.success) {
+    const isMapelBulan = bulanIni.mode === 'per_mapel_bulan';
+    const jumlahUnit = isMapelBulan ? bulanIni.totalMapelHonor : bulanIni.totalSesiHonor;
+    const labelUnit = isMapelBulan ? 'mapel' : 'sesi';
+    document.getElementById('rpRincianBulanIni').innerHTML =
+      `${bulanIni.bulan}/${bulanIni.tahun}: <b>${fmtRupiah(bulanIni.totalRupiah)}</b> (${jumlahUnit} ${labelUnit})`
+      + (bulanIni.sesiTanpaTarif ? ` — ⚠️ ${bulanIni.sesiTanpaTarif} ${labelUnit} belum ada tarif berlaku` : '');
+  } else {
+    document.getElementById('rpRincianBulanIni').textContent = bulanIni.message || 'Gagal memuat.';
+  }
+
+  // ── Rincian total pertemuan per kelas/mapel (belum dibayar) ──
+  if (!kelasMapel.success) {
+    document.getElementById('rpDihitungSejak').textContent = kelasMapel.message || 'Gagal memuat.';
+    document.getElementById('rpRincianKelasMapelBody').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Gagal memuat data</td></tr>';
+    return;
+  }
+
+  document.getElementById('rpDihitungSejak').textContent = kelasMapel.dihitungSejak
+    ? `Dihitung sejak ${kelasMapel.dihitungSejak} (terakhir direset admin)`
+    : 'Sejak awal (belum pernah direset admin)';
+  document.getElementById('rpTotalPertemuan').textContent = kelasMapel.totalPertemuan;
+  document.getElementById('rpPeringatanLuarJadwal').style.display = kelasMapel.adaDiLuarJadwal ? 'block' : 'none';
+
+  const tbody = document.getElementById('rpRincianKelasMapelBody');
+  if (!kelasMapel.rincian.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">Belum ada jadwal/pertemuan tercatat untuk guru ini</td></tr>';
+    return;
+  }
+  tbody.innerHTML = kelasMapel.rincian.map(r => {
+    const style = r.adaDiJadwal ? '' : 'background:#FFF8E1';
+    const status = r.adaDiJadwal
+      ? (r.jumlahPertemuan > 0 ? '<span class="badge badge-success">Sesuai jadwal</span>' : '<span class="badge badge-warning">Belum ada pertemuan</span>')
+      : '<span class="badge" style="background:#FFB74D;color:#5c3d00">⚠️ Di luar jadwal</span>';
+    return `<tr style="${style}">
+      <td data-label="Kelas"><span class="badge badge-primary">${esc(r.kelas)}</span></td>
+      <td data-label="Mapel">${esc(r.mapel)}</td>
+      <td data-label="Jumlah Pertemuan">${r.jumlahPertemuan}</td>
+      <td data-label="Status">${status}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ── HALAMAN GURU: HONOR SAYA ─────────────────────────────────────────

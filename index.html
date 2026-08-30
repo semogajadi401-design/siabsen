@@ -9629,6 +9629,10 @@ async function loadHalamanHonorMengajar() {
   // bendahara (lihat komentar di deklarasi halaman ini).
   const isAdmin = honorBolehKelola();
   document.getElementById('honFormTarifWrap').style.display = isAdmin ? '' : 'none';
+  // FIX: sebelumnya cuma honFormTarifWrap (mode per pertemuan) yang
+  // diatur, form tarif mode "per mapel/bulan" ketinggalan sehingga tetap
+  // mengikuti default HTML (display:none) walau login sebagai admin.
+  document.getElementById('honFormTarifMapelWrap').style.display = isAdmin ? '' : 'none';
   document.getElementById('honKolomAksi').style.display = isAdmin ? '' : 'none';
   document.getElementById('honKolomAksiMapel').style.display = isAdmin ? '' : 'none';
   document.getElementById('honResetSemuaWrap').style.display = isAdmin ? 'flex' : 'none';

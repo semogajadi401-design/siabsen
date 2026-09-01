@@ -700,12 +700,8 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
   flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
   background:var(--bg-soft,#F8FAFC);color:var(--text);font-size:.82rem;font-weight:600;
 }
-.ria-tabel-judul{
-  font-size:.8rem;font-weight:800;margin:16px 0 6px;color:var(--text);
-}
-.ria-tabel-judul:first-of-type{margin-top:0}
 .ria-tabel-wrap{
-  border:1.5px solid var(--border);border-radius:12px;overflow:hidden;
+  border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-top:10px;
 }
 .ria-tabel{width:100%;border-collapse:collapse;font-size:.8rem}
 .ria-tabel thead th{
@@ -726,8 +722,6 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
 .ria-tabel .ria-tkelas{color:var(--text-muted);white-space:nowrap}
 .ria-tabel .ria-tcount{font-weight:800;white-space:nowrap}
 .ria-tabel tr.ria-parah .ria-tcount{color:var(--danger,#DC2626)}
-.ria-tabel-judul-izin{color:var(--primary-dark,#4338CA)}
-.ria-tabel-judul-alpa{color:var(--danger,#DC2626)}
 .ria-tabel-kosong{
   padding:16px 10px;text-align:center;color:var(--text-muted);font-size:.78rem;
 }
@@ -3557,11 +3551,20 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
             </select>
           </div>
 
-          <!-- Tabel Izin -- SENGAJA terpisah dari tabel Alpa (tidak dicampur),
-               diurutkan dari yang paling banyak Izin. Baris bisa diklik untuk
-               buka-tutup rincian keterangan Izin-nya (lihat riaToggleBarisIzin()). -->
-          <div class="ria-tabel-judul ria-tabel-judul-izin">🤒 Sering Izin</div>
-          <div class="ria-tabel-wrap">
+          <!-- Tab Izin/Alpa -- BARU: berdampingan, saling eksklusif, cuma
+               satu tabel yang ditampilkan sesuai tab yang aktif (lihat
+               switchRiaTab()). Menggantikan tampilan 2 tabel bertumpuk
+               sebelumnya supaya lebih ringkas dilihat di layar kios. -->
+          <div class="log-tabs" id="riaTabsBar">
+            <button type="button" class="log-tab active" id="riaTabIzin" onclick="switchRiaTab('izin')">🤒 Sering Izin</button>
+            <button type="button" class="log-tab" id="riaTabAlpa" onclick="switchRiaTab('alpa')">❌ Sering Alpa</button>
+          </div>
+
+          <!-- Panel Izin -- SENGAJA terpisah dari panel Alpa (tidak
+               dicampur), diurutkan dari yang paling banyak Izin. Baris
+               bisa diklik untuk buka-tutup rincian keterangan Izin-nya
+               (lihat riaToggleBarisIzin()). -->
+          <div id="riaPanelIzin" class="ria-tabel-wrap">
             <table class="ria-tabel">
               <thead><tr><th>#</th><th>Nama</th><th>Kelas</th><th>Izin</th></tr></thead>
               <tbody id="riaTabelIzinBody"></tbody>
@@ -3569,10 +3572,9 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
             <div id="riaIzinKosong" class="ria-tabel-kosong" style="display:none">Tidak ada siswa Izin untuk kelas ini.</div>
           </div>
 
-          <!-- Tabel Alpa -- diurutkan dari yang paling banyak Alpa. Tidak
+          <!-- Panel Alpa -- diurutkan dari yang paling banyak Alpa. Tidak
                ada rincian keterangan (Alpa memang tidak punya keterangan). -->
-          <div class="ria-tabel-judul ria-tabel-judul-alpa">❌ Sering Alpa</div>
-          <div class="ria-tabel-wrap">
+          <div id="riaPanelAlpa" class="ria-tabel-wrap" style="display:none">
             <table class="ria-tabel">
               <thead><tr><th>#</th><th>Nama</th><th>Kelas</th><th>Alpa</th></tr></thead>
               <tbody id="riaTabelAlpaBody"></tbody>
@@ -8603,6 +8605,7 @@ function renderPersentaseKehadiran(data) {
 async function bukaModalRankingIzinAlpha() {
   pauseScanBerat();
   document.getElementById('modalRankingIzinAlpha').style.display = 'flex';
+  switchRiaTab('izin'); // selalu mulai dari tab Izin tiap kali modal dibuka
   await loadRankingIzinAlpha();
 }
 
@@ -8652,6 +8655,17 @@ async function loadRankingIzinAlpha() {
 // supaya tidak perlu menaruh data mentah siswa (bisa panjang, berisi
 // keterangan) langsung di atribut onclick tiap baris.
 let _riaDataTerakhir = [];
+
+// Ganti tab aktif antara panel Izin & Alpa -- SENGAJA saling eksklusif,
+// cuma satu panel yang tampil di satu waktu (lihat markup #riaPanelIzin
+// & #riaPanelAlpa). Data sudah dirender oleh renderRankingIzinAlphaTabel(),
+// fungsi ini murni tampilan (tidak fetch ulang).
+function switchRiaTab(tab) {
+  document.getElementById('riaTabIzin').classList.toggle('active', tab === 'izin');
+  document.getElementById('riaTabAlpa').classList.toggle('active', tab === 'alpa');
+  document.getElementById('riaPanelIzin').style.display = tab === 'izin' ? '' : 'none';
+  document.getElementById('riaPanelAlpa').style.display = tab === 'alpa' ? '' : 'none';
+}
 
 function renderRankingIzinAlpha(data) {
   document.getElementById('riaLoading').style.display = 'none';

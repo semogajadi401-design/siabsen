@@ -1816,9 +1816,10 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 #splashOverlay{
   position:fixed;inset:0;z-index:9999;
   background:
-    radial-gradient(circle at 16% 12%, rgba(16,185,129,.22) 0%, transparent 46%),
-    radial-gradient(circle at 88% 82%, rgba(245,158,11,.16) 0%, transparent 42%),
-    linear-gradient(165deg,#0A1524 0%,#060A14 100%);
+    radial-gradient(circle at 18% 18%, rgba(139,92,246,.28) 0%, transparent 48%),
+    radial-gradient(circle at 84% 12%, rgba(245,158,11,.22) 0%, transparent 42%),
+    radial-gradient(circle at 76% 92%, rgba(99,102,241,.24) 0%, transparent 46%),
+    linear-gradient(165deg,#181235 0%,#0B0A1F 55%,#08070F 100%);
   display:flex;align-items:center;justify-content:center;
   transition:opacity .5s ease,visibility .5s ease;
 }
@@ -1953,15 +1954,15 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 @keyframes splashIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .splash-ring-wrap{
   position:relative;width:88px;height:88px;margin:0 auto 22px;
-  filter:drop-shadow(0 8px 20px rgba(16,185,129,.25));
+  filter:drop-shadow(0 8px 22px rgba(139,92,246,.35));
 }
 .splash-ring{
   width:100%;height:100%;border-radius:50%;
-  /* Cincin muter disegarkan pakai conic-gradient (dua warna brand,
-     emerald->gold) supaya terasa lebih "hidup"/modern dibanding cincin
-     border 1 warna sebelumnya, sambil tetap murni CSS (tidak ada aset
+  /* Cincin muter disegarkan pakai conic-gradient (violet brand ->
+     gold) supaya terasa lebih "hidup"/modern dibanding cincin border
+     1 warna sebelumnya, sambil tetap murni CSS (tidak ada aset
      gambar tambahan). */
-  background:conic-gradient(from 0deg,var(--primary) 0deg,#FBBF24 200deg,transparent 200deg 360deg);
+  background:conic-gradient(from 0deg,#A78BFA 0deg,#FBBF24 200deg,transparent 200deg 360deg);
   -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));
   mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));
   animation:splashSpin 1s linear infinite;
@@ -1970,8 +1971,8 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 .splash-ring-icon{
   position:absolute;inset:7px;display:flex;align-items:center;justify-content:center;
   font-size:1.6rem;border-radius:50%;
-  background:radial-gradient(circle at 32% 28%,#1B2A41,#0E1A2C);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+  background:radial-gradient(circle at 32% 28%,#2A2154,#140F2E);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);
 }
 .splash-ring-icon img{
   width:64%;height:64%;object-fit:contain;border-radius:50%;
@@ -1986,7 +1987,7 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 }
 .splash-steps{
   text-align:left;background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.1);
+  border:1px solid rgba(167,139,250,.18);
   border-radius:16px;padding:6px 14px;
   backdrop-filter:blur(6px);
 }
@@ -2012,10 +2013,10 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
   animation:splashSpin .7s linear infinite;
 }
 .splash-step.done .splash-step-icon{
-  border-color:var(--primary);background:var(--primary);
+  border-color:#A78BFA;background:linear-gradient(135deg,#A78BFA,#7C3AED);
 }
 .splash-step.done .splash-step-icon::before{
-  content:'✓';color:#04231A;font-size:.7rem;font-weight:900;
+  content:'✓';color:#fff;font-size:.7rem;font-weight:900;
 }
 .splash-bar-wrap{
   margin-top:18px;height:5px;border-radius:99px;
@@ -2023,7 +2024,7 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 }
 .splash-bar{
   height:100%;border-radius:99px;
-  background:linear-gradient(90deg,var(--primary),#FBBF24);
+  background:linear-gradient(90deg,#A78BFA,#FBBF24);
   width:0%;transition:width .4s ease;
 }
 .splash-hint{

@@ -239,6 +239,34 @@ body.is-offline .header{ top:36px; }
 .app-drawer .aksi-kelas-wrap{max-width:none}
 .drawer-header-btns{display:flex;gap:8px;flex-wrap:wrap}
 .drawer-header-btns button{flex:1 1 auto}
+/* Label teks tombol Bantuan/Login -- SENGAJA disembunyikan default
+   (baru ditampilkan begitu tombol sudah dipindah ke dalam
+   .drawer-header-btns oleh initDrawerLayout()) supaya kalau render
+   sempat kepotret sebelum JS jalan, tombol tetap tampil rapi sebagai
+   ikon persegi biasa (gaya .btn-fullscreen bawaan), bukan ikon+label
+   yang kepotong karena lebar kotak masih persegi kecil. */
+.bdh-label{display:none}
+.drawer-header-btns .bdh-label{display:inline}
+/* Tombol Bantuan & Login DI DALAM drawer -- disegarkan jadi sepasang
+   pil sejajar yang serasi (sebelumnya tombol Bantuan cuma kotak ikon
+   kecil sementara Login sudah jadi pil berlabel -- terlihat tidak
+   seimbang). Sekarang keduanya sama tinggi & gaya, beda cuma warna
+   aksen tipis sesuai fungsi (Bantuan = netral, Login = warna brand). */
+.drawer-header-btns .btn-fullscreen{
+  width:auto;height:auto;padding:9px 14px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:.82rem;font-weight:700;font-family:inherit;color:var(--text);
+  background:var(--bg);border:1.5px solid var(--border);
+  transition:transform .15s ease,box-shadow .2s ease,border-color .2s ease;
+}
+.drawer-header-btns .btn-fullscreen:hover{transform:translateY(-1px);box-shadow:0 8px 16px -10px rgba(15,23,42,.25)}
+.drawer-header-btns .btn-fullscreen:active{transform:translateY(0) scale(.97)}
+.drawer-header-btns .btn-drawer-login{
+  color:#fff;border-color:transparent;
+  background:linear-gradient(160deg,var(--primary),var(--primary-dark));
+  box-shadow:0 6px 14px -6px rgba(5,150,105,.5),inset 0 1px 1px rgba(255,255,255,.35);
+}
+.drawer-header-btns .btn-drawer-login:hover{box-shadow:0 10px 18px -8px rgba(5,150,105,.55)}
 .drawer-section-title{
   font-family:var(--font-display);font-weight:800;font-size:.86rem;
   color:var(--text);padding-top:4px;border-top:1px solid var(--border);
@@ -455,89 +483,56 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
    Dibungkus .aksi-kelas-wrap bersama tombol Cek Aktivitas Guru di
    bawah -- lihat catatan lengkap di situ soal kenapa keduanya TIDAK
    lagi diberi width/max-width sendiri-sendiri. */
-.aksi-kelas-wrap{display:flex;flex-direction:column;gap:8px;width:100%;max-width:150px}
-.btn-absen-kelas{
-  width:100%;padding:12px 10px;border:none;border-radius:16px;
-  background:linear-gradient(160deg,#818CF8,#4F46E5);
-  color:#fff;font-weight:700;font-size:.85rem;font-family:inherit;cursor:pointer;
-  box-shadow:0 6px 16px -6px rgba(79,70,229,0.55),inset 0 1px 1px rgba(255,255,255,.35);
-  transition:transform .15s;
+/* ── TOMBOL AKSI DRAWER (REFRESH TAMPILAN) ───────────────────────────
+   SEBELUMNYA tiap tombol (Absen Kelas/Cek Aktivitas Guru/Kelola Piket/
+   Persentase Kehadiran/Ranking Izin & Alpha) adalah pil gradasi warna
+   penuh dengan teks di tengah -- terkesan seperti 5 tombol "permen"
+   berdampingan tanpa hierarki. SEKARANG jadi kartu baris ala menu app
+   modern: chip ikon berwarna (di situ saja warna mencolok dipakai -- gaya
+   "spend your boldness in one place"), judul + subjudul singkat, dan
+   panah kanan sebagai penanda bisa diklik. Warna tetap 1 warna per
+   fungsi (indigo/teal/amber/biru/merah) supaya makna kode warna yang
+   sudah ada TIDAK berubah, cuma cara menampilkannya yang disegarkan.
+   Modifier warna: .drawer-action--violet/--teal/--amber/--blue/--red
+   (lihat definisi custom property --da-* di bawah). */
+.aksi-kelas-wrap{display:flex;flex-direction:column;gap:9px;width:100%;max-width:230px}
+.drawer-action{
+  display:flex;align-items:center;gap:12px;width:100%;
+  padding:10px 12px;border:1.5px solid var(--border);border-radius:14px;
+  background:var(--surface);color:var(--text);font-family:inherit;text-align:left;
+  cursor:pointer;position:relative;overflow:hidden;
+  box-shadow:0 1px 2px rgba(15,23,42,.05);
+  transition:transform .15s ease,box-shadow .2s ease,border-color .2s ease;
 }
-.btn-absen-kelas:active{transform:scale(.96)}
-
-/* ── TOMBOL CEK AKTIVITAS GURU (BARU) ───────────────────────────────
-   Sama-sama di bawah tombol Absen Kelas, tapi warna beda (teal) supaya
-   jelas ini cuma buka ringkasan read-only, bukan mulai sesi absen. */
-.btn-cek-aktivitas-guru{
-  width:100%;padding:12px 10px;border:none;border-radius:16px;
-  background:linear-gradient(160deg,#5EEAD4,#0D9488);
-  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
-  box-shadow:0 6px 16px -6px rgba(13,148,136,0.55),inset 0 1px 1px rgba(255,255,255,.35);
-  transition:transform .15s;
+.drawer-action::before{
+  content:"";position:absolute;top:0;left:14px;right:14px;height:2.5px;
+  border-radius:0 0 4px 4px;background:var(--da-grad);opacity:.85;
 }
-.btn-cek-aktivitas-guru:active{transform:scale(.96)}
-
-/* ── TOMBOL KELOLA KEHADIRAN / PIKET (BARU) ─────────────────────────
-   Pintasan supaya guru piket bisa mengedit keterangan Sakit/Izin/
-   Terlambat/Pulang Cepat siswa hari ini langsung dari kios scan, tanpa
-   perlu login penuh ke index.html -- lihat mulaiKelolaPiket() dan
-   overlay #kelolaPiketOverlay. Warna amber supaya beda dari 2 tombol
-   lain (Absen Kelas = ungu, Cek Aktivitas = teal). */
-.btn-kelola-piket{
-  width:100%;padding:12px 10px;border:none;border-radius:16px;
-  background:linear-gradient(160deg,#FCD34D,#D97706);
-  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
-  box-shadow:0 6px 16px -6px rgba(217,119,6,0.55),inset 0 1px 1px rgba(255,255,255,.35);
-  transition:transform .15s;
+.drawer-action:hover{transform:translateY(-2px);border-color:var(--da-border);box-shadow:0 12px 22px -12px var(--da-shadow)}
+.drawer-action:active{transform:translateY(0) scale(.983)}
+.da-icon{
+  flex-shrink:0;width:38px;height:38px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;font-size:1.05rem;
+  background:var(--da-grad);box-shadow:0 6px 14px -6px var(--da-shadow),inset 0 1px 1px rgba(255,255,255,.4);
 }
-.btn-kelola-piket:active{transform:scale(.96)}
-
-/* ── TOMBOL PERSENTASE KEHADIRAN (BARU) ─────────────────────────────
-   Pintasan read-only untuk guru piket melihat TREN persentase
-   kehadiran siswa (per hari selama seminggu, atau per minggu selama
-   sebulan) langsung dari kios scan -- lihat bukaModalPersentaseKehadiran()
-   dan getTrenPersentaseKehadiran() di api/_db.js. Warna biru supaya beda
-   dari 3 tombol lain (Absen Kelas = ungu, Cek Aktivitas = teal,
-   Kelola Piket = amber) -- konsisten dengan pola "1 warna per tombol"
-   yang sudah ada. */
-.btn-persentase-kehadiran{
-  width:100%;padding:12px 10px;border:none;border-radius:16px;
-  background:linear-gradient(160deg,#60A5FA,#2563EB);
-  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
-  box-shadow:0 6px 16px -6px rgba(37,99,235,0.55),inset 0 1px 1px rgba(255,255,255,.35);
-  transition:transform .15s;
-}
-.btn-persentase-kehadiran:active{transform:scale(.96)}
-
-/* ── TOMBOL RANKING IZIN & ALPHA (BARU) ──────────────────────────────
-   Sama pola dengan 4 tombol di atas, tapi warna merah (danger) supaya
-   jelas ini soal peringatan/perhatian (siswa sering Izin/Alpa), beda
-   dari 4 tombol lain yang netral/informatif. Lihat
-   bukaModalRankingIzinAlpha() & getRankingIzinAlpha() di api/_db.js. */
-.btn-ranking-izin-alpha{
-  width:100%;padding:12px 10px;border:none;border-radius:16px;
-  background:linear-gradient(160deg,#FCA5A5,#DC2626);
-  color:#fff;font-weight:700;font-size:.8rem;font-family:inherit;cursor:pointer;
-  box-shadow:0 6px 16px -6px rgba(220,38,38,0.55),inset 0 1px 1px rgba(255,255,255,.35);
-  transition:transform .15s;
-}
-.btn-ranking-izin-alpha:active{transform:scale(.96)}
+.da-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.da-title{font-weight:800;font-size:.83rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.da-sub{font-size:.67rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.da-arrow{flex-shrink:0;color:var(--text-muted);font-size:.95rem;transition:transform .2s ease,color .2s ease}
+.drawer-action:hover .da-arrow{transform:translateX(3px);color:var(--text)}
+.drawer-action--violet{--da-grad:linear-gradient(160deg,#818CF8,#4F46E5);--da-shadow:rgba(79,70,229,.45);--da-border:#B4BBFB}
+.drawer-action--teal{--da-grad:linear-gradient(160deg,#5EEAD4,#0D9488);--da-shadow:rgba(13,148,136,.4);--da-border:#8FE7D9}
+.drawer-action--amber{--da-grad:linear-gradient(160deg,#FCD34D,#D97706);--da-shadow:rgba(217,119,6,.4);--da-border:#FBD588}
+.drawer-action--blue{--da-grad:linear-gradient(160deg,#60A5FA,#2563EB);--da-shadow:rgba(37,99,235,.4);--da-border:#9CC5FB}
+.drawer-action--red{--da-grad:linear-gradient(160deg,#FCA5A5,#DC2626);--da-shadow:rgba(220,38,38,.4);--da-border:#F8B3B3}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
-  /* PERBAIKAN TATA LETAK MOBILE: sebelumnya tombol Absen Kelas & Cek
-     Aktivitas Guru masing-masing punya width:100% sendiri -- di
-     .side-rail yang jadi flex BARIS (lihat media query di atas), itu
-     bikin browser menghitung width:100% sebagai "lebar penuh baris"
-     lalu dipotong oleh max-width, jadi tiap tombol berebut ruang
-     dengan mode-switch-wrap dan wrap tidak beraturan/terpotong di HP
-     -- makin parah begitu tombol kedua ditambahkan.
-     Sekarang .aksi-kelas-wrap dipaksa jadi baris SENDIRI (flex:1 1 100%,
-     supaya tidak ikut berebut ruang di baris yang sama dengan
-     mode-switch-wrap), lalu isinya diubah jadi baris (dua tombol
-     berdampingan, berbagi lebar rata lewat flex:1) supaya rapi dan
-     tidak ada yang tersembunyi. */
-  .aksi-kelas-wrap{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;max-width:none;gap:10px}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran,.btn-ranking-izin-alpha{flex:1 1 0;width:auto}
+  /* SEBELUMNYA di lebar ini .aksi-kelas-wrap dipaksa jadi baris (flex-row,
+     wrap) supaya beberapa tombol berdampingan -- sekarang kartu berisi
+     ikon+judul+subjudul, jadi tetap ditumpuk vertikal di semua lebar
+     layar (drawer sendiri sudah sempit/tetap ~380px, jadi tidak perlu
+     versi "baris" lagi). Cukup rapatkan sedikit padding di layar sempit. */
+  .drawer-action{padding:9px 11px}
 }
 @media(max-width:520px){
   .mode-switch{max-width:184px;width:184px;height:64px;flex-direction:row}
@@ -549,11 +544,6 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
     transform:translateX(calc(100% + 4px));
   }
   .mode-switch-opt{flex-direction:row;gap:6px}
-  /* Di layar sangat sempit, dua tombol berdampingan jadi terlalu
-     sempit untuk teks "Cek Aktivitas Guru" -- tumpuk vertikal saja
-     supaya teks & ikon tetap jelas terbaca, bukan terpotong. */
-  .aksi-kelas-wrap{flex-direction:column}
-  .btn-absen-kelas,.btn-cek-aktivitas-guru,.btn-kelola-piket,.btn-persentase-kehadiran,.btn-ranking-izin-alpha{width:100%}
 }
 
 /* ── MODAL PERSENTASE KEHADIRAN (BARU) ──────────────────────────────
@@ -2663,8 +2653,8 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
       <span>📴 Offline</span>
       <span class="badge-count" id="offlineCount">0</span>
     </div>
-    <button class="btn-fullscreen" id="btnPetunjuk" onclick="bukaPetunjukGuru()" title="Petunjuk untuk Guru">❓</button>
-    <button class="btn-fullscreen" id="btnLoginAdmin" onclick="window.location.href='/'" title="Login Admin / Guru" style="width:auto;padding:0 12px;gap:6px;font-size:.82rem;font-weight:700">🔑 Login</button>
+    <button class="btn-fullscreen btn-drawer-help" id="btnPetunjuk" onclick="bukaPetunjukGuru()" title="Petunjuk untuk Guru">❓<span class="bdh-label">Bantuan</span></button>
+    <button class="btn-fullscreen btn-drawer-login" id="btnLoginAdmin" onclick="window.location.href='/'" title="Login Admin / Guru">🔑<span class="bdh-label">Login</span></button>
     <button class="btn-fullscreen" id="btnFullscreen" onclick="toggleFullscreen()" title="Layar penuh">⛶</button>
     <!-- Tombol Menu (BARU) -- membuka drawer berisi tombol aksi (Absen
          Kelas dkk.), chart kehadiran, info besok, rekap harian, dan
@@ -2831,8 +2821,13 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
            supaya siswa yang absen Datang/Pulang di device lain (atau di
            device ini sendiri sebelum tombol ini diklik) tidak pernah
            "kesenggol" masuk mode verifikasi secara tidak sengaja. -->
-      <button type="button" class="btn-absen-kelas" id="btnAbsenKelas" onclick="mulaiAbsenKelas()">
-        📚 Absen Kelas
+      <button type="button" class="drawer-action drawer-action--violet" id="btnAbsenKelas" onclick="mulaiAbsenKelas()">
+        <span class="da-icon">📚</span>
+        <span class="da-body">
+          <span class="da-title">Absen Kelas</span>
+          <span class="da-sub">Mulai verifikasi kehadiran kelas</span>
+        </span>
+        <span class="da-arrow">›</span>
       </button>
 
       <!-- Tombol Cek Aktivitas Guru (BARU) -- ringkasan read-only, tidak
@@ -2840,8 +2835,13 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
            mengajar hari ini (+ berapa siswa sudah diverifikasi di sesi
            itu), dan siapa yang jadwalnya hari ini tapi belum mengajar.
            Lihat getAktivitasGuruHariIni() di api/scan.js. -->
-      <button type="button" class="btn-cek-aktivitas-guru" id="btnCekAktivitasGuru" onclick="bukaModalAktivitasGuru()">
-        👨‍🏫 Cek Aktivitas Guru
+      <button type="button" class="drawer-action drawer-action--teal" id="btnCekAktivitasGuru" onclick="bukaModalAktivitasGuru()">
+        <span class="da-icon">👨‍🏫</span>
+        <span class="da-body">
+          <span class="da-title">Cek Aktivitas Guru</span>
+          <span class="da-sub">Ringkasan guru mengajar hari ini</span>
+        </span>
+        <span class="da-arrow">›</span>
       </button>
 
       <!-- Tombol Kelola Kehadiran (BARU) -- pintasan untuk guru piket
@@ -2851,8 +2851,13 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
            guru sendiri (lihat mulaiKelolaPiket()) -- server yang
            memutuskan boleh/tidaknya lewat isGuruPiketHariIni, bukan
            sekadar tombol ini. -->
-      <button type="button" class="btn-kelola-piket" id="btnKelolaPiket" onclick="mulaiKelolaPiket()">
-        📋 Edit Kehadiran Siswa (Guru Piket)
+      <button type="button" class="drawer-action drawer-action--amber" id="btnKelolaPiket" onclick="mulaiKelolaPiket()">
+        <span class="da-icon">📋</span>
+        <span class="da-body">
+          <span class="da-title">Edit Kehadiran Siswa</span>
+          <span class="da-sub">Khusus guru piket hari ini</span>
+        </span>
+        <span class="da-arrow">›</span>
       </button>
 
       <!-- Tombol Persentase Kehadiran (BARU) -- ringkasan read-only tren
@@ -2860,8 +2865,13 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
            tidak menyentuh proses scan sama sekali, boleh dibuka kapan
            saja. Lihat bukaModalPersentaseKehadiran() & modal
            #modalPersentaseKehadiran di bawah. -->
-      <button type="button" class="btn-persentase-kehadiran" id="btnPersentaseKehadiran" onclick="bukaModalPersentaseKehadiran()">
-        📊 Persentase Kehadiran
+      <button type="button" class="drawer-action drawer-action--blue" id="btnPersentaseKehadiran" onclick="bukaModalPersentaseKehadiran()">
+        <span class="da-icon">📊</span>
+        <span class="da-body">
+          <span class="da-title">Persentase Kehadiran</span>
+          <span class="da-sub">Tren kehadiran mingguan/bulanan</span>
+        </span>
+        <span class="da-arrow">›</span>
       </button>
 
       <!-- Tombol Ranking Izin & Alpha (BARU) -- daftar siswa aktif,
@@ -2873,8 +2883,13 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
            saat halaman/drawer dibuka -- read-only murni, sama semangatnya
            dengan tombol Persentase Kehadiran di atas. Lihat
            #modalRankingIzinAlpha & getRankingIzinAlpha() di api/_db.js. -->
-      <button type="button" class="btn-ranking-izin-alpha" id="btnRankingIzinAlpha" onclick="bukaModalRankingIzinAlpha()">
-        ⚠️ Siswa Sering Izin/Alpa
+      <button type="button" class="drawer-action drawer-action--red" id="btnRankingIzinAlpha" onclick="bukaModalRankingIzinAlpha()">
+        <span class="da-icon">⚠️</span>
+        <span class="da-body">
+          <span class="da-title">Siswa Sering Izin/Alpa</span>
+          <span class="da-sub">Perlu perhatian &amp; tindak lanjut</span>
+        </span>
+        <span class="da-arrow">›</span>
       </button>
     </div>
 

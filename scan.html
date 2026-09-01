@@ -1805,10 +1805,20 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
    Menampilkan tahap NYATA dari init() (lihat pemanggilan tandaiSplash()
    di script init()) supaya pengguna paham kenapa halaman terasa "diam"
    sesaat setelah dibuka -- bukan animasi dekoratif kosong, tiap baris di
-   sini menyala persis saat langkah aslinya benar-benar selesai. */
+   sini menyala persis saat langkah aslinya benar-benar selesai.
+   PALET DISEGARKAN (BARU): sebelumnya gradasi datar hijau-tua ke navy
+   gelap yang agak generik. Sekarang latar biru-malam lebih dalam dengan
+   2 titik cahaya lembut (emerald & gold -- warna brand yang sama persis
+   dipakai di .header-logo) supaya terasa "milik" aplikasi ini, bukan
+   loading screen generik, tapi tetap tenang/tidak ramai. Logika class
+   (.active/.done) & elemen (#splashBar, #splashHint, #splashIcon) SAMA
+   PERSIS seperti sebelumnya -- cuma warnanya yang diganti. */
 #splashOverlay{
   position:fixed;inset:0;z-index:9999;
-  background:linear-gradient(160deg,#0B3B2E 0%,#0F172A 100%);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(16,185,129,.22) 0%, transparent 46%),
+    radial-gradient(circle at 88% 82%, rgba(245,158,11,.16) 0%, transparent 42%),
+    linear-gradient(165deg,#0A1524 0%,#060A14 100%);
   display:flex;align-items:center;justify-content:center;
   transition:opacity .5s ease,visibility .5s ease;
 }
@@ -1942,61 +1952,70 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 }
 @keyframes splashIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .splash-ring-wrap{
-  position:relative;width:84px;height:84px;margin:0 auto 22px;
+  position:relative;width:88px;height:88px;margin:0 auto 22px;
+  filter:drop-shadow(0 8px 20px rgba(16,185,129,.25));
 }
 .splash-ring{
   width:100%;height:100%;border-radius:50%;
-  border:4px solid rgba(16,185,129,0.2);
-  border-top-color:var(--primary);
+  /* Cincin muter disegarkan pakai conic-gradient (dua warna brand,
+     emerald->gold) supaya terasa lebih "hidup"/modern dibanding cincin
+     border 1 warna sebelumnya, sambil tetap murni CSS (tidak ada aset
+     gambar tambahan). */
+  background:conic-gradient(from 0deg,var(--primary) 0deg,#FBBF24 200deg,transparent 200deg 360deg);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));
   animation:splashSpin 1s linear infinite;
 }
 @keyframes splashSpin{to{transform:rotate(360deg)}}
 .splash-ring-icon{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:1.7rem;
+  position:absolute;inset:7px;display:flex;align-items:center;justify-content:center;
+  font-size:1.6rem;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,#1B2A41,#0E1A2C);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
 }
 .splash-ring-icon img{
-  width:56%;height:56%;object-fit:contain;border-radius:50%;
-  background:#fff;padding:4px;
+  width:64%;height:64%;object-fit:contain;border-radius:50%;
+  background:#F8FAFC;padding:4px;
 }
 .splash-title{
   font-family:var(--font-display);font-weight:800;font-size:1.15rem;
-  letter-spacing:.2px;margin-bottom:4px;
+  letter-spacing:.2px;margin-bottom:4px;color:#F8FAFC;
 }
 .splash-sub{
-  font-size:.78rem;color:rgba(255,255,255,.55);margin-bottom:22px;
+  font-size:.78rem;color:rgba(226,232,240,.6);margin-bottom:22px;
 }
 .splash-steps{
-  text-align:left;background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:14px;padding:6px 14px;
+  text-align:left;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;padding:6px 14px;
+  backdrop-filter:blur(6px);
 }
 .splash-step{
   display:flex;align-items:center;gap:11px;
   padding:10px 2px;font-size:.82rem;font-weight:600;
-  color:rgba(255,255,255,.4);
+  color:rgba(226,232,240,.42);
   border-bottom:1px solid rgba(255,255,255,.07);
   transition:color .3s ease;
 }
 .splash-step:last-child{border-bottom:none}
 .splash-step.active{color:#fff}
-.splash-step.done{color:rgba(255,255,255,.85)}
+.splash-step.done{color:rgba(226,232,240,.85)}
 .splash-step-icon{
   width:20px;height:20px;flex:0 0 20px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  border:2px solid rgba(255,255,255,.2);position:relative;
+  border:2px solid rgba(255,255,255,.18);position:relative;
 }
-.splash-step.active .splash-step-icon{border-color:var(--primary)}
+.splash-step.active .splash-step-icon{border-color:#FBBF24}
 .splash-step.active .splash-step-icon::after{
   content:'';position:absolute;inset:-2px;border-radius:50%;
-  border:2px solid transparent;border-top-color:var(--primary);
+  border:2px solid transparent;border-top-color:#FBBF24;
   animation:splashSpin .7s linear infinite;
 }
 .splash-step.done .splash-step-icon{
   border-color:var(--primary);background:var(--primary);
 }
 .splash-step.done .splash-step-icon::before{
-  content:'✓';color:#0B3B2E;font-size:.7rem;font-weight:900;
+  content:'✓';color:#04231A;font-size:.7rem;font-weight:900;
 }
 .splash-bar-wrap{
   margin-top:18px;height:5px;border-radius:99px;
@@ -2004,11 +2023,11 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 }
 .splash-bar{
   height:100%;border-radius:99px;
-  background:linear-gradient(90deg,var(--primary),#34D399);
+  background:linear-gradient(90deg,var(--primary),#FBBF24);
   width:0%;transition:width .4s ease;
 }
 .splash-hint{
-  margin-top:14px;font-size:.7rem;color:rgba(255,255,255,.4);
+  margin-top:14px;font-size:.7rem;color:rgba(226,232,240,.45);
   min-height:1em;
 }
 

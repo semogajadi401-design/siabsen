@@ -687,6 +687,58 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
 .ria-ket-tgl{font-weight:700;color:var(--text)}
 .ria-ket-kosong{font-style:italic}
 
+/* ── FILTER KELAS + TABEL TERPISAH IZIN/ALPA (BARU) ──────────────────
+   Menggantikan daftar kartu campur di atas dengan 2 tabel terpisah
+   (tidak dicampur), tiap tabel diurutkan sendiri (Izin desc / Alpa
+   desc), dan bisa disaring per kelas lewat #riaFilterKelas. Lihat
+   renderRankingIzinAlphaTabel() di script. */
+.ria-filter-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:14px;
+}
+.ria-filter-row label{font-size:.78rem;font-weight:700;color:var(--text-muted)}
+.ria-filter-row select{
+  flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
+  background:var(--bg-soft,#F8FAFC);color:var(--text);font-size:.82rem;font-weight:600;
+}
+.ria-tabel-judul{
+  font-size:.8rem;font-weight:800;margin:16px 0 6px;color:var(--text);
+}
+.ria-tabel-judul:first-of-type{margin-top:0}
+.ria-tabel-wrap{
+  border:1.5px solid var(--border);border-radius:12px;overflow:hidden;
+}
+.ria-tabel{width:100%;border-collapse:collapse;font-size:.8rem}
+.ria-tabel thead th{
+  background:var(--bg-soft,#F8FAFC);color:var(--text-muted);font-size:.68rem;
+  font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+  text-align:left;padding:7px 10px;border-bottom:1.5px solid var(--border);
+}
+.ria-tabel thead th:last-child,.ria-tabel tbody td:last-child{text-align:right}
+.ria-tabel tbody td{
+  padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);
+  vertical-align:top;
+}
+.ria-tabel tbody tr:last-child td{border-bottom:none}
+.ria-tabel tbody tr.ria-row-izin{cursor:pointer}
+.ria-tabel tbody tr.ria-row-izin:active{background:var(--bg-soft,#F8FAFC)}
+.ria-tabel .ria-tnum{color:var(--text-muted);font-weight:700;width:22px}
+.ria-tabel .ria-tnama{font-weight:700}
+.ria-tabel .ria-tkelas{color:var(--text-muted);white-space:nowrap}
+.ria-tabel .ria-tcount{font-weight:800;white-space:nowrap}
+.ria-tabel tr.ria-parah .ria-tcount{color:var(--danger,#DC2626)}
+.ria-tabel-judul-izin{color:var(--primary-dark,#4338CA)}
+.ria-tabel-judul-alpa{color:var(--danger,#DC2626)}
+.ria-tabel-kosong{
+  padding:16px 10px;text-align:center;color:var(--text-muted);font-size:.78rem;
+}
+.ria-tdetail-row td{
+  display:none;border-top:1px dashed var(--border);border-bottom:1px solid var(--border);
+  padding:10px 10px 10px 34px;font-size:.76rem;color:var(--text-muted);background:var(--bg-soft,#F8FAFC);
+}
+.ria-tdetail-row.ria-open td{display:table-cell}
+.ria-tchevron{display:inline-block;margin-right:4px;font-size:.65rem;color:var(--text-muted);transition:transform .15s}
+tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
+
 /* ── POPUP "LAPORAN HARI SEKOLAH SEBELUMNYA" (BARU) ──────────────────
    Tampil otomatis sekali per hari sekolah begitu kiosk dibuka (lihat
    cekLaporanHariSebelumnya() di script). Sengaja tanpa tombol tutup --
@@ -3493,8 +3545,40 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
         <div id="riaKosong" style="display:none;text-align:center;padding:30px 10px;color:var(--text-muted);font-size:.85rem">Belum ada data untuk periode ini.</div>
 
         <div id="riaKonten" style="display:none">
-          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center;margin-bottom:12px" id="riaPeriodeInfo"></div>
-          <div id="riaList" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;text-align:center;margin-bottom:10px" id="riaPeriodeInfo"></div>
+
+          <!-- Filter kelas -- terapkan ke kedua tabel (Izin & Alpa) sekaligus.
+               Diisi dinamis dari daftar kelas yang ada di data (lihat
+               renderRankingIzinAlphaTabel()). -->
+          <div class="ria-filter-row">
+            <label for="riaFilterKelas">Kelas:</label>
+            <select id="riaFilterKelas" onchange="renderRankingIzinAlphaTabel()">
+              <option value="">Semua Kelas</option>
+            </select>
+          </div>
+
+          <!-- Tabel Izin -- SENGAJA terpisah dari tabel Alpa (tidak dicampur),
+               diurutkan dari yang paling banyak Izin. Baris bisa diklik untuk
+               buka-tutup rincian keterangan Izin-nya (lihat riaToggleBarisIzin()). -->
+          <div class="ria-tabel-judul ria-tabel-judul-izin">🤒 Sering Izin</div>
+          <div class="ria-tabel-wrap">
+            <table class="ria-tabel">
+              <thead><tr><th>#</th><th>Nama</th><th>Kelas</th><th>Izin</th></tr></thead>
+              <tbody id="riaTabelIzinBody"></tbody>
+            </table>
+            <div id="riaIzinKosong" class="ria-tabel-kosong" style="display:none">Tidak ada siswa Izin untuk kelas ini.</div>
+          </div>
+
+          <!-- Tabel Alpa -- diurutkan dari yang paling banyak Alpa. Tidak
+               ada rincian keterangan (Alpa memang tidak punya keterangan). -->
+          <div class="ria-tabel-judul ria-tabel-judul-alpa">❌ Sering Alpa</div>
+          <div class="ria-tabel-wrap">
+            <table class="ria-tabel">
+              <thead><tr><th>#</th><th>Nama</th><th>Kelas</th><th>Alpa</th></tr></thead>
+              <tbody id="riaTabelAlpaBody"></tbody>
+            </table>
+            <div id="riaAlpaKosong" class="ria-tabel-kosong" style="display:none">Tidak ada siswa Alpa untuk kelas ini.</div>
+          </div>
         </div>
       </div>
 
@@ -8581,41 +8665,85 @@ function renderRankingIzinAlpha(data) {
 
   _riaDataTerakhir = data.data || [];
 
-  const list = document.getElementById('riaList');
-  list.innerHTML = _riaDataTerakhir.map((s, i) => {
-    const parah = s.totalIzinAlpha >= 5; // ambang "perlu perhatian" -- sekadar aksen visual
-    const nihil = s.totalIzinAlpha === 0;
-    const ketHtml = s.keteranganIzin.length
+  // Isi dropdown filter kelas dari daftar kelas yang benar-benar ada
+  // di data (unik, diurutkan). Opsi "Semua Kelas" tetap dipertahankan
+  // kalau sudah dipilih user sebelumnya (misalnya reload data).
+  const filterEl = document.getElementById('riaFilterKelas');
+  const kelasTerpilihSebelumnya = filterEl.value;
+  const daftarKelas = [...new Set(_riaDataTerakhir.map(s => s.kelas || '-'))]
+    .sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+  filterEl.innerHTML = '<option value="">Semua Kelas</option>'
+    + daftarKelas.map(k => `<option value="${esc(k)}">Kelas ${esc(k)}</option>`).join('');
+  if (daftarKelas.includes(kelasTerpilihSebelumnya)) filterEl.value = kelasTerpilihSebelumnya;
+
+  renderRankingIzinAlphaTabel();
+}
+
+// Menggambar ULANG kedua tabel (Izin & Alpa) dari _riaDataTerakhir,
+// sesuai kelas yang dipilih di #riaFilterKelas -- SENGAJA dipisah dari
+// renderRankingIzinAlpha() supaya ganti filter tidak perlu fetch API
+// ulang, cukup saring & urutkan ulang data yang sudah ada di memori.
+// Tabel Izin & Alpa TIDAK dicampur: masing-masing hanya menampilkan
+// siswa yang count-nya > 0 di kategori itu, diurutkan dari terbanyak.
+function renderRankingIzinAlphaTabel() {
+  const kelasFilter = document.getElementById('riaFilterKelas').value;
+  const dataTersaring = kelasFilter
+    ? _riaDataTerakhir.filter(s => (s.kelas || '-') === kelasFilter)
+    : _riaDataTerakhir;
+
+  const daftarIzin = dataTersaring
+    .filter(s => s.izin > 0)
+    .sort((a, b) => b.izin - a.izin || a.nama.localeCompare(b.nama, 'id'));
+  const daftarAlpa = dataTersaring
+    .filter(s => s.alpha > 0)
+    .sort((a, b) => b.alpha - a.alpha || a.nama.localeCompare(b.nama, 'id'));
+
+  // ── Tabel Izin (dengan baris rincian keterangan yang bisa dibuka) ──
+  const bodyIzin = document.getElementById('riaTabelIzinBody');
+  document.getElementById('riaIzinKosong').style.display = daftarIzin.length ? 'none' : '';
+  bodyIzin.innerHTML = daftarIzin.map((s, i) => {
+    const parah = s.izin >= 5; // ambang "perlu perhatian" -- sekadar aksen visual
+    const ketHtml = (s.keteranganIzin || []).length
       ? s.keteranganIzin.map(k => `
           <div class="ria-ket-item">
             <span class="ria-ket-tgl">${formatTanggalID(k.tanggal)}:</span> ${esc(k.keterangan)}
           </div>`).join('')
-      : `<div class="ria-ket-item ria-ket-kosong">Tidak ada keterangan Izin tercatat${s.alpha > 0 ? ' (Alpha memang tidak punya keterangan).' : '.'}</div>`;
+      : `<div class="ria-ket-item ria-ket-kosong">Tidak ada keterangan Izin tercatat.</div>`;
     return `
-      <div class="ria-row${parah ? ' ria-parah' : ''}${nihil ? ' ria-nihil' : ''}" onclick="riaToggleBaris(${i})" id="riaRow${i}">
-        <div class="ria-row-head">
-          <div class="ria-rank">${i + 1}</div>
-          <div class="ria-info">
-            <div class="ria-nama">${esc(s.nama)}</div>
-            <div class="ria-kelas">Kelas ${esc(s.kelas || '-')}</div>
-          </div>
-          <div class="ria-badges">
-            <span class="ria-badge ria-badge-izin">Izin ${s.izin}</span>
-            <span class="ria-badge ria-badge-alpha">Alpa ${s.alpha}</span>
-          </div>
-          <div class="ria-chevron">▶</div>
-        </div>
-        <div class="ria-detail">${ketHtml}</div>
-      </div>`;
+      <tr class="ria-row-izin${parah ? ' ria-parah' : ''}" onclick="riaToggleBarisIzin(${i})" id="riaIzinRow${i}">
+        <td class="ria-tnum">${i + 1}</td>
+        <td class="ria-tnama"><span class="ria-tchevron">▶</span>${esc(s.nama)}</td>
+        <td class="ria-tkelas">${esc(s.kelas || '-')}</td>
+        <td class="ria-tcount">${s.izin}</td>
+      </tr>
+      <tr class="ria-tdetail-row" id="riaIzinDetail${i}">
+        <td colspan="4">${ketHtml}</td>
+      </tr>`;
+  }).join('');
+
+  // ── Tabel Alpa (tanpa rincian -- Alpa memang tidak punya keterangan) ──
+  const bodyAlpa = document.getElementById('riaTabelAlpaBody');
+  document.getElementById('riaAlpaKosong').style.display = daftarAlpa.length ? 'none' : '';
+  bodyAlpa.innerHTML = daftarAlpa.map((s, i) => {
+    const parah = s.alpha >= 5; // ambang "perlu perhatian" -- sekadar aksen visual
+    return `
+      <tr class="${parah ? 'ria-parah' : ''}">
+        <td class="ria-tnum">${i + 1}</td>
+        <td class="ria-tnama">${esc(s.nama)}</td>
+        <td class="ria-tkelas">${esc(s.kelas || '-')}</td>
+        <td class="ria-tcount">${s.alpha}</td>
+      </tr>`;
   }).join('');
 }
 
-// Buka/tutup rincian keterangan Izin satu baris siswa -- SENGAJA
-// tertutup default (lihat CSS .ria-detail), cuma tampil kalau baris
-// itu diklik/tap, dan baris lain tidak ikut terpengaruh.
-function riaToggleBaris(i) {
-  const row = document.getElementById('riaRow' + i);
-  if (row) row.classList.toggle('ria-open');
+// Buka/tutup rincian keterangan Izin satu baris siswa di tabel Izin --
+// SENGAJA tertutup default, cuma tampil kalau baris itu diklik/tap,
+// dan baris lain tidak ikut terpengaruh.
+function riaToggleBarisIzin(i) {
+  const row = document.getElementById('riaIzinRow' + i);
+  const detail = document.getElementById('riaIzinDetail' + i);
+  if (row) row.classList.toggle('ria-expanded');
+  if (detail) detail.classList.toggle('ria-open');
 }
 
 async function verifikasiTanpaKartu() {

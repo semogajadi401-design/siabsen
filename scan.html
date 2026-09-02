@@ -6585,7 +6585,7 @@ function masukModeMenungguMulai(r) {
     if (banner) {
       const bannerText = document.getElementById('menungguMulaiBannerText');
       if (bannerText) {
-        bannerText.textContent = `Hari ${r.Absen hari || 'ini'} belum dimulai -- absen datang dimulai pukul ${r.jamMulai}.`;
+        bannerText.textContent = `Absen Hari ${r.hari || 'ini'} belum dimulai -- absen datang dimulai pukul ${r.jamMulai}.`;
       }
       banner.style.display = 'block';
     }

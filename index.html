@@ -7274,6 +7274,58 @@ let grafikPie = null;
 // bisa ikut ditampilkan di PDF, konsisten dengan yang ada di layar.
 let lastEvalData = null;
 
+// (BARU) Palet warna heatmap per kolom untuk tabel Ranking Kehadiran --
+// tiap kolom (Tepat Waktu/Terlambat/Total Hadir/Sakit/Izin/Alpha) punya
+// warna dasarnya sendiri supaya kolom gampang dibedakan sekilas, dan
+// intensitas warnanya mengikuti posisi nilai baris itu relatif terhadap
+// nilai TERENDAH-TERTINGGI di kolom yang SAMA (bukan skala tetap) --
+// mirip "color scale" di Excel/Google Sheets. Dipakai bersama oleh
+// tabel di layar (heatBgCss) dan PDF (heatBgRgb) supaya keduanya
+// konsisten -- lihat pemakaiannya di loadEvaluasi() & exportEvaluasiPDF().
+const HEATMAP_KOLOM = {
+  hadir:      [46,125,50],   // Tepat Waktu -- hijau
+  terlambat:  [239,108,0],   // Terlambat -- oranye
+  totalHadir: [21,101,192],  // Total Hadir -- biru
+  sakit:      [106,27,154],  // Sakit -- ungu
+  izin:       [0,121,107],   // Izin -- teal
+  alpha:      [198,40,40]    // Alpha -- merah
+};
+// Hitung posisi 0..1 nilai dalam rentang [min,max] kolom, lalu petakan ke
+// alpha tint 0.10..0.55 -- dijaga tidak terlalu gelap supaya angka/teks
+// hitam di atasnya tetap gampang dibaca tanpa perlu logika kontras teks.
+function heatmapAlpha(value, min, max) {
+  // (BARU) Kalau seluruh kolom bernilai 0 (mis. tidak ada siswa yang
+  // Sakit sama sekali), jangan diwarnai gelap -- fallback lama (0.35)
+  // salah kasih warna "sedang" padahal datanya memang nol semua.
+  if (max <= 0) return 0.08;
+  const t = max > min ? (value - min) / (max - min) : 0.35;
+  return 0.10 + 0.45 * Math.max(0, Math.min(1, t));
+}
+function heatBgCss(value, min, max, base) {
+  const a = heatmapAlpha(value, min, max);
+  return `rgba(${base[0]},${base[1]},${base[2]},${a.toFixed(2)})`;
+}
+function heatBgRgb(value, min, max, base) {
+  const a = heatmapAlpha(value, min, max);
+  // Campur base color dengan putih sesuai alpha (jsPDF rect fill tidak
+  // mendukung transparansi asli, jadi transparansi disimulasikan dengan
+  // interpolasi manual ke putih di sini).
+  return base.map(c => Math.round(255 + (c - 255) * a));
+}
+// Hitung {min,max} tiap kolom numerik dari satu array siswa -- dipakai
+// bareng oleh layar & PDF supaya skala warnanya identik antara keduanya.
+function hitungRentangKolomHeatmap(daftarSiswa) {
+  const kolom = ['hadir','terlambat','sakit','izin','alpha'];
+  const rentang = {};
+  kolom.forEach(k => {
+    const nilai = daftarSiswa.map(s => s[k] || 0);
+    rentang[k] = { min: Math.min(...nilai), max: Math.max(...nilai) };
+  });
+  const totalHadirVals = daftarSiswa.map(s => (s.hadir||0) + (s.terlambat||0));
+  rentang.totalHadir = { min: Math.min(...totalHadirVals), max: Math.max(...totalHadirVals) };
+  return rentang;
+}
+
 async function loadEvaluasi() {
   // Load semester dulu agar dropdown terisi
   await loadSemesterList();
@@ -7447,6 +7499,9 @@ async function loadEvaluasi() {
   if (!sorted.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
   } else {
+    // (BARU) Rentang nilai per kolom untuk heatmap -- dihitung sekali dari
+    // SELURUH siswa yang ditampilkan, dipakai untuk semua baris di bawah.
+    const rentangHeatmap = hitungRentangKolomHeatmap(sorted);
     tbody.innerHTML = sorted.map((s, i) => {
       // PERBAIKAN BUG: sebelumnya penyebut % Hadir per siswa cuma
       // (hadir+terlambat+sakit+izin) -- TIDAK termasuk Alpha, padahal
@@ -7471,16 +7526,26 @@ async function loadEvaluasi() {
       // berdampingan dengan kolom Tepat Waktu & Terlambat supaya pembaca
       // tidak perlu menjumlahkan sendiri untuk tahu total kehadiran riil.
       const totalHadir = s.hadir + s.terlambat;
+      // (BARU) Warna latar tiap sel angka -- lihat HEATMAP_KOLOM &
+      // hitungRentangKolomHeatmap() di atas. Badge lama (pil berwarna
+      // tunggal per kolom) diganti sel polos + latar heatmap supaya
+      // gradasi antar baris kelihatan, bukan cuma satu warna flat.
+      const bgHadir      = heatBgCss(s.hadir,      rentangHeatmap.hadir.min,      rentangHeatmap.hadir.max,      HEATMAP_KOLOM.hadir);
+      const bgTerlambat  = heatBgCss(s.terlambat,  rentangHeatmap.terlambat.min,  rentangHeatmap.terlambat.max,  HEATMAP_KOLOM.terlambat);
+      const bgTotalHadir = heatBgCss(totalHadir,   rentangHeatmap.totalHadir.min, rentangHeatmap.totalHadir.max, HEATMAP_KOLOM.totalHadir);
+      const bgSakit       = heatBgCss(s.sakit,      rentangHeatmap.sakit.min,      rentangHeatmap.sakit.max,      HEATMAP_KOLOM.sakit);
+      const bgIzin        = heatBgCss(s.izin,       rentangHeatmap.izin.min,       rentangHeatmap.izin.max,       HEATMAP_KOLOM.izin);
+      const bgAlpha       = heatBgCss(s.alpha,      rentangHeatmap.alpha.min,      rentangHeatmap.alpha.max,      HEATMAP_KOLOM.alpha);
       return `<tr>
         <td data-label="Rank"><strong>${i+1}</strong></td>
         <td data-label="Nama">${esc(s.nama)}${alphaBadge}</td>
         <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
-        <td data-label="Tepat Waktu"><span class="badge badge-success">${s.hadir}</span></td>
-        <td data-label="Terlambat"><span class="badge badge-warning">${s.terlambat}</span></td>
-        <td data-label="Total Hadir"><strong>${totalHadir}</strong></td>
-        <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
-        <td data-label="Izin"><span class="badge badge-primary">${s.izin}</span></td>
-        <td data-label="Alpha"><span class="badge badge-danger">${s.alpha}</span></td>
+        <td data-label="Tepat Waktu" style="background:${bgHadir};text-align:center">${s.hadir}</td>
+        <td data-label="Terlambat" style="background:${bgTerlambat};text-align:center">${s.terlambat}</td>
+        <td data-label="Total Hadir" style="background:${bgTotalHadir};text-align:center"><strong>${totalHadir}</strong></td>
+        <td data-label="Sakit" style="background:${bgSakit};text-align:center">${s.sakit}</td>
+        <td data-label="Izin" style="background:${bgIzin};text-align:center">${s.izin}</td>
+        <td data-label="Alpha" style="background:${bgAlpha};text-align:center">${s.alpha}</td>
         <td data-label="% Hadir"><strong style="color:${pctColor}">${fmtPersen(pct)}%</strong></td>
       </tr>`;
     }).join('');
@@ -8029,6 +8094,10 @@ async function exportEvaluasiPDF() {
       pdf.setTextColor(0,0,0);
     };
     drawTableHeader(true);
+    // (BARU) Rentang nilai per kolom untuk heatmap PDF -- sama seperti
+    // versi layar (heatBgCss), dihitung sekali dari seluruh d.allSiswa
+    // supaya skala warnanya identik dengan tabel di layar.
+    const rentangHeatmapPdf = hitungRentangKolomHeatmap(d.allSiswa);
     d.allSiswa.forEach((s, idx) => {
       const pct = d.jumlahHariSekolah > 0
         ? Math.round((s.hadir + s.terlambat) / d.jumlahHariSekolah * 1000) / 10 : 0;
@@ -8041,6 +8110,24 @@ async function exportEvaluasiPDF() {
         fmtPersen(pct) + '%'
       ];
       if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }
+      // (BARU) Latar heatmap per kolom (indeks 3–8: Tepat Waktu s/d
+      // Alpha) -- digambar SETELAH strip zebra supaya menimpanya, dan
+      // SEBELUM teks supaya teks angka tetap kelihatan di atasnya.
+      // Lihat HEATMAP_KOLOM & hitungRentangKolomHeatmap() di atas.
+      const kolomHeatmapPdf = [
+        [3, 'hadir',      s.hadir],
+        [4, 'terlambat',  s.terlambat],
+        [5, 'totalHadir', totalHadir],
+        [6, 'sakit',      s.sakit],
+        [7, 'izin',       s.izin],
+        [8, 'alpha',      s.alpha]
+      ];
+      kolomHeatmapPdf.forEach(([i, field, val]) => {
+        const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
+        const rgb = heatBgRgb(val, rentangHeatmapPdf[field].min, rentangHeatmapPdf[field].max, HEATMAP_KOLOM[field]);
+        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+        pdf.rect(x, y-4, colW[i], 7, 'F');
+      });
       pdf.setTextColor(0,0,0);
       vals.forEach((v, i) => {
         const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);

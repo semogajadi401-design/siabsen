@@ -7874,26 +7874,128 @@ async function exportEvaluasiPDF() {
       }
     }
 
-    // ── Catatan Cepat: siswa dengan Alpha terbanyak -- supaya pembaca
-    // tidak perlu menyisir seluruh tabel ranking untuk tahu siapa yang
-    // paling perlu ditindaklanjuti. Hanya ditampilkan kalau memang ada
-    // siswa Alpha (kalau nol, laporan tetap rapi tanpa kotak kosong). ──
-    const siswaAlpha = d.allSiswa.filter(s => s.alpha > 0).sort((a,b) => b.alpha - a.alpha).slice(0, 5);
-    if (siswaAlpha.length && y < pageBottom - 22) {
-      pdf.setFontSize(9.5);
-      pdf.setTextColor(30,30,30);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Catatan Cepat -- Siswa Perlu Perhatian (Alpha terbanyak)', marginX, y + 6);
-      pdf.setFont(undefined, 'normal');
-      pdf.setFontSize(8.5);
-      pdf.setTextColor(70,70,70);
-      const catatan = siswaAlpha.map(s => `${esc(s.nama)} (${s.kelas}) — ${s.alpha}x Alpha`).join('    |    ');
-      pdf.text(catatan, marginX, y + 12, { maxWidth: pageW - marginX * 2 });
+    drawFooterBase();
+
+    // ══════════════════ HALAMAN BARU: REKAP SISWA PERLU PERHATIAN ══════════════════
+    // (BARU, menggantikan "Catatan Cepat" teks yang lama -- sekarang jadi
+    // 4 tabel kecil (Terlambat/Izin/Sakit/Alpha) supaya lebih mudah
+    // dipindai daripada satu baris teks panjang, dan mencakup semua
+    // kategori bukan cuma Alpha. Ditaruh di halaman tersendiri SEBELUM
+    // tabel Ranking Kehadiran (bukan digabung ke halaman 1) supaya
+    // halaman 1 (ringkasan + grafik) tidak terlalu padat.
+    pdf.addPage();
+    drawKopSurat();
+    y = 33;
+    pdf.setFontSize(13); pdf.setTextColor(0,0,0);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Rekap Siswa Perlu Perhatian', marginX, y);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(120,120,120);
+    pdf.text('Top 5 siswa per kategori, dengan proporsi maksimal 50% slot per kelas supaya tidak didominasi satu kelas saja.', marginX, y + 5);
+    y += 14;
+
+    // (BARU) Ambil top-5 per kategori dengan pembatasan maksimal 50%
+    // slot (dibulatkan ke atas -> 3 dari 5) diisi siswa dari kelas yang
+    // sama -- supaya daftar tidak "diborong" satu kelas kalau kebetulan
+    // satu kelas memang bermasalah di satu kategori, dan tetap
+    // representatif lintas kelas. Kalau setelah pembatasan itu slot
+    // masih kurang (karena tidak cukup keberagaman kelas), sisa slot
+    // diisi lagi dari urutan aslinya supaya daftar tetap terisi penuh
+    // selama datanya memang ada.
+    function topKategoriPerhatian(field, n = 5, capRatio = 0.5) {
+      const filtered = d.allSiswa.filter(s => s[field] > 0);
+      if (!filtered.length) return [];
+      const sorted = [...filtered].sort((a, b) => b[field] - a[field]);
+      const maxPerKelas = Math.max(1, Math.ceil(n * capRatio));
+      const hasil = [];
+      const countKelas = {};
+      for (const s of sorted) {
+        if (hasil.length >= n) break;
+        const k = s.kelas || '-';
+        if ((countKelas[k] || 0) >= maxPerKelas) continue;
+        hasil.push(s);
+        countKelas[k] = (countKelas[k] || 0) + 1;
+      }
+      if (hasil.length < n) {
+        for (const s of sorted) {
+          if (hasil.length >= n) break;
+          if (!hasil.includes(s)) hasil.push(s);
+        }
+      }
+      return hasil;
     }
+
+    const kategoriRekap = [
+      { field: 'terlambat', judul: 'Top 5 Terlambat',    kosong: 'Tidak ada siswa yang tercatat terlambat pada periode ini.' },
+      { field: 'izin',      judul: 'Top 5 Izin',         kosong: 'Tidak ada siswa yang mengajukan izin pada periode ini.' },
+      { field: 'sakit',     judul: 'Top 5 Sakit',        kosong: 'Tidak ada siswa yang tercatat sakit pada periode ini.' },
+      { field: 'alpha',     judul: 'Top 5 Alpha',        kosong: 'Tidak ada siswa berstatus Alpha pada periode ini -- kehadiran seluruh siswa tercatat lengkap.' }
+    ];
+
+    // Layout grid 2x2 -- dua kolom, dua baris, supaya 4 kategori muat
+    // rapi dalam satu halaman tanpa perlu scroll/halaman tambahan.
+    const gapX = 10, gapY = 12;
+    const subColW = (pageW - marginX * 2 - gapX) / 2;
+    const subColX = [marginX, marginX + subColW + gapX];
+    const rowStartY = [y, null]; // baris kedua dihitung setelah tinggi baris pertama diketahui
+    const innerColW = [10, subColW - 10 - 22 - 20, 22, 20]; // No, Nama, Kelas, Jumlah
+
+    function gambarSubTabel(kategori, x, yStart) {
+      let yy = yStart;
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(21,101,192);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(kategori.judul, x, yy);
+      pdf.setFont(undefined, 'normal');
+      yy += 5;
+
+      const data = topKategoriPerhatian(kategori.field);
+      if (!data.length) {
+        // (BARU) Pesan profesional untuk kategori kosong -- bukan tabel
+        // kosong yang membingungkan, tapi kalimat jelas bahwa memang
+        // tidak ada datanya (kabar baik), bukan error/kegagalan tarik data.
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(100,150,100);
+        pdf.setFont(undefined, 'italic');
+        pdf.text(kategori.kosong, x, yy + 4, { maxWidth: subColW });
+        pdf.setFont(undefined, 'normal');
+        return yy + 16;
+      }
+
+      const headers = ['No','Nama','Kelas','Jml'];
+      headers.forEach((h, i) => {
+        const hx = innerColW.slice(0,i).reduce((a,b)=>a+b, x);
+        pdf.setFillColor(21,101,192);
+        pdf.setTextColor(255,255,255);
+        pdf.setFontSize(7.5);
+        pdf.rect(hx, yy-3.5, innerColW[i], 6, 'F');
+        pdf.text(h, hx+1, yy);
+      });
+      yy += 6;
+      pdf.setFontSize(8);
+      data.forEach((s, idx) => {
+        if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(x, yy-3.5, innerColW.reduce((a,b)=>a+b,0), 6, 'F'); }
+        const vals = [String(idx+1), s.nama, s.kelas, String(s[kategori.field])];
+        vals.forEach((v, i) => {
+          const vx = innerColW.slice(0,i).reduce((a,b)=>a+b, x);
+          pdf.setTextColor(0,0,0);
+          pdf.text(String(v).substring(0, i === 1 ? 34 : 8), vx+1, yy);
+        });
+        yy += 6;
+      });
+      return yy + 6;
+    }
+
+    const yAfterLeft1  = gambarSubTabel(kategoriRekap[0], subColX[0], rowStartY[0]);
+    const yAfterRight1 = gambarSubTabel(kategoriRekap[1], subColX[1], rowStartY[0]);
+    const row2Y = Math.max(yAfterLeft1, yAfterRight1) + gapY;
+    gambarSubTabel(kategoriRekap[2], subColX[0], row2Y);
+    gambarSubTabel(kategoriRekap[3], subColX[1], row2Y);
 
     drawFooterBase();
 
-    // ══════════════════ HALAMAN 2+: TABEL RANKING ══════════════════
+    // ══════════════════ HALAMAN BERIKUTNYA: TABEL RANKING ══════════════════
     pdf.addPage();
     drawKopSurat();
     y = 33;

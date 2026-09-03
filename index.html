@@ -8060,6 +8060,152 @@ async function exportEvaluasiPDF() {
 
     drawFooterBase();
 
+    // ══════════════════ HALAMAN BARU: REKAP PERINGKAT KELAS ══════════════════
+    // (BARU) Beda dari "Rekap Siswa Perlu Perhatian" di atas (per SISWA),
+    // bagian ini meranking per KELAS -- kelas mana yang totalnya paling
+    // tinggi untuk Terlambat/Izin/Sakit/Alpha. Ditampilkan sebagai diagram
+    // batang horizontal (bukan tabel) supaya perbandingan antar kelas
+    // langsung kelihatan sekilas tanpa perlu baca angka satu-satu --
+    // batang lebih panjang = kelas itu lebih menonjol di kategori itu.
+    // Warna tiap kategori disamakan dengan HEATMAP_KOLOM supaya konsisten
+    // dengan warna kolom di tabel Ranking Kehadiran. Chart dibuat di
+    // canvas SEMENTARA (di luar layar, lihat buatChartKelasPDF()) khusus
+    // untuk render PDF ini -- tidak ada versi layarnya, sesuai permintaan.
+    pdf.addPage();
+    drawKopSurat();
+    y = 33;
+    pdf.setFontSize(13); pdf.setTextColor(0,0,0);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Rekap Peringkat Kelas', marginX, y);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(120,120,120);
+    pdf.text('Total gabungan seluruh siswa per kelas dalam periode ini, diurutkan dari yang tertinggi (batang teratas = kelas paling menonjol).', marginX, y + 5);
+    y += 16;
+
+    // Agregasi per kelas -- BEDA dari kelasMap di renderGrafikEvaluasi()
+    // (dipakai grafik ringkasan halaman 1) karena di sini Alpha ikut
+    // dihitung; grafik halaman 1 sengaja tidak menyertakan Alpha karena
+    // itu grafik "kehadiran" (Hadir/Terlambat/Sakit/Izin), bukan rekap
+    // masalah kehadiran.
+    const kelasAgregat = {};
+    d.allSiswa.forEach(s => {
+      if (!kelasAgregat[s.kelas]) kelasAgregat[s.kelas] = { terlambat: 0, sakit: 0, izin: 0, alpha: 0 };
+      kelasAgregat[s.kelas].terlambat += s.terlambat;
+      kelasAgregat[s.kelas].sakit     += s.sakit;
+      kelasAgregat[s.kelas].izin      += s.izin;
+      kelasAgregat[s.kelas].alpha     += s.alpha;
+    });
+    const semuaKelas = Object.keys(kelasAgregat).sort((a,b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    const kategoriKelasChart = [
+      { field: 'terlambat', judul: 'Kelas Paling Banyak Terlambat', label: 'terlambat' },
+      { field: 'izin',      judul: 'Kelas Paling Banyak Izin',      label: 'izin' },
+      { field: 'sakit',     judul: 'Kelas Paling Banyak Sakit',     label: 'sakit' },
+      { field: 'alpha',     judul: 'Kelas Paling Banyak Alpha',     label: 'Alpha' }
+    ];
+    const chartH = 55; // tinggi gambar chart (mm) -- dijaga supaya 2 baris x 2 kolom masih muat 1 halaman
+
+    // Bikin satu chart batang horizontal SEMENTARA di canvas tersembunyi,
+    // ambil gambarnya (dataURL), lalu hapus canvas-nya lagi -- pola yang
+    // sama seperti chart Hadir/Terlambat di halaman 1, bedanya chart ini
+    // tidak pernah ditampilkan di layar sama sekali.
+    async function buatChartKelasPDF(berpasangan, warnaRgb) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 900; canvas.height = 382; // rasio menyerupai subColW:chartH (mm) di bawah supaya minim distorsi
+      canvas.style.position = 'fixed';
+      canvas.style.left = '-9999px';
+      canvas.style.top = '0px';
+      document.body.appendChild(canvas);
+      const warnaCss = `rgb(${warnaRgb[0]},${warnaRgb[1]},${warnaRgb[2]})`;
+      const chart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: berpasangan.map(b => `Kelas ${b.kelas}`),
+          datasets: [{ data: berpasangan.map(b => b.nilai), backgroundColor: warnaCss, borderRadius: 6, barThickness: 26 }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: false,
+          animation: false,
+          layout: { padding: { right: 44 } },
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: {
+            x: { beginAtZero: true, ticks: { precision: 0, font: { size: 15 } }, grid: { color: '#eee' } },
+            y: { ticks: { font: { size: 17 } }, grid: { display: false } }
+          }
+        },
+        // (BARU) Plugin custom untuk menuliskan ANGKA persis di ujung
+        // setiap batang -- supaya tidak perlu menaksir panjang batang
+        // sendiri (itu maksud "tidak membingungkan": angka pastinya tetap
+        // terlihat, diagram cuma bantu bandingkan secara visual).
+        plugins: [{
+          id: 'labelNilaiUjungBatang',
+          afterDatasetsDraw(c) {
+            const meta = c.getDatasetMeta(0);
+            const { ctx } = c;
+            meta.data.forEach((bar, i) => {
+              const val = c.data.datasets[0].data[i];
+              ctx.save();
+              ctx.fillStyle = '#222';
+              ctx.font = 'bold 18px sans-serif';
+              ctx.textBaseline = 'middle';
+              ctx.textAlign = 'left';
+              ctx.fillText(String(val), bar.x + 8, bar.y);
+              ctx.restore();
+            });
+          }
+        }]
+      });
+      // Tunggu 2 frame supaya Chart.js benar-benar selesai menggambar
+      // sebelum di-capture jadi gambar -- animation:false saja tidak
+      // menjamin urutan render selesai sebelum baris kode berikutnya.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const dataUrl = chart.toBase64Image('image/png', 1.0);
+      chart.destroy();
+      document.body.removeChild(canvas);
+      return dataUrl;
+    }
+
+    async function gambarChartKelas(kategori, x, yStart) {
+      const dataKelas = semuaKelas.map(k => kelasAgregat[k][kategori.field]);
+      const totalKategori = dataKelas.reduce((a, b) => a + b, 0);
+
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(21,101,192);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(kategori.judul, x, yStart);
+      pdf.setFont(undefined, 'normal');
+
+      if (totalKategori === 0) {
+        // (BARU) Sama seperti kategori kosong di "Rekap Siswa Perlu
+        // Perhatian" -- pesan profesional, bukan diagram kosong yang
+        // membingungkan.
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(100,150,100);
+        pdf.setFont(undefined, 'italic');
+        pdf.text(`Tidak ada catatan ${kategori.label} dari kelas manapun pada periode ini.`, x, yStart + 8, { maxWidth: subColW });
+        pdf.setFont(undefined, 'normal');
+        return yStart + 16;
+      }
+
+      const berpasangan = semuaKelas
+        .map((k, i) => ({ kelas: k, nilai: dataKelas[i] }))
+        .sort((a, b) => b.nilai - a.nilai);
+
+      const dataUrl = await buatChartKelasPDF(berpasangan, HEATMAP_KOLOM[kategori.field]);
+      pdf.addImage(dataUrl, 'PNG', x, yStart + 2, subColW, chartH);
+      return yStart + 2 + chartH + 8;
+    }
+
+    const yKiri1  = await gambarChartKelas(kategoriKelasChart[0], subColX[0], y);
+    const yKanan1 = await gambarChartKelas(kategoriKelasChart[1], subColX[1], y);
+    const yBaris2 = Math.max(yKiri1, yKanan1) + 4;
+    await gambarChartKelas(kategoriKelasChart[2], subColX[0], yBaris2);
+    await gambarChartKelas(kategoriKelasChart[3], subColX[1], yBaris2);
+
+    drawFooterBase();
+
     // ══════════════════ HALAMAN BERIKUTNYA: TABEL RANKING ══════════════════
     pdf.addPage();
     drawKopSurat();

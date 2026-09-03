@@ -2246,10 +2246,16 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             <div class="table-responsive">
               <table class="table-card-mobile">
                 <thead>
-                  <tr><th>Rank</th><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Sakit</th><th>Izin</th><th>Alpha</th><th>% Hadir</th></tr>
+                  <!-- (BARU) Kolom "Hadir" diganti label jadi "Tepat Waktu" + ditambah
+                       kolom "Total Hadir" (Tepat Waktu + Terlambat) -- supaya angka Hadir
+                       mentah tidak disalahartikan sebagai "total hari masuk sekolah".
+                       Sebelumnya siswa yang sering telat (mis. Hadir 14, Terlambat 12)
+                       kelihatan cuma "hadir 14 hari" padahal total masuk sekolahnya 26
+                       hari, sama seperti siswa lain -- lihat diskusi bug report. -->
+                  <tr><th>Rank</th><th>Nama</th><th>Kelas</th><th>Tepat Waktu</th><th>Terlambat</th><th>Total Hadir</th><th>Sakit</th><th>Izin</th><th>Alpha</th><th>% Hadir</th></tr>
                 </thead>
                 <tbody id="evalRankingBody">
-                  <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih semester terlebih dahulu</td></tr>
+                  <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)">Pilih semester terlebih dahulu</td></tr>
                 </tbody>
               </table>
             </div>
@@ -7439,7 +7445,7 @@ async function loadEvaluasi() {
   // Render tabel ranking
   const tbody = document.getElementById('evalRankingBody');
   if (!sorted.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)">Tidak ada data untuk periode ini</td></tr>';
   } else {
     tbody.innerHTML = sorted.map((s, i) => {
       // PERBAIKAN BUG: sebelumnya penyebut % Hadir per siswa cuma
@@ -7460,12 +7466,18 @@ async function loadEvaluasi() {
       // keterangan, beda dari Sakit/Izin yang sudah ada laporannya).
       const alphaBadge = s.alpha > 0
         ? ` <span class="badge badge-danger" title="Ada hari tanpa keterangan (Alpha)">⚠ Alpha</span>` : '';
+      // (BARU) Total Hadir = Tepat Waktu + Terlambat -- total hari siswa
+      // benar-benar masuk sekolah, terlepas dia telat atau tidak. Ditaruh
+      // berdampingan dengan kolom Tepat Waktu & Terlambat supaya pembaca
+      // tidak perlu menjumlahkan sendiri untuk tahu total kehadiran riil.
+      const totalHadir = s.hadir + s.terlambat;
       return `<tr>
         <td data-label="Rank"><strong>${i+1}</strong></td>
         <td data-label="Nama">${esc(s.nama)}${alphaBadge}</td>
         <td data-label="Kelas"><span class="badge badge-primary">${s.kelas}</span></td>
-        <td data-label="Hadir"><span class="badge badge-success">${s.hadir}</span></td>
+        <td data-label="Tepat Waktu"><span class="badge badge-success">${s.hadir}</span></td>
         <td data-label="Terlambat"><span class="badge badge-warning">${s.terlambat}</span></td>
+        <td data-label="Total Hadir"><strong>${totalHadir}</strong></td>
         <td data-label="Sakit"><span class="badge" style="background:#E3F2FD;color:#1565C0">${s.sakit}</span></td>
         <td data-label="Izin"><span class="badge badge-primary">${s.izin}</span></td>
         <td data-label="Alpha"><span class="badge badge-danger">${s.alpha}</span></td>
@@ -7666,14 +7678,18 @@ async function renderRekapBulananKelas(tanggalMulai, tanggalSelesaiEfektif, kela
 
 async function exportEvaluasiExcel() {
   if (typeof XLSX === 'undefined') { toast('Library belum siap', 'warning'); return; }
-  const rows = [['Rank','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','Alpha','% Kehadiran']];
+  // (BARU) Kolom "Hadir" -> "Tepat Waktu" + kolom baru "Total Hadir"
+  // (Tepat Waktu + Terlambat) disisipkan, sama seperti tabel di layar &
+  // PDF -- lihat catatan di render #evalRankingBody.
+  const rows = [['Rank','Nama','Kelas','Tepat Waktu','Terlambat','Total Hadir','Sakit','Izin','Alpha','% Kehadiran']];
   document.querySelectorAll('#evalRankingBody tr').forEach((tr, i) => {
     const tds = tr.querySelectorAll('td');
-    if (tds.length >= 9) {
+    if (tds.length >= 10) {
       rows.push([
         tds[0].textContent, tds[1].textContent, tds[2].textContent,
         tds[3].textContent, tds[4].textContent, tds[5].textContent,
-        tds[6].textContent, tds[7].textContent, tds[8].textContent
+        tds[6].textContent, tds[7].textContent, tds[8].textContent,
+        tds[9].textContent
       ]);
     }
   });
@@ -7881,8 +7897,12 @@ async function exportEvaluasiPDF() {
     pdf.addPage();
     drawKopSurat();
     y = 33;
-    const headers = ['No','Nama','Kelas','Hadir','Terlambat','Sakit','Izin','Alpha','% Hadir'];
-    const colW = [10, 62, 20, 18, 22, 15, 15, 15, 20];
+    // (BARU) "Hadir" -> "Tepat Waktu" + kolom baru "Total Hadir" (Tepat
+    // Waktu + Terlambat), sama seperti tabel di layar & Excel -- lihat
+    // catatan di render #evalRankingBody. Lebar kolom dipersempit sedikit
+    // supaya tabel 10 kolom masih muat di lebar halaman yang sama.
+    const headers = ['No','Nama','Kelas','Tepat Waktu','Terlambat','Total Hadir','Sakit','Izin','Alpha','% Hadir'];
+    const colW = [9, 50, 14, 22, 20, 20, 14, 13, 13, 19];
     const drawTableHeader = (withLegend) => {
       pdf.setFontSize(11); pdf.setTextColor(0,0,0);
       pdf.setFont(undefined, 'bold');
@@ -7891,11 +7911,11 @@ async function exportEvaluasiPDF() {
       if (withLegend) {
         pdf.setFontSize(7.5);
         pdf.setTextColor(120,120,120);
-        pdf.text('Keterangan: H = Hadir, T = Terlambat, S = Sakit, I = Izin, A = Alpha (tanpa keterangan)', marginX, y + 5);
+        pdf.text('Keterangan: Total Hadir = Tepat Waktu + Terlambat (semua hari siswa masuk sekolah). S = Sakit, I = Izin, A = Alpha (tanpa keterangan)', marginX, y + 5);
         y += 5;
       }
       y += 6;
-      pdf.setFontSize(9);
+      pdf.setFontSize(7.5); // (diperkecil dari 9) supaya label "Tepat Waktu"/"Total Hadir" muat di kolomnya
       headers.forEach((h, i) => {
         const x = colW.slice(0,i).reduce((a,b)=>a+b, marginX);
         pdf.setFillColor(21,101,192);
@@ -7910,9 +7930,12 @@ async function exportEvaluasiPDF() {
     d.allSiswa.forEach((s, idx) => {
       const pct = d.jumlahHariSekolah > 0
         ? Math.round((s.hadir + s.terlambat) / d.jumlahHariSekolah * 1000) / 10 : 0;
+      // (BARU) Total Hadir = Tepat Waktu + Terlambat -- lihat catatan di
+      // render #evalRankingBody untuk alasannya.
+      const totalHadir = s.hadir + s.terlambat;
       const vals = [
         String(idx+1), s.nama, s.kelas,
-        String(s.hadir), String(s.terlambat), String(s.sakit), String(s.izin), String(s.alpha),
+        String(s.hadir), String(s.terlambat), String(totalHadir), String(s.sakit), String(s.izin), String(s.alpha),
         fmtPersen(pct) + '%'
       ];
       if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y-4, colW.reduce((a,b)=>a+b,0), 7, 'F'); }

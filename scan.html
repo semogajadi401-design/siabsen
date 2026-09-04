@@ -584,20 +584,25 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
    yang memang butuh kamera saat libur (mis. scan QR guru buat keperluan
    lain) -- kamera BENAR-BENAR baru aktif (getUserMedia dipanggil) pas
    tombol ini diklik, lihat toggleKameraLibur() di JS. */
-.libur-camera-area{margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.libur-camera-area{
+  margin-top:4px;padding-top:18px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+}
 .libur-camera-toggle{
   display:inline-flex;align-items:center;gap:8px;
-  padding:10px 18px;border-radius:999px;border:1.5px solid var(--primary);
-  background:#fff;color:var(--primary-dark);font-weight:700;font-size:.86rem;
-  cursor:pointer;transition:background .15s,color .15s,transform .1s;
+  padding:9px 16px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font-weight:600;font-size:.82rem;
+  cursor:pointer;transition:background .15s,border-color .15s;
 }
-.libur-camera-toggle:active{transform:scale(.97)}
-.libur-camera-toggle.aktif{background:var(--primary);color:#fff}
+.libur-camera-toggle:hover{background:var(--bg)}
+.libur-camera-toggle:active{transform:scale(.98)}
+.libur-camera-toggle.aktif{background:var(--primary);color:#fff;border-color:var(--primary)}
+.libur-camera-toggle svg{width:15px;height:15px;flex-shrink:0}
 .libur-camera-slot{
   width:100%;display:none;justify-content:center;
 }
 .libur-camera-slot .scanner-visual{margin:6px auto}
-.libur-camera-hint{font-size:.72rem;color:var(--text-muted);text-align:center;max-width:280px}
+.libur-camera-hint{font-size:.76rem;color:var(--text-muted);text-align:left;max-width:420px;line-height:1.5}
 
 /* BARU: label "Libur" tersusun vertikal di dalam batang hari libur --
    supaya langsung kebaca batang itu "Libur", bukan cuma diarsir kosong.
@@ -1316,18 +1321,37 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 }
 .log-empty-icon{font-size:2.5rem;margin-bottom:8px}
 
-/* ── LIBUR BANNER ── */
+/* ── LIBUR BANNER ──────────────────────────────────────────────────
+   Didesain ulang sebagai kartu notifikasi biasa (align kiri, ikon
+   dalam lingkaran kecil, satu warna aksen amber yang dipakai secukup-
+   nya) supaya senada dengan kartu-kartu lain di aplikasi ini,
+   bukan banner besar penuh warna/emoji. */
 .libur-banner{
-  margin:16px;padding:20px;
-  background:var(--warning-soft);
-  border:1px solid rgba(251,191,36,0.35);
-  border-radius:18px;text-align:center;
+  margin:16px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  box-shadow:var(--shadow-card);
+  overflow:hidden;
+  text-align:left;
 }
-.libur-banner-icon{font-size:3rem;margin-bottom:8px}
-.libur-banner-title{font-size:1.1rem;font-weight:800;color:#B45309}
-.libur-banner-sub{font-size:.85rem;color:var(--text-muted);margin-top:6px}
+.libur-banner-top{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:20px 22px;
+  border-bottom:1px solid var(--border);
+}
+.libur-banner-icon{
+  width:42px;height:42px;flex-shrink:0;border-radius:11px;
+  background:var(--warning-soft);color:#B45309;
+  display:flex;align-items:center;justify-content:center;
+}
+.libur-banner-icon svg{width:22px;height:22px;display:block}
+.libur-banner-text{flex:1;min-width:0;padding-top:2px}
+.libur-banner-title{font-size:1rem;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.libur-banner-sub{font-size:.82rem;color:var(--text-muted);margin-top:3px;line-height:1.5}
+.libur-banner-body{padding:20px 22px 22px;display:flex;flex-direction:column}
 .libur-besok-panel{
-  text-align:left;margin:18px auto 0;max-width:380px;
+  text-align:left;margin:18px 0 0;max-width:none;
 }
 
 /* ── GAMBAR + PESAN LIBUR (BARU) ──────────────────────────────────
@@ -1339,24 +1363,24 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
    kalau memang ada isinya, supaya banner libur "polos" (tanpa gambar/
    pesan) tetap tampil rapi seperti sebelumnya. */
 .libur-gambar-wrap{
-  display:none;margin:14px auto 0;max-width:420px;
-  border-radius:18px;overflow:hidden;
-  box-shadow:0 16px 40px -14px rgba(180,83,9,0.45);
-  border:1px solid rgba(251,191,36,0.35);
-  animation:liburGambarMasuk .5s cubic-bezier(.2,.8,.2,1);
+  display:none;margin:0 0 16px;
+  border-radius:12px;overflow:hidden;
+  border:1px solid var(--border);
+  box-shadow:var(--shadow-soft);
+  animation:liburGambarMasuk .35s ease-out;
 }
 .libur-gambar-wrap img{
-  display:block;width:100%;max-height:280px;object-fit:cover;
+  display:block;width:100%;max-height:260px;object-fit:cover;
 }
 @keyframes liburGambarMasuk{
-  from{opacity:0;transform:translateY(10px) scale(.98)}
-  to{opacity:1;transform:translateY(0) scale(1)}
+  from{opacity:0;transform:translateY(4px)}
+  to{opacity:1;transform:translateY(0)}
 }
 .libur-pesan{
-  display:none;margin:14px auto 0;max-width:420px;
-  background:var(--surface);border:1px solid rgba(251,191,36,0.35);
-  border-radius:14px;padding:12px 16px;
-  font-size:.86rem;line-height:1.55;color:var(--text);
+  display:none;margin:0 0 16px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:12px;padding:13px 16px;
+  font-size:.86rem;line-height:1.6;color:var(--text);
   white-space:pre-wrap;text-align:left;
 }
 /* BARU: badge "Periode Libur: ..." -- dihitung otomatis di server dari
@@ -1365,49 +1389,53 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
    kalau rentangnya lebih dari 1 hari (libur 1 hari saja sudah cukup
    jelas dari judul banner, tidak perlu diulang). */
 .libur-periode{
-  display:none;margin:12px auto 0;max-width:420px;
-  background:#B45309;color:#fff;
-  border-radius:999px;padding:7px 16px;
-  font-size:.78rem;font-weight:700;letter-spacing:.2px;
+  display:none;align-self:flex-start;margin:0 0 16px;
+  background:var(--bg);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 12px;
+  font-size:.76rem;font-weight:600;letter-spacing:.1px;
 }
 
-/* ── GAME ULAR DI BANNER LIBUR (BARU) ──
+/* ── AKTIVITAS PENGISI WAKTU DI BANNER LIBUR (BARU) ──
    Tombol pembuka + kotak game, cuma tampil kalau liburBanner aktif
    (lihat toggleLiburGame() di JS). Dibuat ringan (canvas 2D polos,
-   tanpa asset/lib luar) karena cuma pengisi waktu, bukan fitur inti. */
+   tanpa asset/lib luar) karena cuma pengisi waktu, bukan fitur inti --
+   makanya tampil sebagai tautan kecil di bawah, bukan tombol utama. */
 .libur-game-toggle{
-  margin-top:16px;padding:10px 22px;border:none;border-radius:14px;
-  background:var(--primary);color:#fff;font-family:var(--font);
-  font-size:.9rem;font-weight:700;cursor:pointer;
-  box-shadow:0 6px 16px -6px rgba(16,185,129,0.5);
+  margin-top:18px;padding:0;border:none;background:none;
+  align-self:flex-start;
+  color:var(--text-muted);font-family:var(--font);
+  font-size:.78rem;font-weight:600;cursor:pointer;
+  text-decoration:underline;text-decoration-color:var(--border);
+  text-underline-offset:3px;
 }
-.libur-game-toggle:active{transform:scale(.97)}
+.libur-game-toggle:hover{color:var(--text);text-decoration-color:var(--text-muted)}
 .libur-game-wrap{
-  margin:18px auto 4px;max-width:320px;
-  display:flex;flex-direction:column;align-items:center;gap:10px;
+  margin:14px 0 0;max-width:300px;
+  display:flex;flex-direction:column;align-items:stretch;gap:10px;
+  padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg);
 }
 .libur-game-scorebar{
-  width:100%;max-width:300px;display:flex;align-items:center;justify-content:space-between;
-  font-size:.8rem;color:var(--text);font-weight:600;
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  font-size:.78rem;color:var(--text-muted);font-weight:600;
 }
-.libur-game-scorebar b{color:var(--primary-dark)}
+.libur-game-scorebar b{color:var(--text)}
 .libur-game-close{
-  border:none;background:none;color:var(--text-muted);font-size:.78rem;
-  font-weight:700;cursor:pointer;padding:2px 6px;
+  border:none;background:none;color:var(--text-muted);font-size:.76rem;
+  font-weight:600;cursor:pointer;padding:2px 4px;
 }
+.libur-game-close:hover{color:var(--text)}
 #liburGameCanvas{
-  background:#0F172A;border-radius:14px;box-shadow:var(--shadow-card);
-  touch-action:none;max-width:100%;
+  background:#0F172A;border-radius:10px;
+  touch-action:none;max-width:100%;align-self:center;
 }
 .libur-game-pad{
   display:flex;flex-direction:column;align-items:center;gap:6px;
 }
 .libur-game-pad-mid{display:flex;gap:34px}
 .libur-game-pad button{
-  width:44px;height:44px;border:none;border-radius:12px;
+  width:40px;height:40px;border:none;border-radius:10px;
   background:var(--surface);border:1px solid var(--border);
-  font-size:1.1rem;color:var(--text);cursor:pointer;
-  box-shadow:var(--shadow-soft);
+  font-size:1rem;color:var(--text);cursor:pointer;
 }
 .libur-game-pad button:active{background:var(--accent-soft)}
 .libur-game-hint{font-size:.72rem;color:var(--text-muted)}
@@ -2699,78 +2727,94 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
 
 <!-- LIBUR BANNER (tersembunyi default) -->
 <div class="libur-banner" id="liburBanner" style="display:none">
-  <div class="libur-banner-icon">🏖️</div>
-  <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
-  <div class="libur-banner-sub" id="liburSub">Absensi tidak dapat dilakukan hari ini</div>
-
-  <!-- BARU: gambar + pesan + periode (rentang tanggal) opsional dari
-       admin (lihat renderBannerLibur() di JS & modalTambahLibur di
-       index.html). Kosong/disembunyikan kalau admin tidak melampirkan
-       apa-apa saat input hari libur. -->
-  <div class="libur-periode" id="liburPeriode"></div>
-  <div class="libur-gambar-wrap" id="liburGambarWrap">
-    <img id="liburGambar" alt="Gambar hari libur">
-  </div>
-  <div class="libur-pesan" id="liburPesan"></div>
-
-  <!-- BARU: tombol aktifkan kamera manual saat libur -- lihat catatan
-       lengkap di CSS .libur-camera-area & toggleKameraLibur() di JS.
-       Beda dengan hari sekolah aktif (kamera OTOMATIS nyala, lihat
-       checkStatus()), di sini kamera baru nyala PAS tombol ini diklik,
-       dan mati lagi kalau diklik sekali lagi / kalau hari berganti jadi
-       hari sekolah aktif (lihat keluarModeKameraLiburManual()). -->
-  <div class="libur-camera-area">
-    <button type="button" class="libur-camera-toggle" id="liburCameraToggle" onclick="toggleKameraLibur()">
-      📷 <span id="liburCameraToggleText">Aktifkan Kamera</span>
-    </button>
-    <div class="libur-camera-hint" id="liburCameraHint">Kamera tidak otomatis menyala di hari libur. Klik tombol di atas kalau tetap perlu scan (mis. QR guru).</div>
-    <div class="libur-camera-slot" id="liburCameraSlot"></div>
-  </div>
-
-  <!-- BARU: panel "Info Besok" di dalam banner libur -- SEBELUMNYA begitu
-       hari ini libur, banner ini cuma nampilin judul/sub + game ular,
-       tanpa info guru piket/jadwal mengajar besok sama sekali (padahal
-       kalau besok ternyata hari sekolah, itu justru info paling
-       berguna buat guru yang buka aplikasi pas hari libur). Sekarang
-       dirender oleh renderLiburBesokInfo() (lihat JS), pakai ulang
-       fetchJadwalBesok() yang sama dengan panel sidebar rekap harian.
-       Kalau besok TERNYATA juga libur, bagian piket/jadwal disembunyikan
-       dan diganti pesan liburnya (lihat lbBesokWarn). -->
-  <div class="besok-side-panel libur-besok-panel" id="liburBesokPanel" style="display:none">
-    <div class="bsp-head"><span class="bsp-head-icon">📅</span> <span>Info Besok</span></div>
-    <div class="bsp-sub">Piket & jadwal mengajar untuk hari berikutnya</div>
-    <div id="lbBesokWarn"></div>
-    <div class="bsp-section" id="lbBesokPiketSection">
-      <div class="bsp-section-title">🛡️ Guru Piket Besok</div>
-      <div id="lbBesokPiket"><div class="bsp-empty">Memuat data...</div></div>
+  <div class="libur-banner-top">
+    <div class="libur-banner-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4.5" width="18" height="16" rx="3"></rect>
+        <path d="M3 9.5h18"></path>
+        <path d="M8 2.5v4M16 2.5v4"></path>
+        <path d="M9.5 14.5l5 4M14.5 14.5l-5 4"></path>
+      </svg>
     </div>
-    <div class="bsp-section" id="lbBesokJadwalSection">
-      <div class="bsp-section-title">📚 Jadwal Mengajar Besok</div>
-      <div id="lbBesokJadwal"><div class="bsp-empty">Memuat data...</div></div>
+    <div class="libur-banner-text">
+      <div class="libur-banner-title" id="liburTitle">Hari Libur</div>
+      <div class="libur-banner-sub" id="liburSub">Absensi tidak tersedia untuk hari ini</div>
     </div>
   </div>
 
-  <!-- BARU: game ringan "Ular" -- muncul cuma di hari libur/bukan hari
-       sekolah, biar layar kiosk yang nganggur nggak kosong-kosong amat.
-       Disembunyikan default, baru dirender saat tombol ditekan supaya
-       tidak makan resource kalau memang tidak dipakai. -->
-  <button class="libur-game-toggle" id="liburGameToggle" onclick="toggleLiburGame()">🐍 Main Ular Yuk</button>
-  <div class="libur-game-wrap" id="liburGameWrap" style="display:none">
-    <div class="libur-game-scorebar">
-      <span>Skor: <b id="liburGameSkor">0</b></span>
-      <span>Rekor: <b id="liburGameRekor">0</b></span>
-      <button class="libur-game-close" onclick="toggleLiburGame(false)">✕ Tutup</button>
+  <div class="libur-banner-body">
+    <!-- BARU: gambar + pesan + periode (rentang tanggal) opsional dari
+         admin (lihat renderBannerLibur() di JS & modalTambahLibur di
+         index.html). Kosong/disembunyikan kalau admin tidak melampirkan
+         apa-apa saat input hari libur. -->
+    <div class="libur-periode" id="liburPeriode"></div>
+    <div class="libur-gambar-wrap" id="liburGambarWrap">
+      <img id="liburGambar" alt="Gambar hari libur">
     </div>
-    <canvas id="liburGameCanvas" width="300" height="300"></canvas>
-    <div class="libur-game-pad" id="liburGamePad">
-      <button data-dir="up">▲</button>
-      <div class="libur-game-pad-mid">
-        <button data-dir="left">◀</button>
-        <button data-dir="down">▼</button>
-        <button data-dir="right">▶</button>
+    <div class="libur-pesan" id="liburPesan"></div>
+
+    <!-- BARU: tombol aktifkan kamera manual saat libur -- lihat catatan
+         lengkap di CSS .libur-camera-area & toggleKameraLibur() di JS.
+         Beda dengan hari sekolah aktif (kamera OTOMATIS nyala, lihat
+         checkStatus()), di sini kamera baru nyala PAS tombol ini diklik,
+         dan mati lagi kalau diklik sekali lagi / kalau hari berganti jadi
+         hari sekolah aktif (lihat keluarModeKameraLiburManual()). -->
+    <div class="libur-camera-area">
+      <button type="button" class="libur-camera-toggle" id="liburCameraToggle" onclick="toggleKameraLibur()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        <span id="liburCameraToggleText">Aktifkan Kamera</span>
+      </button>
+      <div class="libur-camera-hint" id="liburCameraHint">Kamera tidak otomatis menyala di hari libur. Klik tombol di atas kalau tetap perlu scan (mis. QR guru).</div>
+      <div class="libur-camera-slot" id="liburCameraSlot"></div>
+    </div>
+
+    <!-- BARU: panel "Info Besok" di dalam banner libur -- SEBELUMNYA begitu
+         hari ini libur, banner ini cuma nampilin judul/sub + game ular,
+         tanpa info guru piket/jadwal mengajar besok sama sekali (padahal
+         kalau besok ternyata hari sekolah, itu justru info paling
+         berguna buat guru yang buka aplikasi pas hari libur). Sekarang
+         dirender oleh renderLiburBesokInfo() (lihat JS), pakai ulang
+         fetchJadwalBesok() yang sama dengan panel sidebar rekap harian.
+         Kalau besok TERNYATA juga libur, bagian piket/jadwal disembunyikan
+         dan diganti pesan liburnya (lihat lbBesokWarn). -->
+    <div class="besok-side-panel libur-besok-panel" id="liburBesokPanel" style="display:none">
+      <div class="bsp-head"><span>Info Besok</span></div>
+      <div class="bsp-sub">Piket & jadwal mengajar untuk hari berikutnya</div>
+      <div id="lbBesokWarn"></div>
+      <div class="bsp-section" id="lbBesokPiketSection">
+        <div class="bsp-section-title">Guru Piket Besok</div>
+        <div id="lbBesokPiket"><div class="bsp-empty">Memuat data...</div></div>
+      </div>
+      <div class="bsp-section" id="lbBesokJadwalSection">
+        <div class="bsp-section-title">Jadwal Mengajar Besok</div>
+        <div id="lbBesokJadwal"><div class="bsp-empty">Memuat data...</div></div>
       </div>
     </div>
-    <div class="libur-game-hint" id="liburGameHint">Geser layar / panah keyboard untuk mulai</div>
+
+    <!-- BARU: game ringan "Ular" -- muncul cuma di hari libur/bukan hari
+         sekolah, biar layar kiosk yang nganggur nggak kosong-kosong amat.
+         Ditampilkan sebagai tautan kecil, bukan tombol utama, supaya
+         tidak mengalihkan perhatian dari info libur itu sendiri.
+         Disembunyikan default, baru dirender saat tombol ditekan supaya
+         tidak makan resource kalau memang tidak dipakai. -->
+    <button class="libur-game-toggle" id="liburGameToggle" onclick="toggleLiburGame()">Isi waktu luang dengan permainan ular</button>
+    <div class="libur-game-wrap" id="liburGameWrap" style="display:none">
+      <div class="libur-game-scorebar">
+        <span>Skor: <b id="liburGameSkor">0</b></span>
+        <span>Rekor: <b id="liburGameRekor">0</b></span>
+        <button class="libur-game-close" onclick="toggleLiburGame(false)">Tutup</button>
+      </div>
+      <canvas id="liburGameCanvas" width="300" height="300"></canvas>
+      <div class="libur-game-pad" id="liburGamePad">
+        <button data-dir="up">▲</button>
+        <div class="libur-game-pad-mid">
+          <button data-dir="left">◀</button>
+          <button data-dir="down">▼</button>
+          <button data-dir="right">▶</button>
+        </div>
+      </div>
+      <div class="libur-game-hint" id="liburGameHint">Geser layar / panah keyboard untuk mulai</div>
+    </div>
   </div>
 </div>
 
@@ -7015,7 +7059,7 @@ function renderBannerLibur(r) {
   // libur 1 hari saja sudah jelas dari judul banner, tidak perlu
   // diulang lagi sebagai badge terpisah.
   if (r.rentangMulai && r.rentangSelesai && r.rentangMulai !== r.rentangSelesai) {
-    periodeEl.textContent = `📅 ${formatTanggalID(r.rentangMulai)} — ${formatTanggalID(r.rentangSelesai)}`;
+    periodeEl.textContent = `Periode: ${formatTanggalID(r.rentangMulai)} — ${formatTanggalID(r.rentangSelesai)}`;
     periodeEl.style.display = 'inline-block';
   } else {
     periodeEl.style.display = 'none';
@@ -7061,7 +7105,7 @@ async function renderLiburBesokInfo() {
       if (elPiketSec)  elPiketSec.style.display  = 'none';
       if (elJadwalSec) elJadwalSec.style.display = 'none';
       if (elWarn) elWarn.innerHTML =
-        `<div class="bsp-warn">📅 Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'juga adalah hari libur'}.</div>`;
+        `<div class="bsp-warn">Besok (${esc(r.hari)}) ${r.keteranganLibur ? '— ' + esc(r.keteranganLibur) : 'juga adalah hari libur'}.</div>`;
       return;
     }
 

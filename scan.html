@@ -548,6 +548,14 @@ body.drawer-open .scanner-visual{filter:grayscale(.75) opacity(.55);pointer-even
 .drawer-action--amber{--da-grad:linear-gradient(160deg,#FCD34D,#D97706);--da-shadow:rgba(217,119,6,.4);--da-border:#FBD588}
 .drawer-action--blue{--da-grad:linear-gradient(160deg,#60A5FA,#2563EB);--da-shadow:rgba(37,99,235,.4);--da-border:#9CC5FB}
 .drawer-action--red{--da-grad:linear-gradient(160deg,#FCA5A5,#DC2626);--da-shadow:rgba(220,38,38,.4);--da-border:#F8B3B3}
+/* BARU: state redup untuk drawer-action yang butuh kamera (Absen Kelas,
+   Kelola Kehadiran) saat hari libur -- kamera memang dimatikan total
+   di hari libur (lihat checkStatus()), jadi kartu ini ditandai non-aktif
+   secara visual, bukan cuma menolak lewat toast setelah diklik. Tetap
+   bisa diklik (supaya pesannya kebaca), cuma tampilannya pudar. */
+.drawer-action.libur-disabled{opacity:.55}
+.drawer-action.libur-disabled:hover{transform:none;box-shadow:0 1px 2px rgba(15,23,42,.05);border-color:var(--border)}
+.drawer-action.libur-disabled .da-sub{color:#B45309}
 @media(max-width:900px){
   .mode-switch-wrap{max-width:184px}
   /* SEBELUMNYA di lebar ini .aksi-kelas-wrap dipaksa jadi baris (flex-row,
@@ -2912,7 +2920,7 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
         <span class="da-icon">📚</span>
         <span class="da-body">
           <span class="da-title">Absen Kelas</span>
-          <span class="da-sub">Mulai verifikasi kehadiran kelas</span>
+          <span class="da-sub" id="akDaSub">Mulai verifikasi kehadiran kelas</span>
         </span>
         <span class="da-arrow">›</span>
       </button>
@@ -2942,7 +2950,7 @@ tr.ria-row-izin.ria-expanded .ria-tchevron{transform:rotate(90deg)}
         <span class="da-icon">📋</span>
         <span class="da-body">
           <span class="da-title">Edit Kehadiran Siswa</span>
-          <span class="da-sub">Khusus guru piket hari ini</span>
+          <span class="da-sub" id="kpDaSub">Khusus guru piket hari ini</span>
         </span>
         <span class="da-arrow">›</span>
       </button>
@@ -4014,6 +4022,16 @@ let scanStream    = null;
 // ini -- tanpa flag ini, siklus checkStatus() berikutnya akan langsung
 // stopScanner() lagi karena hari itu memang libur (r.bisaAbsen tetap false).
 let liburKameraManualAktif = false;
+// BARU: status hari ini (true = hari sekolah aktif, bisa absen; false =
+// hari libur/bukan hari sekolah) -- disalin dari r.bisaAbsen tiap kali
+// checkStatus() berhasil. Dipakai sebagai guard di mulaiAbsenKelas() &
+// mulaiKelolaPiket() supaya kedua alur itu (yang sama-sama butuh kamera
+// aktif buat scan kartu guru) tidak coba dibuka di hari libur -- di
+// mana kamera memang sengaja dimatikan total (lihat checkStatus()) --
+// dan ujung-ujungnya nyangkut nunggu scan tanpa gambar kamera sama
+// sekali. Defaultnya true supaya tombol tetap berfungsi normal sebelum
+// checkStatus() pertama kali selesai (asumsi paling aman: hari sekolah).
+let bisaAbsenHariIni = true;
 let scanAnimFrame = null;
 
 // PERBAIKAN "klik menu jadi berat": scanLoop() (jalan tiap frame lewat
@@ -4807,8 +4825,30 @@ function setMode(mode) {
 // Pulang, dan device lain yang sedang dipakai Datang/Pulang sama sekali
 // tidak terpengaruh (state ini murni per-tab, sama seperti
 // modeVerifikasiAktif).
+// BARU: menyegarkan tampilan kartu Absen Kelas & Kelola Kehadiran di
+// drawer sesuai status hari ini (lihat bisaAbsenHariIni & guard di
+// mulaiAbsenKelas()/mulaiKelolaPiket()) -- dipanggil tiap checkStatus()
+// berhasil, supaya begitu status berubah (mis. tengah malam lewat dari
+// hari libur ke hari sekolah) tampilannya ikut nyala lagi otomatis,
+// tanpa perlu reload manual.
+function updateAbsenKelasLiburState() {
+  const btnAK = document.getElementById('btnAbsenKelas');
+  const subAK = document.getElementById('akDaSub');
+  const btnKP = document.getElementById('btnKelolaPiket');
+  const subKP = document.getElementById('kpDaSub');
+  if (btnAK) btnAK.classList.toggle('libur-disabled', !bisaAbsenHariIni);
+  if (subAK) subAK.textContent = bisaAbsenHariIni ? 'Mulai verifikasi kehadiran kelas' : 'Tidak tersedia -- hari ini libur';
+  if (btnKP) btnKP.classList.toggle('libur-disabled', !bisaAbsenHariIni);
+  if (subKP) subKP.textContent = bisaAbsenHariIni ? 'Khusus guru piket hari ini' : 'Tidak tersedia -- hari ini libur';
+}
+
 function mulaiAbsenKelas() {
   if (modeVerifikasiAktif || sedangPilihJadwal) { toast('📚 Sedang dalam sesi verifikasi kelas.'); return; }
+  // BARU: hari libur -- kamera sengaja dimatikan total (lihat
+  // checkStatus()), jadi alur Absen Kelas yang butuh scan kartu guru
+  // lewat kamera tidak relevan dibuka hari ini. Tampilkan pesan yang
+  // jelas ketimbang membuka overlay dengan kamera kosong/tidak menyala.
+  if (!bisaAbsenHariIni) { toast('📅 Hari ini libur. Absen Kelas tidak tersedia -- kamera tidak aktif di hari libur.', 4000); return; }
   menungguAbsenKelas = true;
   document.getElementById('btnAbsenKelas').style.display = 'none';
   document.getElementById('menungguAbsenKelasBox').style.display = '';
@@ -4972,6 +5012,10 @@ function tutupOverlayAbsenKelas() {
 function mulaiKelolaPiket() {
   if (modeVerifikasiAktif) { toast('📚 Sedang dalam sesi verifikasi kelas.'); return; }
   if (menungguAbsenKelas)  { toast('📚 Sedang dalam mode Absen Kelas. Klik "Batal" dulu.'); return; }
+  // BARU: sama seperti mulaiAbsenKelas() -- di hari libur kamera
+  // sengaja dimatikan total, jadi alur scan kartu guru di sini juga
+  // tidak relevan dibuka.
+  if (!bisaAbsenHariIni) { toast('📅 Hari ini libur. Kelola Kehadiran tidak tersedia -- kamera tidak aktif di hari libur.', 4000); return; }
   menungguKelolaPiket = true;
   kpGuruToken = null; kpGuruId = null; kpGuruNama = '';
   document.getElementById('menungguKelolaPiketBox').style.display = '';
@@ -6410,6 +6454,12 @@ async function checkStatus() {
 
     const mainContent  = document.getElementById('mainContent');
     const liburBanner  = document.getElementById('liburBanner');
+
+    // Simpan status hari ini ke flag global -- dipakai mulaiAbsenKelas()
+    // & mulaiKelolaPiket() sebagai guard (lihat catatan lengkap di
+    // deklarasi bisaAbsenHariIni di atas).
+    bisaAbsenHariIni = !!r.bisaAbsen;
+    updateAbsenKelasLiburState();
 
     if (!r.bisaAbsen) {
       // PERBAIKAN (BARU): hari libur sama sekali tidak butuh kamera --

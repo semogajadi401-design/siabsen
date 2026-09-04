@@ -4205,8 +4205,39 @@ function initDrawerLayout(){
   const daftarHeading = document.createElement('div');
   daftarHeading.className = 'drawer-section-title';
   daftarHeading.textContent = '👥 Daftar Kehadiran Siswa';
+
+  // PERBAIKAN BUG (BARU): elemen "Daftar Kehadiran Siswa" (chart, filter
+  // kelas, tab hadir/izin/alpa, tabelnya) dibungkus satu wrapper supaya
+  // bisa disembunyikan SEKALIGUS lewat satu toggle saat hari libur --
+  // lihat checkStatus(): id="drawerKehadiranWrap" di-display:none begitu
+  // r.bisaAbsen === false. SEBELUMNYA elemen-elemen ini dipindah lepas
+  // langsung ke drawerBody (di luar #mainContent), jadi saat hari libur
+  // hanya #mainContent (area kamera) yang disembunyikan -- tabel
+  // kehadiran ini tetap tampil & terus di-refresh oleh loadLog(), padahal
+  // getLogHariIni() di server tidak tahu soal hari libur sama sekali,
+  // sehingga SEMUA siswa aktif jatuh ke kategori "belum hadir" dan
+  // ditampilkan seolah-olah "alpa" massal -- padahal hari itu memang
+  // tidak ada kewajiban masuk sekolah.
+  const drawerKehadiranWrap = document.createElement('div');
+  drawerKehadiranWrap.id = 'drawerKehadiranWrap';
+  // Samakan dengan display:flex;flex-direction:column;gap:16px milik
+  // .app-drawer-body -- supaya jarak antar chart/filter/tab/tabel di
+  // dalam wrapper ini tetap sama persis seperti sebelum dibungkus (dulu
+  // elemen-elemen ini anak langsung drawerBody, sekarang cucu).
+  drawerKehadiranWrap.style.cssText = 'display:flex;flex-direction:column;gap:16px';
   [chartWidget, chartAnchorMobile, daftarHeading, filterRow, logTabsBar, logContainer]
-    .forEach(el => { if (el) drawerBody.appendChild(el); });
+    .forEach(el => { if (el) drawerKehadiranWrap.appendChild(el); });
+  drawerBody.appendChild(drawerKehadiranWrap);
+
+  // Pesan pengganti yang tampil di drawer selama hari libur, menggantikan
+  // tabel kehadiran yang disembunyikan -- supaya drawer tidak terasa
+  // "kosong tanpa penjelasan" saat wrapper di atas di-display:none-kan.
+  const drawerLiburNote = document.createElement('div');
+  drawerLiburNote.id = 'drawerKehadiranLiburNote';
+  drawerLiburNote.className = 'drawer-section-title';
+  drawerLiburNote.style.cssText = 'display:none;opacity:.7;font-weight:600;';
+  drawerLiburNote.textContent = '👥 Daftar Kehadiran Siswa — disembunyikan selama hari libur (tidak ada kewajiban masuk sekolah).';
+  drawerBody.appendChild(drawerLiburNote);
 
   // Ringkasan angka (.stats-row) -> pindah ke scanner-stage, di bagian
   // paling bawah (setelah tombol "Input Kehadiran Tanpa Kartu").
@@ -6381,7 +6412,14 @@ async function init() {
   // paling berat dan baru jalan setelah pingServer() selesai.
   tandaiSplashAktif('kehadiran');
   await checkStatus();
-  if (isOnline) await refreshLogDanChart();
+  // PERBAIKAN BUG (BARU): jangan panggil refreshLogDanChart() (yang
+  // menembak getLogHariIni()) kalau checkStatus() di atas sudah bilang
+  // hari ini libur -- tabelnya sudah disembunyikan lewat
+  // toggleDrawerKehadiranLibur(true), jadi tidak perlu boros query untuk
+  // data yang tidak akan ditampilkan (dan yang isinya salah kaprah:
+  // semua siswa akan tampak "alpa" padahal memang tidak ada kewajiban
+  // masuk di hari libur).
+  if (isOnline && bisaAbsenHariIni) await refreshLogDanChart();
   tandaiSplashSelesai('kehadiran');
 
   // Update badge & tawarkan sync untuk data offline sisa dari sesi
@@ -6407,11 +6445,29 @@ async function init() {
   // definisinya). refreshLogDanChart() TETAP dipakai apa adanya di
   // tempat lain (tombol refresh manual & init() awal) karena di situ
   // memang selalu mau data terbaru, bukan dibandingkan versi dulu.
-  setInterval(() => { if (isOnline) pollLogVersiDanRefreshJikaBerubah(); }, REFRESH_LOG_MS);
+  // PERBAIKAN BUG (BARU): ikut cek bisaAbsenHariIni -- lihat catatan di
+  // pemanggilan refreshLogDanChart() awal di atas. Begitu hari sekolah
+  // aktif lagi, bisaAbsenHariIni otomatis balik true (diperbarui tiap
+  // siklus checkStatus() di interval bawahnya) dan polling ini otomatis
+  // jalan lagi tanpa perlu reload manual.
+  setInterval(() => { if (isOnline && bisaAbsenHariIni) pollLogVersiDanRefreshJikaBerubah(); }, REFRESH_LOG_MS);
   setInterval(() => { if (isOnline) checkStatus(); }, REFRESH_STATUS_MS);
 }
 
 // ── CEK STATUS ───────────────────────────────────────────────────
+// PERBAIKAN BUG (BARU): show/hide satu wrapper untuk seluruh bagian
+// "Daftar Kehadiran Siswa" di drawer (chart + filter kelas + tab
+// hadir/izin/alpa + tabelnya), dipasangkan dengan pesan pengganti saat
+// disembunyikan. Dipanggil dari checkStatus() setiap kali status
+// bisaAbsen berubah -- lihat catatan lengkap di initDrawerLayout()
+// (deklarasi #drawerKehadiranWrap) untuk kenapa perbaikan ini perlu.
+function toggleDrawerKehadiranLibur(sembunyikan) {
+  const wrap = document.getElementById('drawerKehadiranWrap');
+  const note = document.getElementById('drawerKehadiranLiburNote');
+  if (wrap) wrap.style.display = sembunyikan ? 'none' : '';
+  if (note) note.style.display = sembunyikan ? '' : 'none';
+}
+
 async function checkStatus() {
   // Jika offline, tampilkan mainContent langsung tanpa cek server
   if (!isOnline) {
@@ -6478,6 +6534,13 @@ async function checkStatus() {
       if (!liburKameraManualAktif) stopScanner();
       liburBanner.style.display = 'block';
       mainContent.style.display = 'none';
+      // PERBAIKAN BUG (BARU): sembunyikan juga "Daftar Kehadiran Siswa"
+      // di drawer -- lihat catatan lengkap di deklarasi #drawerKehadiranWrap
+      // pada initDrawerLayout(). Tanpa ini, tabel hadir/izin/alpa tetap
+      // tampil & di-refresh terus walau hari ini libur, padahal semua
+      // siswa otomatis jatuh ke "belum hadir"/alpa karena memang tidak
+      // ada yang scan di hari libur -- bukan karena mereka benar alpa.
+      toggleDrawerKehadiranLibur(true);
       document.getElementById('liburTitle').textContent = r.keterangan || 'Hari Libur';
       // BARU (PERBAIKAN EGRESS): resolve gambarUrl dari cache/endpoint
       // terpisah -- lihat catatan lengkap di resolveGambarLibur() di atas.
@@ -6504,6 +6567,12 @@ async function checkStatus() {
 
     liburBanner.style.display = 'none';
     mainContent.style.display = 'grid';
+    // PERBAIKAN BUG (BARU): pasangan dari toggleDrawerKehadiranLibur(true)
+    // di jalur libur di atas -- munculkan lagi tabel kehadiran begitu
+    // hari ini ternyata bisa absen (mis. baru lewat tengah malam dari
+    // libur ke hari sekolah, atau admin baru menghapus data libur hari
+    // ini), tanpa perlu reload manual.
+    toggleDrawerKehadiranLibur(false);
 
     // Update teks jam datang/pulang di header
     updateJamInfoBar(r);

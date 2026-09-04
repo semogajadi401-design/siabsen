@@ -203,10 +203,22 @@ async function getStatus() {
     // lewat action terpisah getGambarLibur HANYA saat grupId berubah
     // dari yang terakhir dipegang klien -- lihat cekGambarLiburBerubah()
     // di scan.html.
-    return { success: true, bisaAbsen: false, alasan: 'libur', tanggal: today, keterangan: cekLibur.keterangan, pesan: cekLibur.pesan, adaGambar: cekLibur.adaGambar, gambarGrupId: cekLibur.grupId, rentangMulai: cekLibur.rentangMulai, rentangSelesai: cekLibur.rentangSelesai };
+    // PERBAIKAN BUG (BARU): kioskToken WAJIB tetap disertakan di sini juga.
+    // Sebelumnya token ini HANYA dikirim di jalur sukses paling bawah
+    // (bisaAbsen: true), padahal scan.html tetap mengizinkan kamera
+    // dinyalakan manual saat libur (tombol "Aktifkan Kamera" di banner
+    // libur, lihat toggleKameraLibur()) untuk keperluan scan kartu guru/
+    // admin. Tanpa kioskToken di sini, _kioskToken di klien tetap null
+    // sepanjang hari libur, sehingga scanKartu berikutnya SELALU ditolak
+    // 401 "Sesi kiosk tidak valid atau kedaluwarsa" walau kartu & alur
+    // scan-nya sendiri valid -- bukan karena token sungguhan kedaluwarsa.
+    return { success: true, bisaAbsen: false, alasan: 'libur', tanggal: today, keterangan: cekLibur.keterangan, pesan: cekLibur.pesan, adaGambar: cekLibur.adaGambar, gambarGrupId: cekLibur.grupId, rentangMulai: cekLibur.rentangMulai, rentangSelesai: cekLibur.rentangSelesai, kioskToken: generateKioskToken() };
 
   if (!hariAktif)
-    return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} - Sekolah libur, sistem pun diliburkan supaya bisa beristirahat sejenak 😄` };
+    // Sama seperti di atas -- alasan 'hari_libur' ini juga bisa muncul
+    // sementara kamera tetap dinyalakan manual buat scan kartu, jadi
+    // kioskToken tetap perlu ikut dikirim di jalur ini.
+    return { success: true, bisaAbsen: false, alasan: 'hari_libur', keterangan: `${hari} - Sekolah libur, sistem pun diliburkan supaya bisa beristirahat sejenak 😄`, kioskToken: generateKioskToken() };
 
   if (!semester)
     return { success: true, bisaAbsen: false, alasan: 'no_semester', keterangan: 'Tidak ada semester aktif' };

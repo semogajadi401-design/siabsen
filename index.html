@@ -1145,6 +1145,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <select class="form-control" style="width:120px;padding:8px 12px;font-size:.82rem" id="filterKelas" onchange="loadSiswa()"><option value="">Semua Kelas</option></select>
               <button class="btn btn-warning btn-sm" onclick="openModalNaikKelas()">🎓 Naik Kelas</button>
+              <button class="btn btn-success btn-sm" id="btnExportSiswaExcel" onclick="exportSiswaExcel()">📊 Export Excel</button>
+              <button class="btn btn-danger btn-sm" id="btnExportSiswaPDF" onclick="exportSiswaPDF()">📄 Export PDF</button>
               <button class="btn btn-accent btn-sm" onclick="openModalImport()">📥 Import</button>
               <button class="btn btn-primary btn-sm" onclick="openModalSiswa()">+ Tambah</button>
             </div>
@@ -4193,6 +4195,151 @@ function editSiswa(s){ document.getElementById('siswaId').value=s.id; document.g
 async function submitSiswa(){ const id=document.getElementById('siswaId').value; const data={nisn:document.getElementById('siswaNISN').value.trim(),nama:document.getElementById('siswaNama').value.trim(),jenisKelamin:document.getElementById('siswaJK').value,agama:document.getElementById('siswaAgama').value,tempatLahir:document.getElementById('siswaTempatLahir').value,tanggalLahir:document.getElementById('siswaTanggalLahir').value,kelas:document.getElementById('siswaKelas').value,tahunMasuk:document.getElementById('siswaTahunMasuk').value,namaOrtu:document.getElementById('siswaOrtu').value,noHpOrtu:document.getElementById('siswaHPOrtu').value,alamat:document.getElementById('siswaAlamat').value}; if(!data.nama||!data.nisn){toast('Nama dan NISN wajib diisi','error');return;} try{const r=id?await api('siswa','edit',{id,data}):await api('siswa','tambah',{data}); toast(r.message,r.success?'success':'error'); if(r.success){closeModal('modalSiswa');loadSiswa();}}catch(e){toast('Terjadi kesalahan','error');} }
 async function hapusSiswa(id,nama){ if(!confirm(`Nonaktifkan siswa "${nama}"?`))return; const r=await api('siswa','hapus',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
 async function resetRiwayatToken(id,nama){ if(!confirm(`Reset QR riwayat kehadiran untuk "${nama}"?\n\nQR riwayat di kartu LAMA tidak akan bisa dipakai lagi. Cetak ulang kartunya setelah ini.`))return; const r=await api('siswa','resetRiwayatToken',{id}); toast(r.message,r.success?'success':'error'); if(r.success)loadSiswa(); }
+
+// ── EXPORT DATA SISWA (Excel & PDF) ──────────────────────────────
+// Mengekspor data siswa sesuai filter kelas yang sedang dipilih di menu
+// Data Siswa (kosong = semua kelas). Data diambil ulang dari server supaya
+// selalu terbaru & lengkap (tidak tergantung isi tabel di layar).
+async function ambilDataSiswaExport() {
+  const kelas = document.getElementById('filterKelas')?.value || '';
+  const r = await api('siswa', 'getAll', { activeOnly: true, kelas });
+  if (!r || !r.success) { toast((r && r.message) || 'Gagal mengambil data siswa', 'error'); return null; }
+  if (!r.data || r.data.length === 0) { toast('Tidak ada data siswa untuk diexport', 'warning'); return null; }
+  return { kelas, data: r.data };
+}
+function fmtTglExportSiswa(tgl) {
+  if (!tgl) return '';
+  const m = String(tgl).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(tgl);
+}
+async function exportSiswaExcel() {
+  if (typeof XLSX === 'undefined') { toast('Sedang memuat library, coba lagi dalam 2 detik...', 'warning'); return; }
+  const btn = document.getElementById('btnExportSiswaExcel');
+  if (btn) btn.disabled = true;
+  try {
+    const hasil = await ambilDataSiswaExport();
+    if (!hasil) return;
+    const rows = [['No','NISN','Nama','Kelas','Jenis Kelamin','Tempat Lahir','Tanggal Lahir','Agama','Tahun Masuk','Nama Orang Tua','No HP Orang Tua','Alamat','Status']];
+    hasil.data.forEach((s, i) => rows.push([
+      i + 1, String(s.nisn || ''), s.nama || '', s.kelas || '', s.jenisKelamin || '',
+      s.tempatLahir || '', fmtTglExportSiswa(s.tanggalLahir), s.agama || '',
+      s.tahunMasuk ? String(s.tahunMasuk) : '', s.namaOrtu || '',
+      s.noHpOrtu ? String(s.noHpOrtu) : '', s.alamat || '', s.status || ''
+    ]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:14},{wch:30},{wch:9},{wch:14},{wch:18},{wch:14},{wch:12},{wch:12},{wch:26},{wch:16},{wch:40},{wch:10}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Data Siswa');
+    const tgl = new Date().toISOString().substring(0, 10);
+    const label = hasil.kelas ? `_Kelas_${hasil.kelas}` : '_Semua_Kelas';
+    XLSX.writeFile(wb, `Data_Siswa${label}_${tgl}.xlsx`.replace(/\s+/g, '_'));
+    toast(`Excel berhasil didownload (${hasil.data.length} siswa)`, 'success');
+  } catch (e) {
+    toast('Gagal export Excel: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+async function exportSiswaPDF() {
+  if (!window.jspdf) { toast('Library PDF belum siap, coba lagi sebentar', 'warning'); return; }
+  const btn = document.getElementById('btnExportSiswaPDF');
+  if (btn) btn.disabled = true;
+  try {
+    const hasil = await ambilDataSiswaExport();
+    if (!hasil) return;
+    toast('Menyiapkan PDF...', 'info', 3000);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const marginX = 14, pageW = 297, pageBottom = 195;
+
+    // Kop surat dari Profil Sekolah (pola sama dengan exportEvaluasiPDF)
+    let sekolah = {};
+    try { const set = await api('settings', 'getJamSetting'); sekolah = set?.data || {}; } catch (e) {}
+    const namaSekolah = (sekolah['NAMA_SEKOLAH'] || 'Nama Sekolah').toUpperCase();
+    const alamatSekolah = sekolah['ALAMAT_SEKOLAH'] || '';
+    const kontakParts = [sekolah['TELP_SEKOLAH'], sekolah['EMAIL_SEKOLAH']].filter(Boolean).join('  •  ');
+    const tanggalCetak = new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const potong = (text, maxW) => {
+      let t = String(text == null ? '' : text);
+      if (pdf.getTextWidth(t) <= maxW) return t;
+      while (t.length > 1 && pdf.getTextWidth(t + '…') > maxW) t = t.slice(0, -1);
+      return t + '…';
+    };
+    const drawKopSurat = () => {
+      pdf.setFontSize(13); pdf.setTextColor(21,101,192); pdf.setFont(undefined, 'bold');
+      pdf.text(namaSekolah, marginX, 14);
+      pdf.setFont(undefined, 'normal'); pdf.setFontSize(8); pdf.setTextColor(110,110,110);
+      if (alamatSekolah) pdf.text(alamatSekolah, marginX, 19);
+      if (kontakParts) pdf.text(kontakParts, marginX, 23.5);
+      pdf.setDrawColor(21,101,192); pdf.setLineWidth(0.6);
+      pdf.line(marginX, 26, pageW - marginX, 26);
+    };
+    const drawFooterBase = () => {
+      pdf.setFontSize(7.5); pdf.setTextColor(140,140,140);
+      pdf.text(`Dicetak otomatis oleh SIABSEN pada ${tanggalCetak}`, marginX, 204);
+    };
+
+    drawKopSurat();
+    pdf.setFontSize(13); pdf.setTextColor(20,20,20); pdf.setFont(undefined, 'bold');
+    pdf.text('DATA SISWA', marginX, 33);
+    pdf.setFont(undefined, 'normal'); pdf.setFontSize(9); pdf.setTextColor(90,90,90);
+    pdf.text(`Kelas: ${hasil.kelas || 'Semua Kelas'}   |   Total: ${hasil.data.length} siswa`, marginX, 38.5);
+
+    const headers = ['No','NISN','Nama','Kelas','JK','Tempat, Tgl Lahir','Agama','Orang Tua','No HP Ortu','Alamat'];
+    const colW = [8, 24, 50, 15, 8, 40, 18, 38, 26, 42];
+    const totalW = colW.reduce((a, b) => a + b, 0);
+    let y = 47;
+    const drawTableHeader = () => {
+      pdf.setFontSize(8.5); pdf.setFont(undefined, 'bold');
+      headers.forEach((h, i) => {
+        const x = colW.slice(0, i).reduce((a, b) => a + b, marginX);
+        pdf.setFillColor(21,101,192); pdf.setTextColor(255,255,255);
+        pdf.rect(x, y - 4, colW[i], 7, 'F');
+        pdf.text(h, x + 1, y);
+      });
+      pdf.setFont(undefined, 'normal');
+      y += 7; pdf.setTextColor(0,0,0);
+    };
+    drawTableHeader();
+
+    hasil.data.forEach((s, idx) => {
+      const ttl = [s.tempatLahir, fmtTglExportSiswa(s.tanggalLahir)].filter(Boolean).join(', ');
+      const vals = [
+        String(idx + 1), s.nisn || '', s.nama || '', s.kelas || '',
+        s.jenisKelamin === 'Laki-laki' ? 'L' : (s.jenisKelamin === 'Perempuan' ? 'P' : '-'),
+        ttl, s.agama || '', s.namaOrtu || '', s.noHpOrtu || '', s.alamat || ''
+      ];
+      if (idx % 2 === 0) { pdf.setFillColor(240,244,248); pdf.rect(marginX, y - 4, totalW, 7, 'F'); }
+      pdf.setFontSize(8); pdf.setTextColor(0,0,0);
+      vals.forEach((v, i) => {
+        const x = colW.slice(0, i).reduce((a, b) => a + b, marginX);
+        pdf.text(potong(v, colW[i] - 2), x + 1, y);
+      });
+      y += 7;
+      if (y > pageBottom && idx < hasil.data.length - 1) {
+        drawFooterBase(); pdf.addPage(); drawKopSurat(); y = 36; drawTableHeader();
+      }
+    });
+    drawFooterBase();
+
+    // Nomor halaman di setiap halaman
+    const totalHal = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalHal; i++) {
+      pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(140,140,140);
+      pdf.text(`Halaman ${i} / ${totalHal}`, pageW - marginX, 204, { align: 'right' });
+    }
+
+    const tgl = new Date().toISOString().substring(0, 10);
+    const label = hasil.kelas ? `_Kelas_${hasil.kelas}` : '_Semua_Kelas';
+    pdf.save(`Data_Siswa${label}_${tgl}.pdf`.replace(/\s+/g, '_'));
+    toast(`PDF berhasil didownload (${hasil.data.length} siswa)`, 'success');
+  } catch (e) {
+    toast('Gagal export PDF: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
   // ── KARTU GURU ───────────────────────────────────────────────────
 // Membangun markup kartu guru (dipakai baik untuk download per-individu

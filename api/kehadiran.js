@@ -5,7 +5,9 @@ const {
   resolveGuruIdFromToken, hitungJumlahHariSekolah,
   hitungTanggalEvaluasiEfektif,
   // ── TAMBAHAN BARU (perbaikan bug: query terpotong diam-diam di 1000 baris) ──
-  fetchAllRows
+  fetchAllRows,
+  // ── TAMBAHAN BARU (fitur Input Kehadiran Manual / koreksi Alpha → Hadir) ──
+  getJamSetting, jamSekarang, tambahMenit, getSemesterAktif
 } = require('./_db');
 
 // CATATAN: action 'getHariKerja' dan 'updateHariKerja' yang dulu ada di file
@@ -29,7 +31,7 @@ const {
 // api/settings.js: hanya action yang MENGUBAH/MENGHAPUS data
 // (inputKeterangan, hapusKeterangan) yang dikunci; action baca (laporan)
 // tetap terbuka.
-const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan', 'updateKeteranganTerlambat', 'tandaiPulangCepat', 'batalkanPulangCepat']);
+const AKSI_TERKUNCI = new Set(['inputKeterangan', 'hapusKeterangan', 'updateKeteranganTerlambat', 'tandaiPulangCepat', 'batalkanPulangCepat', 'inputKehadiranManual']);
 
 // STATUS_PULANG_CEPAT (BARU) -- daftar status yang boleh dipakai untuk
 // menandai siswa yang SUDAH HADIR lalu dipulangkan lebih awal (sakit/
@@ -91,6 +93,7 @@ module.exports = async (req, res) => {
     if (action === 'getStatusHariIni')     return res.json(await getStatusHariIni());
     if (action === 'getSiswaKehadiran')    return res.json(await getSiswaKehadiran(params));
     if (action === 'inputKeterangan')      return res.json(await inputKeterangan(params, adminValid));
+    if (action === 'inputKehadiranManual') return res.json(await inputKehadiranManual(params, adminValid, guruIdTerverifikasi));
     if (action === 'hapusKeterangan')      return res.json(await hapusKeterangan(params));
     if (action === 'updateKeteranganTerlambat') return res.json(await updateKeteranganTerlambat(params, adminValid));
     // (BARU) Tandai siswa yang SUDAH HADIR sebagai pulang cepat (sakit/
@@ -416,6 +419,116 @@ async function inputKeterangan({ idSiswa, status, keterangan, diinputOleh, tangg
   return {
     success: true,
     message: existing ? 'Keterangan berhasil diperbarui' : 'Keterangan berhasil disimpan'
+  };
+}
+
+// ── INPUT KEHADIRAN MANUAL (BARU) ────────────────────────────────
+// Kasus: siswa yang sebenarnya HADIR (mis. terlambat) tapi tidak sempat/
+// tidak bisa absen (kartu hilang, antrean scan, lupa) dan di hari itu
+// tampil sebagai Alpha di menu Kehadiran. Sebelumnya menu ini hanya bisa
+// mengisi keterangan ketidakhadiran (Sakit/Izin/dst), tidak ada cara
+// mencatat bahwa siswa itu sebenarnya hadir.
+//
+// Aturan status SAMA PERSIS dengan scan kartu (api/scan.js) & input
+// manual (api/absensi.js): jam datang > JAM_DATANG_SELESAI + TOLERANSI_MENIT
+// → 'Terlambat', selain itu 'Hadir'. Yang menentukan statusnya adalah
+// JAM YANG DIINPUT, bukan jam saat tombol ditekan -- supaya koreksi
+// hari lampau tetap benar.
+//
+// Disimpan sebagai baris `absensi` biasa (bukan tabel baru), jadi SEMUA
+// laporan yang membaca `absensi` (dashboard, rekap harian/bulanan,
+// evaluasi semester, riwayat siswa, monitor, Hadir-Sekolah-Alpa-Kelas)
+// otomatis ikut sinkron tanpa perlu diubah. Keterangan Sakit/Izin lama
+// untuk siswa+tanggal yang sama DIHAPUS (pola sama dengan scanKartu) agar
+// tidak terhitung ganda sebagai hadir sekaligus sakit/izin.
+// Otorisasi sama dengan inputKeterangan: admin bebas tanggal (tidak boleh
+// masa depan), guru piket hanya hari ini.
+async function inputKehadiranManual({ idSiswa, tanggal, jamDatang, keterangan, diinputOleh }, isAdmin, idGuruTerverifikasi) {
+  if (!idSiswa) return { success: false, message: 'ID siswa wajib diisi' };
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(jamDatang || '')))
+    return { success: false, message: 'Jam datang wajib diisi dengan format JJ:MM' };
+
+  const today = todayStr();
+  const tglTarget = tanggal || today;
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tglTarget))
+    return { success: false, message: 'Format tanggal tidak valid' };
+  if (tglTarget !== today && !isAdmin)
+    return { success: false, message: 'Hanya admin yang bisa mencatat kehadiran untuk tanggal selain hari ini' };
+  if (tglTarget > today)
+    return { success: false, message: 'Tidak bisa mencatat kehadiran untuk tanggal yang belum terjadi' };
+  if (tglTarget === today && jamDatang > jamSekarang())
+    return { success: false, message: `Jam datang (${jamDatang}) belum terjadi -- sekarang baru pukul ${jamSekarang()}` };
+
+  const { data: siswa } = await supabase
+    .from('siswa').select('id,nisn,nama,kelas,status').eq('id', idSiswa).maybeSingle();
+  if (!siswa) return { success: false, message: 'Siswa tidak ditemukan' };
+  if (siswa.status !== 'Aktif') return { success: false, message: 'Siswa sudah tidak aktif' };
+
+  // Pastikan tanggal target memang hari sekolah (libur / hari non-aktif /
+  // di luar semester ditolak, supaya laporan tidak kemasukan hari libur).
+  const cekLibur = await isHariLibur(tglTarget);
+  if (cekLibur.libur)
+    return { success: false, message: `${tglTarget} adalah hari libur: ${cekLibur.keterangan}` };
+  const namaHari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(tglTarget + 'T00:00:00Z').getUTCDay()];
+  if (!(await isHariKerja(namaHari)))
+    return { success: false, message: `${namaHari} bukan hari sekolah` };
+  const semester = await getSemesterAktif();
+  if (semester) {
+    const mulai = String(semester.tanggal_mulai).substring(0, 10);
+    const selesai = String(semester.tanggal_selesai).substring(0, 10);
+    if (tglTarget < mulai || tglTarget > selesai)
+      return { success: false, message: `Tanggal di luar periode semester aktif (${semester.nama})` };
+  }
+
+  const { data: existing } = await supabase
+    .from('absensi').select('id,jam_datang,status_datang')
+    .eq('id_siswa', idSiswa).eq('tanggal', tglTarget).maybeSingle();
+  if (existing?.jam_datang)
+    return { success: false, message: `${siswa.nama} sudah tercatat ${existing.status_datang} pukul ${existing.jam_datang} pada tanggal ini` };
+
+  const jamSetting = await getJamSetting();
+  const toleransi = Number(jamSetting['TOLERANSI_MENIT'] || 0);
+  const jamBatasDatang = tambahMenit(jamSetting['JAM_DATANG_SELESAI'] || '08:00', toleransi);
+  const statusDatang = jamDatang > jamBatasDatang ? 'Terlambat' : 'Hadir';
+
+  // Hapus keterangan Sakit/Izin/Alpha-berketerangan lama (kalau ada) --
+  // siswa ini terbukti hadir, jadi tidak boleh terhitung ganda.
+  await supabase.from('keterangan_absensi').delete()
+    .eq('id_siswa', idSiswa).eq('tanggal', tglTarget);
+
+  const catatan = (keterangan || '').trim();
+  const metode = isAdmin ? 'Manual (Koreksi Admin)' : 'Manual (Guru Piket)';
+  const dataAbsen = {
+    jam_datang: jamDatang, status_datang: statusDatang,
+    hari: namaHari,
+    id_guru_piket: idGuruTerverifikasi || '',
+    nama_guru_piket: diinputOleh || '',
+    keterangan: catatan,
+    metode
+  };
+
+  let error;
+  if (existing) {
+    ({ error } = await supabase.from('absensi').update(dataAbsen).eq('id', existing.id));
+  } else {
+    ({ error } = await supabase.from('absensi').insert({
+      id: generateID('AB'), id_siswa: siswa.id, nisn: siswa.nisn,
+      nama_siswa: siswa.nama, kelas: siswa.kelas, tanggal: tglTarget,
+      ...dataAbsen
+    }));
+  }
+  if (error) {
+    if (error.code === '23505')
+      return { success: false, message: `${siswa.nama} baru saja tercatat hadir oleh perangkat lain -- muat ulang halaman` };
+    return { success: false, message: error.message };
+  }
+
+  return {
+    success: true,
+    statusDatang,
+    message: `${siswa.nama} dicatat ${statusDatang} pukul ${jamDatang}` +
+      (statusDatang === 'Terlambat' ? ` (batas ${jamBatasDatang})` : '')
   };
 }
 
